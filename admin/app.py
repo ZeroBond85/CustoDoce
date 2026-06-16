@@ -1071,6 +1071,36 @@ def tab_config():
                     st.success(msg)
                 else:
                     st.error(msg)
+
+        st.markdown("---")
+        st.markdown("### Configuracao do Telegram")
+        col_t1, col_t2 = st.columns(2)
+        with col_t1:
+            env_tg_token = st.text_input(
+                "TELEGRAM_TOKEN",
+                value=os.environ.get("TELEGRAM_TOKEN", ""),
+                type="password",
+                key="env_tg_token",
+                help="Token do bot (ex: 123456:ABC-DEF1234...) - obtenha com @BotFather",
+            )
+            os.environ["TELEGRAM_TOKEN"] = env_tg_token
+        with col_t2:
+            env_tg_chat = st.text_input(
+                "TELEGRAM_CHAT_ID",
+                value=os.environ.get("TELEGRAM_CHAT_ID", ""),
+                key="env_tg_chat",
+                help="Seu ID numerico do Telegram - obtenha com @userinfobot",
+            )
+            os.environ["TELEGRAM_CHAT_ID"] = env_tg_chat
+        if env_tg_token and env_tg_chat:
+            if st.button("Testar Envio Telegram", key="test_tg_cfg", use_container_width=True):
+                ok, msg = _test_telegram(env_tg_token, env_tg_chat)
+                if ok:
+                    st.success(msg)
+                else:
+                    st.error(msg)
+
+        st.markdown("---")
         st.markdown(
             '<p style="font-size:0.85rem;opacity:0.7;margin-bottom:1rem;">'
             "Edite as variaveis de ambiente. As alteracoes sao salvas no arquivo .env "
