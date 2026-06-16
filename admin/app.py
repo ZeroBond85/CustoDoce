@@ -1037,6 +1037,40 @@ def tab_config():
     )
 
     with tab_env:
+        st.markdown("### Configuracao de Email para Relatorios")
+        col_m1, col_m2, col_m3 = st.columns(3)
+        with col_m1:
+            env_gmail = st.text_input(
+                "GMAIL_USER (seu email)",
+                value=os.environ.get("GMAIL_USER", ""),
+                key="env_gmail_user",
+                help="Seu endereco Gmail que enviara os relatorios",
+            )
+            os.environ["GMAIL_USER"] = env_gmail
+        with col_m2:
+            env_pass = st.text_input(
+                "GMAIL_APP_PASSWORD (senha de app)",
+                value=os.environ.get("GMAIL_APP_PASSWORD", ""),
+                type="password",
+                key="env_gmail_pass",
+                help="Senha de 16 caracteres gerada em myaccount.google.com/security",
+            )
+            os.environ["GMAIL_APP_PASSWORD"] = env_pass
+        with col_m3:
+            env_to = st.text_input(
+                "ALERT_EMAIL_TO (email destino)",
+                value=os.environ.get("ALERT_EMAIL_TO", ""),
+                key="env_gmail_to",
+                help="Para qual email os relatorios serao enviados",
+            )
+            os.environ["ALERT_EMAIL_TO"] = env_to
+        if env_gmail and env_pass and env_to:
+            if st.button("Testar Envio de Email", key="test_email_cfg", use_container_width=True):
+                ok, msg = _test_smtp(env_gmail, env_pass, env_to)
+                if ok:
+                    st.success(msg)
+                else:
+                    st.error(msg)
         st.markdown(
             '<p style="font-size:0.85rem;opacity:0.7;margin-bottom:1rem;">'
             "Edite as variaveis de ambiente. As alteracoes sao salvas no arquivo .env "
