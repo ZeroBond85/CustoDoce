@@ -10,6 +10,17 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+# Carrega .env se existir (para ambiente local)
+_dotenv = os.path.join(os.path.dirname(__file__), "..", ".env")
+if os.path.exists(_dotenv):
+    with open(_dotenv) as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and "=" in _line and not _line.startswith("#"):
+                _k, _v = _line.split("=", 1)
+                _v = _v.strip("\"'")
+                os.environ.setdefault(_k.strip(), _v)
+
 PASS = 0
 FAIL = 0
 
@@ -20,11 +31,11 @@ def _check(label: str, fn):
     try:
         fn()
         elapsed = time.time() - start
-        print(f"  ✅ {label} ({elapsed:.2f}s)")
+        print(f"  [OK] {label} ({elapsed:.2f}s)")
         PASS += 1
     except Exception as e:
         elapsed = time.time() - start
-        print(f"  ❌ {label} — {e} ({elapsed:.2f}s)")
+        print(f"  [FAIL] {label} — {e} ({elapsed:.2f}s)")
         FAIL += 1
 
 
@@ -38,7 +49,7 @@ def test_supabase():
 def test_yaml_configs():
     import yaml
     for path in ["config/ingredients.yaml", "config/stores.yaml", "config/features.yaml"]:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             yaml.safe_load(f)
 
 
@@ -106,17 +117,21 @@ if __name__ == "__main__":
     env_checks = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY",
                    "AUTH_SECRET_KEY", "GMAIL_USER", "GMAIL_APP_PASSWORD",
                    "ALERT_EMAIL_TO"]
+    def _check_env(v):
+        val = os.environ.get(v)
+        if not val:
+            raise ValueError(f"{v} nao configurado")
+        return val
+
     for var in env_checks:
-        _check(f"ENV: {var}", lambda v=var: (
-            os.environ.get(v) or exec('raise ValueError(f"{v} nao configurado")')
-        ))
+        _check(f"ENV: {var}", lambda v=var: _check_env(v))
     _check("Telegram envio", test_telegram)
     _check("Gmail SMTP envio", test_smtp)
 
     print(f"\n{'=' * 55}")
     print(f"  Resultado: {PASS} passed, {FAIL} failed")
     if FAIL:
-        print("  ⚠️  Corrigir antes do deploy.")
+        print("  [!] Corrigir antes do deploy.")
         sys.exit(1)
     else:
-        print("  ✅ Pronto para deploy!")
+        print("  [OK] Pronto para deploy!")
