@@ -1,0 +1,30 @@
+# CustoDoce — Configuração Declarativa
+# Edite este arquivo para ligar/desligar funcionalidades.
+# NÃO é necessário editar código Python.
+
+features:
+  telegram:
+    enabled: true
+    notify_on_price_drop_pct: 15
+
+  email:
+    enabled: true
+    daily_report: true
+    alert_on_critical: true
+
+  scrapers:
+    vtex: true
+    pdf_flyers: true
+    aggregators: true
+    ocr_fallback: true
+
+  matcher:
+    threshold: 80
+    review_queue: true
+
+  alerts:
+    price_variation_pct: 15
+    coverage_min_pct: 50
+
+  export:
+    csv_enabled: true

@@ -1,0 +1,105 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CustoDoce Price Entry Schema",
+  "type": "object",
+  "required": ["ingredient_id", "store_id", "raw_product", "raw_price", "raw_unit", "collected_at", "source"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier"
+    },
+    "ingredient_id": {
+      "type": "string",
+      "description": "Reference to canonical ingredient key in ingredients.yaml"
+    },
+    "store_id": {
+      "type": "string",
+      "description": "Store identifier matching stores.yaml"
+    },
+    "source": {
+      "type": "string",
+      "enum": ["pdf_flyer", "vtex_api", "website_catalog", "aggregator", "manual_visit", "manual_input"],
+      "description": "How this price was collected"
+    },
+    "raw_product": {
+      "type": "string",
+      "minLength": 3,
+      "description": "Product name as found in the source"
+    },
+    "raw_price": {
+      "type": "number",
+      "minimum": 0.01,
+      "description": "Price in BRL as found"
+    },
+    "raw_unit": {
+      "type": "string",
+      "description": "Unit string as found (e.g. 'cx 12x395g', '2kg', 'un')"
+    },
+    "collected_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of collection"
+    },
+    "valid_until": {
+      "type": "string",
+      "format": "date",
+      "description": "Flyer/coupon validity end date (if known)"
+    },
+    "tier": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4,
+      "description": "Source reliability tier"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Matcher confidence score (0.0-1.0)"
+    },
+    "normalized": {
+      "type": "object",
+      "properties": {
+        "qty": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of units per package"
+        },
+        "unit_kg": {
+          "type": "number",
+          "minimum": 0.001,
+          "description": "Weight per unit in kg"
+        },
+        "total_kg": {
+          "type": "number",
+          "minimum": 0.001,
+          "description": "Total weight = qty * unit_kg"
+        },
+        "price_per_kg": {
+          "type": "number",
+          "minimum": 0.01,
+          "description": "Normalized price per kg"
+        },
+        "price_per_un": {
+          "type": "number",
+          "minimum": 0.01,
+          "description": "Normalized price per unit"
+        }
+      },
+      "required": ["qty", "unit_kg", "total_kg", "price_per_kg", "price_per_un"]
+    },
+    "store_name": {
+      "type": "string",
+      "description": "Human-readable store name"
+    },
+    "city": {
+      "type": "string",
+      "description": "City where the store is located"
+    },
+    "logistics": {
+      "type": "string",
+      "description": "pickup_local, pickup_sp, delivery, online"
+    }
+  }
+}

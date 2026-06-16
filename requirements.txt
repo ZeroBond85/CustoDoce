@@ -1,0 +1,17 @@
+requests
+pdfplumber
+rapidfuzz
+python-telegram-bot
+pyyaml
+jsonschema
+openpyxl
+pandas
+python-dotenv
+supabase
+streamlit
+plotly
+httpx
+selectolax
+pytesseract
+pdf2image
+playwright

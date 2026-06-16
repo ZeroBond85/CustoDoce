@@ -1,0 +1,107 @@
+================================================================================
+📌 PROJETO CUSTODOCE - ESPECIFICAÇÃO DE ESCOPO E ARQUITETURA
+================================================================================
+
+Este documento descreve um projeto de Software (MVP) focado no monitoramento e
+análise automática de preços de insumos e ingredientes para confeitaria, com foco
+inicial em uma doceria de brigadeiros gourmet na região da Baixada Santista/SP.
+
+O objetivo do "CustoDoce" é automatizar a pesquisa de preços e enviar alertas de
+ofertas via Telegram utilizando uma infraestrutura 100% gratuita.
+
+---
+
+### 1. 🎯 PROPÓSITO E DIFERENCIAL
+
+- **Problema:** Confeiteiras perdem horas pesquisando preços de leite condensado,
+  chocolate, creme de leite e embalagens em sites, folhetos de supermercados e
+  distribuidoras locais. Além disso, a maioria dos apps de precificação existentes
+  exige digitação manual de preços.
+- **Solução:** Um sistema automatizado que varre encartes, agregadores e sites,
+  consolida os preços de insumos de atacados e distribuidoras na Baixada Santista,
+  e notifica o usuário via Telegram quando há quedas expressivas de preços.
+- **Diferencial:** Foco B2B (insumos em atacado/caixas fechadas) e geolocalização
+  exclusiva na Baixada Santista (Santos, São Vicente, Praia Grande, Mongaguá,
+  Itanhaém e Peruíbe).
+
+---
+
+### 2. 📍 ABRANGÊNCIA GEOGRÁFICA E LOJAS-ALVO
+
+#### 2.1. Redes de Atacado (Fácil Automação via Encartes de Ofertas/PDFs):
+- **Assaí Atacadista** (Santos - Ana Costa/Sabóo, São Vicente, Praia Grande)
+- **Atacadão** (Itanhaém, Praia Grande, São Vicente, Santos)
+- **Mercadão Atacadista** (Mongaguá, Itanhaém)
+- **Spani Atacadista** (São Vicente, Praia Grande)
+
+#### 2.2. Lojas Especializadas e Distribuidoras Locais (Fontes para Base Manual ou Scrapers em Redes Sociais):
+- **Santos:** Padeirão e ArtPão, Confeitos & Cia, Casa Rio Doces, SAV Fratelli Distribuidora, Shopping das Embalagens, Litoplast Atual Embalagens.
+- **São Vicente:** Cacau Center, Super Bomboniere, Domingos Doces, Nosso Doce.
+- **Praia Grande:** Merkadoces, Canola Doces, Planeta Doce, Patricia Doces, Bolão Docemania.
+- **Mongaguá:** VOMG Embalagens, Bananinha Mongaguá, Cooper Valle Brasil.
+- **Itanhaém/Peruíbe:** Domingos Doces Itanhaém, Palácio das Embalagens, Litosul.
+
+#### 2.3. Lojas Nacionais de Confeitaria (SP Capital - com e-commerce e frete para a Baixada):
+- Rizzo Confeitaria, Amendolate, Central Flavor, BarraDoce, Lapadoces.
+
+---
+
+### 3. 🍫 INGREDIENTES E INSUMOS MONITORADOS (Mapeamento Base)
+
+O sistema de busca mapeará aliases para combinar produtos raspados com ingredientes canônicos:
+
+- **Lácteos:** Leite condensado (Moça, Piracanjuba, Itambé, Italac - caixas fechadas ou unitários), creme de leite (17% gordura, caixa 200g, lata ou embalagens de 1L), manteiga sem sal (80% lipídeos, 500g ou 1kg).
+- **Chocolates:** Chocolate em pó (cacau 50%, 70%, 100% - Melken, Sicao, Callebaut - 1kg), chocolate nobre em gotas (ao leite, meio amargo, branco - Melken, Sicao, Nestlé - 1kg a 2kg500), cobertura fracionada (para banhar/moldes).
+- **Embalagens e Descartáveis:** Forminhas nº 4 e nº 5, potes plásticos de bolo de pote, caixas de transporte para 4, 6, 12 e 24 doces, sacolas e fitas.
+- **Outros:** Granulado/confeitos (Callebaut, Melken, Harald), açúcar refinado (5kg), glucose de milho.
+
+---
+
+### 4. ⚙️ ARQUITETURA TÉCNICA (100% GRATUITA)
+
+O projeto rodará exclusivamente na nuvem utilizando serviços sem custos:
+
+#### 4.1. Hospedagem & Agendamento: GitHub Actions
+- **Execução:** Workflows agendados via Cron (ex: toda quarta-feira às 06:30 BRT, dia de novos encartes de supermercados).
+- **Limites:** 2.000 minutos grátis por mês (mais que suficiente para scrapers diários/semanais de 5-10 minutos).
+
+#### 4.2. Fontes de Dados e Mecanismo de Scraping:
+1. **Agregadores de Encartes Digitais (Prioridade Máxima):**
+   - **Tiendeo, ShopFully/Guiato, Promotons.**
+   - Scraping das páginas focadas em Santos/Praia Grande para extrair links dos PDFs dos folhetos de ofertas de Assaí, Atacadão, Spani e Mercadão.
+   - Extração do texto de PDFs usando a biblioteca `pdfplumber` ou `PyPDF2` em Python, aplicando expressões regulares (Regex) para achar termos como "Leite Condensado" e "Chocolate".
+2. **E-commerces Especializados (Rizzo, Amendolate):**
+   - Scrapers simples em Python (requests + BeautifulSoup/Playwright) extraindo os preços diários de SKUs específicos.
+3. **Google Shopping API / SerpAPI (Opcional):**
+   - Busca estruturada grátis (até 100 requisições/mês) para capturar preços concorrentes de termos específicos em Santos.
+4. **Inserção Manual/WhatsApp (Camada Híbrida):**
+   - Um arquivo JSON ou planilha no Excel (`data/manual_prices.xlsx`) que o usuário pode subir para o repositório Git com os preços coletados manualmente ou recebidos por PDF de WhatsApp das distribuidoras locais sem site.
+
+#### 4.3. Armazenamento (Banco de Dados no Git):
+- **Base de Dados:** Um arquivo `data/prices_latest.json` persistido no próprio repositório Git.
+- **Versionamento:** A cada execução, o scraper atualiza o JSON e o GitHub Actions faz um `git commit` automático com as atualizações, mantendo um histórico completo sem banco de dados externo.
+
+#### 4.4. Inteligência & Matching (matcher.py):
+- Uso de bibliotecas de distância de string (como `rapidfuzz` ou `Levenshtein`) para realizar match aproximado (fuzzy matching) entre os textos extraídos dos PDFs e a lista de ingredientes canônicos.
+  *Exemplo:* "Leite cond moça tp 395g" -> Match com "Leite Condensado Moça (Unidade)".
+
+#### 4.5. Canal de Alertas: Telegram Bot API
+- Envio de alertas dinâmicos estruturados quando:
+  - Um ingrediente estiver abaixo do seu "preço-alvo" definido em `ingredients.yaml`.
+  - Houver uma queda percentual (ex: >15%) comparado com a média das últimas 3 semanas.
+  - O bot permite responder comandos como `/precos` (tabela de hoje), `/oferta` (itens mais baratos), `/atualizar` (forçar scrape manual).
+
+---
+
+### 5. 📈 IDEIAS DE PRÓXIMOS PASSOS E EXPANSÃO (Para debater com outras IAs)
+
+1. **Calculadora Dinâmica de Ficha Técnica:**
+   - O aplicativo poderia ler a receita do brigadeiro (ex: 1 lata leite condensado, 200g creme de leite, 50g chocolate) e recalcular automaticamente o custo real de produção do doce hoje baseado nas ofertas mais baratas encontradas pelo scraper.
+2. **Filtro Inteligente de Frete vs. Deslocamento:**
+   - Adicionar inteligência que avalie se compensa ir de Praia Grande até Santos comprar um ingrediente de R$ 5 mais barato, baseando-se no custo estimado de combustível ou taxa de frete.
+3. **Agenciamento de Compras Coletivas (B2B):**
+   - Confeiteiras da Baixada Santista poderiam se unir no app para comprar caixas fechadas de insumos em distribuidoras que exigem pedido mínimo alto (ex: R$ 500 no SAV Fratelli ou Casa Rio Doces).
+4. **Bot de Scraping de Redes Sociais:**
+   - Implementar uma IA leve que monitora posts/stories de lojas locais (como a Cacau Center no Instagram) e use OCR/Visão Computacional para ler as fotos de promoções que eles postam nos stories.
+
+================================================================================
