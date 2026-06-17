@@ -85,13 +85,15 @@ jobs:
 
       - name: Run Playwright Aggregators + OCR
         if: steps.check-day.outputs.should_run == 'true'
-        run: python -c "
-from main import collect_aggregators_js, process_ocr_queue
-flyers = collect_aggregators_js()
-print(f'JS Aggregators: {len(flyers)} flyers')
-processed = process_ocr_queue()
-print(f'OCR processed: {processed} flyers')
-"
+        run: |
+          cat > /tmp/run_playwright.py << 'PYEOF'
+          from main import collect_aggregators_js, process_ocr_queue
+          flyers = collect_aggregators_js()
+          print(f'JS Aggregators: {len(flyers)} flyers')
+          processed = process_ocr_queue()
+          print(f'OCR processed: {processed} flyers')
+          PYEOF
+          python /tmp/run_playwright.py
 
       - name: Commit Latest Prices
         run: |
