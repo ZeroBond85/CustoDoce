@@ -3,7 +3,7 @@ __pycache__/
 .env
 .venv/
 venv/
-data/cache/
+# data/cache/  # allow commit for PDF hash cache
 data/rate_limiter.db
 .mypy_cache/
 .pytest_cache/
