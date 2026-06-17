@@ -16,6 +16,9 @@ on:
         type: boolean
         default: false
 
+  # Ensure workflow_dispatch is registered
+  # Updated: 2026-06-17
+
 env:
   PYTHON_VERSION: '3.11'
   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
