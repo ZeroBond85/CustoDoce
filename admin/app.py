@@ -58,16 +58,33 @@ def load_ingredients():
     return data.get("ingredients", [])
 
 
+def _is_admin_configured() -> bool:
+    """Se AUTH_SECRET_KEY + senha customizada existem, setup ja foi feito."""
+    sk = os.environ.get("AUTH_SECRET_KEY", "")
+    pw_hash = os.environ.get("ADMIN_PASSWORD_HASH", "")
+    pw_plain = os.environ.get("ADMIN_PASSWORD", "")
+    if not sk:
+        return False
+    if pw_hash:
+        return True
+    if pw_plain and pw_plain != "custodoce2907":
+        return True
+    return False
+
+
 def require_auth():
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
     if not st.session_state.authenticated:
         inject_css()
-        tab1, tab2 = st.tabs(["Entrar", "Primeiro Acesso"])
-        with tab1:
+        if _is_admin_configured():
             render_login()
-        with tab2:
-            render_setup_first_user()
+        else:
+            tab1, tab2 = st.tabs(["Entrar", "Primeiro Acesso"])
+            with tab1:
+                render_login()
+            with tab2:
+                render_setup_first_user()
         return False
     return True
 
