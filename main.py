@@ -1,5 +1,6 @@
 import sys
 import json
+import re
 from datetime import datetime, date
 from pathlib import Path
 
@@ -27,6 +28,22 @@ from services.price_service import upsert_price, insert_review_item
 from services.flyer_service import upsert_flyer
 from services.email_service import send_daily_report, send_scraper_error
 
+
+DIAS_PT = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"]
+
+
+def _weekday_pt(dt: datetime = None) -> str:
+    if dt is None:
+        dt = datetime.now()
+    return DIAS_PT[dt.weekday()]
+
+
+def _detect_promotion(text: str) -> bool:
+    if not text:
+        return False
+    t = text.lower()
+    return bool(re.search(r"(promo|oferta|promocao|desconto|\d+%\s*off)", t))
+
 CONFIG_DIR = Path("config")
 DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
@@ -46,6 +63,17 @@ def load_stores() -> list[dict]:
     return data.get("stores", [])
 
 
+def _extract_validity_from_product(product_text: str) -> str:
+    """Extrai texto de validade do nome do produto, se disponivel."""
+    m = re.search(r"(?:valido?\s*(?:ate?|até)?\s*:?\s*[\d]{2}/[\d]{2}(?:/[\d]{2,4})?)", product_text, re.I)
+    if m:
+        return m.group(0)
+    m2 = re.search(r"(?:ate?|até)\s*[\d]{2}/[\d]{2}(?:/[\d]{2,4})?", product_text, re.I)
+    if m2:
+        return m2.group(0)
+    return ""
+
+
 def build_product_entry(
     store: dict,
     ingredient: dict,
@@ -53,8 +81,10 @@ def build_product_entry(
     raw_price: float,
     raw_unit: str,
     confidence: float,
+    validity_raw: str = "",
 ) -> dict:
     normalized = normalize_price(raw_price, raw_unit)
+    validity = validity_raw or _extract_validity_from_product(raw_product)
     return {
         "ingredient_id": ingredient["canonical"],
         "store_id": store.get("id") or store["name"].lower().replace(" ", "_"),
@@ -63,6 +93,9 @@ def build_product_entry(
         "raw_product": raw_product,
         "raw_price": raw_price,
         "raw_unit": raw_unit,
+        "validity_raw": validity,
+        "collected_weekday": _weekday_pt(),
+        "is_promotion": _detect_promotion(raw_product),
         "tier": store.get("tier", 3),
         "confidence": confidence,
         "normalized": normalized.to_dict() if normalized else None,
@@ -77,6 +110,7 @@ def process_price_match(
     raw_price: float,
     raw_unit: str,
     ingredients: list[dict],
+    validity_raw: str = "",
 ) -> dict | None:
     from parsers.matcher import rank_ingredients
 
@@ -85,6 +119,7 @@ def process_price_match(
         entry = build_product_entry(
             store, ingredient, product_text,
             raw_price, raw_unit, score / 100.0,
+            validity_raw=validity_raw,
         )
         upsert_price(entry)
         return entry
@@ -92,6 +127,7 @@ def process_price_match(
     if score >= 30.0:
         candidates = rank_ingredients(product_text, ingredients, top_n=3)
         suggestions = [c[0]["canonical"] for c in candidates if c[1] >= 30.0]
+        validity = validity_raw or _extract_validity_from_product(product_text)
         review_item = {
             "raw_product": product_text,
             "raw_price": raw_price,
@@ -100,6 +136,7 @@ def process_price_match(
             "source": store.get("type", "automated"),
             "confidence": score / 100.0,
             "suggestions": suggestions,
+            "validity_raw": validity,
         }
         try:
             insert_review_item(review_item)
@@ -156,6 +193,7 @@ def collect_tier1_pdfs(ingredients: list[dict]) -> list[dict]:
                     prod.get("price", 0),
                     prod.get("unit", ""),
                     ingredients,
+                    validity_raw=prod.get("validity_raw", ""),
                 )
                 if entry:
                     matched += 1
@@ -197,6 +235,7 @@ def collect_tier2_vtex(ingredients: list[dict]) -> list[dict]:
                     prod.get("price", 0),
                     prod.get("unit", ""),
                     ingredients,
+                    validity_raw=prod.get("validity_raw", ""),
                 )
                 if entry:
                     matched += 1
@@ -238,6 +277,7 @@ def collect_tier3_websites(ingredients: list[dict]) -> list[dict]:
                     prod.get("price", 0),
                     prod.get("unit", ""),
                     ingredients,
+                    validity_raw=prod.get("validity_raw", ""),
                 )
                 if entry:
                     matched += 1
@@ -279,6 +319,7 @@ def collect_carrefour(ingredients: list[dict]) -> list[dict]:
                     prod.get("price", 0),
                     prod.get("unit", ""),
                     ingredients,
+                    validity_raw=prod.get("validity_raw", ""),
                 )
                 if entry:
                     matched += 1

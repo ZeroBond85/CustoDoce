@@ -61,10 +61,12 @@ class VtexScraper:
                     continue
 
                 unit = self._extract_unit(item_name)
+                validity_raw = offer.get("priceValidUntil", "")
                 entries.append({
                     "product": item_name,
                     "price": float(price),
                     "unit": unit,
+                    "validity_raw": validity_raw,
                 })
         return entries
 
@@ -101,6 +103,7 @@ class VtexScraper:
                         "product": entry["product"],
                         "price": entry["price"],
                         "unit": entry["unit"],
+                        "validity_raw": entry.get("validity_raw", ""),
                     })
 
             time.sleep(0.5)

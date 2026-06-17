@@ -17,7 +17,11 @@ CREATE TABLE IF NOT EXISTS prices (
     raw_price DECIMAL(10,2) NOT NULL,
     raw_unit TEXT NOT NULL DEFAULT '',
     collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    valid_until DATE,
+    valid_from DATE DEFAULT CURRENT_DATE,
+    valid_until DATE DEFAULT (CURRENT_DATE + INTERVAL '7 days'),
+    validity_raw TEXT DEFAULT '',
+    collected_weekday TEXT DEFAULT '',
+    is_promotion BOOLEAN DEFAULT FALSE,
     tier INTEGER DEFAULT 3,
     confidence DECIMAL(4,3) DEFAULT 1.0,
     normalized JSONB DEFAULT NULL,
@@ -25,13 +29,17 @@ CREATE TABLE IF NOT EXISTS prices (
     logistics TEXT DEFAULT 'pickup_local',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    UNIQUE (ingredient_id, store_id)
+    UNIQUE (ingredient_id, store_id, collected_at)
 );
 
 -- Indexes for fast search
 CREATE INDEX IF NOT EXISTS idx_prices_ingredient ON prices(ingredient_id);
 CREATE INDEX IF NOT EXISTS idx_prices_store ON prices(store_id);
 CREATE INDEX IF NOT EXISTS idx_prices_collected ON prices(collected_at DESC);
+CREATE INDEX IF NOT EXISTS idx_prices_valid_from ON prices(valid_from);
+CREATE INDEX IF NOT EXISTS idx_prices_valid_until ON prices(valid_until);
+CREATE INDEX IF NOT EXISTS idx_prices_promotion ON prices(is_promotion) WHERE is_promotion = TRUE;
+CREATE INDEX IF NOT EXISTS idx_prices_weekday ON prices(collected_weekday);
 CREATE INDEX IF NOT EXISTS idx_prices_tier ON prices(tier);
 CREATE INDEX IF NOT EXISTS idx_prices_confidence ON prices(confidence);
 CREATE INDEX IF NOT EXISTS idx_prices_price_kg ON prices(((normalized->>'price_per_kg')::numeric));
@@ -51,6 +59,11 @@ CREATE TABLE IF NOT EXISTS price_history (
     raw_price DECIMAL(10,2) NOT NULL,
     raw_unit TEXT NOT NULL DEFAULT '',
     normalized JSONB DEFAULT NULL,
+    valid_from DATE DEFAULT CURRENT_DATE,
+    valid_until DATE DEFAULT (CURRENT_DATE + INTERVAL '7 days'),
+    validity_raw TEXT DEFAULT '',
+    collected_weekday TEXT DEFAULT '',
+    is_promotion BOOLEAN DEFAULT FALSE,
     collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     UNIQUE (ingredient_id, store_id, collected_at)
@@ -59,6 +72,8 @@ CREATE TABLE IF NOT EXISTS price_history (
 CREATE INDEX IF NOT EXISTS idx_history_ingredient ON price_history(ingredient_id);
 CREATE INDEX IF NOT EXISTS idx_history_collected ON price_history(collected_at DESC);
 CREATE INDEX IF NOT EXISTS idx_history_store ON price_history(store_id);
+CREATE INDEX IF NOT EXISTS idx_history_valid_until ON price_history(valid_until);
+CREATE INDEX IF NOT EXISTS idx_history_promotion ON price_history(is_promotion) WHERE is_promotion = TRUE;
 
 -- ============================================================================
 -- REVIEW QUEUE (confidence < 80%)
@@ -72,6 +87,7 @@ CREATE TABLE IF NOT EXISTS review_queue (
     source TEXT DEFAULT 'automated',
     confidence DECIMAL(4,3),
     suggestions JSONB DEFAULT '[]',
+    validity_raw TEXT DEFAULT '',
     status TEXT DEFAULT 'pending',
     resolved_ingredient TEXT,
     collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -142,6 +158,8 @@ CREATE TABLE IF NOT EXISTS flyers (
     ocr_confidence DECIMAL(4,3) DEFAULT 0.0,
     products_extracted INT DEFAULT 0,
     source TEXT NOT NULL DEFAULT 'tiendeo',
+    valid_from DATE,
+    valid_until DATE,
     collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     processed_at TIMESTAMPTZ,
 
@@ -194,10 +212,14 @@ RETURNS TRIGGER AS $$
 BEGIN
     INSERT INTO price_history (
         price_id, ingredient_id, store_id, store_name,
-        raw_product, raw_price, raw_unit, normalized, collected_at
+        raw_product, raw_price, raw_unit, normalized,
+        valid_from, valid_until, validity_raw, collected_weekday, is_promotion,
+        collected_at
     ) VALUES (
         NEW.id, NEW.ingredient_id, NEW.store_id, NEW.store_name,
-        NEW.raw_product, NEW.raw_price, NEW.raw_unit, NEW.normalized, NEW.collected_at
+        NEW.raw_product, NEW.raw_price, NEW.raw_unit, NEW.normalized,
+        NEW.valid_from, NEW.valid_until, NEW.validity_raw, NEW.collected_weekday, NEW.is_promotion,
+        NEW.collected_at
     );
     RETURN NEW;
 END;

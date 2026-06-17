@@ -6,11 +6,13 @@ features:
   telegram:
     enabled: true
     notify_on_price_drop_pct: 15
+    top5_report: true
 
   email:
     enabled: true
     daily_report: true
     alert_on_critical: true
+    full_report: true
 
   scrapers:
     vtex: true
@@ -21,6 +23,17 @@ features:
   matcher:
     threshold: 80
     review_queue: true
+
+  validity:
+    enabled: true
+    default_days: 7
+    promotion_detection: true
+    promotion_keywords:
+      - promo
+      - oferta
+      - promocao
+      - desconto
+      - off
 
   alerts:
     price_variation_pct: 15

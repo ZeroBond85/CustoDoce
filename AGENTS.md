@@ -117,8 +117,8 @@ CustoDoce/
       - selectolax → CSS selectors → raw products
       - process_price_match() (mesmo fluxo acima)
 6. git commit data/prices_latest.json
-7. Se 1º do mês: Release GitHub (histórico)
-8. Se manhã: send_daily_report.py (email)
+7. Se 1º do mês: Release GitHub com snapshot mensal (prices_latest.json.gz)
+8. Sempre: send_daily_report.py (email com top 5 preços por ingrediente)
 ```
 
 ## Matcher (parsers/matcher.py)

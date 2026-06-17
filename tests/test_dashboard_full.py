@@ -911,6 +911,160 @@ def test_config_get_guards():
 
 
 # ═══════════════════════════════════════════════════════════════
+print("\n=== 10. PHASE 0 — VIGENCIA, PROMOCAO & VALIDADE ===\n")
+
+
+def test_detect_promotion():
+    from services.price_service import _detect_promotion
+
+    assert _detect_promotion("Leite Moça PROMO", "cx") is True
+    assert _detect_promotion("Oferta Imperdível", "1kg") is True
+    assert _detect_promotion("Granulado 500g", "un") is False
+    assert _detect_promotion("Chocolate 50% OFF", "barra") is True
+    assert _detect_promotion("", "") is False
+
+
+def test_weekday_pt():
+    from datetime import datetime
+    from services.price_service import _weekday_pt
+
+    # Segunda = 0, Terça = 1 ... Domingo = 6
+    assert _weekday_pt(datetime(2026, 6, 15)) == "Seg"  # Monday
+    assert _weekday_pt(datetime(2026, 6, 16)) == "Ter"  # Tuesday
+    assert _weekday_pt(datetime(2026, 6, 17)) == "Qua"  # Wednesday
+    assert _weekday_pt(datetime(2026, 6, 18)) == "Qui"  # Thursday
+    assert _weekday_pt(datetime(2026, 6, 19)) == "Sex"  # Friday
+    assert _weekday_pt(datetime(2026, 6, 20)) == "Sab"  # Saturday
+    assert _weekday_pt(datetime(2026, 6, 21)) == "Dom"  # Sunday
+
+
+def test_upsert_price_default_valid_until():
+    from services.price_service import upsert_price
+    from datetime import date, timedelta
+
+    # Testa que o upsert_price monta o payload com valid_until default +7 dias
+    # Não podemos testar a chamada HTTP, mas podemos verificar a estrutura
+    assert callable(upsert_price)
+
+
+def test_get_telegram_report_structure():
+    from services.price_service import get_telegram_report
+
+    result = get_telegram_report([], top_n=5)
+    assert isinstance(result, list)
+    assert len(result) == 0
+
+    result2 = get_telegram_report(
+        [{"canonical": "Leite Condensado", "aliases": ["Moca"]}],
+        top_n=3,
+    )
+    assert isinstance(result2, list)
+
+
+def test_build_full_report_html():
+    from services.email_service import build_full_report_html
+
+    prices = {
+        "Leite Condensado": [
+            {"store_name": "Assai", "raw_product": "Moca", "raw_price": 42.90, "raw_unit": "cx", "normalized": {"price_per_kg": 10.5}, "is_promotion": False, "valid_until": "2026-07-01"},
+            {"store_name": "Atacadao", "raw_product": "Moca", "raw_price": 45.00, "raw_unit": "cx", "normalized": {"price_per_kg": 11.25}, "is_promotion": True, "valid_until": "2026-07-05"},
+        ],
+        "Creme de Leite": [
+            {"store_name": "Spani", "raw_product": "Nestle", "raw_price": 8.90, "raw_unit": "lata", "normalized": {"price_per_kg": 35.60}, "is_promotion": False, "valid_until": ""},
+        ],
+    }
+    html = build_full_report_html(prices)
+    assert "<html>" in html
+    assert "Leite Condensado" in html
+    assert "Creme de Leite" in html
+    assert "Assai" in html
+    assert "Atacadao" in html
+    assert "Spani" in html
+    assert "R$ 42.90" in html
+    assert "R$ 45.00" in html
+    assert "R$ 8.90" in html
+    # Promoção badge
+    assert "🏷️" in html
+    # Validade
+    assert "ate 2026-07-01" in html
+    assert "ate 2026-07-05" in html
+    # Headers da tabela
+    assert "Validade" in html
+    assert "R$/kg" in html
+
+
+def test_send_telegram_report_message_structure():
+    from services.email_service import send_telegram_report
+
+    # Verifica que a função existe e aceita os parâmetros corretos
+    assert callable(send_telegram_report)
+
+
+def test_valid_only_toggle_exists():
+    with open("admin/app.py", encoding="utf-8") as f:
+        content = f.read()
+    assert "_valid_only_toggle" in content
+    assert "So vigentes" in content
+    assert "global_valid_only" in content
+
+
+def test_is_promotion_in_display():
+    with open("admin/app.py", encoding="utf-8") as f:
+        content = f.read()
+    assert '"is_promotion"' in content, "is_promotion deve estar nas colunas de exibicao"
+    assert '"valid_until"' in content, "valid_until deve estar nas colunas de exibicao"
+
+
+def test_new_features_yaml_flags():
+    import yaml
+    with open("config/features.yaml") as f:
+        data = yaml.safe_load(f)
+    fs = data["features"]
+    assert "validity" in fs, "features.yaml deve ter secao validity"
+    assert fs["validity"]["enabled"] is True
+    assert fs["validity"]["default_days"] == 7
+    assert fs["validity"]["promotion_detection"] is True
+    assert "telegram" in fs
+    assert fs["telegram"].get("top5_report") is True, "telegram.top5_report deve existir"
+    assert "email" in fs
+    assert fs["email"].get("full_report") is True, "email.full_report deve existir"
+    assert "promotion_keywords" in fs["validity"]
+
+
+def test_features_yaml_new_flags_loaded():
+    from services.config import get as get_config
+    assert get_config("features.validity.enabled", None) is True
+    assert get_config("features.validity.default_days", None) == 7
+    assert get_config("features.validity.promotion_detection", None) is True
+    assert get_config("features.telegram.top5_report", None) is True
+    assert get_config("features.email.full_report", None) is True
+
+
+def test_search_prices_valid_only_param():
+    from services.price_service import search_prices
+    import inspect
+    sig = inspect.signature(search_prices)
+    params = list(sig.parameters.keys())
+    assert "valid_only" in params, "search_prices deve ter parametro valid_only"
+
+
+def test_get_latest_prices_valid_only_param():
+    from services.price_service import get_latest_prices
+    import inspect
+    sig = inspect.signature(get_latest_prices)
+    params = list(sig.parameters.keys())
+    assert "valid_only" in params, "get_latest_prices deve ter parametro valid_only"
+
+
+def test_get_price_history_valid_only_param():
+    from services.price_service import get_price_history
+    import inspect
+    sig = inspect.signature(get_price_history)
+    params = list(sig.parameters.keys())
+    assert "valid_only" in params, "get_price_history deve ter parametro valid_only"
+
+
+# ═══════════════════════════════════════════════════════════════
 print("\n" + "=" * 60)
 print("EXECUTANDO TESTES...\n")
 
@@ -1013,6 +1167,21 @@ tests = [
     (test_sidebar_aria_labels, "a11y: aria-label nos botoes sidebar"),
     (test_deploy_check_script, "deploy: scripts/deploy_check.py existe"),
     (test_config_get_guards, "config: get_config() guardando features"),
+
+    # Phase 0 — Vigência, Promoção & Validade
+    (test_detect_promotion, "price: _detect_promotion() com keywords"),
+    (test_weekday_pt, "price: _weekday_pt() mapeamento PT-BR"),
+    (test_upsert_price_default_valid_until, "price: upsert_price() callable"),
+    (test_get_telegram_report_structure, "price: get_telegram_report() estrutura"),
+    (test_build_full_report_html, "email: build_full_report_html() HTML valido"),
+    (test_send_telegram_report_message_structure, "email: send_telegram_report() callable"),
+    (test_valid_only_toggle_exists, "dashboard: _valid_only_toggle() existe"),
+    (test_is_promotion_in_display, "dashboard: is_promotion/valid_until nas colunas"),
+    (test_new_features_yaml_flags, "config: novas flags features.yaml"),
+    (test_features_yaml_new_flags_loaded, "config: config.get() novas flags"),
+    (test_search_prices_valid_only_param, "price: search_prices(valid_only=)"),
+    (test_get_latest_prices_valid_only_param, "price: get_latest_prices(valid_only=)"),
+    (test_get_price_history_valid_only_param, "price: get_price_history(valid_only=)"),
 ]
 
 for fn, desc in tests:

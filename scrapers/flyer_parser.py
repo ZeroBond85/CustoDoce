@@ -13,18 +13,26 @@ UNIT_RE = re.compile(
 )
 
 STOP_WORDS = {
-    "válido", "valido", "válida", "valida", "válidas", "validas",
-    "válidos", "validos", "até", "ate", "somente", "sexta", "sábado",
+    "somente", "sexta", "sábado",
     "sabado", "domingo", "estoque", "limitado", "limite", "unidade",
     "unidades", "cliente", "clientes", "cada", "preço", "preco",
     "promoção", "promocao", "confira", "apenas", "www", "http",
     "facebook", "instagram", "whatsapp", "telefone", "celular",
     "sac", "não", "nao", "nº", "numero", "número", "página", "pagina",
-    "encarte", "folheto", "ofertas", "ofertas", "válidas", "parcele",
+    "encarte", "folheto", "ofertas", "ofertas", "parcele",
     "cartão", "cartao", "crédito", "credito", "débito", "debito",
     "dinheiro", "total", "subtotal", "desconto", "economize",
     "condições", "condicoes", "geral",
 }
+
+VALIDITY_RE = re.compile(
+    r"(?:válido|valido|válida|valida)\s*(?:até|ate)\s*:?\s*\d{2}/\d{2}(?:/\d{2,4})?",
+    re.I,
+)
+DATE_RE = re.compile(
+    r"(?:até|ate)\s*:?\s*\d{2}/\d{2}(?:/\d{2,4})?",
+    re.I,
+)
 
 
 def clean_line(line: str) -> str:
@@ -36,6 +44,20 @@ def clean_line(line: str) -> str:
 def is_stop_line(line: str) -> bool:
     words = set(line.lower().split())
     return bool(words & STOP_WORDS) or len(line) < 3 or line.isdigit()
+
+
+def is_validity_line(line: str) -> bool:
+    return bool(VALIDITY_RE.search(line) or DATE_RE.search(line))
+
+
+def extract_validity_text(line: str) -> str:
+    m = VALIDITY_RE.search(line)
+    if m:
+        return m.group(0)
+    m = DATE_RE.search(line)
+    if m:
+        return m.group(0)
+    return ""
 
 
 def extract_price(line: str) -> float | None:
@@ -59,10 +81,18 @@ def extract_unit(text: str) -> str:
 def parse_flyer_lines(lines: list[str]) -> list[dict]:
     products = []
     buffer = []
+    last_validity = ""
 
     for raw_line in lines:
         line = clean_line(raw_line)
-        if not line or is_stop_line(line):
+        if not line:
+            continue
+
+        if is_validity_line(line):
+            last_validity = extract_validity_text(line)
+            continue
+
+        if is_stop_line(line):
             continue
 
         price = extract_price(line)
@@ -76,10 +106,13 @@ def parse_flyer_lines(lines: list[str]) -> list[dict]:
 
             if name and len(name) > 3:
                 unit = extract_unit(name)
+                validity = last_validity
+                last_validity = ""
                 products.append({
                     "product": name,
                     "price": price,
                     "unit": unit,
+                    "validity_raw": validity,
                 })
             buffer = []
         else:

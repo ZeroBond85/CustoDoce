@@ -120,7 +120,7 @@ def _render_kpi_flyers(df):
 
 def _render_latest_prices(df):
     st.markdown("### Ultimos Precos")
-    cols = ["store_name", "ingredient_id", "raw_product", "raw_price", "raw_unit", "tier", "confidence", "collected_at"]
+    cols = ["store_name", "ingredient_id", "raw_product", "raw_price", "raw_unit", "tier", "is_promotion", "valid_until", "confidence", "collected_at"]
     cols = [c for c in cols if c in df.columns]
     st.dataframe(df[cols].sort_values("collected_at", ascending=False).head(100), use_container_width=True, hide_index=True)
 
@@ -209,9 +209,21 @@ def _render_variation_alerts(df):
         st.caption(f"Alertas indisponiveis: {e}")
 
 
+def _valid_only_toggle():
+    key = "global_valid_only"
+    if key not in st.session_state:
+        st.session_state[key] = True
+    return st.toggle(
+        "So vigentes",
+        key=key,
+        help="Mostrar apenas precos dentro do periodo de vigencia",
+    )
+
+
 def tab_visao_geral():
     section_title("Visao Geral", "Resumo do estado atual dos precos")
-    prices = get_latest_prices()
+    valid_only = _valid_only_toggle()
+    prices = get_latest_prices(valid_only=valid_only)
     if not prices:
         info_box("Nenhum preco coletado ainda. Aguarde a primeira execucao do scraper.", "info")
         return
@@ -228,6 +240,7 @@ def tab_visao_geral():
 
 def tab_precos():
     section_title("Buscar Precos", "Compare precos entre lojas por ingrediente")
+    valid_only = _valid_only_toggle()
     ingredients = load_ingredients()
     ingredient_options = {i["canonical"]: i for i in ingredients}
     selected = st.selectbox(
@@ -236,7 +249,7 @@ def tab_precos():
         index=0 if ingredient_options else 0,
     )
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         sort_by = st.selectbox(
             "Ordenar por", ["price_per_kg", "price_per_un", "raw_price"]
@@ -245,8 +258,14 @@ def tab_precos():
         sort_order = st.selectbox("Ordem", ["asc", "desc"])
     with col3:
         limit = st.number_input("Limite", min_value=5, max_value=100, value=30)
+    with col4:
+        pass
 
     if st.button("Buscar", type="primary"):
+        prices = search_prices(
+            selected, sort_by=sort_by, sort_order=sort_order, limit=limit,
+            valid_only=valid_only,
+        )
         prices = search_prices(
             selected, sort_by=sort_by, sort_order=sort_order, limit=limit
         )
@@ -317,6 +336,8 @@ def tab_precos():
                 "raw_price",
                 "raw_unit",
                 "tier",
+                "is_promotion",
+                "valid_until",
                 "confidence",
                 "collected_at",
             ]
@@ -379,6 +400,7 @@ def _format_kg(p):
 
 def tab_historico():
     section_title("Historico de Precos", "Tendencias e variacoes ao longo do tempo")
+    valid_only = _valid_only_toggle()
     ingredients = load_ingredients()
     options = [i["canonical"] for i in ingredients]
     selected = st.selectbox("Ingrediente", options)
@@ -391,7 +413,7 @@ def tab_historico():
     load = st.button("Carregar", type="primary")
 
     if load:
-        history = get_price_history(selected, days=days)
+        history = get_price_history(selected, days=days, valid_only=valid_only)
         if not history:
             info_box(f"Nenhum historico disponivel para '{selected}' no periodo.", "info")
             return
@@ -443,7 +465,7 @@ def tab_historico():
         st.dataframe(store_stats, use_container_width=True, hide_index=True)
 
         st.markdown("### Dados Brutos")
-        display_cols = [c for c in ["store_name", "raw_product", "raw_price", "raw_unit", "collected_at"] if c in df.columns]
+        display_cols = [c for c in ["store_name", "raw_product", "raw_price", "raw_unit", "is_promotion", "valid_until", "collected_at"] if c in df.columns]
         if "price_per_kg" in df.columns:
             df["R$/kg"] = df["price_per_kg"].apply(lambda x: f"R$ {x:.2f}" if x > 0 else "—")
             display_cols.append("R$/kg")
@@ -690,8 +712,10 @@ def tab_lojas():
         if st.button("Validar YAML", type="primary"):
             try:
                 parsed = yaml.safe_load(edited)
-                assert isinstance(parsed, dict) and "stores" in parsed
-                assert isinstance(parsed["stores"], list)
+                if not isinstance(parsed, dict) or "stores" not in parsed:
+                    raise ValueError("Estrutura invalida: esperado dict com chave 'stores'")
+                if not isinstance(parsed["stores"], list):
+                    raise ValueError("Estrutura invalida: 'stores' deve ser uma lista")
                 st.success(f"YAML valido! {len(parsed['stores'])} lojas encontradas.")
             except Exception as e:
                 st.error(f"YAML invalido: {e}")
@@ -890,22 +914,28 @@ def tab_scrapers():
 
 def _build_report_html(ingredient: str, days: int, prices: list) -> str:
     hoje = datetime.utcnow().strftime("%d/%m/%Y")
+    sorted_prices = sorted(prices, key=lambda x: (
+        (x.get("normalized") or {}).get("price_per_kg", 999999)
+    ))
     rows = ""
-    for p in prices[:20]:
+    for p in sorted_prices[:50]:
         store = p.get("store_name", "?")
-        product = p.get("raw_product", "?")
+        product = p.get("raw_product", "?")[:50]
         price = float(p.get("raw_price", 0))
         unit = p.get("raw_unit", "")
         ppk = ""
         if isinstance(p.get("normalized"), dict):
             ppk = p["normalized"].get("price_per_kg", 0)
             ppk = f"R$ {ppk:.2f}/kg" if ppk else ""
-        rows += f"<tr><td>{store}</td><td>{product[:50]}</td><td>R$ {price:.2f} {unit}</td><td>{ppk}</td></tr>"
+        promo = " 🏷️" if p.get("is_promotion") else ""
+        valid = p.get("valid_until", "")
+        valid_str = f" (ate {valid})" if valid else ""
+        rows += f"<tr><td>{store}{promo}</td><td>{product}</td><td>R$ {price:.2f} {unit}</td><td>{ppk}</td><td>{valid_str}</td></tr>"
     return f"""<html><body style="font-family:Nunito,sans-serif;background:#FFF9F5;padding:20px;">
 <h2 style="color:#F59E42;">CustoDoce - Relatorio de Precos</h2>
 <p style="color:#8B7355;">{ingredient} - Ultimos {days} dias - {hoje}</p>
 <table style="width:100%;border-collapse:collapse;background:#FFF;border-radius:10px;overflow:hidden;">
-<tr style="background:#F59E42;color:#FFF;"><th>Loja</th><th>Produto</th><th>Preco</th><th>R$/kg</th></tr>
+<tr style="background:#F59E42;color:#FFF;"><th>Loja</th><th>Produto</th><th>Preco</th><th>R$/kg</th><th>Validade</th></tr>
 {rows}</table>
 <p style="color:#9CA3AF;font-size:0.8rem;margin-top:20px;">Gerado automaticamente pelo CustoDoce em {hoje}</p>
 </body></html>"""
@@ -1247,14 +1277,16 @@ def _test_yaml(path):
 def _test_auth():
     from services.auth import hash_password, verify_password
     h = hash_password("test")
-    assert verify_password("test", h)
+    if not verify_password("test", h):
+        raise ValueError("Falha na verificacao de senha")
     return "PBKDF2-HMAC-SHA256 600k iter"
 
 
 def _test_rate_limiter():
     from services.rate_limiter import RateLimiter
     rl = RateLimiter()
-    assert rl.is_limited("test_key") is False
+    if rl.is_limited("test_key"):
+        raise ValueError("Rate limiter retornou limitado indevidamente")
     return "SQLite + cache memoria"
 
 

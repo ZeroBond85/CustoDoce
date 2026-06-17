@@ -25,6 +25,7 @@ DEFAULT_SELECTORS = {
         "[class*=price]", "[class*=preco]",
         ".sale-price", ".offer-price",
     ],
+    "product_validity": [],
 }
 
 
@@ -74,10 +75,12 @@ class WebsiteScraper:
             if price is None:
                 continue
             unit = self._extract_unit(name)
+            validity = self._extract_validity(card)
             products.append({
                 "product": name.strip(),
                 "price": price,
                 "unit": unit,
+                "validity_raw": validity,
             })
 
         return products
@@ -128,6 +131,15 @@ class WebsiteScraper:
             m = re.search(pat, name, re.I)
             if m:
                 return m.group(1).strip()
+        return ""
+
+    def _extract_validity(self, node) -> str:
+        for selector in self.selectors.get("product_validity", []):
+            found = node.css(selector)
+            if found:
+                text = found[0].text().strip()
+                if text:
+                    return text
         return ""
 
     def run(self, ingredients: list[dict]) -> list[dict]:
