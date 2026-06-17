@@ -2,9 +2,9 @@ name: CustoDoce - Coleta de Preços
 
 on:
   schedule:
-    - cron: '0 15 * * 1,3,5'   # 12:00 BRT Seg, Qua, Sex (coleta padrão)
-    - cron: '0 15 * * 6'        # 12:00 BRT Sáb (coleta + Playwright + OCR)
-    - cron: '0 15 1 * *'        # 12:00 BRT dia 1 (release + relatório mensal)
+    - cron: '0 12 * * 1,3,5'   # 09:00 BRT Seg, Qua, Sex (coleta padrão)
+    - cron: '0 12 * * 6'        # 09:00 BRT Sáb (coleta + Playwright + OCR)
+    - cron: '0 12 1 * *'        # 09:00 BRT dia 1 (release + relatório mensal)
   workflow_dispatch:
     inputs:
       force_full:
@@ -99,7 +99,7 @@ print(f'OCR processed: {processed} flyers')
           git push
 
       - name: Monthly History Archive (1st of month)
-        if: github.event_name == 'schedule' && github.event.schedule == '0 15 1 * *'
+        if: github.event_name == 'schedule' && github.event.schedule == '0 12 1 * *'
         run: |
           mkdir -p history
           cp data/prices_latest.json "history/prices_$(date -d 'last month' +%Y-%m).json"
