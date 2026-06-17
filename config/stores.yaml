@@ -387,6 +387,7 @@ stores:
     visit_frequency: "monthly"
     contact: ""
     priority: 19
+    scraper: "manual_visit_spreadsheet"
 
   - name: "Dijos Doces e Confeitaria"
     tier: 2
@@ -399,6 +400,7 @@ stores:
     visit_frequency: "monthly"
     contact: ""
     priority: 20
+    scraper: "manual_visit_spreadsheet"
 
   - name: "Jabaquara Doces"
     tier: 2
@@ -411,6 +413,7 @@ stores:
     visit_frequency: "monthly"
     contact: ""
     priority: 21
+    scraper: "manual_visit_spreadsheet"
 
   - name: "Nova Paulista Doces"
     tier: 2
@@ -423,6 +426,7 @@ stores:
     visit_frequency: "monthly"
     contact: ""
     priority: 22
+    scraper: "manual_visit_spreadsheet"
 
   - name: "Patikal Doces e Festas"
     tier: 2
@@ -435,6 +439,7 @@ stores:
     visit_frequency: "monthly"
     contact: ""
     priority: 23
+    scraper: "manual_visit_spreadsheet"
 
   - name: "Marsil Atacadista"
     tier: 2
@@ -447,6 +452,7 @@ stores:
     visit_frequency: "monthly"
     contact: ""
     priority: 24
+    scraper: "manual_visit_spreadsheet"
 
   - name: "Vito Quintas Atacadista"
     tier: 2
@@ -459,6 +465,7 @@ stores:
     visit_frequency: "monthly"
     contact: ""
     priority: 25
+    scraper: "manual_visit_spreadsheet"
 
   - name: "Doces Cabo Verde"
     tier: 2
@@ -471,6 +478,7 @@ stores:
     visit_frequency: "monthly"
     contact: ""
     priority: 26
+    scraper: "manual_visit_spreadsheet"
 
   - name: "Fernandez Atacadista"
     tier: 2
@@ -483,6 +491,7 @@ stores:
     visit_frequency: "monthly"
     contact: ""
     priority: 27
+    scraper: "manual_visit_spreadsheet"
 
   - name: "Campineira Doces"
     tier: 2
@@ -495,6 +504,7 @@ stores:
     visit_frequency: "monthly"
     contact: ""
     priority: 28
+    scraper: "manual_visit_spreadsheet"
 
   - name: "Embalagens Cantareira (Grupo Rizzo)"
     tier: 2
@@ -507,6 +517,7 @@ stores:
     visit_frequency: "monthly"
     contact: ""
     priority: 29
+    scraper: "manual_visit_spreadsheet"
 
   # ============================================================================
   # TIER 3 - AGREGADORES SSR (Folhetos via HTML direto)
