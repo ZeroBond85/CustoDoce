@@ -34,7 +34,13 @@ from dashboard.components.ui import (
     plotly_theme,
 )
 from dashboard.components.layout import render_sidebar
-from dashboard.login_page import render_login, render_setup_first_user
+from dashboard.login_page import render_login
+from services.auth import (
+    hash_password as _hash_pw,
+    generate_totp_secret as _gen_totp,
+    get_totp_uri as _get_totp_uri,
+    verify_totp as _verify_totp,
+)
 
 load_dotenv()
 
@@ -58,33 +64,12 @@ def load_ingredients():
     return data.get("ingredients", [])
 
 
-def _is_admin_configured() -> bool:
-    """Se AUTH_SECRET_KEY + senha customizada existem, setup ja foi feito."""
-    sk = os.environ.get("AUTH_SECRET_KEY", "")
-    pw_hash = os.environ.get("ADMIN_PASSWORD_HASH", "")
-    pw_plain = os.environ.get("ADMIN_PASSWORD", "")
-    if not sk:
-        return False
-    if pw_hash:
-        return True
-    if pw_plain and pw_plain != "custodoce2907":
-        return True
-    return False
-
-
 def require_auth():
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
     if not st.session_state.authenticated:
         inject_css()
-        if _is_admin_configured():
-            render_login()
-        else:
-            tab1, tab2 = st.tabs(["Entrar", "Primeiro Acesso"])
-            with tab1:
-                render_login()
-            with tab2:
-                render_setup_first_user()
+        render_login()
         return False
     return True
 
@@ -1084,8 +1069,97 @@ def _mask_val(v):
     return v
 
 
+def _render_admin_account():
+    """Secao de conta do administrador dentro da Config."""
+    st.markdown("### Conta de Administrador")
+    st.markdown("---")
+
+    pw_hash = os.environ.get("ADMIN_PASSWORD_HASH", "")
+    pw_plain = os.environ.get("ADMIN_PASSWORD", "")
+    totp_secret = os.environ.get("TOTP_SECRET", "")
+    totp_enabled = os.environ.get("TOTP_ENABLED", "")
+    has_password = bool(pw_hash or (pw_plain and pw_plain != "custodoce2907"))
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown(
+            f'Senha: {"✅ Configurada" if has_password else "⚠️ Usando padrao"}'
+        )
+    with c2:
+        st.markdown(
+            f'2FA: {"✅ Ativado" if totp_enabled else "❌ Desativado"}'
+        )
+
+    tab_senha, tab_totp = st.tabs(["Alterar Senha", "Configurar 2FA"])
+
+    with tab_senha:
+        nova = st.text_input(
+            "Nova senha",
+            type="password",
+            placeholder="Minimo 8 caracteres",
+            key="adm_new_pass",
+            label_visibility="collapsed",
+        )
+        confirm = st.text_input(
+            "Confirmar senha",
+            type="password",
+            placeholder="Repita a senha",
+            key="adm_confirm_pass",
+            label_visibility="collapsed",
+        )
+        if st.button("Gerar Hash", type="primary", use_container_width=True):
+            if not nova or len(nova) < 8:
+                st.error("Minimo 8 caracteres.")
+            elif nova != confirm:
+                st.error("Senhas nao conferem.")
+            else:
+                h = _hash_pw(nova)
+                st.success("Hash gerado! Adicione ao Streamlit Secrets:")
+                st.code(f"ADMIN_PASSWORD_HASH={h}", language="bash")
+                st.info(
+                    "Remova a variavel ADMIN_PASSWORD se existir. "
+                    "Apos adicionar, reinicie o app."
+                )
+
+    with tab_totp:
+        st.markdown(
+            "Use Google Authenticator, Authy ou similar para escanear o codigo."
+        )
+        if st.button("Gerar Nova Chave 2FA", use_container_width=True):
+            secret = _gen_totp()
+            uri = _get_totp_uri(secret)
+            st.session_state["_setup_totp_secret"] = secret
+            st.code(uri, language="text")
+            st.markdown(
+                f'<p style="font-size:0.85rem;">'
+                f"Ou digite manualmente: <strong>{secret}</strong></p>",
+                unsafe_allow_html=True,
+            )
+            teste = st.text_input(
+                "Digite o codigo do app para confirmar",
+                max_chars=6,
+                placeholder="000000",
+                key="adm_totp_test",
+                label_visibility="collapsed",
+            )
+            if teste and len(teste) == 6 and _verify_totp(secret, teste):
+                st.success("2FA funcionando! Adicione ao Streamlit Secrets:")
+                st.code(
+                    f"TOTP_SECRET={secret}\nTOTP_ENABLED=1",
+                    language="bash",
+                )
+                st.info("Apos adicionar, reinicie o app.")
+        if "adm_totp_test" in st.session_state and st.session_state["adm_totp_test"]:
+            stored = st.session_state.get("_setup_totp_secret", "")
+            if stored and _verify_totp(stored, st.session_state["adm_totp_test"]):
+                st.success("2FA verificado!")
+
+    st.markdown("---")
+
+
 def tab_config():
     section_title("Configuracao", "Configuracoes do sistema")
+    _render_admin_account()
     tab_env, tab_ing, tab_stores, tab_features = st.tabs(
         ["Variaveis de Ambiente", "Ingredientes", "Lojas", "Features"]
     )
