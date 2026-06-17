@@ -18,7 +18,7 @@ stores:
         address: "Av. Min. Marcos Freire, 1.600 - Glória, Praia Grande"
       - name: "Praia Grande - Emboaçu"
         address: "Av. Pres. Kennedy, 9271 - Emboaçu, Praia Grande"
-    url_pattern: "https://www.assai.com.br/encartes/assai-encarte-semana-{week}.pdf"
+    url_pattern: "https://www.assai.com.br/encarte/semana-{week}.pdf"
     publish_day: "wednesday"
     collection_method: "automated"
     scraper: "assai_flyer"
@@ -38,7 +38,7 @@ stores:
         address: "Av. Pres. Kennedy, 8000 - Tupi, Praia Grande"
       - name: "Itanhaém"
         address: "R. Jordão Brambilla, 2061 - Corumbá, Itanhaém"
-    url_pattern: "https://www.atacadao.com.br/encartes/atacadao-{city}-semana-{week}.pdf"
+    url_pattern: "https://www.atacadao.com.br/encarte/semana-{week}.pdf"
     publish_day: "wednesday"
     collection_method: "automated"
     scraper: "atacadao_flyer"
@@ -54,7 +54,7 @@ stores:
         address: "Av. Antônio Emmerich, 112 - Centro, São Vicente"
       - name: "Praia Grande"
         address: "Av. Pres. Kennedy, 7000 - Canto do Forte, Praia Grande"
-    url_pattern: "https://www.spani.com.br/folheto/spani-{city}-semana-{week}.pdf"
+    url_pattern: "https://www.spani.com.br/encarte/semana-{week}.pdf"
     publish_day: "wednesday"
     collection_method: "automated"
     scraper: "spani_flyer"
@@ -70,7 +70,7 @@ stores:
         address: "Av. Monteiro Lobato, 5082 - Vila Atlântica, Mongaguá"
       - name: "Itanhaém"
         address: "Av. Jaime de Castro, s/n - Satélite, Itanhaém"
-    url_pattern: "https://www.mercadaoatacadista.com.br/encartes/mercadao-semana-{week}.pdf"
+    url_pattern: "https://www.mercadaoatacadista.com.br/encarte/semana-{week}.pdf"
     publish_day: "wednesday"
     collection_method: "automated"
     scraper: "mercadao_flyer"
@@ -86,7 +86,7 @@ stores:
         address: "Santos"
       - name: "São Vicente"
         address: "São Vicente"
-    url_pattern: "https://www.tendaatacado.com.br/encartes/encarte-semana-{week}.pdf"
+    url_pattern: "https://www.tendaatacado.com.br/encarte/semana-{week}.pdf"
     publish_day: "wednesday"
     collection_method: "automated"
     scraper: "tenda_flyer"
@@ -96,11 +96,13 @@ stores:
     tier: 1
     type: "pdf_flyer"
     logistics: "pickup_local"
-    cities: ["Santos"]
+    cities: ["Santos", "Praia Grande"]
     units:
       - name: "Santos"
         address: "Santos"
-    url_pattern: "https://www.roldao.com.br/encartes/encarte-{week}.pdf"
+      - name: "Praia Grande"
+        address: "Praia Grande"
+    url_pattern: "https://www.roldao.com.br/encarte/semana-{week}.pdf"
     publish_day: "wednesday"
     collection_method: "automated"
     scraper: "roldao_flyer"
@@ -123,7 +125,7 @@ stores:
         address: "Av. Prof. Francisco Morato, 2585 - Butantã, SP"
       - name: "SP - Jabaquara"
         address: "Av. Eng. George Corbisier, 273 - Jabaquara, SP"
-    url_pattern: "https://www.samsclub.com.br/folheto?semana={week}"
+    url_pattern: "https://www.samsclub.com.br/encarte/semana-{week}.pdf"
     publish_day: "thursday"
     collection_method: "automated"
     scraper: "sams_flyer"
@@ -137,7 +139,7 @@ stores:
     units:
       - name: "SP - Marginal Tietê"
         address: "Av. Marginal Tietê, 3000 - Vila Leopoldina, SP"
-    url_pattern: "https://www.makro.com.br/ofertas/semana-{week}"
+    url_pattern: "https://www.makro.com.br/encarte/semana-{week}.pdf"
     publish_day: "thursday"
     collection_method: "automated"
     scraper: "makro_flyer"
@@ -151,7 +153,7 @@ stores:
     units:
       - name: "SP - Zona Sul"
         address: "São Paulo, SP"
-    url_pattern: "https://www.maxatacadista.com.br/encarte/semana-{week}"
+    url_pattern: "https://www.maxatacadista.com.br/encarte/semana-{week}.pdf"
     publish_day: "thursday"
     collection_method: "automated"
     scraper: "max_flyer"
@@ -178,6 +180,7 @@ stores:
     type: "website_catalog"
     logistics: "pickup_sp"
     base_url: "https://www.lojadedoces.com.br"
+    search_url: "https://www.lojadedoces.com.br/loja/busca.php?palavra_busca={query}"
     address: "Rua Brigadeiro Tobias, 206 - Santa Ifigênia, SP"
     zone: "centro"
     coverage: "Doces, chocolates, ingredientes, embalagens"
@@ -187,23 +190,29 @@ stores:
 
   - name: "Rizzo Confeitaria"
     tier: 2
-    type: "vtex_api"
+    type: "website_catalog"
+    is_active: true
     logistics: "pickup_sp"
     base_url: "https://www.rizzoconfeitaria.com.br"
-    api_endpoint: "https://www.rizzoconfeitaria.com.br/api/catalog_system/pub/products/search"
+    search_url: "https://www.rizzoconfeitaria.com.br/buscar?q={query}"
+    selectors:
+      product_card: [".listagem-item", "[data-id]"]
+      product_name: [".nome-produto"]
+      product_price: [".preco-promocional"]
     address: "Rua da Cantareira, 56 - Centro Histórico, SP"
     zone: "centro"
-    coverage: "15k+ SKUs - chocolates, ingredientes, embalagens, utensílios"
+    coverage: "15k+ SKUs - chocolates, ingredientes, embalagens, utensílios — Loja Integrada/Tray (data-sell-price)"
     collection_method: "automated"
-    scraper: "vtex_scraper"
+    scraper: "website_scraper"
     priority: 9
 
   - name: "Amendolate"
     tier: 2
     type: "vtex_api"
+    is_active: false
+    inactive_reason: "VTEX API retorna 500 — site pode ter migrado de plataforma."
     logistics: "pickup_sp"
     base_url: "https://www.amendolate.com.br"
-    api_endpoint: "https://www.amendolate.com.br/api/catalog_system/pub/products/search"
     address: "Rua Schilling, 577 - Vila Leopoldina, SP"
     zone: "oeste"
     coverage: "Chocolates, corantes, pasta americana, formas, utensílios"
@@ -214,6 +223,8 @@ stores:
   - name: "Central Flavor"
     tier: 2
     type: "vtex_api"
+    is_active: false
+    inactive_reason: "DNS nao resolve — site fora do ar."
     logistics: "pickup_sp"
     base_url: "https://www.centralflavor.com.br"
     address: "Rua Pamplona, 1755 - Jardim Paulista, SP"
@@ -226,6 +237,8 @@ stores:
   - name: "BarraDoce"
     tier: 2
     type: "vtex_api"
+    is_active: false
+    inactive_reason: "Astro SPA (JS client-side). Busca retorna HTML sem precos. Produtos individuais tem precos SSR mas nao ha search API para encontra-los. Requer Playwright."
     logistics: "pickup_sp"
     base_url: "https://www.barradoce.com.br"
     address: "Av. dos Eucaliptos, 305 - Indianópolis, SP"
@@ -238,23 +251,46 @@ stores:
   - name: "Casa Santa Luzia"
     tier: 2
     type: "vtex_api"
+    is_active: true
     logistics: "pickup_sp"
-    base_url: "https://www.casasantaluzia.com.br"
+    base_url: "https://www.santaluzia.com.br"
+    api_endpoint: "https://www.santaluzia.com.br/api/catalog_system/pub/products/search"
     address: "São Paulo"
     zone: "centro"
-    coverage: "Premium, ingredientes especiais, importados"
+    coverage: "Premium, ingredientes especiais, importados — migrou de casasantaluzia.com.br para santaluzia.com.br"
     collection_method: "automated"
     scraper: "vtex_scraper"
     priority: 13
 
+  - name: "Lojas Funchal"
+    tier: 2
+    type: "vtex_api"
+    logistics: "pickup_sp"
+    base_url: "https://www.lojasfunchal.com.br"
+    address: "Rua Capitão Gabriel, 140 - Centro, Guarulhos"
+    city: "Guarulhos"
+    zone: "norte"
+    coverage: "Atacado doces, chocolates, confeitaria, embalagens, festas - 3 lojas físicas"
+    units:
+      - name: "Guarulhos"
+        address: "Rua Capitão Gabriel, 140 - Centro, Guarulhos"
+      - name: "Vila Prudente"
+        address: "Rua Francisca Dória Ribas, 40 - Vila Prudente, SP"
+      - name: "Penha"
+        address: "Rua dos Três Irmãos, 378 - Penha, SP"
+    collection_method: "automated"
+    scraper: "vtex_scraper"
+    priority: 14
+
   - name: "Casa dos Confeiteiros"
     tier: 2
     type: "website_catalog"
+    is_active: false
     logistics: "pickup_sp"
     base_url: "https://www.casadosconfeiteiros.com.br"
     address: "São Paulo"
     zone: "centro"
-    coverage: "Insumos gerais confeitaria"
+    coverage: "Insumos gerais confeitaria (inativo - domínio fora do ar)"
     collection_method: "automated"
     scraper: "website_scraper"
     priority: 14
@@ -262,11 +298,12 @@ stores:
   - name: "Empório da Confeitaria"
     tier: 2
     type: "website_catalog"
+    is_active: false
     logistics: "pickup_sp"
     base_url: "https://www.emporioconfeitaria.com.br"
     address: "São Paulo"
     zone: "centro"
-    coverage: "Insumos, embalagens"
+    coverage: "Insumos, embalagens (inativo - domínio fora do ar)"
     collection_method: "automated"
     scraper: "website_scraper"
     priority: 15
@@ -274,11 +311,12 @@ stores:
   - name: "Doce Festa"
     tier: 2
     type: "website_catalog"
+    is_active: false
     logistics: "pickup_sp"
     base_url: "https://www.docefesta.com.br"
     address: "São Paulo"
     zone: "centro"
-    coverage: "Artigos festa + insumos"
+    coverage: "Artigos festa + insumos (inativo - domínio fora do ar)"
     collection_method: "automated"
     scraper: "website_scraper"
     priority: 16
@@ -286,11 +324,12 @@ stores:
   - name: "GP Distribuidora"
     tier: 2
     type: "website_catalog"
+    is_active: false
     logistics: "pickup_sp"
     base_url: "https://www.gpdistribuidora.com.br"
     address: "São Paulo"
     zone: "centro"
-    coverage: "Distribuição ampla confeitaria"
+    coverage: "Empresa de logística, não tem e-commerce de ingredientes"
     collection_method: "automated"
     scraper: "website_scraper"
     priority: 17
@@ -298,11 +337,12 @@ stores:
   - name: "Point Baker"
     tier: 2
     type: "website_catalog"
+    is_active: false
     logistics: "pickup_sp"
     base_url: "https://www.pointbaker.com.br"
     address: "Av. Inajar de Souza, 81 - Freguesia do Ó, SP"
     zone: "norte"
-    coverage: "Panificação, confeitaria, ingredientes"
+    coverage: "Panificação, confeitaria, ingredientes (inativo - domínio fora do ar)"
     collection_method: "automated"
     scraper: "website_scraper"
     priority: 18
@@ -547,8 +587,76 @@ stores:
     priority: 33
 
   # ============================================================================
-  # TIER 2C - LOJAS REGIONAIS COM SITE (Auditar)
+  # TIER 2C - E-COMMERCE NACIONAL / REGIONAL
   # ============================================================================
+  - name: "Chocolândia"
+    tier: 2
+    type: "website_catalog"
+    logistics: "pickup_sp"
+    base_url: "https://www.chocolandiaonline.com.br"
+    search_url: "https://www.chocolandiaonline.com.br/catalogsearch/result/?q={query}"
+    selectors:
+      product_card: [".product-item", ".item.product-item", "li.product-item"]
+      product_name: [".product-item-link", ".product.name a", ".product-item-name a"]
+      product_price: [".price-wrapper .price", ".price", ".special-price .price"]
+    address: "Rua Silva Bueno, 2040 - Ipiranga, SP"
+    zone: "sul"
+    units:
+      - name: "Ipiranga"
+        address: "Rua Silva Bueno, 2040 - Ipiranga, SP"
+      - name: "Santo Amaro"
+        address: "Av. João Dias, 24 - Santo Amaro, SP"
+      - name: "Tatuapé"
+        address: "Rua Padre Estevão Pernet, 87 - Tatuapé, SP"
+      - name: "Santo André"
+        address: "Av. Pereira Barreto, 600 - Paraíso, Santo André"
+      - name: "Guarulhos"
+        address: "Av. Tiradentes, 2500 - Guarulhos"
+    coverage: "41 anos no mercado - chocolates, coberturas, granulados, leite condensado, Nutella, coco, embalagens, formas, utensílios - 7 lojas SP + ABC + Guarulhos"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 55
+
+  - name: "Chocoexpress"
+    tier: 2
+    type: "website_catalog"
+    logistics: "pickup_sp"
+    base_url: "https://www.chocoexpress.com.br"
+    search_url: "https://www.chocoexpress.com.br/loja/busca.php?palavra_busca={query}"
+    address: "SP Capital"
+    zone: "sul"
+    coverage: "Chocolates Nestlé, coberturas, leite condensado, confeitaria, sorveteria - 8.000+ itens"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 56
+
+  - name: "Central do Confeiteiro"
+    tier: 2
+    type: "website_catalog"
+    logistics: "pickup_local"
+    base_url: "https://www.centraldoconfeiteiro.com.br"
+    search_url: "https://www.centraldoconfeiteiro.com.br/loja/busca.php?palavra_busca={query}"
+    address: "Av. Dr. Timóteo Penteado, 4228 - Vila Galvão, Guarulhos"
+    city: "Guarulhos"
+    zone: "norte"
+    coverage: "Chocolates Harald/Mavalério, granulados, leite condensado, confeitos, embalagens, utensílios"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 57
+
+  - name: "Bocão Doces"
+    tier: 2
+    type: "website_catalog"
+    logistics: "pickup_sp"
+    base_url: "https://www.bocaodoces.com.br"
+    search_url: "https://www.bocaodoces.com.br/loja/busca.php?palavra_busca={query}"
+    address: "SP Capital"
+    zone: "sul"
+    coverage: "Chocolates, granulados, leite condensado, chocolate em pó, embalagens, confeitaria - entrega Brasil"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 58
+
   - name: "Chefon"
     tier: 2
     type: "website_catalog"
@@ -569,11 +677,12 @@ stores:
   - name: "Cacau Center"
     tier: 2
     type: "website_catalog"
+    is_active: false
     logistics: "pickup_local"
     base_url: "https://cacaucenter.com.br"
     address: "Av. Prefeito José Monteiro, 744 - Vila Valença, São Vicente"
     city: "São Vicente"
-    coverage: "Chocolates, coberturas, granulados, formas BWB, utensílios"
+    coverage: "Chocolates, coberturas, granulados, formas BWB, utensílios (inativo - WordPress sem catálogo de produtos)"
     collection_method: "automated"
     scraper: "website_scraper"
     priority: 33
@@ -581,11 +690,12 @@ stores:
   - name: "Padeirão e ArtPão"
     tier: 2
     type: "website_catalog"
+    is_active: false
     logistics: "pickup_local"
     base_url: "https://www.padeirao.com.br"
     address: "Rua Joaquim Távora, 191 - Vila Matias, Santos"
     city: "Santos"
-    coverage: "Insumos profissionais, farinhas especiais, chocolates, utensílios"
+    coverage: "Insumos profissionais, farinhas especiais, chocolates, utensílios (inativo - site sem e-commerce funcional)"
     collection_method: "automated"
     scraper: "website_scraper"
     priority: 34
@@ -594,13 +704,14 @@ stores:
     tier: 2
     type: "website_catalog"
     logistics: "pickup_local"
-    base_url: "https://confeitosecia.com"
+    base_url: "https://www.confeitosecia.com"
+    search_url: "https://www.confeitosecia.com/loja/busca.php?palavra_busca={query}"
     address: "Rua Carvalho de Mendonça, 251 - Vila Belmiro, Santos"
     city: "Santos"
-    coverage: "Confeitaria fina, pasta americana, corantes, bicos, moldes, descartáveis"
+    coverage: "Confeitaria fina, pasta americana, corantes, bicos, moldes, descartáveis - 29+ produtos leite condensado"
     collection_method: "automated"
     scraper: "website_scraper"
-    priority: 35
+    priority: 39
 
   - name: "Carrefour Mercado"
     tier: 2
@@ -617,11 +728,12 @@ stores:
   - name: "Casa Rio Doces"
     tier: 2
     type: "website_catalog"
+    is_active: false
     logistics: "pickup_local"
     base_url: "https://mechamenozap.com.br/casariodoces"
     address: "Rua Sete de Setembro, 83/87 - Vila Nova, Santos"
     city: "Santos"
-    coverage: "Atacado doces, chocolates barra, guloseimas, confeitos industriais"
+    coverage: "Atacado doces, chocolates barra, guloseimas, confeitos industriais (inativo - página de perfil WhatsApp, sem catálogo)"
     collection_method: "automated"
     scraper: "website_scraper"
     priority: 36
@@ -629,11 +741,12 @@ stores:
   - name: "Shopping das Embalagens"
     tier: 2
     type: "website_catalog"
+    is_active: false
     logistics: "pickup_local"
     base_url: "https://shoppingdasembalagensloja.com.br"
     address: "Av. Senador Feijó, 545 - Vila Matias, Santos"
     city: "Santos"
-    coverage: "Caixas papelão, fitas, formas de papel, descartáveis"
+    coverage: "Caixas papelão, fitas, formas de papel, descartáveis (inativo - só embalagens)"
     collection_method: "automated"
     scraper: "website_scraper"
     priority: 37
@@ -641,11 +754,12 @@ stores:
   - name: "Proplastik"
     tier: 2
     type: "website_catalog"
+    is_active: false
     logistics: "pickup_local"
     base_url: "https://www.proplastik.com.br"
     address: "Rua João Pessoa, 10 - Centro, Santos"
     city: "Santos"
-    coverage: "Embalagens, descartáveis, festas"
+    coverage: "Embalagens, descartáveis, festas (inativo - só embalagens)"
     collection_method: "automated"
     scraper: "website_scraper"
     priority: 38
@@ -653,11 +767,12 @@ stores:
   - name: "Bezerra Embalagens"
     tier: 2
     type: "website_catalog"
+    is_active: false
     logistics: "pickup_local"
     base_url: "https://bezerraembalagens.com.br"
     address: "Rua Santa Cecília, 499 - Balneário Regina Maria, Mongaguá"
     city: "Mongaguá"
-    coverage: "Embalagens"
+    coverage: "Embalagens (inativo - só embalagens)"
     collection_method: "automated"
     scraper: "website_scraper"
     priority: 39
@@ -665,11 +780,12 @@ stores:
   - name: "Pejuca Festas"
     tier: 2
     type: "website_catalog"
+    is_active: false
     logistics: "pickup_local"
     base_url: "https://pejuca.com.br"
     address: "Av. Roberto Iwakichi Uraguchi, 251 - Praia dos Sonhos, Itanhaém"
     city: "Itanhaém"
-    coverage: "Artigos festa, embalagens"
+    coverage: "Artigos festa, embalagens (inativo - só embalagens)"
     collection_method: "automated"
     scraper: "website_scraper"
     priority: 40
