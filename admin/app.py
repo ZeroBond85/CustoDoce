@@ -10,6 +10,7 @@ import streamlit as st
 import yaml
 from dotenv import load_dotenv
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from services.auth import (
     generate_totp_secret as _gen_totp,
     get_totp_uri as _get_totp_uri,
