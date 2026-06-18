@@ -828,10 +828,10 @@ def tab_lojas():
                 zone = st.text_input("Zona", value=default.get("zone", ""))
                 url_pattern = st.text_input("URL Pattern (PDF)", value=default.get("url_pattern", ""))
             with col2:
-                base_url = st.text_input("Base URL", value=default.get("base_url", ""))
+                base_url = st.text_input("URL Base", value=default.get("base_url", ""))
                 api_endpoint = st.text_input("API Endpoint (VTEX)", value=default.get("api_endpoint", ""))
-                search_url = st.text_input("Search URL", value=default.get("search_url", ""))
-                selectors = st.text_area("Selectors JSON", value=str(default.get("selectors", {})))
+                search_url = st.text_input("URL de Busca", value=default.get("search_url", ""))
+                selectors = st.text_area("Seletores JSON", value=str(default.get("selectors", {})))
                 publish_day = st.selectbox("Dia Publicação", ["", "quarta", "quinta"], index=["", "quarta", "quinta"].index(default.get("publish_day", "")))
                 collection_method = st.selectbox("Método Coleta", ["automatico", "visita_manual", "manual"], index=["automatico", "visita_manual", "manual"].index(default.get("collection_method", "automatico")))
                 visit_frequency = st.text_input("Frequência Visita", value=default.get("visit_frequency", ""))
