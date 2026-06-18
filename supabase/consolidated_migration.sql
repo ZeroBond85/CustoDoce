@@ -132,6 +132,7 @@ CREATE TABLE IF NOT EXISTS stores (
     coverage TEXT DEFAULT '',
     collection_method TEXT DEFAULT 'manual',
     is_active BOOLEAN DEFAULT TRUE,
+    priority INTEGER DEFAULT 99,
     config JSONB DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -139,6 +140,7 @@ CREATE TABLE IF NOT EXISTS stores (
 
 CREATE INDEX IF NOT EXISTS idx_stores_tier ON stores(tier);
 CREATE INDEX IF NOT EXISTS idx_stores_active ON stores(is_active);
+CREATE INDEX IF NOT EXISTS idx_stores_priority ON stores(priority);
 
 -- ============================================================================
 -- FLYERS TABLE (aggregator metadata + OCR pipeline)
