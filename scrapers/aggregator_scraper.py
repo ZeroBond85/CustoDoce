@@ -1,9 +1,12 @@
 import asyncio
+import logging
 import re
 from datetime import datetime
 
 import httpx
 from selectolax.parser import HTMLParser
+
+logger = logging.getLogger(__name__)
 
 CITY_SLUGS = {
     "santos": "Santos",
@@ -55,7 +58,7 @@ class TiendeoScraper:
             resp.raise_for_status()
             return resp.text
         except Exception as e:
-            print(f"[Tiendeo] Error fetching {url}: {e}")
+            logger.error("Error fetching %s: %s", url, e)
             return None
 
     def parse_flyers(self, html: str, region: str) -> list[dict]:
@@ -64,7 +67,7 @@ class TiendeoScraper:
 
         not_found = tree.css_first('.error-page, [class*="error"], h1')
         if not_found and "não encontramos" in not_found.text(strip=True).lower():
-            print(f"[Tiendeo] Skipping {region}: page not found")
+            logger.warning("Skipping %s: page not found", region)
             return flyers
 
         items = tree.css('[data-testid="flyer_list_item"], .js-flyer, li[data-type="flyer"]')
@@ -101,7 +104,7 @@ class TiendeoScraper:
                     flyers.append(flyer)
 
             except Exception as e:
-                print(f"[Tiendeo] Error parsing flyer: {e}")
+                logger.error("Error parsing flyer: %s", e)
                 continue
 
         return flyers
@@ -109,15 +112,15 @@ class TiendeoScraper:
     def _parse_date(self, text: str) -> str | None:
         m = re.search(r"(\d{2})/(\d{2})", text)
         if m:
-            month, year = self._resolve_date(int(m.group(2)), int(m.group(1)))
-            return f"{year}-{m.group(2):0>2}-{m.group(1):0>2}"
+            raw_day, raw_month = int(m.group(1)), int(m.group(2))
+            resolved_year = self._resolve_year(raw_month)
+            return f"{resolved_year}-{raw_month:0>2}-{raw_day:0>2}"
         return None
 
-    def _resolve_date(self, month: int, day: int) -> tuple[int, int]:
+    @staticmethod
+    def _resolve_year(month: int) -> int:
         today = datetime.now()
-        if month < today.month:
-            return today.year + 1, month
-        return today.year, month
+        return today.year + 1 if month < today.month else today.year
 
     async def _fetch_city_async(self, client: httpx.AsyncClient, url: str) -> str | None:
         try:
@@ -125,7 +128,7 @@ class TiendeoScraper:
             resp.raise_for_status()
             return resp.text
         except Exception as e:
-            print(f"[Tiendeo] Error fetching {url}: {e}")
+            logger.error("Error fetching %s: %s", url, e)
             return None
 
     async def run_async(self) -> list[dict]:

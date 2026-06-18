@@ -1,7 +1,10 @@
 import io
+import logging
 
 from pdf2image import convert_from_bytes
 from pytesseract import image_to_string
+
+logger = logging.getLogger(__name__)
 
 
 def ocr_pdf(pdf_bytes: bytes, lang: str = "por") -> str:
@@ -13,7 +16,7 @@ def ocr_pdf(pdf_bytes: bytes, lang: str = "por") -> str:
             thread_count=2,
         )
     except Exception as e:
-        print(f"[OCR] PDF conversion error: {e}")
+        logger.error("PDF conversion error: %s", e)
         return ""
 
     text_parts = []
@@ -23,7 +26,7 @@ def ocr_pdf(pdf_bytes: bytes, lang: str = "por") -> str:
             if text:
                 text_parts.append(text)
         except Exception as e:
-            print(f"[OCR] Page {page_num} error: {e}")
+            logger.error("Page %d error: %s", page_num, e)
 
     return "\n".join(text_parts)
 
@@ -35,5 +38,5 @@ def ocr_image_bytes(image_bytes: bytes, lang: str = "por") -> str:
         text = image_to_string(img, lang=lang)
         return text.strip()
     except Exception as e:
-        print(f"[OCR] Image error: {e}")
+        logger.error("Image error: %s", e)
         return ""

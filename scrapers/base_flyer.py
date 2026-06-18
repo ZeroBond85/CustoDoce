@@ -1,23 +1,16 @@
 import hashlib
+import logging
+from abc import ABC, abstractmethod
 from datetime import date
 from pathlib import Path
 from typing import Optional
 
 import httpx
 
-
-class CacheEntry:
-    def __init__(self, store_name: str, week: int, url: str, md5: str):
-        self.store_name = store_name
-        self.week = week
-        self.url = url
-        self.md5 = md5
-
-    def to_dict(self):
-        return {"store": self.store_name, "week": self.week, "url": self.url, "md5": self.md5}
+logger = logging.getLogger(__name__)
 
 
-class BaseFlyerScraper:
+class BaseFlyerScraper(ABC):
     def __init__(self, store_config: dict, cache_dir: str = "data/cache"):
         self.store = store_config
         self.name = store_config["name"]
@@ -25,7 +18,7 @@ class BaseFlyerScraper:
         self.publish_day = store_config.get("publish_day", "wednesday")
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.session = httpx.Client(
+        self._http = httpx.Client(
             timeout=30.0,
             follow_redirects=True,
             headers={
@@ -34,6 +27,21 @@ class BaseFlyerScraper:
                 "Accept": "application/pdf, */*",
             },
         )
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self._http.close()
+
+    def close(self):
+        self._http.close()
+
+    def _md5_path(self) -> Path:
+        return self.cache_dir / f"{self.name.lower().replace(' ', '_')}_md5.txt"
+
+    def _etag_path(self) -> Path:
+        return self.cache_dir / f"{self.name.lower().replace(' ', '_')}_etag.txt"
 
     def build_url(self, target_date: Optional[date] = None) -> str:
         if target_date is None:
@@ -47,46 +55,56 @@ class BaseFlyerScraper:
             url = self.url_pattern.replace("{week}", str(week)).replace("{city}", city_part)
         return url
 
-    def compute_md5(self, content: bytes) -> str:
-        return hashlib.md5(content).hexdigest()
-
-    def is_cached(self, md5: str) -> bool:
-        cache_file = self.cache_dir / f"{self.name.lower().replace(' ', '_')}_md5.txt"
-        if cache_file.exists():
-            with open(cache_file) as f:
-                return f.read().strip() == md5
-        return False
-
-    def save_cache(self, md5: str):
-        cache_file = self.cache_dir / f"{self.name.lower().replace(' ', '_')}_md5.txt"
-        with open(cache_file, "w") as f:
-            f.write(md5)
+    def _compute_md5(self, content: bytes) -> str:
+        return hashlib.md5(content, usedforsecurity=False).hexdigest()  # nosec B324
 
     def download(self, target_date: Optional[date] = None) -> tuple[Optional[bytes], bool]:
         url = self.build_url(target_date)
+        md5_path = self._md5_path()
+        etag_path = self._etag_path()
+        cached_md5 = md5_path.read_text().strip() if md5_path.exists() else ""
+        cached_etag = etag_path.read_text().strip() if etag_path.exists() else ""
+
         try:
-            resp = self.session.get(url)
+            head = self._http.head(url)
+            etag = head.headers.get("etag", "")
+            if etag and etag == cached_etag:
+                logger.info("[%s] ETag unchanged, skipping download", self.name)
+                return None, False
+            head_md5 = head.headers.get("content-md5", "")
+            if head_md5 and head_md5 == cached_md5:
+                logger.info("[%s] Content-MD5 unchanged, skipping download", self.name)
+                return None, False
+        except Exception:
+            logger.debug("[%s] HEAD check failed, proceeding with GET", self.name)
+
+        try:
+            resp = self._http.get(url)
             resp.raise_for_status()
-            content = resp.content
-            md5 = self.compute_md5(content)
-
-            if self.is_cached(md5):
-                return None, False  # unchanged
-
-            self.save_cache(md5)
-            return content, True  # new content
-
         except httpx.HTTPError as e:
-            print(f"[BaseFlyer] HTTP error for {self.name} ({url}): {e}")
+            logger.error("[%s] HTTP error for %s: %s", self.name, url, e)
             return None, False
         except Exception as e:
-            print(f"[BaseFlyer] Error for {self.name}: {e}")
+            logger.error("[%s] Download error: %s", self.name, e)
             return None, False
+
+        content = resp.content
+        current_md5 = self._compute_md5(content)
+        if current_md5 == cached_md5:
+            logger.info("[%s] MD5 unchanged, skipping", self.name)
+            return None, False
+
+        md5_path.write_text(current_md5)
+        etag = resp.headers.get("etag", "")
+        if etag:
+            etag_path.write_text(etag)
+        return content, True
 
     def extract_text(self, pdf_bytes: bytes) -> str:
         import pdfplumber
+        import io
         text_parts = []
-        with pdfplumber.open(pdf_bytes) as pdf:
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
             for page in pdf.pages:
                 text = page.extract_text()
                 if text:
@@ -105,21 +123,21 @@ class BaseFlyerScraper:
         raw_text = self.extract_text(content)
 
         if not raw_text or not raw_text.strip():
-            print(f"[BaseFlyer/{self.name}] pdfplumber returned empty, trying OCR...")
+            logger.info("[%s] pdfplumber returned empty, trying OCR...", self.name)
             try:
                 from scrapers.ocr import ocr_pdf
                 raw_text = ocr_pdf(content)
                 if raw_text.strip():
-                    print(f"[BaseFlyer/{self.name}] OCR extracted {len(raw_text)} chars")
+                    logger.info("[%s] OCR extracted %d chars", self.name, len(raw_text))
                 else:
-                    print(f"[BaseFlyer/{self.name}] OCR also returned empty")
+                    logger.info("[%s] OCR also returned empty", self.name)
             except ImportError as e:
-                print(f"[BaseFlyer/{self.name}] OCR not available: {e}")
+                logger.warning("[%s] OCR not available: %s", self.name, e)
             except Exception as e:
-                print(f"[BaseFlyer/{self.name}] OCR error: {e}")
+                logger.warning("[%s] OCR error: %s", self.name, e)
 
-        products = self.parse_products(raw_text)
-        return products
+        return self.parse_products(raw_text)
 
+    @abstractmethod
     def parse_products(self, text: str) -> list[dict]:
-        raise NotImplementedError("Subclasses must implement parse_products")
+        ...

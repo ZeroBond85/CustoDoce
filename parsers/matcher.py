@@ -60,7 +60,7 @@ def match_ingredient(
 
         # fuzzy match on canonical
         canonical_clean = clean_text(ing["canonical"])
-        score = fuzz.ratio(product_clean, canonical_clean)
+        score = fuzz.token_set_ratio(product_clean, canonical_clean)
         if score > best_score:
             best_score = score
             best_ingredient = ing
@@ -68,7 +68,7 @@ def match_ingredient(
 
         for alias in ing.get("aliases", []):
             alias_clean = clean_text(alias)
-            score = fuzz.ratio(product_clean, alias_clean)
+            score = fuzz.token_set_ratio(product_clean, alias_clean)
             if score > best_score:
                 best_score = score
                 best_ingredient = ing
@@ -90,11 +90,11 @@ def rank_ingredients(
 
     for ing in ingredients:
         canonical_clean = clean_text(ing["canonical"])
-        score = fuzz.ratio(product_clean, canonical_clean)
+        score = fuzz.token_set_ratio(product_clean, canonical_clean)
 
         for alias in ing.get("aliases", []):
             alias_clean = clean_text(alias)
-            alias_score = fuzz.ratio(product_clean, alias_clean)
+            alias_score = fuzz.token_set_ratio(product_clean, alias_clean)
             score = max(score, alias_score)
 
         candidates.append((ing, score))

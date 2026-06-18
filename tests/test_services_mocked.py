@@ -10,7 +10,7 @@ Uso:
 import os
 import sys
 from datetime import date, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -90,6 +90,22 @@ class MockQueryBuilder:
         return self
 
 
+class MockSupabaseClient:
+    """Simula o cliente Supabase com .table() e .rpc()."""
+
+    def __init__(self, qb=None):
+        self.qb = qb if qb is not None else MockQueryBuilder([])
+        self._captured_rpc = None
+
+    def table(self, name):
+        self._last_table = name
+        return MockTable(self.qb)
+
+    def rpc(self, fn_name, params=None):
+        self._captured_rpc = (fn_name, params)
+        return self.qb
+
+
 class MockTable:
     """Simula uma tabela do Supabase.
     
@@ -114,15 +130,10 @@ class MockTable:
 
 
 def make_mocks():
-    """Retorna (mock_client, MockTable, MockQueryBuilder) prontos para uso.
-    
-    mock_client e um MagicMock cujo .table() retorna uma MockTable.
-    O MockQueryBuilder registra todos os filtros aplicados e dados inseridos.
-    """
+    """Retorna (mock_client, MockTable, MockQueryBuilder) prontos para uso."""
     qb = MockQueryBuilder([])
     table = MockTable(qb)
-    mock_client = MagicMock()
-    mock_client.table.return_value = table
+    mock_client = MockSupabaseClient(qb)
     return mock_client, table, qb
 
 
@@ -409,6 +420,36 @@ class TestPriceService:
         assert qb._captured_insert["raw_product"] == "Leite Ninho 400g Oferta"
         assert qb._captured_insert["validity_raw"] == "Promocao semana do cliente"
         assert qb._captured_insert["status"] == "pending"
+
+    @patch("services.price_service.get_service_client")
+    def test_insert_review_item_dedup_any_status(self, mock_get_client):
+        """Dedup funciona independente do status (pending, approved, rejected)."""
+        from services.price_service import insert_review_item
+
+        mock_client, _, qb = make_mocks()
+        mock_get_client.return_value = mock_client
+
+        # Simula item existente com status "approved"
+        qb._return_data = [{"id": "existing-id"}]
+
+        result = insert_review_item({
+            "raw_product": "Ninho Integral 400g",
+            "raw_price": 25.90, "raw_unit": "un",
+            "store_name": "Extra", "source": "automated",
+            "confidence": 0.65, "suggestions": ["Leite Ninho Integral"],
+            "validity_raw": "",
+        })
+
+        # Deve retornar o existente e NAO inserir novo
+        assert result["id"] == "existing-id"
+        assert qb._captured_insert is None, "Nao deveria inserir novo registro"
+
+        # Verifica que checou store_name + raw_product SEM filtro de status
+        eq_filters = [f for f in qb._applied_filters if f[0] == "eq"]
+        eq_fields = [f[1] for f in eq_filters]
+        assert "store_name" in eq_fields
+        assert "raw_product" in eq_fields
+        assert "status" not in eq_fields, "Nao deveria filtrar por status"
 
     # ── approve_review_item ────────────────────────────────────
 
@@ -751,7 +792,7 @@ class TestWebsiteScraper:
         </body></html>
         """
 
-        results = scraper.parse_results(html)
+        results = scraper.parse_products(html)
         assert len(results) == 1
         assert results[0]["validity_raw"] == "Valido ate 30/06/2026"
 
@@ -777,7 +818,7 @@ class TestWebsiteScraper:
         </body></html>
         """
 
-        results = scraper.parse_results(html)
+        results = scraper.parse_products(html)
         assert len(results) == 1
         assert results[0]["validity_raw"] == ""
 
@@ -826,3 +867,318 @@ class TestEmailService:
         html = build_full_report_html({})
         assert "<html>" in html
         assert "Relatorio" in html
+
+
+# ═══════════════════════════════════════════════════════════════
+# CLEANUP TESTS
+# ═══════════════════════════════════════════════════════════════
+
+class TestCleanupService:
+
+    @patch("services.price_service.get_service_client")
+    def test_cleanup_old_prices_calls_rpc(self, mock_get_client):
+        """cleanup_old_prices() chama rpc('cleanup_old_prices')."""
+        from services.price_service import cleanup_old_prices
+
+        mock_client, _, qb = make_mocks()
+        mock_get_client.return_value = mock_client
+
+        result = cleanup_old_prices(retention_days=90)
+
+        assert mock_client._captured_rpc is not None
+        fn_name, params = mock_client._captured_rpc
+        assert fn_name == "cleanup_old_prices"
+        assert params == {"retention_days": 90}
+        assert "deleted" in result
+
+    @patch("services.price_service.get_service_client")
+    def test_cleanup_old_prices_default_retention(self, mock_get_client):
+        """Usa 90 dias como padrao."""
+        from services.price_service import cleanup_old_prices
+
+        mock_client, _, _ = make_mocks()
+        mock_get_client.return_value = mock_client
+
+        cleanup_old_prices()
+
+        assert mock_client._captured_rpc is not None
+        _, params = mock_client._captured_rpc
+        assert params == {"retention_days": 90}
+
+    @patch("services.price_service.get_service_client")
+    def test_cleanup_old_logs_calls_rpc(self, mock_get_client):
+        """cleanup_old_logs() chama rpc('cleanup_old_logs')."""
+        from services.price_service import cleanup_old_logs
+
+        mock_client, _, _ = make_mocks()
+        mock_get_client.return_value = mock_client
+
+        result = cleanup_old_logs(retention_days=30)
+
+        assert mock_client._captured_rpc is not None
+        fn_name, params = mock_client._captured_rpc
+        assert fn_name == "cleanup_old_logs"
+        assert params == {"retention_days": 30}
+        assert "deleted" in result
+
+    @patch("services.price_service.get_service_client")
+    def test_cleanup_old_logs_default_retention(self, mock_get_client):
+        """Usa 30 dias como padrao."""
+        from services.price_service import cleanup_old_logs
+
+        mock_client, _, _ = make_mocks()
+        mock_get_client.return_value = mock_client
+
+        cleanup_old_logs()
+
+        assert mock_client._captured_rpc is not None
+        _, params = mock_client._captured_rpc
+        assert params == {"retention_days": 30}
+
+    @patch("services.flyer_service.get_service_client")
+    def test_cleanup_old_flyers_calls_rpc(self, mock_get_client):
+        """cleanup_old_flyers() chama rpc('cleanup_old_flyers')."""
+        from services.flyer_service import cleanup_old_flyers
+
+        mock_client, _, _ = make_mocks()
+        mock_get_client.return_value = mock_client
+
+        result = cleanup_old_flyers(retention_days=60)
+
+        assert mock_client._captured_rpc is not None
+        fn_name, params = mock_client._captured_rpc
+        assert fn_name == "cleanup_old_flyers"
+        assert params == {"retention_days": 60}
+        assert "deleted" in result
+
+    @patch("services.flyer_service.get_service_client")
+    def test_cleanup_old_flyers_default_retention(self, mock_get_client):
+        """Usa 60 dias como padrao."""
+        from services.flyer_service import cleanup_old_flyers
+
+        mock_client, _, _ = make_mocks()
+        mock_get_client.return_value = mock_client
+
+        cleanup_old_flyers()
+
+        assert mock_client._captured_rpc is not None
+        _, params = mock_client._captured_rpc
+        assert params == {"retention_days": 60}
+
+
+class TestUnitExtractor:
+    """Testes P0 para parsers/unit_extractor.py — extract_unit()."""
+
+    def test_extract_unit_cx_multiple(self):
+        from parsers.unit_extractor import extract_unit
+        assert extract_unit("cx 12x395g") == "12x395g"
+
+    def test_extract_unit_multiplication(self):
+        from parsers.unit_extractor import extract_unit
+        assert extract_unit("cx 12x395g Leite") == "12x395g"
+
+    def test_extract_unit_simple_weight(self):
+        from parsers.unit_extractor import extract_unit
+        assert extract_unit("2kg") == "2kg"
+        assert extract_unit("500g") == "500g"
+
+    def test_extract_unit_kg_with_g(self):
+        from parsers.unit_extractor import extract_unit
+        assert extract_unit("1.5kg") == "1.5kg"
+
+    def test_extract_unit_liter(self):
+        from parsers.unit_extractor import extract_unit
+        assert extract_unit("1L") == "1L"
+        assert extract_unit("2l") == "2l"
+
+    def test_extract_unit_lata(self):
+        from parsers.unit_extractor import extract_unit
+        assert extract_unit("lata 1kg") == "1kg"
+
+    def test_extract_unit_pacote(self):
+        from parsers.unit_extractor import extract_unit
+        assert extract_unit("pacote com 5") == "pacote com 5"
+
+    def test_extract_unit_empty(self):
+        from parsers.unit_extractor import extract_unit
+        assert extract_unit("Nestle Leite Condensado") == ""
+
+    def test_extract_unit_case_insensitive(self):
+        from parsers.unit_extractor import extract_unit
+        assert extract_unit("Caixa 12X200G") == "12X200G"
+        assert extract_unit("CX 24X200ml") == "24X200ml"
+
+
+class TestNormalizer:
+    """Testes P0 para parsers/normalizer.py — parse_unit() e normalize_price()."""
+
+    def test_parse_unit_cx_12x395g(self):
+        from parsers.normalizer import parse_unit
+        result = parse_unit("cx 12x395g")
+        assert result is not None
+        assert result.qty == 12
+        assert abs(result.unit_kg - 0.395) < 0.001
+        assert abs(result.total_kg - 4.74) < 0.001
+
+    def test_parse_unit_2kg(self):
+        from parsers.normalizer import parse_unit
+        result = parse_unit("2kg")
+        assert result is not None
+        assert result.qty == 1
+        assert abs(result.unit_kg - 2.0) < 0.001
+        assert abs(result.total_kg - 2.0) < 0.001
+
+    def test_parse_unit_500g(self):
+        from parsers.normalizer import parse_unit
+        result = parse_unit("500g")
+        assert result is not None
+        assert abs(result.unit_kg - 0.5) < 0.001
+
+    def test_parse_unit_empty(self):
+        from parsers.normalizer import parse_unit
+        assert parse_unit("") is None
+
+    def test_parse_unit_invalid(self):
+        from parsers.normalizer import parse_unit
+        assert parse_unit(None) is None
+        assert parse_unit(123) is None  # type: ignore
+
+    def test_normalize_price_basic(self):
+        from parsers.normalizer import normalize_price
+        result = normalize_price(42.90, "cx 12x395g")
+        assert result is not None
+        expected_kg = 42.90 / (12 * 0.395)
+        assert abs(result.price_per_kg - expected_kg) < 0.01
+        assert abs(result.price_per_un - 42.90 / 12) < 0.01
+
+    def test_normalize_price_2kg(self):
+        from parsers.normalizer import normalize_price
+        result = normalize_price(25.00, "2kg")
+        assert result is not None
+        assert abs(result.price_per_kg - 12.50) < 0.01
+        assert abs(result.price_per_un - 25.00) < 0.01
+
+    def test_normalize_price_zero_negative(self):
+        from parsers.normalizer import normalize_price
+        assert normalize_price(0, "2kg") is None
+        assert normalize_price(-1, "2kg") is None
+
+    def test_normalize_price_invalid_unit(self):
+        from parsers.normalizer import normalize_price
+        assert normalize_price(10.00, "") is None
+
+    def test_normalized_price_to_dict(self):
+        from parsers.normalizer import NormalizedPrice
+        np = NormalizedPrice(qty=6, unit_kg=0.5, total_kg=3.0,
+                             price_per_kg=10.0, price_per_un=5.0)
+        d = np.to_dict()
+        assert d["qty"] == 6
+        assert d["price_per_kg"] == 10.0
+
+    def test_normalized_price_repr(self):
+        from parsers.normalizer import NormalizedPrice
+        np = NormalizedPrice(qty=1, unit_kg=2.0, total_kg=2.0,
+                             price_per_kg=12.50, price_per_un=25.00)
+        r = repr(np)
+        assert "R$12.50/kg" in r
+        assert "R$25.00/un" in r
+
+
+class TestMatcher:
+    """Testes P0 para parsers/matcher.py — match_ingredient e auxiliares."""
+
+    INGREDIENTS = [
+        {"canonical": "Leite Condensado",
+         "aliases": ["Leite Condensado Moça", "Leite Cond Molico"]},
+        {"canonical": "Creme de Leite",
+         "aliases": ["Creme de Leite Nestle", "Nestle Creme de Leite"]},
+        {"canonical": "Chocolate em Pó 50%",
+         "aliases": ["Chocolate em Pó 50% Cacau"]},
+    ]
+
+    def test_clean_text(self):
+        from parsers.matcher import clean_text
+        assert clean_text("Leite Condensado 12un") == "LEITE CONDENSADO 12UN"
+        assert clean_text("Creme de Leite - Nestle") == "CREME DE LEITE NESTLE"
+        assert clean_text("") == ""
+
+    def test_match_exact_canonical(self):
+        from parsers.matcher import match_exact
+        assert match_exact("Leite Condensado Moça 395g", self.INGREDIENTS[0])
+        assert not match_exact("Creme de Leite", self.INGREDIENTS[0])
+
+    def test_match_exact_alias(self):
+        from parsers.matcher import match_exact
+        assert match_exact("Leite Cond Molico 395g", self.INGREDIENTS[0])
+
+    def test_match_exact_word_subset(self):
+        from parsers.matcher import match_exact
+        assert match_exact("Leite Condensado Integral Moça", self.INGREDIENTS[0])
+
+    def test_match_ingredient_exact(self):
+        from parsers.matcher import match_ingredient
+        result = match_ingredient("Leite Condensado Moça", self.INGREDIENTS)
+        assert result[0] is not None
+        assert result[0]["canonical"] == "Leite Condensado"
+        assert result[1] == 100.0
+        assert result[2] == "exact"
+
+    def test_match_ingredient_fuzzy(self):
+        from parsers.matcher import match_ingredient
+        # "Creme Fresco Leite" scores ~88% on "Creme de Leite"
+        # but does NOT contain "Creme de Leite" or aliases verbatim
+        coca, score, match_type = match_ingredient(
+            "Creme Fresco Leite Nestle", self.INGREDIENTS
+        )
+        assert coca is not None
+        assert coca["canonical"] == "Creme de Leite"
+        assert score >= 80.0
+        assert match_type in ("fuzzy_canonical", "fuzzy_alias")
+
+    def test_match_ingredient_no_match(self):
+        from parsers.matcher import match_ingredient
+        result = match_ingredient("Arroz Branco 5kg", self.INGREDIENTS)
+        assert result[0] is None
+        assert result[1] < 80.0
+
+    def test_match_ingredient_threshold_high(self):
+        from parsers.matcher import match_ingredient
+        result = match_ingredient("Leite Condensado", self.INGREDIENTS, threshold=99.0)
+        assert result[0] is not None
+        assert result[1] == 100.0
+        assert result[2] == "exact"
+
+    def test_rank_ingredients(self):
+        from parsers.matcher import rank_ingredients
+        result = rank_ingredients("Chocolate em Pó 50% Cacau 200g", self.INGREDIENTS, top_n=2)
+        assert len(result) == 2
+        assert result[0][0]["canonical"] == "Chocolate em Pó 50%"
+
+    def test_build_alias_list(self):
+        from parsers.matcher import build_alias_list
+        result = build_alias_list(self.INGREDIENTS)
+        assert len(result) >= 5
+        pairs = [(c, a) for c, a, _ in result]
+        assert ("Leite Condensado", "Leite Condensado") in pairs
+        assert ("Leite Condensado", "Leite Condensado Moça") in pairs
+
+
+class TestAuthTotp:
+    """Testes P0 para services/auth.py — verify_totp() e _totp_int()."""
+
+    def test_totp_int_returns_int(self):
+        from services.auth import _totp_int, generate_totp_secret
+        secret = generate_totp_secret()
+        code = _totp_int(secret, 12345678)
+        assert isinstance(code, int)
+        assert 0 <= code <= 999999
+
+    def test_verify_totp_invalid_string(self):
+        from services.auth import verify_totp
+        assert verify_totp("SECRET", "") is False
+        assert verify_totp("SECRET", "abc123") is False
+
+    def test_verify_totp_wrong_code(self):
+        from services.auth import verify_totp
+        secret = "AAAAAAAAAAAAAAAA"
+        assert verify_totp(secret, "000000") is False

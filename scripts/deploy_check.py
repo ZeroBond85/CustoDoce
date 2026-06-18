@@ -87,20 +87,25 @@ def test_telegram():
 
 
 def test_smtp():
-    gmail_user = os.environ.get("GMAIL_USER")
-    gmail_pass = os.environ.get("GMAIL_APP_PASSWORD")
+    host = os.environ.get("SMTP_HOST") or "smtp.gmail.com"
+    port = int(os.environ.get("SMTP_PORT") or "587")
+    user = os.environ.get("SMTP_USER") or os.environ.get("GMAIL_USER")
+    password = os.environ.get("SMTP_PASSWORD") or os.environ.get("GMAIL_APP_PASSWORD")
+    from_addr = os.environ.get("SMTP_FROM") or user
     email_to = os.environ.get("ALERT_EMAIL_TO")
-    if not gmail_user or not gmail_pass or not email_to:
-        raise ValueError("GMAIL_USER, GMAIL_APP_PASSWORD ou ALERT_EMAIL_TO nao configurados")
+    if not user or not password or not email_to:
+        raise ValueError("SMTP_USER/GMAIL_USER, SMTP_PASSWORD/GMAIL_APP_PASSWORD ou ALERT_EMAIL_TO nao configurados")
     import smtplib
     from email.message import EmailMessage
     msg = EmailMessage()
     msg.set_content("🚀 CustoDoce — Deploy check OK")
     msg["Subject"] = "CustoDoce - Deploy Check"
-    msg["From"] = gmail_user
+    msg["From"] = f"CustoDoce <{from_addr}>"
     msg["To"] = email_to
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as server:
-        server.login(gmail_user, gmail_pass)
+    with smtplib.SMTP(host, port, timeout=15) as server:
+        server.ehlo()
+        server.starttls()
+        server.login(user, password)
         server.send_message(msg)
 
 
@@ -115,7 +120,8 @@ if __name__ == "__main__":
     _check("Auth (hash + verify)", test_auth)
     _check("Rate Limiter", test_rate_limiter)
     env_checks = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY",
-                   "AUTH_SECRET_KEY", "GMAIL_USER", "GMAIL_APP_PASSWORD",
+                   "AUTH_SECRET_KEY", "SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD",
+                   "GMAIL_USER", "GMAIL_APP_PASSWORD",
                    "ALERT_EMAIL_TO"]
     def _check_env(v):
         val = os.environ.get(v)
@@ -126,7 +132,7 @@ if __name__ == "__main__":
     for var in env_checks:
         _check(f"ENV: {var}", lambda v=var: _check_env(v))
     _check("Telegram envio", test_telegram)
-    _check("Gmail SMTP envio", test_smtp)
+    _check("SMTP envio", test_smtp)
 
     print(f"\n{'=' * 55}")
     print(f"  Resultado: {PASS} passed, {FAIL} failed")

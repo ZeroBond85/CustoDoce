@@ -3,7 +3,8 @@ __pycache__/
 .env
 .venv/
 venv/
-# data/cache/  # allow commit for PDF hash cache
+data/cache/  # PDF hash cache (persisted via GitHub Actions cache)
 data/rate_limiter.db
 .mypy_cache/
 .pytest_cache/
+bandit_output.json

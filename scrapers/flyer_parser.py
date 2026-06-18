@@ -3,15 +3,6 @@ import re
 PRICE_RE = re.compile(
     r"(?:R\$\s*)?([1-9]\d{0,2}(?:\.\d{3})*,\d{2})\b"
 )
-UNIT_RE = re.compile(
-    r"(\d+\s*x\s*[\d.,]+\s*(?:kg|g|ml|un)\b"
-    r"|[\d.,]+\s*(?:kg|g|ml|un)\b"
-    r"|cx\s*(?:com\s*)?\d+\s*(?:uni)?\b"
-    r"|lata\s*[\d.,]+\s*(?:kg|g)?\b"
-    r"|pacote\s*[\d.,]+\s*(?:kg|g)?\b)",
-    re.I,
-)
-
 STOP_WORDS = {
     "somente", "sexta", "sábado",
     "sabado", "domingo", "estoque", "limitado", "limite", "unidade",
@@ -74,8 +65,8 @@ def extract_price(line: str) -> float | None:
 
 
 def extract_unit(text: str) -> str:
-    m = UNIT_RE.search(text)
-    return m.group(1).strip() if m else ""
+    from parsers.unit_extractor import extract_unit as _extract_unit
+    return _extract_unit(text)
 
 
 def parse_flyer_lines(lines: list[str]) -> list[dict]:

@@ -1,70 +1,54 @@
-import sys
+import html as _html
 import json
+import logging
 import re
+import sys
 from datetime import datetime, date
 from pathlib import Path
 
-import yaml
-
 sys.path.insert(0, str(Path(__file__).parent))
 
-from scrapers.base_flyer import BaseFlyerScraper
-from scrapers.assai_flyer import AssaiFlyerScraper
-from scrapers.atacadao_flyer import AtacadaoFlyerScraper
-from scrapers.spani_flyer import SpaniFlyerScraper
-from scrapers.mercadao_flyer import MercadaoFlyerScraper
-from scrapers.tenda_flyer import TendaFlyerScraper
-from scrapers.roldao_flyer import RoldaoFlyerScraper
-from scrapers.sams_flyer import SamsFlyerScraper
-from scrapers.makro_flyer import MakroFlyerScraper
-from scrapers.max_flyer import MaxFlyerScraper
+from scrapers.flyer_scraper import FlyerScraper
 from scrapers.vtex_scraper import VtexScraper
 from scrapers.website_scraper import WebsiteScraper
-from scrapers.aggregator_scraper import TiendeoScraper
 from scrapers.carrefour_scraper import CarrefourScraper
+from scrapers.tenda_api_scraper import TendaApiScraper
+from scrapers.roldao_api_scraper import RoldaoApiScraper
+from scrapers.max_api_scraper import MaxApiScraper
+from scrapers.aggregator_scraper import TiendeoScraper
 from parsers.normalizer import normalize_price
-from parsers.matcher import match_ingredient
-from services.price_service import upsert_price, insert_review_item
+from parsers.matcher import match_ingredient, rank_ingredients
+from services.price_service import upsert_price, insert_review_item, log_scraper_run, cleanup_old_prices, cleanup_old_logs, _detect_promotion, _weekday_pt
+from services.flyer_service import cleanup_old_flyers
 from services.flyer_service import upsert_flyer
 from services.email_service import send_daily_report, send_scraper_error
+from services.config_db import get_active_ingredients, get_active_stores
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
 
-DIAS_PT = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"]
-
-
-def _weekday_pt(dt: datetime = None) -> str:
-    if dt is None:
-        dt = datetime.now()
-    return DIAS_PT[dt.weekday()]
-
-
-def _detect_promotion(text: str) -> bool:
-    if not text:
-        return False
-    t = text.lower()
-    return bool(re.search(r"(promo|oferta|promocao|desconto|\d+%\s*off)", t))
-
-CONFIG_DIR = Path("config")
 DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
 
+API_SCRAPER_MAP = {
+    "tenda_api_scraper": TendaApiScraper,
+    "roldao_api_scraper": RoldaoApiScraper,
+    "max_api_scraper": MaxApiScraper,
+}
+
 
 def load_ingredients() -> list[dict]:
-    path = CONFIG_DIR / "ingredients.yaml"
-    with open(path) as f:
-        data = yaml.safe_load(f)
-    return data.get("ingredients", [])
+    return get_active_ingredients()
 
 
 def load_stores() -> list[dict]:
-    path = CONFIG_DIR / "stores.yaml"
-    with open(path) as f:
-        data = yaml.safe_load(f)
-    return data.get("stores", [])
+    return get_active_stores()
 
 
 def _extract_validity_from_product(product_text: str) -> str:
-    """Extrai texto de validade do nome do produto, se disponivel."""
     m = re.search(r"(?:valido?\s*(?:ate?|até)?\s*:?\s*[\d]{2}/[\d]{2}(?:/[\d]{2,4})?)", product_text, re.I)
     if m:
         return m.group(0)
@@ -94,8 +78,8 @@ def build_product_entry(
         "raw_price": raw_price,
         "raw_unit": raw_unit,
         "validity_raw": validity,
-        "collected_weekday": _weekday_pt(),
-        "is_promotion": _detect_promotion(raw_product),
+        "collected_weekday": _weekday_pt(datetime.now()),
+        "is_promotion": _detect_promotion(raw_product, raw_unit),
         "tier": store.get("tier", 3),
         "confidence": confidence,
         "normalized": normalized.to_dict() if normalized else None,
@@ -112,8 +96,6 @@ def process_price_match(
     ingredients: list[dict],
     validity_raw: str = "",
 ) -> dict | None:
-    from parsers.matcher import rank_ingredients
-
     ingredient, score, match_type = match_ingredient(product_text, ingredients)
     if ingredient and score >= 80.0:
         entry = build_product_entry(
@@ -141,286 +123,168 @@ def process_price_match(
         try:
             insert_review_item(review_item)
         except Exception as e:
-            print(f"  Review queue error: {e}")
+            logger.warning("Review queue error: %s", e)
 
     return None
 
 
-SCRAPER_MAP = {
-    "assai_flyer": AssaiFlyerScraper,
-    "atacadao_flyer": AtacadaoFlyerScraper,
-    "spani_flyer": SpaniFlyerScraper,
-    "mercadao_flyer": MercadaoFlyerScraper,
-    "tenda_flyer": TendaFlyerScraper,
-    "roldao_flyer": RoldaoFlyerScraper,
-    "sams_flyer": SamsFlyerScraper,
-    "makro_flyer": MakroFlyerScraper,
-    "max_flyer": MaxFlyerScraper,
-}
+def _collect_prices(
+    stores: list[dict],
+    scraper_cls: type,
+    ingredients: list[dict],
+    label: str,
+) -> list[dict]:
+    all_products = []
+    for store in stores:
+        store_name = store.get("name", "unknown")
+        try:
+            with scraper_cls(store) as scraper:
+                raw_products = scraper.run(ingredients)
+
+            if not raw_products:
+                logger.info("[%s] No products found", store_name)
+                log_scraper_run(store_name, "completed", 0, 0)
+                continue
+
+            matched = 0
+            for prod in raw_products:
+                entry = process_price_match(
+                    store,
+                    prod.get("product", ""),
+                    prod.get("price", 0),
+                    prod.get("unit", ""),
+                    ingredients,
+                    validity_raw=prod.get("validity_raw", ""),
+                )
+                if entry:
+                    matched += 1
+                    all_products.append(entry)
+
+            logger.info("[%s] %d products, %d matched", store_name, len(raw_products), matched)
+            log_scraper_run(store_name, "completed", len(raw_products), matched)
+
+        except Exception as e:
+            logger.error("[%s] %s: %s", label, store_name, e)
+            log_scraper_run(store_name, "error", 0, 0, str(e))
+            try:
+                send_scraper_error(store_name, str(e))
+            except Exception:
+                pass
+
+    return all_products
 
 
-def _get_flyer_scraper(store: dict) -> BaseFlyerScraper:
-    scraper_name = store.get("scraper", "")
-    cls = SCRAPER_MAP.get(scraper_name, BaseFlyerScraper)
-    return cls(store)
+def _collect_flyers(
+    stores: list[dict],
+    scraper_cls: type | None,
+    label: str,
+    run_fn=None,
+) -> list[dict]:
+    all_flyers = []
+    for store in stores:
+        store_name = store.get("name", "unknown")
+        try:
+            if scraper_cls:
+                with scraper_cls(store) as scraper:
+                    entries = scraper.run([]) if hasattr(scraper, 'run') else []
+            elif run_fn:
+                entries = run_fn(store)
+            else:
+                continue
+
+            if not entries:
+                logger.info("[%s] No flyer entries found", store_name)
+                continue
+
+            saved = 0
+            for entry in entries:
+                try:
+                    upsert_flyer(entry)
+                    saved += 1
+                except Exception as e:
+                    logger.warning("Flyer save error: %s", e)
+
+            logger.info("[%s] %d flyer entries, %d saved", store_name, len(entries), saved)
+
+        except Exception as e:
+            logger.error("[%s] %s: %s", label, store_name, e)
+            try:
+                send_scraper_error(store_name, str(e))
+            except Exception:
+                pass
+
+    return all_flyers
 
 
 def collect_tier1_pdfs(ingredients: list[dict]) -> list[dict]:
-    stores = [s for s in load_stores() if s.get("tier") == 1]
-    all_products = []
+    stores = [s for s in load_stores() if s.get("tier") == 1 and s.get("type") == "pdf_flyer"]
+    today = date.today()
+    weekday = today.strftime("%A").lower()
+    stores = [s for s in stores if weekday in (s.get("publish_day", "wednesday"), "thursday")]
+    return _collect_prices(stores, FlyerScraper, ingredients, "PDF")
 
-    for store in stores:
-        try:
-            scraper = _get_flyer_scraper(store)
-            today = date.today()
 
-            # Only run on publish day or next day
-            weekday = today.strftime("%A").lower()
-            publish_day = store.get("publish_day", "wednesday")
-            if weekday not in (publish_day, "thursday"):
-                continue
+def collect_tier1_api_flyers(ingredients: list[dict]) -> list[dict]:
+    stores = [s for s in load_stores() if s.get("tier") == 1 and s.get("type") == "api_flyer"]
+    return _collect_flyers(stores, None, "API-Flyer", run_fn=_run_api_flyer_scraper)
 
-            products = scraper.run(today)
-            if not products:
-                print(f"[{store['name']}] No new products found (cached or empty)")
-                continue
 
-            matched = 0
-            for prod in products:
-                entry = process_price_match(
-                    store,
-                    prod.get("product", ""),
-                    prod.get("price", 0),
-                    prod.get("unit", ""),
-                    ingredients,
-                    validity_raw=prod.get("validity_raw", ""),
-                )
-                if entry:
-                    matched += 1
-                    all_products.append(entry)
-
-            print(f"[{store['name']}] Found {len(products)} products, matched {matched}")
-
-        except Exception as e:
-            print(f"[{store['name']}] Error: {e}")
-            try:
-                send_scraper_error(store["name"], str(e))
-            except Exception:
-                pass
-
-    return all_products
+def _run_api_flyer_scraper(store: dict) -> list[dict]:
+    scraper_name = store.get("scraper", "")
+    cls = API_SCRAPER_MAP.get(scraper_name)
+    if cls is None:
+        logger.warning("[%s] No API scraper class found", store.get("name", "unknown"))
+        return []
+    with cls(store) as scraper:
+        return scraper.run([])
 
 
 def collect_tier2_vtex(ingredients: list[dict]) -> list[dict]:
-    stores = [
-        s for s in load_stores()
-        if s.get("scraper") == "vtex_scraper"
-        and s.get("type") == "vtex_api"
-    ]
-    all_products = []
-
-    for store in stores:
-        try:
-            scraper = VtexScraper(store)
-            raw_products = scraper.run(ingredients)
-            if not raw_products:
-                print(f"[{store['name']}] No products found")
-                continue
-
-            matched = 0
-            for prod in raw_products:
-                entry = process_price_match(
-                    store,
-                    prod.get("product", ""),
-                    prod.get("price", 0),
-                    prod.get("unit", ""),
-                    ingredients,
-                    validity_raw=prod.get("validity_raw", ""),
-                )
-                if entry:
-                    matched += 1
-                    all_products.append(entry)
-
-            print(f"[{store['name']}] {len(raw_products)} products, {matched} matched")
-
-        except Exception as e:
-            print(f"[{store['name']}] Error: {e}")
-            try:
-                send_scraper_error(store["name"], str(e))
-            except Exception:
-                pass
-
-    return all_products
+    stores = [s for s in load_stores() if s.get("scraper") == "vtex_scraper" and s.get("type") == "vtex_api"]
+    return _collect_prices(stores, VtexScraper, ingredients, "VTEX")
 
 
 def collect_tier3_websites(ingredients: list[dict]) -> list[dict]:
-    stores = [
-        s for s in load_stores()
-        if s.get("scraper") == "website_scraper"
-        and s.get("type") == "website_catalog"
-    ]
-    all_products = []
-
-    for store in stores:
-        try:
-            scraper = WebsiteScraper(store)
-            raw_products = scraper.run(ingredients)
-            if not raw_products:
-                print(f"[{store['name']}] No products found")
-                continue
-
-            matched = 0
-            for prod in raw_products:
-                entry = process_price_match(
-                    store,
-                    prod.get("product", ""),
-                    prod.get("price", 0),
-                    prod.get("unit", ""),
-                    ingredients,
-                    validity_raw=prod.get("validity_raw", ""),
-                )
-                if entry:
-                    matched += 1
-                    all_products.append(entry)
-
-            print(f"[{store['name']}] {len(raw_products)} products, {matched} matched")
-
-        except Exception as e:
-            print(f"[{store['name']}] Error: {e}")
-            try:
-                send_scraper_error(store["name"], str(e))
-            except Exception:
-                pass
-
-    return all_products
+    stores = [s for s in load_stores() if s.get("scraper") == "website_scraper" and s.get("type") == "website_catalog"]
+    return _collect_prices(stores, WebsiteScraper, ingredients, "Website")
 
 
 def collect_carrefour(ingredients: list[dict]) -> list[dict]:
-    stores = [
-        s for s in load_stores()
-        if s.get("scraper") == "carrefour_scraper"
-        and s.get("type") == "website_catalog"
-    ]
-    all_products = []
-
-    for store in stores:
-        try:
-            scraper = CarrefourScraper(store)
-            raw_products = scraper.run(ingredients)
-            if not raw_products:
-                print(f"[{store['name']}] No products found")
-                continue
-
-            matched = 0
-            for prod in raw_products:
-                entry = process_price_match(
-                    store,
-                    prod.get("product", ""),
-                    prod.get("price", 0),
-                    prod.get("unit", ""),
-                    ingredients,
-                    validity_raw=prod.get("validity_raw", ""),
-                )
-                if entry:
-                    matched += 1
-                    all_products.append(entry)
-
-            print(f"[{store['name']}] {len(raw_products)} products, {matched} matched")
-
-        except Exception as e:
-            print(f"[{store['name']}] Error: {e}")
-            try:
-                send_scraper_error(store["name"], str(e))
-            except Exception:
-                pass
-
-    return all_products
+    stores = [s for s in load_stores() if s.get("scraper") == "carrefour_scraper" and s.get("type") == "website_catalog"]
+    return _collect_prices(stores, CarrefourScraper, ingredients, "Carrefour")
 
 
 def collect_aggregators_ssr() -> list[dict]:
-    stores = [
-        s for s in load_stores()
-        if s.get("scraper") == "aggregator_scraper"
-        and s.get("type") == "aggregator"
-    ]
-    all_flyers = []
+    stores = [s for s in load_stores() if s.get("scraper") == "aggregator_scraper" and s.get("type") == "aggregator"]
+    return _collect_flyers(stores, None, "SSR", run_fn=_run_ssr_scraper)
 
-    for store in stores:
-        try:
-            scraper = TiendeoScraper(store)
-            flyers = scraper.run()
-            if not flyers:
-                print(f"[{store['name']}] No flyers found")
-                continue
 
-            saved = 0
-            for flyer in flyers:
-                try:
-                    upsert_flyer(flyer)
-                    saved += 1
-                except Exception as e:
-                    print(f"  Flyer save error: {e}")
-
-            print(f"[{store['name']}] {len(flyers)} flyers found, {saved} saved")
-
-        except Exception as e:
-            print(f"[{store['name']}] Error: {e}")
-            if store.get("experimental"):
-                print("  (experimental, continuing)")
-                continue
-            try:
-                send_scraper_error(store["name"], str(e))
-            except Exception:
-                pass
-
-    return all_flyers
+def _run_ssr_scraper(store: dict) -> list[dict]:
+    scraper = TiendeoScraper(store)
+    return scraper.run()
 
 
 def collect_aggregators_js() -> list[dict]:
-    stores = [
-        s for s in load_stores()
-        if s.get("scraper") == "playwright_scraper"
-        and s.get("type") == "aggregator_js"
-    ]
-    all_flyers = []
+    stores = [s for s in load_stores() if s.get("scraper") == "playwright_scraper" and s.get("type") == "aggregator_js"]
+    return _collect_flyers(stores, None, "JS", run_fn=_run_js_scraper)
 
-    for store in stores:
-        try:
-            from scrapers.playwright_scraper import PlaywrightAggregatorScraper
-            scraper = PlaywrightAggregatorScraper(store)
-            flyers = scraper.run()
-            if not flyers:
-                print(f"[{store['name']}] No flyers found")
-                continue
 
-            saved = 0
-            for flyer in flyers:
-                try:
-                    upsert_flyer(flyer)
-                    saved += 1
-                except Exception as e:
-                    print(f"  Flyer save error: {e}")
-
-            print(f"[{store['name']}] {len(flyers)} flyers found, {saved} saved")
-
-        except Exception as e:
-            print(f"[{store['name']}] Error: {e}")
-            try:
-                send_scraper_error(store["name"], str(e))
-            except Exception:
-                pass
-
-    return all_flyers
+def _run_js_scraper(store: dict) -> list[dict]:
+    from scrapers.playwright_scraper import PlaywrightAggregatorScraper
+    scraper = PlaywrightAggregatorScraper(store)
+    return scraper.run()
 
 
 def process_ocr_queue() -> int:
     from services.flyer_service import get_pending_flyers, mark_processed, mark_failed
+    from scrapers.flyer_parser import extract_lines_from_text, parse_flyer_lines
     import httpx
 
     pending = get_pending_flyers(limit=10)
     if not pending:
         return 0
 
+    ingredients = load_ingredients()
     processed = 0
     for flyer in pending:
         try:
@@ -441,11 +305,27 @@ def process_ocr_queue() -> int:
                 mark_failed(flyer["id"])
                 continue
 
-            mark_processed(flyer["id"], products_count=0)
+            lines = extract_lines_from_text(text)
+            products = parse_flyer_lines(lines)
+
+            matched = 0
+            for prod in products:
+                entry = process_price_match(
+                    store={"name": flyer["store_name"], "type": flyer.get("source", "aggregator"), "tier": 3},
+                    product_text=prod.get("product", ""),
+                    raw_price=prod.get("price", 0),
+                    raw_unit=prod.get("unit", ""),
+                    ingredients=ingredients,
+                    validity_raw=prod.get("validity_raw", "")
+                )
+                if entry:
+                    matched += 1
+
+            mark_processed(flyer["id"], products_count=matched)
             processed += 1
 
         except Exception as e:
-            print(f"[OCR] Error processing flyer {flyer.get('id')}: {e}")
+            logger.error("[OCR] Error processing flyer %s: %s", flyer.get("id"), e)
             try:
                 mark_failed(flyer["id"])
             except Exception:
@@ -455,40 +335,38 @@ def process_ocr_queue() -> int:
 
 
 def main():
-    print("=" * 50)
-    print("CustoDoce - Coleta de Preços")
-    print(f"Início: {datetime.now().isoformat()}")
-    print("=" * 50)
+    logger.info("=" * 50)
+    logger.info("CustoDoce - Coleta de Precos")
+    logger.info("Inicio: %s", datetime.now().isoformat())
+    logger.info("=" * 50)
 
     ingredients = load_ingredients()
-    print(f"\n📋 {len(ingredients)} ingredientes carregados")
+    logger.info("%d ingredientes carregados", len(ingredients))
 
-    # Collect Tier 1: PDF flyers
-    print("\n📄 Coletando Tier 1 (PDFs)...")
+    logger.info("Coletando Tier 1 (PDFs)...")
     tier1_products = collect_tier1_pdfs(ingredients)
-    print(f"   → {len(tier1_products)} preços coletados")
+    logger.info("-> %d precos coletados", len(tier1_products))
 
-    # Collect Tier 2a: VTEX e-commerce
-    print("\n🛒 Coletando Tier 2a (VTEX)...")
+    logger.info("Coletando Tier 1 (API Flyers)...")
+    tier1_flyers = collect_tier1_api_flyers(ingredients)
+    logger.info("-> %d folhetos coletados", len(tier1_flyers))
+
+    logger.info("Coletando Tier 2a (VTEX)...")
     tier2_products = collect_tier2_vtex(ingredients)
-    print(f"   → {len(tier2_products)} preços coletados")
+    logger.info("-> %d precos coletados", len(tier2_products))
 
-    # Collect Tier 3: Website scrapers
-    print("\n🌐 Coletando Tier 3 (Websites)...")
+    logger.info("Coletando Tier 3 (Websites)...")
     tier3_products = collect_tier3_websites(ingredients)
-    print(f"   → {len(tier3_products)} preços coletados")
+    logger.info("-> %d precos coletados", len(tier3_products))
 
-    # Carrefour
-    print("\n🛒 Coletando Carrefour...")
+    logger.info("Coletando Carrefour...")
     carrefour_products = collect_carrefour(ingredients)
-    print(f"   → {len(carrefour_products)} preços coletados")
+    logger.info("-> %d precos coletados", len(carrefour_products))
 
-    # Aggregators SSR (Tiendeo)
-    print("\n📰 Coletando Agregadores SSR...")
+    logger.info("Coletando Agregadores SSR...")
     ssr_flyers = collect_aggregators_ssr()
-    print(f"   → {len(ssr_flyers)} folhetos coletados")
+    logger.info("-> %d folhetos coletados", len(ssr_flyers))
 
-    # Save local snapshot
     all_products = tier1_products + tier2_products + tier3_products + carrefour_products
     snapshot = {
         "collected_at": datetime.now().isoformat(),
@@ -499,16 +377,26 @@ def main():
     with open(snapshot_path, "w") as f:
         json.dump(snapshot, f, indent=2, ensure_ascii=False)
 
-    # Generate email report (if we have data)
     if all_products:
         try:
             report_html = generate_report_html(all_products, ingredients)
             send_daily_report(report_html=report_html)
-            print("✅ Relatório enviado por email")
+            logger.info("Relatorio enviado por email")
         except Exception as e:
-            print(f"⚠️ Erro ao enviar email: {e}")
+            logger.warning("Erro ao enviar email: %s", e)
 
-    print(f"\n✅ Coleta concluída: {datetime.now().isoformat()}")
+    for name, fn, days in [
+        ("prices", cleanup_old_prices, 90),
+        ("logs", cleanup_old_logs, 30),
+        ("flyers", cleanup_old_flyers, 60),
+    ]:
+        try:
+            result = fn(retention_days=days)
+            logger.info("Cleanup %s: %s", name, result)
+        except Exception as e:
+            logger.warning("Erro cleanup %s: %s", name, e)
+
+    logger.info("Coleta concluida: %s", datetime.now().isoformat())
 
 
 def generate_report_html(products: list[dict], ingredients: list[dict]) -> str:
@@ -524,24 +412,27 @@ def generate_report_html(products: list[dict], ingredients: list[dict]) -> str:
         best = min(prices, key=lambda x: (x.get("normalized") or {}).get("price_per_kg", 999999))
         norm = best.get("normalized") or {}
         price_kg = norm.get("price_per_kg", 0)
+        unique_stores = len(set(p.get("store_id", "") for p in prices))
 
+        safe_ing = _html.escape(ing_name)
+        safe_store = _html.escape(best['store_name'])
         rows += f"""
         <tr>
-            <td><b>{ing_name}</b></td>
-            <td>{best['store_name']}</td>
+            <td><b>{safe_ing}</b></td>
+            <td>{safe_store}</td>
             <td>R$ {best['raw_price']:.2f}</td>
             <td>R$ {price_kg:.2f}/kg</td>
-            <td>{len(prices)}</td>
+            <td>{unique_stores}</td>
         </tr>"""
 
     today = date.today().isoformat()
     html = f"""
     <html><body>
-    <h2>📊 CustoDoce - Relatório Diário</h2>
+    <h2> CustoDoce - Relatorio Diario</h2>
     <p>Data: {today} | Total de itens: {len(products)}</p>
     <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse">
         <tr style="background:#f0f0f0">
-            <th>Ingrediente</th><th>Melhor Preço</th><th>Valor</th><th>R$/kg</th><th>Fontes</th>
+            <th>Ingrediente</th><th>Melhor Preco</th><th>Valor</th><th>R$/kg</th><th>Fontes</th>
         </tr>
         {rows}
     </table>

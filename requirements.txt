@@ -1,4 +1,3 @@
-requests
 pdfplumber
 rapidfuzz
 python-telegram-bot
@@ -15,3 +14,4 @@ selectolax
 pytesseract
 pdf2image
 playwright
+PyJWT

@@ -1,7 +1,10 @@
 import asyncio
+import logging
 import re
 
 from playwright.async_api import async_playwright, Page, Browser
+
+logger = logging.getLogger(__name__)
 
 CITY_SLUGS = {
     "santos": "Santos",
@@ -69,7 +72,7 @@ class PlaywrightAggregatorScraper:
 
                 flyers.append(flyer)
 
-            except Exception:
+            except Exception:  # nosec B112
                 continue
 
         return flyers
@@ -84,25 +87,24 @@ class PlaywrightAggregatorScraper:
                 f["region"] = region
             return flyers
         except Exception as e:
-            print(f"[{self.name}] Error scraping {url}: {e}")
+            logger.error("[%s] Error scraping %s: %s", self.name, url, e)
             return []
         finally:
             await page.close()
 
     async def run_async(self) -> list[dict]:
         source = self.name.lower().replace(" ", "_")
-        all_flyers = []
         city_urls = self._build_city_urls()
 
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(headless=True)
-
-            for url, region in city_urls:
-                flyers = await self._scrape_city(browser, url, region, source)
-                all_flyers.extend(flyers)
-
+            tasks = [self._scrape_city(browser, url, region, source) for url, region in city_urls]
+            results = await asyncio.gather(*tasks)
             await browser.close()
 
+        all_flyers = []
+        for flyers in results:
+            all_flyers.extend(flyers)
         return all_flyers
 
     def run(self) -> list[dict]:

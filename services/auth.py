@@ -106,7 +106,7 @@ def load_config() -> AuthConfig:
     if not sk:
         sk = base64.urlsafe_b64encode(os.urandom(32)).decode("utf-8")
     pw_env = _os.environ.get("ADMIN_PASSWORD_HASH", "")
-    pw_plain = _os.environ.get("ADMIN_PASSWORD", "custodoce2907")
+    pw_plain = _os.environ.get("ADMIN_PASSWORD") or _os.environ.get("ADMIN_PASSWORD_HASH", "") or ""
     pw_hash = pw_env if pw_env else hash_password(pw_plain)
     totp_secret = _os.environ.get("TOTP_SECRET", "") or None
     totp_enabled = bool(_os.environ.get("TOTP_ENABLED", ""))

@@ -1,10 +1,13 @@
+import logging
 import re
-import time
 from urllib.parse import quote
 
-import httpx
 from selectolax.parser import HTMLParser
 
+from parsers.unit_extractor import extract_unit
+from scrapers.base_web_scraper import BaseWebScraper
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_SELECTORS = {
     "product_card": [
@@ -14,7 +17,7 @@ DEFAULT_SELECTORS = {
         "[class*=produto]", "[class*=product]",
     ],
     "product_name": [
-        "h2 a", "h3 a", ".product-name a",
+        "h2 a", "h3 a", ".product-name a", ".product-name",
         ".nome-produto", ".name a",
         "a[class*=name]", "a[class*=nome]",
         "[class*=title] a", ".product-title a",
@@ -23,46 +26,33 @@ DEFAULT_SELECTORS = {
         ".price", ".preco", ".current-price",
         "span.price", ".product-price",
         "[class*=price]", "[class*=preco]",
-        ".sale-price", ".offer-price",
+        ".sale-price", ".offer-price", ".box-price",
     ],
     "product_validity": [],
 }
 
 
-class WebsiteScraper:
+class WebsiteScraper(BaseWebScraper):
+
     def __init__(self, store_config: dict):
-        self.store = store_config
-        self.name = store_config["name"]
-        self.base_url = store_config["base_url"].rstrip("/")
+        super().__init__(store_config)
         self.search_url = (
             store_config.get("search_url")
             or f"{self.base_url}/busca?q={{query}}"
         )
         self.selectors = {**DEFAULT_SELECTORS, **store_config.get("selectors", {})}
-        self.session = httpx.Client(
-            timeout=30.0,
-            follow_redirects=True,
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/125.0.0.0 Safari/537.36"
-                ),
-                "Accept": "text/html,application/xhtml+xml",
-            },
-        )
 
     def fetch_search(self, query: str) -> str | None:
         url = self.search_url.format(query=quote(query))
         try:
-            resp = self.session.get(url)
+            resp = self._http.get(url)
             resp.raise_for_status()
             return resp.text
         except Exception as e:
-            print(f"[WebsiteScraper/{self.name}] Error fetching '{url}': {e}")
+            logger.warning("[%s] Error fetching '%s': %s", self.name, url, e)
             return None
 
-    def parse_results(self, html: str) -> list[dict]:
+    def parse_products(self, html: str) -> list[dict]:
         tree = HTMLParser(html)
         cards = self._find_nodes(tree)
         products = []
@@ -74,7 +64,7 @@ class WebsiteScraper:
             price = self._extract_price(card)
             if price is None:
                 continue
-            unit = self._extract_unit(name)
+            unit = extract_unit(name)
             validity = self._extract_validity(card)
             products.append({
                 "product": name.strip(),
@@ -112,7 +102,8 @@ class WebsiteScraper:
                     return price
         return None
 
-    def _parse_price(self, text: str) -> float | None:
+    @staticmethod
+    def _parse_price(text: str) -> float | None:
         m = re.search(r"[\d.,]+", text.replace(".", "").replace(",", "."))
         if m:
             try:
@@ -120,18 +111,6 @@ class WebsiteScraper:
             except ValueError:
                 pass
         return None
-
-    def _extract_unit(self, name: str) -> str:
-        patterns = [
-            r"(\d+\s*x\s*[\d.,]+\s*(?:kg|g|ml|un))",
-            r"([\d.,]+\s*(?:kg|g|ml|un)\b)",
-            r"(cx\s*(?:com\s*)?\d+)",
-        ]
-        for pat in patterns:
-            m = re.search(pat, name, re.I)
-            if m:
-                return m.group(1).strip()
-        return ""
 
     def _extract_validity(self, node) -> str:
         for selector in self.selectors.get("product_validity", []):
@@ -141,24 +120,3 @@ class WebsiteScraper:
                 if text:
                     return text
         return ""
-
-    def run(self, ingredients: list[dict]) -> list[dict]:
-        all_entries = []
-
-        for ing in ingredients:
-            query = ing["canonical"].lower()
-            html = self.fetch_search(query)
-            if not html:
-                aliases = ing.get("aliases", [])
-                if aliases:
-                    html = self.fetch_search(aliases[0].lower())
-            if not html:
-                continue
-
-            results = self.parse_results(html)
-            for entry in results:
-                all_entries.append(entry)
-
-            time.sleep(1.0)
-
-        return all_entries

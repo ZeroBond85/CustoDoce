@@ -45,7 +45,7 @@ def upsert_price(price_entry: dict) -> dict:
         "raw_product": price_entry["raw_product"],
         "raw_price": price_entry["raw_price"],
         "raw_unit": price_entry.get("raw_unit", ""),
-        "collected_at": now.isoformat(),
+        "collected_at": date.today().isoformat(),
         "valid_from": price_entry.get("valid_from", date.today().isoformat()),
         "valid_until": valid_until,
         "validity_raw": price_entry.get("validity_raw", ""),
@@ -130,6 +130,12 @@ def get_price_history(ingredient_canonical: str, days: int = 30, valid_only: boo
 
 def insert_review_item(item: dict) -> dict:
     client = get_service_client()
+    existing = client.table("review_queue").select("id")\
+        .eq("store_name", item.get("store_name", ""))\
+        .eq("raw_product", item["raw_product"])\
+        .execute()
+    if existing.data:
+        return existing.data[0]
     data = {
         "raw_product": item["raw_product"],
         "raw_price": item.get("raw_price"),
@@ -223,3 +229,40 @@ def get_telegram_report(ingredients: list[dict], top_n: int = 5) -> list[dict]:
         if top:
             messages.append({"ingredient": name, "prices": top})
     return messages
+
+
+def cleanup_old_prices(retention_days: int = 90) -> dict:
+    """Deleta preços mais antigos que retention_days (Supabase function)."""
+    client = get_service_client()
+    result = client.rpc("cleanup_old_prices", {"retention_days": retention_days}).execute()
+    return {"deleted": result.data} if result.data else {"deleted": 0}
+
+
+def cleanup_old_logs(retention_days: int = 30) -> dict:
+    """Deleta scraping_logs mais antigos que retention_days."""
+    client = get_service_client()
+    result = client.rpc("cleanup_old_logs", {"retention_days": retention_days}).execute()
+    return {"deleted": result.data} if result.data else {"deleted": 0}
+
+
+def log_scraper_run(
+    store_name: str,
+    status: str = "completed",
+    items_found: int = 0,
+    items_matched: int = 0,
+    errors: Optional[list] = None,
+) -> dict:
+    """Log scraper execution to scraping_logs table."""
+    client = get_service_client()
+    now = datetime.utcnow()
+    data = {
+        "store_name": store_name,
+        "status": status,
+        "started_at": now.isoformat(),
+        "finished_at": now.isoformat(),
+        "items_found": items_found,
+        "items_matched": items_matched,
+        "errors": errors or [],
+    }
+    result = client.table("scraping_logs").insert(data).execute()
+    return result.data[0] if result.data else {}

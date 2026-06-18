@@ -5,7 +5,7 @@ Sistema automatizado de busca e comparação de preços de ingredientes para con
 ## Funcionalidades
 
 - 🔍 **Busca automática 2x/dia** - Coleta preços de PDFs de atacados, APIs VTEX e sites
-- 🏪 **11 abas no dashboard** - Visão geral, preços, histórico, flyers, revisão, lojas, ingredientes, scrapers, relatórios, config, diagnóstico
+- 🏪 **17 abas no dashboard** - Visão geral, preços, histórico, flyers, revisão, fontes, ranking, insights, lojas, ingredientes, scrapers, relatórios, config, diagnóstico
 - 🤖 **Telegram Bot** - `/preco <ingrediente>` → lista ordenada por R$/kg
 - ⚙️ **Config declarativa** - Edite `config/features.yaml` para ligar/desligar funções sem alterar código
 - 📊 **Export CSV** - Download de preços e histórico em CSV
@@ -170,6 +170,9 @@ Ou crie o repositório manualmente e faça upload dos arquivos.
 | **Histórico** | Gráficos linha/scatter R$/kg, cobertura por loja, export CSV |
 | **Flyers** | Grid responsivo, filtros (status/source/período), detalhe com OCR |
 | **Revisão** | Fila de itens <80% confiança (aprovar/rejeitar) |
+| **Fontes & Ofertas** | Cobertura por ingrediente, promoções ativas, ranking de fontes |
+| **Ranking** | Gráfico linha/área/barras, ranking atual, estatísticas do período |
+| **Insights** | Heatmap preço×loja, outliers por desvio padrão, melhores ofertas |
 | **Lojas** | CRUD via YAML inline, filtros tier, busca |
 | **Ingredientes** | CRUD via YAML, testadores normalizer + matcher |
 | **Scrapers** | Trigger manual GitHub Actions, schedule info + editor, logs |
@@ -181,49 +184,69 @@ Ou crie o repositório manualmente e faça upload dos arquivos.
 
 ```
 CustoDoce/
-├── .github/workflows/scrape.yml    # GitHub Actions (cron + deploy)
+├── .github/workflows/
+│   ├── scrape.yml                   # Coleta automática (cron + deploy)
+│   └── ci.yml                       # CI: ruff + bandit + pytest + pip-audit
 ├── config/
-│   ├── ingredients.yaml             # 11 ingredientes + aliases
+│   ├── ingredients.yaml             # 11 ingredientes + aliases + search_terms
 │   ├── stores.yaml                  # 49 lojas (Tier 1-4)
 │   ├── features.yaml                # Flags declarativas liga/desliga
 │   └── schema_prices.json           # Validação dos dados
 ├── scrapers/
-│   ├── base_flyer.py                # Download PDF + MD5 + pdfplumber
-│   ├── assai_flyer.py               # Herda base_flyer
-│   ├── atacadao_flyer.py            # Herda base_flyer
-│   ├── vtex_scraper.py              # Scraper genérico VTEX (API)
-│   ├── website_scraper.py           # Scraper genérico HTML
-│   └── ocr.py                       # OCR fallback (Tesseract)
+│   ├── base_flyer.py                # ABC: download PDF + ETag cache + OCR fallback
+│   ├── base_web_scraper.py          # ABC: httpx.Client + context manager + rate limit
+│   ├── flyer_scraper.py             # Scraper genérico para PDFs (substitui 8 subclasses)
+│   ├── flyer_parser.py              # Parser genérico de linhas de PDF
+│   ├── vtex_scraper.py              # Scraper VTEX API (herda BaseWebScraper)
+│   ├── website_scraper.py           # Scraper HTML (herda BaseWebScraper)
+│   ├── carrefour_scraper.py         # Scraper Carrefour (herda BaseWebScraper)
+│   ├── tenda_api_scraper.py         # API Tenda (herda BaseWebScraper)
+│   ├── roldao_api_scraper.py        # API Roldão (herda BaseWebScraper)
+│   ├── max_api_scraper.py           # API Max (herda BaseWebScraper)
+│   ├── aggregator_scraper.py        # Agregadores SSR (Tiendeo, Guiato)
+│   ├── playwright_scraper.py        # Agregadores JS (Playwright)
+│   ├── ocr.py                       # OCR fallback (Tesseract)
+│   └── unit_extractor.py            # Extrator centralizado de unidade
 ├── parsers/
-│   ├── normalizer.py                # Extrai unidade → R$/kg
-│   └── matcher.py                   # Match + Fuzzy (RapidFuzz 80%)
+│   ├── normalizer.py                # Extrai unidade → R$/kg + R$/un
+│   └── matcher.py                   # token_set_ratio ≥80% (RapidFuzz)
 ├── services/
-│   ├── supabase_client.py           # Conexão Supabase
-│   ├── price_service.py             # CRUD + busca
-│   ├── email_service.py             # Gmail SMTP
+│   ├── supabase_client.py           # Singleton conexão
+│   ├── price_service.py             # CRUD + busca + cleanup_old_prices/logs
+│   ├── flyer_service.py             # CRUD flyers + cleanup_old_flyers
+│   ├── email_service.py             # SMTP genérico (SMTP_* ou GMAIL_* fallback)
+│   ├── telegram_service.py          # Telegram Bot API
 │   ├── config.py                    # Config loader (cache + reload)
+│   ├── config_db.py                 # DB-backed config (ingredients, stores, schedules, etc.)
 │   ├── auth.py                      # PBKDF2 + JWT + TOTP
 │   └── rate_limiter.py              # SQLite rate limit
 ├── telegram_bot/
 │   └── handlers.py                  # /preco, /lista, /status
 ├── admin/
-│   └── app.py                       # Streamlit Dashboard (11 abas)
+│   └── app.py                       # Streamlit dashboard (17 abas)
 ├── dashboard/
 │   ├── login_page.py                # Auth + 2FA
 │   └── components/
 │       ├── ui.py                    # CSS + componentes reutilizáveis
-│       └── layout.py                # Sidebar com navegação
+│       └── layout.py                # Sidebar com navegação (17 páginas)
 ├── supabase/
-│   └── seed.sql                     # Schema + RLS + triggers
+│   ├── seed.sql                     # Tabelas + índices + RLS + triggers
+│   └── consolidated_migration.sql   # Migração consolidada (574 linhas)
 ├── scripts/
+│   ├── seed_prices.py               # Gera dados sintéticos (--dry-run/--execute/--json)
+│   ├── deploy_database.py           # Migração SQL (--dry-run/--execute/--output)
 │   ├── send_daily_report.py         # Relatório diário por email
-│   ├── deploy_check.py              # Health check pré-deploy
-│   └── ...                          # Outros utilitários
+│   └── deploy_check.py              # Health check pré-deploy
 ├── tests/
-│   ├── README.md                    # Plano de testes
-│   └── test_dashboard_full.py       # 70 testes unitários
-├── main.py                          # Orquestrador dos scrapers
-└── requirements.txt                 # Dependências
+│   ├── test_dashboard_full.py       # 78 testes unitários
+│   ├── test_services_mocked.py      # 49 testes com mocks
+│   └── README.md                    # Plano de testes
+├── main.py                          # Orquestrador: collect + cleanup loop
+├── requirements.txt                 # Dependências runtime
+├── requirements-dev.txt             # Ferramentas de qualidade
+├── packages.txt                     # System deps (tesseract-ocr, poppler-utils)
+└── data/
+    └── prices_latest.json           # Snapshot da última coleta
 ```
 
 ## Licenciamento de Lojas (Tiers)
@@ -245,6 +268,8 @@ CustoDoce/
 - [x] **Fase 5** — Control & Reports: builder HTML, SMTP/Telegram testers
 - [x] **Fase 6** — System Config & Diagnostics: secrets editor, health check
 - [x] **Fase 7** — Polish & Deploy: config declarativa, acessibilidade, export CSV, deploy check
+- [x] **Fase 8** — Dedup & Cleanup: collected_at truncado, review dedup, cleanup_old_prices/logs/flyers, XSS sanitization
+- [x] **Fase 9** — Dashboard Insights: Fontes & Ofertas, Ranking, Insights (heatmap + outliers + melhores ofertas)
 
 ## Contribuindo
 

@@ -27,41 +27,69 @@ graph LR
 
 ```
 CustoDoce/
-├── .github/workflows/scrape.yml    # Agendamento + release
-├── config/                          # Fonte da verdade (versionada)
-│   ├── ingredients.yaml             # 11 ingredientes canônicos + aliases
+├── .github/workflows/
+│   ├── scrape.yml                   # Coleta automática (cron + deploy)
+│   └── ci.yml                       # CI: ruff + bandit + pytest + pip-audit
+├── config/
+│   ├── ingredients.yaml             # 11 ingredientes canônicos + aliases + search_terms
 │   ├── stores.yaml                  # 49 lojas (Tier 1-4)
+│   ├── features.yaml                # Flags declarativas liga/desliga
 │   └── schema_prices.json           # Contrato de dados
-├── scrapers/                         # Coleta ativa
-│   ├── base_flyer.py                # Classe mãe: download + MD5 + pdfplumber + OCR fallback
+├── scrapers/
+│   ├── base_flyer.py                # ABC: download PDF + ETag cache + OCR fallback
+│   ├── base_web_scraper.py          # ABC: httpx.Client + context manager + rate limit
+│   ├── flyer_scraper.py             # Scraper genérico para PDFs (substitui 8 subclasses)
 │   ├── flyer_parser.py              # Parser genérico de linhas de PDF
-│   ├── assai_flyer.py               # Scraper específico Assaí
-│   ├── atacadao_flyer.py            # Scraper específico Atacadão
-│   ├── spani_flyer.py               # Scraper específico Spani
-│   ├── mercadao_flyer.py            # Scraper específico Mercadão
-│   ├── tenda_flyer.py               # Scraper específico Tenda
-│   ├── roldao_flyer.py              # Scraper específico Roldão
-│   ├── sams_flyer.py                # Scraper específico Sam's Club
-│   ├── makro_flyer.py               # Scraper específico Makro
-│   ├── max_flyer.py                 # Scraper específico Max Atacadista
-│   ├── vtex_scraper.py              # Scraper genérico VTEX (API)
-│   ├── website_scraper.py           # Scraper genérico HTML
-│   └── ocr.py                       # OCR fallback (Tesseract)
-├── parsers/                          # Inteligência
+│   ├── vtex_scraper.py              # Scraper VTEX API (herda BaseWebScraper)
+│   ├── website_scraper.py           # Scraper HTML (herda BaseWebScraper)
+│   ├── carrefour_scraper.py         # Scraper Carrefour (herda BaseWebScraper)
+│   ├── tenda_api_scraper.py         # API Tenda (herda BaseWebScraper)
+│   ├── roldao_api_scraper.py        # API Roldão (herda BaseWebScraper)
+│   ├── max_api_scraper.py           # API Max (herda BaseWebScraper)
+│   ├── aggregator_scraper.py        # Agregadores SSR (Tiendeo, Guiato)
+│   ├── playwright_scraper.py        # Agregadores JS (Playwright)
+│   ├── ocr.py                       # OCR fallback (Tesseract)
+│   └── unit_extractor.py            # Extrator centralizado de unidade
+├── parsers/
 │   ├── normalizer.py                # Extrai unidade → R$/kg + R$/un
-│   └── matcher.py                   # Match exato + Fuzzy (RapidFuzz ≥80%)
-├── services/                         # Camada de negócio
+│   └── matcher.py                   # token_set_ratio ≥80% (RapidFuzz)
+├── services/
 │   ├── supabase_client.py           # Singleton conexão
-│   ├── price_service.py             # CRUD + busca ordenada
-│   └── email_service.py             # Gmail (relatório diário + alertas)
-├── telegram_bot/                     # Interface Telegram
+│   ├── price_service.py             # CRUD + busca + cleanup_old_prices/logs
+│   ├── flyer_service.py             # CRUD flyers + cleanup_old_flyers
+│   ├── email_service.py             # SMTP genérico (SMTP_* ou GMAIL_* fallback)
+│   ├── telegram_service.py          # Telegram Bot API
+│   ├── config.py                    # Config loader (cache + reload)
+│   ├── config_db.py                 # DB-backed config (ingredients, stores, schedules, etc.)
+│   ├── auth.py                      # PBKDF2 + JWT + TOTP
+│   └── rate_limiter.py              # SQLite rate limit
+├── telegram_bot/
 │   └── handlers.py                  # /preco, /lista, /status
-├── admin/                            # Interface Web
-│   └── app.py                       # Streamlit dashboard
-├── supabase/                         # Schema do banco
-│   └── seed.sql                     # Tabelas + índices + RLS + triggers
-└── scripts/                          # Utilitários
-    └── send_daily_report.py         # Gera email diário
+├── admin/
+│   └── app.py                       # Streamlit dashboard (17 abas)
+├── dashboard/
+│   ├── login_page.py                # Auth + 2FA
+│   └── components/
+│       ├── ui.py                    # CSS + componentes reutilizáveis
+│       └── layout.py                # Sidebar com navegação (17 páginas)
+├── supabase/
+│   ├── seed.sql                     # Tabelas + índices + RLS + triggers
+│   └── consolidated_migration.sql   # Migração consolidada (574 linhas)
+├── scripts/
+│   ├── seed_prices.py               # Gera dados sintéticos (--dry-run/--execute/--json)
+│   ├── deploy_database.py           # Migração SQL (--dry-run/--execute/--output)
+│   ├── send_daily_report.py         # Relatório diário por email
+│   └── deploy_check.py              # Health check pré-deploy
+├── tests/
+│   ├── test_dashboard_full.py       # 78 testes unitários
+│   ├── test_services_mocked.py      # 49 testes com mocks
+│   └── README.md                    # Plano de testes
+├── main.py                          # Orquestrador: collect + cleanup loop
+├── requirements.txt                 # Dependências runtime
+├── requirements-dev.txt             # Ferramentas de qualidade
+├── packages.txt                     # System deps (tesseract-ocr, poppler-utils)
+└── data/
+    └── prices_latest.json           # Snapshot da última coleta
 ```
 
 ## Tiers de Lojas
@@ -126,7 +154,7 @@ CustoDoce/
 1. **Exact match**: canonical name in product text (case-insensitive)
 2. **Alias exact**: each alias checked via `in` operator
 3. **Word subset**: all canonical words found in product text
-4. **Fuzzy fallback**: RapidFuzz `fuzz.ratio(product, canonical/alias)` threshold 80%
+4. **Fuzzy fallback**: RapidFuzz `fuzz.token_set_ratio(product, canonical/alias)` threshold 80%
 5. **Confidence Score**: 1.0 (exact), 0.8-1.0 (fuzzy ≥80%), <0.8 (review queue)
 6. **Review Queue**: items with confidence <80% go to `review_queue` table
 
@@ -215,7 +243,7 @@ python -c "import json, jsonschema; s=json.load(open('config/schema_prices.json'
 - `bandit` — segurança (zero issues)
 - `pip-audit` — CVEs (zero vulnerabilidades)
 - `radon` — complexidade (média B)
-- `pytest` — 70 testes (F1-2: 22, F3: 20, F4-6: 20, F7: 8)
+- `pytest` — 127 testes (F1-2: 22, F3: 20, F4-6: 20, F7: 8, F8: 6, F9: 6, Cleanup: 8, Security: 2, Imports: 2)
 
 ### Checklist por Fase
 ```
@@ -225,7 +253,8 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 ### Arquivos
 - `tests/README.md` — plano de testes completo
 - `requirements-dev.txt` — ferramentas de qualidade
-- `tests/test_dashboard_full.py` — 70 testes unitários
+- `tests/test_dashboard_full.py` — 78 testes unitários
+- `tests/test_services_mocked.py` — 49 testes com mocks
 
 ## Fase 4 — CRUD Console (concluida)
 
@@ -276,6 +305,35 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 | `scripts/deploy_check.py` — testa Supabase/Gmail/Telegram | ✅ |
 | 70 testes, ruff, bandit, pip-audit | ✅ Todos limpos |
 
+## Fase 8 — Dedup, Cleanup & Segurança (concluida)
+
+| O que foi feito | Resultado |
+|----------------|-----------|
+| `upsert_price()` com `collected_at` truncado pra data (UNIQUE por dia) | ✅ |
+| `insert_review_item()` dedup por `(store_name, raw_product)` — qualquer status | ✅ |
+| `cleanup_old_prices(90)` — deleta prices + price_history > 90 dias | ✅ |
+| `cleanup_old_logs(30)` — deleta scraping_logs > 30 dias | ✅ |
+| `cleanup_old_flyers(60)` — deleta flyers com OCR failed + >60 dias | ✅ |
+| Loop de cleanup no `main.py` (3 funções sequenciais) | ✅ |
+| XSS sanitization `_sanitize()` — html.escape em todo unsafe_allow_html | ✅ |
+| Senha hardcoded removida — `os.environ.get("ADMIN_PASSWORD")` + fallback | ✅ |
+| HTML injection fix em `email_service.py` — _html.escape() | ✅ |
+| `consolidated_migration.sql` — 574 linhas, todas as tabelas + funções | ✅ |
+| 127 testes, ruff, bandit, pip-audit | ✅ Todos limpos |
+
+## Fase 9 — Dashboard Insights (concluida)
+
+| O que foi feito | Resultado |
+|----------------|-----------|
+| `tab_fontes` — Cobertura por Ingrediente + Promoções Ativas + Ranking Fontes | ✅ |
+| `tab_ranking` — Gráfico linha/área/barras + ranking atual + estatísticas | ✅ |
+| `tab_insights` — Heatmap (px.imshow) + Outliers (desvio padrão) + Melhores Ofertas | ✅ |
+| `packages.txt` — tesseract-ocr + poppler-utils para Streamlit Cloud | ✅ |
+| `ci.yml` — ruff + bandit + pytest + pip-audit em cada push/PR | ✅ |
+| `seed_prices.py` — gera 4128 preços sintéticos (11 ing × 20 lojas × 91 dias) | ✅ |
+| 17 páginas no dashboard sidebar | ✅ |
+| 127 testes, ruff, bandit, pip-audit | ✅ Todos limpos |
+
 ## Status das Fases
 
 - **Fase 1** ✅ Estrutura base (pastas, parsers, services, schema, base_flyer)
@@ -287,3 +345,5 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 - **Fase 5** ✅ Control & Reports — `tab_relatorios` (builder HTML + preview + envio); `_test_smtp()` / `_test_telegram()`; agendamento exibido em `tab_scrapers`
 - **Fase 6** ✅ System Config & Diagnostics — secrets editor `tab_config` (5 grupos, 13 vars, inline edit + save `.env`); `tab_diagnostico` com testes individuais + SMTP/Telegram inline; schedule manager com edição de crons
 - **Fase 7** ✅ Polish & Deploy — `config/features.yaml` (flags declarativas liga/desliga); `services/config.py` com `get()` + cache + `reload()`; config guards no dashboard; `:focus-visible` rings CSS + `aria-label` sidebar; export CSV com `st.download_button`; `scripts/deploy_check.py`
+- **Fase 8** ✅ Dedup & Cleanup — `collected_at` truncado pra data; review queue dedup sem filtro status; `cleanup_old_prices(90)` + `cleanup_old_logs(30)` + `cleanup_old_flyers(60)`; XSS sanitization; HTML injection fix; consolidated migration SQL
+- **Fase 9** ✅ Dashboard Insights — `tab_fontes` (cobertura + promoções + ranking); `tab_ranking` (gráficos + estatísticas); `tab_insights` (heatmap + outliers + melhores ofertas); CI/CD (ci.yml + packages.txt); seed data (4128 preços sintéticos)

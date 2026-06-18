@@ -88,6 +88,18 @@ auth, rate_limiter, imports, UI components, login, YAML, estrutura, CSS, navega�
 - Config guards (telegram/email/alerts/export)
 - `scripts/deploy_check.py` estrutura
 
+### Fase 8 — Dedup, Cleanup & Segurança (6 testes)
+- `cleanup_old_prices()` — RPC call + default 90 dias
+- `cleanup_old_logs()` — RPC call + default 30 dias
+- `cleanup_old_flyers()` — RPC call + default 60 dias
+- `insert_review_item()` dedup sem filtro status
+- `_sanitize()` escapa XSS (None, texto, número, script, aspas, &)
+- `cleanup_imports()` — imports + assinaturas
+
+### Fase 9 — Dashboard Insights (2 testes)
+- `test_all_imports` — 17 páginas + handlers callable
+- `test_cleanup_imports` — imports + default values
+
 ## Regras
 
 1. **Nunca secrets no código** — usar env vars ou Streamlit Cloud Secrets

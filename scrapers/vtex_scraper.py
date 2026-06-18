@@ -1,42 +1,49 @@
-import re
-import time
+import logging
 
-import httpx
+from parsers.unit_extractor import extract_unit
+from scrapers.base_web_scraper import BaseWebScraper
+
+logger = logging.getLogger(__name__)
 
 
-class VtexScraper:
+class VtexScraper(BaseWebScraper):
+
     def __init__(self, store_config: dict):
-        self.store = store_config
-        self.name = store_config["name"]
-        self.base_url = store_config["base_url"].rstrip("/")
+        super().__init__(store_config, rate_limit=0.5)
         self.api_endpoint = (
             store_config.get("api_endpoint")
             or f"{self.base_url}/api/catalog_system/pub/products/search"
         )
-        self.session = httpx.Client(
-            timeout=30.0,
-            follow_redirects=True,
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/125.0.0.0 Safari/537.36"
-                ),
-                "Accept": "application/json",
-            },
-        )
 
-    def search_products(self, query: str) -> list[dict]:
+    def _search_and_parse(self, ing: dict) -> list[dict]:
+        results = []
+        for term in ing.get("search_terms", []):
+            results = self._fetch_products(term.lower())
+            if results:
+                break
+        if not results:
+            results = self._fetch_products(ing["canonical"].lower())
+        if not results:
+            for alias in ing.get("aliases", []):
+                results = self._fetch_products(alias.lower())
+                if results:
+                    break
+        if not results:
+            return []
+        entries = []
+        for prod in results:
+            entries.extend(self.parse_product(prod))
+        return entries
+
+    def _fetch_products(self, query: str) -> list[dict]:
+        from urllib.parse import quote
         try:
-            resp = self.session.get(
-                self.api_endpoint,
-                params={"ft": query},
-            )
+            resp = self._http.get(f"{self.api_endpoint}/{quote(query)}")
             resp.raise_for_status()
             data = resp.json()
             return data if isinstance(data, list) else []
         except Exception as e:
-            print(f"[VtexScraper/{self.name}] Error searching '{query}': {e}")
+            logger.warning("[%s] Error searching '%s': %s", self.name, query, e)
             return []
 
     def parse_product(self, product: dict) -> list[dict]:
@@ -60,7 +67,7 @@ class VtexScraper:
                 if available <= 0:
                     continue
 
-                unit = self._extract_unit(item_name)
+                unit = extract_unit(item_name)
                 validity_raw = offer.get("priceValidUntil", "")
                 entries.append({
                     "product": item_name,
@@ -70,42 +77,5 @@ class VtexScraper:
                 })
         return entries
 
-    def _extract_unit(self, name: str) -> str:
-        patterns = [
-            r"(\d+\s*x\s*[\d.,]+\s*(?:kg|g|ml|un))",
-            r"([\d.,]+\s*(?:kg|g|ml|un)\b)",
-            r"(cx\s*(?:com\s*)?\d+)",
-        ]
-        for pat in patterns:
-            m = re.search(pat, name, re.I)
-            if m:
-                return m.group(1).strip()
-        return ""
-
-    def run(self, ingredients: list[dict]) -> list[dict]:
-        all_entries = []
-
-        for ing in ingredients:
-            query = ing["canonical"].lower()
-            results = self.search_products(query)
-            if not results:
-                aliases = ing.get("aliases", [])
-                if aliases:
-                    alias_query = aliases[0].lower()
-                    results = self.search_products(alias_query)
-            if not results:
-                continue
-
-            for prod in results:
-                parsed = self.parse_product(prod)
-                for entry in parsed:
-                    all_entries.append({
-                        "product": entry["product"],
-                        "price": entry["price"],
-                        "unit": entry["unit"],
-                        "validity_raw": entry.get("validity_raw", ""),
-                    })
-
-            time.sleep(0.5)
-
-        return all_entries
+    def parse_products(self, raw_data) -> list[dict]:
+        return []

@@ -17,6 +17,34 @@ os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
 os.environ.setdefault("SUPABASE_ANON_KEY", "test-anon-key")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-key")
 
+# Mock config_db antes de importar app
+import unittest.mock as mock
+sys.modules["services.config_db"] = mock.MagicMock()
+mock_config_db = sys.modules["services.config_db"]
+
+# Configure all mock methods
+for method in [
+    "get_all_ingredients", "get_all_stores", "get_all_schedules",
+    "get_scrape_frequency", "get_active_recipients", "get_all_recipients",
+    "get_all_alert_rules", "get_feature_flag", "get_all_feature_flags",
+]:
+    setattr(mock_config_db, method, mock.MagicMock(return_value=[]))
+
+for method in [
+    "upsert_ingredient", "upsert_store", "upsert_schedule",
+    "upsert_scrape_frequency", "upsert_recipient", "upsert_alert_rule",
+    "upsert_feature_flag", "delete_ingredient", "delete_store",
+    "delete_schedule", "delete_scrape_frequency", "delete_recipient",
+    "delete_alert_rule", "delete_feature_flag",
+]:
+    setattr(mock_config_db, method, mock.MagicMock(return_value={}))
+
+# Mock supabase_client
+sys.modules["services.supabase_client"] = mock.MagicMock()
+mock_supabase = sys.modules["services.supabase_client"]
+mock_supabase.get_supabase = mock.MagicMock(return_value=mock.MagicMock())
+mock_supabase.get_service_client = mock.MagicMock(return_value=mock.MagicMock())
+
 PASS = 0
 FAIL = 0
 SKIP = 0
@@ -130,13 +158,38 @@ def test_all_imports():
         PAGE_HANDLERS,
     )
 
-    assert len(PAGES) == 11
+    assert len(PAGES) == 17  # + fontes, ranking, insights
     for page_id, icon, label in PAGES:
         assert page_id in PAGE_HANDLERS, f"Faltando handler para {page_id}"
 
     # testa que cada handler existe e é callable
     for page_id, handler in PAGE_HANDLERS.items():
         assert callable(handler), f"Handler {page_id} não é callable"
+
+
+def test_cleanup_imports():
+    """Verifica que cleanup_old_flyers e cleanup_old_logs sao importaveis."""
+    from services.price_service import cleanup_old_prices, cleanup_old_logs
+    from services.flyer_service import cleanup_old_flyers
+    import inspect
+
+    # Verifica assinaturas
+    assert callable(cleanup_old_prices)
+    assert callable(cleanup_old_logs)
+    assert callable(cleanup_old_flyers)
+
+    sig_prices = inspect.signature(cleanup_old_prices)
+    sig_logs = inspect.signature(cleanup_old_logs)
+    sig_flyers = inspect.signature(cleanup_old_flyers)
+
+    assert "retention_days" in sig_prices.parameters
+    assert "retention_days" in sig_logs.parameters
+    assert "retention_days" in sig_flyers.parameters
+
+    # Verifica default values
+    assert sig_prices.parameters["retention_days"].default == 90
+    assert sig_logs.parameters["retention_days"].default == 30
+    assert sig_flyers.parameters["retention_days"].default == 60
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -685,13 +738,15 @@ def test_tab_visao_geral_complexity():
 
 
 def test_tab_lojas_features():
-    """Verifica que tab_lojas tem filtros, busca e editor YAML"""
+    """Verifica que tab_lojas tem filtros, busca e editor DB"""
     with open("admin/app.py", encoding="utf-8") as f:
         content = f.read()
     assert 'st.selectbox("Filtrar Tier"' in content
     assert 'st.text_input("Buscar loja"' in content
-    assert "Editar YAML" in content
-    assert "Schema da Loja" in content
+    assert "get_all_stores" in content  # Uses DB instead of YAML
+    assert "upsert_store" in content
+    assert "delete_store" in content
+    assert "form_store" in content  # New form
 
 
 def test_tab_ingredientes_tester():
@@ -783,7 +838,7 @@ def test_secret_groups():
     assert "Email" in SECRET_GROUPS
     assert "GitHub" in SECRET_GROUPS
     total = sum(len(v) for v in SECRET_GROUPS.values())
-    assert total == 13
+    assert total == 18  # 5 grupos: Supabase(3) + Auth(4) + Telegram(2) + Email(8) + GitHub(1)
 
 
 def test_mask_val():
@@ -940,10 +995,7 @@ def test_weekday_pt():
 
 def test_upsert_price_default_valid_until():
     from services.price_service import upsert_price
-    from datetime import date, timedelta
 
-    # Testa que o upsert_price monta o payload com valid_until default +7 dias
-    # Não podemos testar a chamada HTTP, mas podemos verificar a estrutura
     assert callable(upsert_price)
 
 
@@ -1064,6 +1116,18 @@ def test_get_price_history_valid_only_param():
     assert "valid_only" in params, "get_price_history deve ter parametro valid_only"
 
 
+def test_sanitize_xss():
+    """_sanitize() escapa HTML e trata None."""
+    from admin.app import _sanitize
+
+    assert _sanitize(None) == ""
+    assert _sanitize("normal text") == "normal text"
+    assert _sanitize(42) == "42"
+    assert _sanitize("<script>alert(1)</script>") == "&lt;script&gt;alert(1)&lt;/script&gt;"
+    assert _sanitize('"quoted"') == "&quot;quoted&quot;"
+    assert _sanitize("&") == "&amp;"
+
+
 # ═══════════════════════════════════════════════════════════════
 print("\n" + "=" * 60)
 print("EXECUTANDO TESTES...\n")
@@ -1074,6 +1138,7 @@ tests = [
     (test_auth, "auth: hash, jwt, totp, config"),
     (test_rate_limiter, "rate_limiter: limite, persistência, clear"),
     (test_all_imports, "all_imports: todos os módulos carregam"),
+    (test_cleanup_imports, "cleanup: imports e assinaturas corretas"),
 
     # UI Components
     (test_css_syntax, "css: sintaxe válida, variáveis consistentes"),
@@ -1182,6 +1247,9 @@ tests = [
     (test_search_prices_valid_only_param, "price: search_prices(valid_only=)"),
     (test_get_latest_prices_valid_only_param, "price: get_latest_prices(valid_only=)"),
     (test_get_price_history_valid_only_param, "price: get_price_history(valid_only=)"),
+
+    # Security
+    (test_sanitize_xss, "security: _sanitize() escapa XSS"),
 ]
 
 for fn, desc in tests:
@@ -1190,8 +1258,9 @@ for fn, desc in tests:
 # ═══════════════════════════════════════════════════════════════
 print(f"\n{'=' * 60}")
 print(f"RESULTADO: {PASS} passed, {FAIL} failed, {SKIP} skipped")
-if FAIL:
-    print("⚠️  Alguns testes falharam - revisar acima.")
-    sys.exit(1)
-else:
-    print("✅ Todos os testes passaram!")
+if __name__ == "__main__":
+    if FAIL:
+        print("⚠️  Alguns testes falharam - revisar acima.")
+        sys.exit(1)
+    else:
+        print("✅ Todos os testes passaram!")

@@ -1,40 +1,49 @@
+import logging
 import re
-import time
 from urllib.parse import quote
 
-import httpx
 from selectolax.parser import HTMLParser
 
+from parsers.unit_extractor import extract_unit
+from scrapers.base_web_scraper import BaseWebScraper
 
-class CarrefourScraper:
+logger = logging.getLogger(__name__)
+
+
+class CarrefourScraper(BaseWebScraper):
+
     def __init__(self, store_config: dict):
-        self.store = store_config
-        self.name = store_config["name"]
-        self.base_url = store_config["base_url"].rstrip("/")
+        super().__init__(store_config)
         self.search_url = store_config.get("search_url") or f"{self.base_url}/busca?q={{query}}"
-        self.session = httpx.Client(
-            timeout=30.0,
-            follow_redirects=True,
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/125.0.0.0 Safari/537.36"
-                ),
-                "Accept": "text/html,application/xhtml+xml",
-            },
-        )
         self._price_re = re.compile(r"R\$\s*(\d+(?:[.,]\d{2}))")
 
     def fetch_search(self, query: str) -> str | None:
         url = self.search_url.format(query=quote(query))
         try:
-            resp = self.session.get(url)
+            resp = self._http.get(url)
             resp.raise_for_status()
             return resp.text
         except Exception as e:
-            print(f"[Carrefour] Error fetching '{url}': {e}")
+            logger.warning("[%s] Error fetching '%s': %s", self.name, url, e)
             return None
+
+    def _search_and_parse(self, ing: dict) -> list[dict]:
+        html = None
+        for term in ing.get("search_terms", []):
+            query = term.lower().replace("%", " ")
+            html = self.fetch_search(query)
+            if html:
+                break
+        if not html:
+            html = self.fetch_search(ing["canonical"].lower().replace("%", " "))
+        if not html:
+            for alias in ing.get("aliases", []):
+                html = self.fetch_search(alias.lower().replace("%", " "))
+                if html:
+                    break
+        if not html:
+            return []
+        return self.parse_products(html)
 
     def parse_products(self, html: str) -> list[dict]:
         tree = HTMLParser(html)
@@ -61,36 +70,7 @@ class CarrefourScraper:
             products.append({
                 "product": product_name,
                 "price": price,
-                "unit": self._extract_unit(product_name + " " + link.attributes.get("href", "")),
+                "unit": extract_unit(product_name + " " + link.attributes.get("href", "")),
             })
 
         return products
-
-    def _extract_unit(self, text: str) -> str:
-        patterns = [
-            r"(\d+\s*x\s*[\d.,]+\s*(?:kg|g|ml|un|L|l))",
-            r"([\d.,]+\s*(?:kg|g|ml|un|L|l)\b)",
-            r"(cx\s*(?:com\s*)?\d+)",
-        ]
-        for pat in patterns:
-            m = re.search(pat, text, re.I)
-            if m:
-                return m.group(1).strip()
-        return ""
-
-    def run(self, ingredients: list[dict]) -> list[dict]:
-        all_entries = []
-
-        for ing in ingredients:
-            query = ing["canonical"].lower().replace("%", " ")
-            html = self.fetch_search(query)
-            if not html:
-                continue
-
-            results = self.parse_products(html)
-            for entry in results:
-                all_entries.append(entry)
-
-            time.sleep(1.0)
-
-        return all_entries

@@ -58,6 +58,13 @@ def get_pending_flyers(limit: int = 20) -> list[dict]:
     return result.data if result.data else []
 
 
+def cleanup_old_flyers(retention_days: int = 60) -> dict:
+    """Deleta flyers com OCR failed mais antigos que retention_days."""
+    client = get_service_client()
+    result = client.rpc("cleanup_old_flyers", {"retention_days": retention_days}).execute()
+    return {"deleted": result.data} if result.data else {"deleted": 0}
+
+
 def get_recent_flyers(days: int = 7, source: Optional[str] = None) -> list[dict]:
     client = get_supabase()
     query = client.table("flyers").select("*") \

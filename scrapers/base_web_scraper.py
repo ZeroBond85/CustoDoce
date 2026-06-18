@@ -1,0 +1,94 @@
+import logging
+import time
+from abc import ABC, abstractmethod
+from typing import Optional
+from urllib.parse import quote
+
+import httpx
+
+logger = logging.getLogger(__name__)
+
+
+class BaseWebScraper(ABC):
+    DEFAULT_RATE_LIMIT = 1.0
+
+    def __init__(self, store_config: dict, rate_limit: Optional[float] = None):
+        self.store = store_config
+        self.name = store_config.get("name", "unknown")
+        self.base_url = (store_config.get("base_url") or "").rstrip("/")
+        self.rate_limit = rate_limit or store_config.get("rate_limit", self.DEFAULT_RATE_LIMIT)
+        self._http = httpx.Client(
+            timeout=30.0,
+            follow_redirects=True,
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/125.0.0.0 Safari/537.36"
+                ),
+                "Accept": "text/html,application/xhtml+xml,application/json",
+            },
+        )
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self._http.close()
+
+    def close(self):
+        self._http.close()
+
+    def fetch_search(self, query: str) -> Optional[str]:
+        search_url = self.store.get("search_url", "").format(query=quote(query))
+        if not search_url:
+            return None
+        try:
+            resp = self._http.get(search_url)
+            resp.raise_for_status()
+            return resp.text
+        except Exception as e:
+            logger.warning("[%s] fetch_search error: %s", self.name, e)
+            return None
+
+    def fetch_json(self, url: str, params: Optional[dict] = None) -> Optional[dict | list]:
+        try:
+            resp = self._http.get(url, params=params)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            logger.warning("[%s] fetch_json error: %s", self.name, e)
+            return None
+
+    def _throttle(self):
+        if self.rate_limit > 0:
+            time.sleep(self.rate_limit)
+
+    @abstractmethod
+    def parse_products(self, raw_data) -> list[dict]:
+        ...
+
+    def run(self, ingredients: list[dict]) -> list[dict]:
+        all_entries = []
+        for ing in ingredients:
+            entries = self._search_and_parse(ing)
+            all_entries.extend(entries)
+            self._throttle()
+        return all_entries
+
+    def _search_and_parse(self, ing: dict) -> list[dict]:
+        html = None
+        for term in ing.get("search_terms", []):
+            html = self.fetch_search(term.lower())
+            if html:
+                break
+        if not html:
+            html = self.fetch_search(ing["canonical"].lower())
+        if not html:
+            for alias in ing.get("aliases", []):
+                html = self.fetch_search(alias.lower())
+                if html:
+                    break
+        if not html:
+            return []
+        return self.parse_products(html)
