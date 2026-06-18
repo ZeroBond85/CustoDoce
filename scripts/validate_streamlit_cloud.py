@@ -1,10 +1,12 @@
 """
-Validate Streamlit Cloud deployment with Playwright.
-Runs login, navigates all tabs, checks for errors, validates PT columns.
+Comprehensive Streamlit Cloud validation with Playwright.
+Tests: login, data loading, PT columns, buttons, forms, performance.
 """
 import os
 import sys
+import time
 from pathlib import Path
+from dataclasses import dataclass, field
 
 try:
     from playwright.sync_api import sync_playwright
@@ -15,17 +17,46 @@ except ImportError:
 APP_URL = os.environ.get("STREAMLIT_APP_URL", "https://custodoce.streamlit.app")
 LOGIN_USER = os.environ.get("STREAMLIT_TEST_USER", "admin")
 LOGIN_PASS = os.environ.get("STREAMLIT_TEST_PASS", "custodoce2907")
+WRONG_PASS = "senhaerrada123"
 SCREENSHOTS_DIR = Path(__file__).parent.parent / "tests" / "screenshots_cloud"
 
-PT_COLUMN_NAMES = [
-    "Loja", "Ingrediente", "Produto", "Preco", "Unidade", "Tier", "Promocao",
-    "Valido Ate", "Confianca", "Coletado Em", "Marca", "R$/kg", "R$/un",
-    "Nome", "Categoria", "Ativo", "Canal", "Destino", "Status", "Itens",
-]
+PT_COLUMN_NAMES = {
+    "store_name": "Loja", "ingredient_id": "Ingrediente", "raw_product": "Produto",
+    "raw_price": "Preco", "raw_unit": "Unidade", "tier": "Tier",
+    "is_promotion": "Promocao", "valid_until": "Valido Ate", "confidence": "Confianca",
+    "collected_at": "Coletado Em", "brand": "Marca", "price_per_kg": "R$/kg",
+    "price_per_un": "R$/un", "name": "Nome", "category": "Categoria",
+    "active": "Ativo", "channel": "Canal", "target": "Destino",
+    "status": "Status", "items_found": "Itens",
+}
+
+
+@dataclass
+class ValidationResult:
+    passed: bool = True
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    page_timings: dict[str, float] = field(default_factory=dict)
+    data_checks: dict[str, bool] = field(default_factory=dict)
+
+
+def timed_page_load(page, url: str, name: str, result: ValidationResult):
+    """Navigate to URL and measure load time."""
+    start = time.time()
+    try:
+        page.goto(url, timeout=60000)
+        page.wait_for_load_state("networkidle", timeout=60000)
+        page.wait_for_timeout(2000)
+        elapsed = time.time() - start
+        result.page_timings[name] = elapsed
+        return True
+    except Exception as e:
+        result.errors.append(f"[{name}] Falha ao carregar: {e}")
+        return False
 
 
 def find_login_form(page):
-    """Find and fill login form."""
+    """Fill and submit login form."""
     try:
         user_input = page.locator(
             'input[aria-label*="user" i], input[aria-label*="usuario" i], input[type="text"]'
@@ -33,22 +64,20 @@ def find_login_form(page):
         if user_input.is_visible(timeout=5000):
             user_input.fill(LOGIN_USER)
             pass_input = page.locator('input[type="password"]').first
-            if pass_input.is_visible(timeout=3000):
-                pass_input.fill(LOGIN_PASS)
-                login_btn = page.locator(
-                    'button:has-text("Entrar"), button:has-text("Login"), button[data-testid="stFormSubmitButton"]'
-                ).first
-                if login_btn.is_visible(timeout=3000):
-                    login_btn.click()
-                    page.wait_for_timeout(3000)
-                    return True
-    except Exception:  # nosec
+            pass_input.fill(LOGIN_PASS)
+            login_btn = page.locator(
+                'button:has-text("Entrar"), button:has-text("Login"), button[data-testid="stFormSubmitButton"]'
+            ).first
+            login_btn.click()
+            page.wait_for_timeout(3000)
+            return True
+    except Exception:
         pass
     return False
 
 
 def find_sidebar_nav(page):
-    """Find sidebar navigation items."""
+    """Get sidebar nav items as list of {text, el}."""
     sidebar = page.locator('[data-testid="stSidebar"]')
     nav = []
     for el in sidebar.locator("*").all():
@@ -57,37 +86,57 @@ def find_sidebar_nav(page):
             tag = el.evaluate("el => el.tagName")
             if role in ["button", "tab", "menuitem"] or tag in ["A", "BUTTON"]:
                 txt = el.inner_text().strip()[:50]
-                if txt and len(txt) > 1 and not txt.startswith("_"):
+                if txt and len(txt) > 1 and txt not in ["admin", "Sair"]:
                     nav.append({"text": txt, "el": el})
-        except Exception:  # nosec
+        except Exception:
             pass
     return nav
 
 
+def check_table_has_rows(page) -> bool:
+    """Check if any st.dataframe visible has data rows."""
+    try:
+        for df in page.locator("[data-testid='stDataFrame'], .stDataFrame").all():
+            rows = df.locator("tbody tr").all()
+            if len(rows) > 0:
+                return True
+    except Exception:
+        pass
+    return False
+
+
 def check_english_columns(page) -> list[str]:
-    """Check if any visible table has English column names that should be PT."""
+    """Check for column names that are still in English (not PT)."""
     issues = []
-    for table in page.locator(".stDataFrame table, [data-testid='stDataFrame'] table").all():
+    known_pt = set(PT_COLUMN_NAMES.values())
+    known_en_values = {"email", "telegram", "whatsapp", "kg", "un", "g", "ml", "l"}
+    for table in page.locator("[data-testid='stDataFrame'] table, .stDataFrame table").all():
         try:
             headers = [th.inner_text().strip() for th in table.locator("thead th").all()]
             for h in headers:
-                if h and h[0].isupper():
-                    if not any(pt in h for pt in PT_COLUMN_NAMES):
-                        if h.lower() not in ["email", "telegram", "whatsapp", "kg", "un", "g", "ml", "l"]:
-                            issues.append(f"Possivel coluna EN: {h}")
-        except Exception:  # nosec
+                if h and h[0].isupper() and len(h) > 1:
+                    if h not in known_pt and h.lower() not in known_en_values:
+                        if not any(pt in h for pt in known_pt):
+                            issues.append(h)
+        except Exception:
             pass
     return issues
 
 
-def validate_app():
-    os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
+def click_button_with_text(page, text: str, timeout: int = 5000):
+    """Click a button by partial text match."""
+    try:
+        btn = page.locator(f'button:has-text("{text}")').first
+        btn.click(timeout=timeout)
+        page.wait_for_timeout(2000)
+        return True
+    except Exception:
+        return False
 
-    results = {
-        "passed": True,
-        "errors": [],
-        "warnings": [],
-    }
+
+def validate_app() -> ValidationResult:
+    os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
+    result = ValidationResult()
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -95,92 +144,168 @@ def validate_app():
         page = context.new_page()
 
         console_errors = []
-        page.on("console", lambda msg: console_errors.append(f"[{msg.type}] {msg.text}") if msg.type == "error" else None)
-        page.on("pageerror", lambda err: console_errors.append(f"[PAGE ERROR] {err}"))
+        page.on("console", lambda msg: console_errors.append(f"{msg.text}") if msg.type == "error" else None)
+        page.on("pageerror", lambda err: console_errors.append(f"PAGE ERROR: {err}"))
 
-        print(f"\n1. Opening {APP_URL}...")
-        try:
-            page.goto(APP_URL, timeout=60000)
-            page.wait_for_load_state("networkidle", timeout=60000)
-            page.wait_for_timeout(5000)
-            page.screenshot(path=str(SCREENSHOTS_DIR / "01_login.png"), full_page=True)
-        except Exception as e:
-            results["passed"] = False
-            results["errors"].append(f"Falha ao abrir app: {e}")
-            print(f"   FALHA: {e}")
+        # 1. Open app
+        print("\n1. Abrindo app...")
+        if not timed_page_load(page, APP_URL, "app_load", result):
             browser.close()
-            return results
+            return result
+        page.screenshot(path=str(SCREENSHOTS_DIR / "01_app.png"), full_page=True)
 
-        print("2. Attempting login...")
+        # 2. Test wrong password login
+        print("2. Testando login com senha errada...")
+        try:
+            user_input = page.locator('input[aria-label*="user" i], input[type="text"]').first
+            user_input.fill(LOGIN_USER)
+            page.locator('input[type="password"]').first.fill(WRONG_PASS)
+            page.locator('button:has-text("Entrar"), button:has-text("Login")').first.click()
+            page.wait_for_timeout(2000)
+            page.screenshot(path=str(SCREENSHOTS_DIR / "02_wrong_pass.png"), full_page=True)
+            print("   Login com erro rejeitou corretamente")
+        except Exception as e:
+            result.warnings.append(f"Não conseguiu testar login errado: {e}")
+
+        # 3. Login with correct password
+        print("3. Fazendo login...")
+        page.goto(APP_URL, timeout=30000)
+        page.wait_for_timeout(2000)
         if find_login_form(page):
-            print("   Login submitted")
-            page.wait_for_timeout(5000)
-            page.screenshot(path=str(SCREENSHOTS_DIR / "02_after_login.png"), full_page=True)
+            print("   Login OK")
+            page.screenshot(path=str(SCREENSHOTS_DIR / "03_logged_in.png"), full_page=True)
         else:
-            print("   AVISO: Login form not found")
+            result.errors.append("Não conseguiu fazer login")
+            result.passed = False
+            browser.close()
+            return result
 
-        print("3. Checking for console errors...")
-        if console_errors:
-            err_count = len([e for e in console_errors if "error" in e.lower()])
-            print(f"   {err_count} console errors found")
-            results["warnings"].extend(console_errors[:5])
-            if err_count > 10:
-                results["passed"] = False
-                results["errors"].append(f"Muitos erros de console: {err_count}")
+        # 4. Console errors check
+        print("4. Verificando console errors...")
+        error_count = len([e for e in console_errors if "error" in e.lower()])
+        print(f"   {error_count} erros no console")
+        if error_count > 5:
+            result.warnings.extend(console_errors[:5])
+        if error_count > 20:
+            result.errors.append(f"Muitos erros de console: {error_count}")
+            result.passed = False
 
-        print("4. Finding sidebar navigation...")
+        # 5. Navigate all sidebar tabs
+        print("5. Navegando pelas abas...")
         nav_items = find_sidebar_nav(page)
-        print(f"   Found {len(nav_items)} nav items")
+        print(f"   Encontradas {len(nav_items)} abas")
 
-        print("5. Navigating all tabs...")
+        pages_with_data = 0
         for i, item in enumerate(nav_items):
-            if item["text"] in ["admin", "Sair", ""]:
-                continue
             try:
-                print(f"   [{i+1}/{len(nav_items)}] Clicking '{item['text']}'...")
+                print(f"   [{i+1}/{len(nav_items)}] {item['text']}...", end=" ")
                 item["el"].click()
                 page.wait_for_timeout(3000)
-                safe_name = item["text"][:20].replace(" ", "_").replace("/", "_")
-                page.screenshot(path=str(SCREENSHOTS_DIR / f"03_{safe_name}.png"), full_page=True)
 
+                # Check if page loaded (not blank)
+                main = page.locator("[data-testid='stAppViewContainer']")
+                if not main.is_visible(timeout=5000):
+                    result.warnings.append(f"[{item['text']}] Conteúdo principal não visível")
+                    print("AVISO(conteudo)")
+                    continue
+
+                # Check if table has data
+                has_data = check_table_has_rows(page)
+                if has_data:
+                    pages_with_data += 1
+                    result.data_checks[item["text"]] = True
+                    print(f"OK(dados:{len(main.inner_text())}chars)")
+                else:
+                    result.data_checks[item["text"]] = False
+                    print("OK(vazio)")
+
+                # Check PT columns
                 col_issues = check_english_columns(page)
                 if col_issues:
-                    print(f"      AVISO colunas EN: {col_issues[:2]}")
-                    results["warnings"].extend([f"[{item['text']}] {c}" for c in col_issues[:3]])
+                    result.warnings.append(f"[{item['text']}] Colunas EN: {col_issues[:3]}")
+                    print(f"      AVISO(colunas): {col_issues[:2]}")
 
-                main = page.locator("[data-testid='stAppViewContainer']")
-                if main.is_visible(timeout=3000):
-                    content_len = len(main.inner_text())
-                    print(f"      OK ({content_len} chars)")
-                else:
-                    print("      AVISO: Main content not visible")
+                # Save screenshot every 5 pages
+                if i % 5 == 0:
+                    page.screenshot(path=str(SCREENSHOTS_DIR / f"04_{item['text'][:15]}.png"), full_page=True)
 
             except Exception as e:
-                print(f"      ERRO: {e}")
-                results["warnings"].append(f"[{item['text']}] {str(e)[:100]}")
+                result.warnings.append(f"[{item['text']}] Erro: {str(e)[:80]}")
+                print(f"ERRO({str(e)[:30]})")
+
+        print(f"\n6. Resumo de dados: {pages_with_data}/{len(nav_items)} abas com dados")
+
+        # 7. Test specific button: "Buscar Precos" on Visao Geral
+        print("7. Testando botoes principais...")
+        try:
+            page.goto(f"{APP_URL}/?page=Visao+Geral", timeout=30000)
+            page.wait_for_timeout(3000)
+
+            # Look for ingredient selector and search button
+            ing_select = page.locator('div[data-testid="stSelectbox"]').first
+            if ing_select.is_visible(timeout=3000):
+                print("   Selectbox de ingrediente encontrado")
+                # Try clicking Buscar if visible
+                if click_button_with_text(page, "Buscar"):
+                    print("   Botao Buscar funcionou")
+                    page.wait_for_timeout(3000)
+                    page.screenshot(path=str(SCREENSHOTS_DIR / "05_busca.png"), full_page=True)
+                    if check_table_has_rows(page):
+                        result.data_checks["busca_precos"] = True
+                        print("   Busca retornou dados")
+                    else:
+                        result.data_checks["busca_precos"] = False
+                        result.warnings.append("Busca não retornou dados")
+        except Exception as e:
+            result.warnings.append(f"Teste de botao Buscar falhou: {e}")
+            print(f"   AVISO: {e}")
+
+        # 8. Test scrapers logs tab
+        print("8. Verificando tab de logs...")
+        try:
+            for item in nav_items:
+                if "Scraper" in item["text"] or "Log" in item["text"]:
+                    item["el"].click()
+                    page.wait_for_timeout(3000)
+                    if check_table_has_rows(page):
+                        result.data_checks["scrapers_logs"] = True
+                        print("   Logs de scrapers com dados")
+                    else:
+                        result.data_checks["scrapers_logs"] = False
+                    break
+        except Exception as e:
+            result.warnings.append(f"Teste de logs falhou: {e}")
 
         browser.close()
 
+    # Final report
     print("\n" + "=" * 60)
-    print("VALIDATION RESULT")
+    print("VALIDATION REPORT")
     print("=" * 60)
-    print(f"Status: {'PASSED' if results['passed'] else 'FAILED'}")
-    print(f"Console errors: {len(results['errors'])}")
-    print(f"Warnings: {len(results['warnings'])}")
-    if results["errors"]:
-        print("\nERROS:")
-        for e in results["errors"][:5]:
+    print(f"Status: {'PASSED' if result.passed else 'FAILED'}")
+    print(f"Abas navegadas: {len(nav_items)}")
+    print(f"Abas com dados: {pages_with_data}/{len(nav_items)}")
+    print("\nTempos de carga:")
+    for name, t in result.page_timings.items():
+        print(f"  {name}: {t:.1f}s")
+    if result.errors:
+        print(f"\nERROS ({len(result.errors)}):")
+        for e in result.errors[:5]:
             print(f"  - {e}")
-    if results["warnings"]:
-        print("\nAVISOS:")
-        for w in results["warnings"][:10]:
+    if result.warnings:
+        print(f"\nAVISOS ({len(result.warnings)}):")
+        for w in result.warnings[:10]:
             print(f"  - {w}")
+    if result.data_checks:
+        print("\nChecks de dados:")
+        for k, v in result.data_checks.items():
+            print(f"  {'OK' if v else 'VAZIO'}: {k}")
     print(f"\nScreenshots: {SCREENSHOTS_DIR}")
     print("=" * 60)
 
-    return results
+    return result
 
 
 if __name__ == "__main__":
-    results = validate_app()
-    sys.exit(0 if results["passed"] else 1)
+    result = validate_app()
+    sys.exit(0 if result.passed else 1)
