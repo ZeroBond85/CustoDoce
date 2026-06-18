@@ -41,3 +41,43 @@ jobs:
       - name: pip-audit
         run: pip-audit --strict --ignore-vuln PIP-1
         continue-on-error: true
+
+  streamlit-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install playwright
+        run: |
+          pip install playwright
+          python -m playwright install chromium --with-deps
+
+      - name: Install app deps
+        run: pip install -r requirements.txt
+
+      - name: Validate Streamlit Cloud
+        run: python scripts/validate_streamlit_cloud.py
+        env:
+          STREAMLIT_APP_URL: https://custodoce.streamlit.app
+          STREAMLIT_TEST_USER: admin
+          STREAMLIT_TEST_PASS: ${{ secrets.ADMIN_PASSWORD }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GH_PAT: ${{ secrets.GH_PAT }}

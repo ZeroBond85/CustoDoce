@@ -1,10 +1,8 @@
 """Automated Streamlit dashboard test with Playwright."""
-import subprocess
-import time
-import sys
+import sys  # noqa: E402
 import io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright  # noqa: E402
 
 APP_URL = "http://localhost:8501"
 SCREENSHOTS_DIR = "C:\\Zerobond\\Code\\CustoDoce\\tests\\screenshots"
@@ -85,7 +83,7 @@ def test_streamlit():
                     txt = safe_str(el.inner_text())[:50]
                     if txt and len(txt) > 1:
                         clickable.append({"tag": tag, "text": txt, "el": el})
-            except:
+            except Exception:  # nosec
                 pass
         print(f"   Found {len(clickable)} clickable elements in sidebar")
         for c in clickable[:20]:
