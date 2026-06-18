@@ -341,7 +341,7 @@ def tab_precos():
             "Ordenar por", ["price_per_kg", "price_per_un", "raw_price"]
         )
     with col2:
-        sort_order = st.selectbox("Ordem", ["asc", "desc"])
+        sort_order = st.selectbox("Ordem", ["Crescente", "Decrescente"])
     with col3:
         limit = st.number_input("Limite", min_value=5, max_value=100, value=30)
     with col4:
@@ -446,7 +446,7 @@ def tab_precos():
                     df_display.get("price_per_kg", pd.Series([0])) > 0
                 ].index
                 if not valid.empty:
-                    if sort_order == "asc":
+                    if sort_order == "Crescente":
                         min_price_idx = df_display.loc[valid, sort_by].idxmin()
                     else:
                         min_price_idx = df_display.loc[valid, sort_by].idxmax()
@@ -811,7 +811,7 @@ def tab_lojas():
             default = store
         else:
             default = {
-                "name": "", "tier": 2, "type": "website_catalog", "logistics": "pickup_local",
+                "name": "", "tier": 2, "type": "website_catalog", "logistics": "retirada_local",
                 "city": [], "zone": "", "url_pattern": "", "base_url": "", "api_endpoint": "",
                 "search_url": "", "selectors": {}, "publish_day": "", "collection_method": "automated",
                 "visit_frequency": "", "scraper": "", "contact": "", "coverage": "", "priority": 99, "is_active": True
@@ -823,7 +823,7 @@ def tab_lojas():
                 name = st.text_input("Nome *", value=default.get("name", ""))
                 tier = st.selectbox("Tier", [1, 2, 3, 4], index=[1, 2, 3, 4].index(default.get("tier", 2)))
                 type_ = st.text_input("Tipo", value=default.get("type", ""))
-                logistics = st.selectbox("Logística", ["pickup_local", "pickup_sp", "delivery", "online"], index=["pickup_local", "pickup_sp", "delivery", "online"].index(default.get("logistics", "pickup_local")))
+                logistics = st.selectbox("Logística", ["retirada_local", "retirada_sp", "entrega", "online"], index=["retirada_local", "retirada_sp", "entrega", "online"].index(default.get("logistics", "retirada_local")))
                 city_str = st.text_area("Cidades (uma por linha)", value="\n".join(default.get("city", [])))
                 zone = st.text_input("Zona", value=default.get("zone", ""))
                 url_pattern = st.text_input("URL Pattern (PDF)", value=default.get("url_pattern", ""))
@@ -832,8 +832,8 @@ def tab_lojas():
                 api_endpoint = st.text_input("API Endpoint (VTEX)", value=default.get("api_endpoint", ""))
                 search_url = st.text_input("Search URL", value=default.get("search_url", ""))
                 selectors = st.text_area("Selectors JSON", value=str(default.get("selectors", {})))
-                publish_day = st.selectbox("Dia Publicação", ["", "wednesday", "thursday"], index=["", "wednesday", "thursday"].index(default.get("publish_day", "")))
-                collection_method = st.selectbox("Método Coleta", ["automated", "manual_visit", "manual"], index=["automated", "manual_visit", "manual"].index(default.get("collection_method", "automated")))
+                publish_day = st.selectbox("Dia Publicação", ["", "quarta", "quinta"], index=["", "quarta", "quinta"].index(default.get("publish_day", "")))
+                collection_method = st.selectbox("Método Coleta", ["automatico", "visita_manual", "manual"], index=["automatico", "visita_manual", "manual"].index(default.get("collection_method", "automatico")))
                 visit_frequency = st.text_input("Frequência Visita", value=default.get("visit_frequency", ""))
                 scraper = st.text_input("Scraper", value=default.get("scraper", ""))
                 contact = st.text_input("Contato", value=default.get("contact", ""))
@@ -2275,7 +2275,7 @@ def tab_alertas():
             with st.form("form_recipient"):
                 col1, col2 = st.columns(2)
                 with col1:
-                    channel = st.selectbox("Canal", ["email", "telegram", "whatsapp"])
+                    channel = st.selectbox("Canal", ["email", "telegram", "whatsapp"], format_func=lambda x: {"email": "Email", "telegram": "Telegram", "whatsapp": "WhatsApp"}.get(x, x))
                     target = st.text_input("Destino", placeholder="email@dominio.com ou -1001234567890")
                 with col2:
                     name = st.text_input("Nome (opcional)", placeholder="Financeiro, Gestor, etc")
@@ -2325,8 +2325,8 @@ def tab_alertas():
                 col1, col2 = st.columns(2)
                 with col1:
                     name = st.text_input("Nome da Regra", placeholder="ex: Alerta Queda Preço Leite Condensado")
-                    channel = st.selectbox("Canal", ["email", "telegram", "whatsapp"])
-                    trigger = st.selectbox("Gatilho", ["price_drop", "new_low_price", "daily_report", "scrape_failure", "review_queue_threshold"])
+                    channel = st.selectbox("Canal", ["email", "telegram", "whatsapp"], format_func=lambda x: {"email": "Email", "telegram": "Telegram", "whatsapp": "WhatsApp"}.get(x, x))
+                    trigger = st.selectbox("Gatilho", ["price_drop", "new_low_price", "daily_report", "scrape_failure", "review_queue_threshold"], format_func=lambda x: {"price_drop": "Queda de Preço", "new_low_price": "Menor Preço Histórico", "daily_report": "Relatório Diário", "scrape_failure": "Falha no Scraper", "review_queue_threshold": "Fila de Revisão"}.get(x, x))
                 with col2:
                     freq = st.number_input("Anti-spam (minutos)", min_value=60, value=1440, step=60)
                     recipients_list = get_active_recipients(channel)
