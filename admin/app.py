@@ -22,6 +22,9 @@ from services.price_service import (
     get_latest_prices,
     get_price_history,
     get_review_queue,
+    get_longitudinal_winners,
+    get_price_trends,
+    get_cross_ingredient_ranking,
     reject_review_item,
     search_prices,
 )
@@ -103,6 +106,22 @@ def _sanitize(value) -> str:
     if value is None:
         return ""
     return html.escape(str(value))
+
+
+def _get_repo_from_git() -> str:
+    try:
+        import subprocess  # nosec B404
+        origin = subprocess.run(  # nosec B603 B607
+            ["git", "remote", "get-url", "origin"],
+            capture_output=True, text=True, timeout=5
+        ).stdout.strip()
+        if origin:
+            repo = origin.replace("https://github.com/", "").replace(".git", "")
+            repo = repo.replace("git@github.com:", "")
+            return repo
+    except Exception:  # nosec B110 — fallback silencioso para env var
+        pass
+    return os.environ.get("GH_REPO", "user/CustoDoce")
 
 
 def _get_kg(df):
@@ -369,6 +388,7 @@ def tab_precos():
 
             display_cols = [
                 "store_name",
+                "brand",
                 "raw_product",
                 "raw_price",
                 "raw_unit",
@@ -502,7 +522,7 @@ def tab_historico():
         st.dataframe(store_stats, use_container_width=True, hide_index=True)
 
         st.markdown("### Dados Brutos")
-        display_cols = [c for c in ["store_name", "raw_product", "raw_price", "raw_unit", "is_promotion", "valid_until", "collected_at"] if c in df.columns]
+        display_cols = [c for c in ["store_name", "brand", "raw_product", "raw_price", "raw_unit", "is_promotion", "valid_until", "collected_at"] if c in df.columns]
         if "price_per_kg" in df.columns:
             df["R$/kg"] = df["price_per_kg"].apply(lambda x: f"R$ {x:.2f}" if x > 0 else "—")
             display_cols.append("R$/kg")
@@ -667,8 +687,10 @@ def tab_revisao():
                 cols = st.columns([3, 2, 1, 1])
                 with cols[0]:
                     st.markdown(f"**{raw_product}**")
+                    brand = item.get("brand", "")
+                    extra = f"Marca: {brand} | " if brand else ""
                     st.caption(
-                        f"Loja: {store_name} | Confianca: {confidence * 100:.0f}%"
+                        f"{extra}Loja: {store_name} | Confianca: {confidence * 100:.0f}%"
                     )
                 with cols[1]:
                     st.markdown(f"R$ {float(raw_price):.2f} {raw_unit}")
@@ -684,6 +706,8 @@ def tab_revisao():
                         if chosen:
                             approve_review_item(item_id, chosen)
                             st.rerun()
+                        else:
+                            st.warning("Selecione um ingrediente antes de aprovar.")
                 with cols[3]:
                     if st.button(
                         "Rejeitar", key=f"rej_{item_id}", use_container_width=True
@@ -722,7 +746,7 @@ def tab_lojas():
             col1.metric("Total Lojas", len(stores))
             tiers = [s.get("tier", 3) for s in stores]
             col2.metric("Tiers", f"{min(tiers)}-{max(tiers)}" if tiers else "—")
-            col3.metric("Ativas", len([s for s in stores if s.get("active")]))
+            col3.metric("Ativas", len([s for s in stores if s.get("is_active")]))
             col4.metric("Tipos", len(set(s.get("type") for s in stores if s.get("type"))))
 
             col_s1, col_s2 = st.columns([3, 1])
@@ -740,11 +764,11 @@ def tab_lojas():
 
             if filtered:
                 df = pd.DataFrame(filtered)
-                df["active"] = df["active"].map({True: "✅", False: "⏸️"})
+                df["is_active"] = df["is_active"].map({True: "✅", False: "⏸️"})
                 df["city_str"] = df["city"].apply(lambda x: ", ".join(x) if x else "—")
-                cols = ["name", "tier", "type", "logistics", "city_str", "zone", "active"]
+                cols = ["name", "tier", "type", "logistics", "city_str", "zone", "is_active"]
                 cols = [c for c in cols if c in df.columns]
-                st.dataframe(df[cols], use_container_width=True, hide_index=True)
+                st.dataframe(df[cols].head(100), use_container_width=True, hide_index=True)
             else:
                 info_box("Nenhuma loja encontrada com esse filtro.", "info")
         else:
@@ -752,7 +776,7 @@ def tab_lojas():
 
     with tab_form:
         stores = get_all_stores(include_inactive=True)
-        store_options = {f"{s['name']} ({'ativo' if s['active'] else 'inativo'})": s for s in stores}
+        store_options = {f"{s['name']} ({'ativo' if s.get('is_active') else 'inativo'})": s for s in stores}
         sel = st.selectbox("Editar existente", ["— Nova —"] + list(store_options.keys()))
 
         if sel != "— Nova —":
@@ -763,7 +787,7 @@ def tab_lojas():
                 "name": "", "tier": 2, "type": "website_catalog", "logistics": "pickup_local",
                 "city": [], "zone": "", "url_pattern": "", "base_url": "", "api_endpoint": "",
                 "search_url": "", "selectors": {}, "publish_day": "", "collection_method": "automated",
-                "visit_frequency": "", "scraper": "", "contact": "", "coverage": "", "priority": 99, "active": True
+                "visit_frequency": "", "scraper": "", "contact": "", "coverage": "", "priority": 99, "is_active": True
             }
 
         with st.form("form_store"):
@@ -788,7 +812,7 @@ def tab_lojas():
                 contact = st.text_input("Contato", value=default.get("contact", ""))
                 coverage = st.text_area("Cobertura", value=default.get("coverage", ""))
                 priority = st.number_input("Prioridade", min_value=1, max_value=999, value=default.get("priority", 99))
-                active = st.checkbox("Ativo", value=default.get("active", True))
+                active = st.checkbox("Ativo", value=default.get("is_active", True))
 
             if st.form_submit_button("Salvar", use_container_width=True):
                 city = [c.strip() for c in city_str.split("\n") if c.strip()]
@@ -797,34 +821,43 @@ def tab_lojas():
                     selectors_json = json.loads(selectors) if selectors else {}
                 except Exception:
                     selectors_json = {}
-                upsert_store({
-                    "name": name,
-                    "tier": tier,
-                    "type": type_,
-                    "logistics": logistics,
-                    "city": city,
-                    "zone": zone,
-                    "url_pattern": url_pattern or None,
-                    "base_url": base_url or None,
-                    "api_endpoint": api_endpoint or None,
-                    "search_url": search_url or None,
-                    "selectors": selectors_json,
-                    "publish_day": publish_day or None,
-                    "collection_method": collection_method,
-                    "visit_frequency": visit_frequency or None,
-                    "scraper": scraper or None,
-                    "contact": contact or None,
-                    "coverage": coverage or None,
-                    "priority": priority,
-                    "active": active,
-                })
-                st.success(f"Loja '{name}' salva!")
-                st.rerun()
+                try:
+                    upsert_store({
+                        "name": name,
+                        "tier": tier,
+                        "type": type_,
+                        "logistics": logistics,
+                        "city": city,
+                        "zone": zone,
+                        "url_pattern": url_pattern or None,
+                        "base_url": base_url or None,
+                        "api_endpoint": api_endpoint or None,
+                        "search_url": search_url or None,
+                        "selectors": selectors_json,
+                        "publish_day": publish_day or None,
+                        "collection_method": collection_method,
+                        "visit_frequency": visit_frequency or None,
+                        "scraper": scraper or None,
+                        "contact": contact or None,
+                        "coverage": coverage or None,
+                        "priority": priority,
+                        "is_active": active,
+                    })
+                    st.toast(f"Loja '{name}' salva!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao salvar loja: {e}")
 
-        if sel != "— Nova —" and st.button("Excluir", type="secondary", use_container_width=True):
-            delete_store(default["id"])
-            st.success("Loja excluída!")
-            st.rerun()
+        if sel != "— Nova —":
+            with st.popover("Excluir", use_container_width=True):
+                st.warning("Tem certeza que deseja excluir esta loja?")
+                if st.button("Sim, excluir", type="primary", key="confirm_del_store"):
+                    try:
+                        delete_store(default["id"])
+                        st.toast("Loja excluída!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao excluir loja: {e}")
 
 
 def _test_normalizer():
@@ -907,20 +940,29 @@ def tab_ingredientes():
                 active = st.checkbox("Ativo", value=default.get("active", True))
             if st.form_submit_button("Salvar", use_container_width=True):
                 aliases = [a.strip() for a in aliases_str.split("\n") if a.strip()]
-                upsert_ingredient({
-                    "canonical_name": canonical,
-                    "category": category or None,
-                    "aliases": aliases,
-                    "unit_target": unit_target,
-                    "active": active,
-                })
-                st.success(f"Ingrediente '{canonical}' salvo!")
-                st.rerun()
+                try:
+                    upsert_ingredient({
+                        "canonical_name": canonical,
+                        "category": category or None,
+                        "aliases": aliases,
+                        "unit_target": unit_target,
+                        "active": active,
+                    })
+                    st.toast(f"Ingrediente '{canonical}' salvo!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao salvar ingrediente: {e}")
 
-        if sel != "— Novo —" and st.button("Excluir", type="secondary", use_container_width=True):
-            delete_ingredient(default["id"])
-            st.success("Ingrediente excluído!")
-            st.rerun()
+        if sel != "— Novo —":
+            with st.popover("Excluir", use_container_width=True):
+                st.warning("Tem certeza que deseja excluir este ingrediente?")
+                if st.button("Sim, excluir", type="primary", key="confirm_del_ing"):
+                    try:
+                        delete_ingredient(default["id"])
+                        st.toast("Ingrediente excluído!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao excluir ingrediente: {e}")
 
     with tab_tester:
         _test_normalizer()
@@ -989,7 +1031,7 @@ def _get_store_tier(store_name: str, stores_config: list) -> int:
 def _get_criticality_level(store_name: str, stores_config: list, last_success: str, days_failed: int) -> tuple[str, str]:
     """Retorna o nível de criticidade (label, cor) para uma loja."""
     tier = _get_store_tier(store_name, stores_config)
-    
+
     if tier == 1 and days_failed >= 1:
         return "🔴 Crítico", "red"
     elif tier == 1 and days_failed >= 0:
@@ -1005,13 +1047,13 @@ def _get_criticality_level(store_name: str, stores_config: list, last_success: s
 def _render_scraper_health_dashboard(df: pd.DataFrame, stores_config: list):
     """Renderiza KPIs de saúde global dos scrapers."""
     total_stores = df["store_name"].nunique() if not df.empty else 0
-    
+
     failed_stores = df[df["status"] == "failed"]["store_name"].nunique() if not df.empty else 0
-    
+
     completed_with_data = df[(df["status"] == "completed") & (df["items_found"] > 0)]["store_name"].nunique() if not df.empty else 0
-    
+
     active_pct = int((completed_with_data / total_stores * 100)) if total_stores > 0 else 0
-    
+
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         if active_pct >= 90:
@@ -1020,14 +1062,14 @@ def _render_scraper_health_dashboard(df: pd.DataFrame, stores_config: list):
             st.metric("Scrapers Ativos", f"{completed_with_data}/{total_stores}", f"{active_pct}% ⚠️", delta_color="off")
         else:
             st.metric("Scrapers Ativos", f"{completed_with_data}/{total_stores}", f"{active_pct}% 🔴", delta_color="inverse")
-    
+
     with col2:
         st.metric("Scrapers com Falha", failed_stores, delta=None)
-    
+
     with col3:
         avg_items = int(df[df["items_found"] > 0]["items_found"].mean()) if not df.empty else 0
         st.metric("Média Itens/Loja", avg_items)
-    
+
     with col4:
         last_complete = df[df["status"] == "completed"]["started_at"].max() if not df.empty else None
         if last_complete:
@@ -1038,7 +1080,7 @@ def _render_scraper_health_dashboard(df: pd.DataFrame, stores_config: list):
 
 def _render_scraper_maintenance(_client_unused=None):
     st.markdown("### Scraper Health Console")
-    
+
     # Carregar configurações de lojas
     stores_config = []
     config_path = Path(__file__).parent.parent / "config" / "stores.yaml"
@@ -1047,7 +1089,7 @@ def _render_scraper_maintenance(_client_unused=None):
             stores_config = yaml.safe_load(f).get("stores", [])
     except Exception:  # nosec B110
         pass
-    
+
     try:
         from services.supabase_client import get_service_client
         client = get_service_client()
@@ -1058,45 +1100,45 @@ def _render_scraper_maintenance(_client_unused=None):
             .limit(200)
             .execute()
         )
-        
+
         if not logs.data:
             st.info("Nenhum log de scraping encontrado.")
-            
+
             #，即使没有日志也显示编辑器
             st.markdown("---")
             st.markdown("### Editor de Seletores (YAML)")
             _render_selector_editor(stores_config, config_path)
             return
-        
+
         df = pd.DataFrame(logs.data)
-        
+
         # Dashboard de Saúde
         _render_scraper_health_dashboard(df, stores_config)
         st.markdown("---")
-        
+
         # Filtros avançados
         col1, col2, col3 = st.columns(3)
         with col1:
             filter_status = st.selectbox(
-                "Status", 
+                "Status",
                 ["Todos", "failed", "completed"],
                 key="filter_status_maint"
             )
         with col2:
             filter_tier = st.selectbox(
-                "Tier", 
+                "Tier",
                 ["Todos", "1", "2", "3"],
                 key="filter_tier_maint"
             )
         with col3:
             show_only_failed = st.checkbox("Apenas com falhas", key="filter_failed_only")
-        
+
         # Aplicar filtros
         filtered_df = df.copy()
-        
+
         if filter_status != "Todos":
             filtered_df = filtered_df[filtered_df["status"] == filter_status]
-        
+
         if filter_tier != "Todos":
             # Filtrar por tier, usando stores_config
             stores_in_tier = [s["name"] for s in stores_config if s.get("tier") == int(filter_tier)]
@@ -1104,30 +1146,30 @@ def _render_scraper_maintenance(_client_unused=None):
 
         if show_only_failed:
             filtered_df = filtered_df[
-                (filtered_df["status"] == "failed") | 
+                (filtered_df["status"] == "failed") |
                 ((filtered_df["items_found"] == 0) & (filtered_df["status"] == "completed"))
             ]
-        
+
         # Identificar falhas
         failed_mask = pd.Series([False] * len(filtered_df))
         if "status" in filtered_df.columns:
             failed_mask |= filtered_df["status"] == "failed"
         if "items_found" in filtered_df.columns:
             failed_mask |= (filtered_df["items_found"] == 0) & (filtered_df["status"] == "completed")
-        
+
         failed_logs = filtered_df[failed_mask].copy()
-        
+
         if failed_logs.empty:
             st.success("✅ Nenhum scraper com falhas com os filtros atuais!")
         else:
             # Agrupar por loja e calcular dias desde última execução
             failed_stores = failed_logs.groupby("store_name").first().reset_index()
-            
+
             # Adicionar coluna de criticidade
             for idx, row in failed_stores.iterrows():
                 store_name = row.get("store_name", "?")
                 started_at = row.get("started_at", "")
-                
+
                 # Calcular dias desde última execução
                 from datetime import datetime
                 days_ago = 0
@@ -1140,18 +1182,18 @@ def _render_scraper_maintenance(_client_unused=None):
                         days_ago = (datetime.now() - last_date.replace(tzinfo=None)).days
                     except Exception:
                         days_ago = 0
-                
+
                 criticality, color = _get_criticality_level(store_name, stores_config, started_at, days_ago)
                 failed_stores.loc[idx, "criticality"] = criticality
                 failed_stores.loc[idx, "days_ago"] = days_ago
-            
+
             # Ordenar por criticidade
             criticality_order = {"🔴 Crítico": 0, "🟡 Alto": 1, "🟢 Médio": 2, "⚪ Baixo": 3}
             failed_stores["crit_order"] = failed_stores["criticality"].map(criticality_order)
             failed_stores = failed_stores.sort_values("crit_order")
-            
+
             st.markdown(f"#### ⚠️ Scrapers com Falhas ({len(failed_stores)})")
-            
+
             for _, row in failed_stores.iterrows():
                 store_name = row.get("store_name", "?")
                 status = row.get("status", "?")
@@ -1160,45 +1202,60 @@ def _render_scraper_maintenance(_client_unused=None):
                 started_at = row.get("started_at", "?")
                 criticality = row.get("criticality", "⚪ Baixo")
                 days_ago = row.get("days_ago", 0)
-                
+
                 error_msg = errors[0] if errors else "Sem detalhes"
-                
+
                 # Cabeçalho com criticidade
                 col_header, col_test, col_github = st.columns([3, 1, 1])
                 with col_header:
                     st.markdown(f"**{criticality} {store_name}**")
                     st.caption(f"Status: `{status}` | Itens: {items_found} | Há {days_ago} dia(s)")
-                
+
                 # Botão testar
                 with col_test:
                     if st.button("🔄 Testar", key=f"test_{store_name}"):
-                        st.session_state[f"testing_{store_name}"] = True
-                
+                        try:
+                            import httpx
+                            gh_token = os.environ.get("GH_PAT", "")
+                            repo = os.environ.get("GH_REPO") or _get_repo_from_git()
+                            resp = httpx.post(
+                                f"https://api.github.com/repos/{repo}/actions/workflows/scrape.yml/dispatches",
+                                json={"ref": "master", "inputs": {"force_store": store_name}},
+                                headers={"Authorization": f"Bearer {gh_token}", "Accept": "application/vnd.github+json"},
+                                timeout=30,
+                            )
+                            if resp.status_code in (200, 204):
+                                st.success(f"Workflow disparado para {store_name}!")
+                            else:
+                                st.error(f"Erro GitHub API: {resp.status_code}")
+                        except Exception as e:
+                            st.error(f"Erro ao testar: {e}")
+
                 # Expander com detalhes
                 with st.expander(f"Ver detalhes - {store_name}", expanded=False):
                     st.code(str(error_msg), language=None)
-                    
+
                     # Botão criar issue
                     if st.button("📝 Criar Issue no GitHub", key=f"github_{store_name}"):
                         _create_github_issue(store_name, error_msg, status, items_found)
-                    
+
                     # Histórico gráfico
                     store_history = df[df["store_name"] == store_name].head(10)
                     if len(store_history) > 1:
                         st.markdown("**Histórico de Execuções:**")
                         fig = px.bar(
-                            store_history.sort_values("started_at"), 
-                            x="started_at", 
+                            store_history.sort_values("started_at"),
+                            x="started_at",
                             y="items_found",
                             color="status",
                             color_discrete_map={"failed": "red", "completed": "green"},
                             title=f"Últimas {len(store_history)} execuções"
                         )
                         st.plotly_chart(fig, use_container_width=True)
-    
+
     except Exception as e:
         info_box(f"Erro ao carregar scrapers com falhas: {e}", "danger")
-    
+
     # Editor de seletores
     st.markdown("---")
     st.markdown("### Editor de Seletores (YAML)")
@@ -1214,11 +1271,11 @@ def _render_selector_editor(stores_config: list, config_path: Path):
     except Exception as e:
         info_box(f"Erro ao carregar stores.yaml: {e}", "warning")
         return
-    
+
     if not stores:
         st.warning("Nenhuma loja configurada.")
         return
-    
+
     store_names = [s.get("name", f"store_{i}") for i, s in enumerate(stores)]
     selected_idx = st.selectbox(
         "Selecione a loja para ajustar seletores",
@@ -1226,14 +1283,14 @@ def _render_selector_editor(stores_config: list, config_path: Path):
         format_func=lambda x: store_names[x],
         key="selector_store_idx"
     )
-    
+
     if selected_idx is not None:
         store = stores[selected_idx]
         current_selectors = store.get("selectors", {})
         for sel in ["product_card", "product_name", "product_price", "product_validity"]:
             if sel not in current_selectors:
                 current_selectors[sel] = []
-        
+
         st.markdown("**Seletores CSS (separados por vírgula)**")
         new_selectors = {}
         for sel_key in ["product_card", "product_name", "product_price", "product_validity"]:
@@ -1244,7 +1301,7 @@ def _render_selector_editor(stores_config: list, config_path: Path):
                 height=80
             )
             new_selectors[sel_key] = [v.strip() for v in val.split(",") if v.strip()]
-        
+
         col1, col2 = st.columns([1, 3])
         with col1:
             if st.button("💾 Salvar Seletores", type="primary", key="save_selectors"):
@@ -1253,7 +1310,7 @@ def _render_selector_editor(stores_config: list, config_path: Path):
                     with open(config_path, "w", encoding="utf-8") as f:
                         yaml.dump({"stores": stores}, f, allow_unicode=True, default_flow_style=False)
                     st.success(f"✅ Seletores de **{store_names[selected_idx]}** atualizados!")
-                    
+
                     # Notificar via Telegram
                     _send_telegram_selector_update(store_names[selected_idx])
                 except Exception as e:
@@ -1266,11 +1323,11 @@ def _create_github_issue(store_name: str, error_msg: str, status: str, items_fou
     """Cria uma issue no GitHub para uma falha de scraper."""
     gh_pat = os.environ.get("GH_PAT")
     repo = os.environ.get("GITHUB_REPOSITORY", "CustoDoce/CustoDoce")
-    
+
     if not gh_pat:
         st.warning("GH_PAT não configurado. Configure nas variáveis de ambiente.")
         return
-    
+
     title = f"[BUG] Scraper {store_name} falhando"
     body = f"""## Descrição
 Scraper da loja **{store_name}** está com falha.
@@ -1291,7 +1348,7 @@ Scraper da loja **{store_name}** está com falha.
 ---
 _Issue criada automaticamente pelo CustoDoce Health Console_
 """
-    
+
     try:
         import httpx
         resp = httpx.post(
@@ -1315,10 +1372,10 @@ def _send_telegram_selector_update(store_name: str):
     """Envia notificação Telegram quando seletores são atualizados."""
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID")
-    
+
     if not bot_token or not chat_id:
         return
-    
+
     try:
         import httpx
         message = f"🔧 *Seletores Atualizados*\n\nLoja: *{store_name}*\n\nOs seletores CSS foram ajustados no CustoDoce. A próxima execução usará os novos valores."
@@ -1335,9 +1392,9 @@ def tab_scrapers():
     section_title("Scrapers & Logs", "Execucao manual e acompanhamento de logs")
     _render_schedule_info()
     st.markdown("---")
-    
+
     tab_logs, tab_manutencao = st.tabs(["Logs Recentes", "Manutencao de Scrapers"])
-    
+
     with tab_logs:
         col1, col2 = st.columns(2)
         with col1:
@@ -1397,7 +1454,7 @@ def tab_scrapers():
                 )
         except Exception as e:
             info_box(f"Erro ao carregar logs: {e}", "warning")
-    
+
     with tab_manutencao:
         _render_scraper_maintenance(client if 'client' in dir() else None)
 
@@ -1512,7 +1569,7 @@ def tab_relatorios():
             st.markdown("### Testar Conexao SMTP")
             c1, c2 = st.columns(2)
             with c1:
-                smtp_host = st.text_input("SMTP_HOST", value=os.environ.get("SMTP_HOST", "smtp-mail.outlook.com"), key="smtp_host")
+                smtp_host = st.text_input("SMTP_HOST", value=os.environ.get("SMTP_HOST", "smtp.gmail.com"), key="smtp_host")
                 smtp_port = st.number_input("SMTP_PORT", value=int(os.environ.get("SMTP_PORT", "587")), key="smtp_port")
                 smtp_user = st.text_input("SMTP_USER", value=os.environ.get("SMTP_USER", ""), key="smtp_user")
             with c2:
@@ -1657,7 +1714,7 @@ def tab_config():
         st.markdown(
             '<p style="font-size:0.85rem;opacity:0.7;margin-bottom:1rem;">'
             "SMTP_HOST e SMTP_PORT sao as configuracoes do provedor. "
-            "Para Outlook: smtp-mail.outlook.com:587 | Gmail: smtp.gmail.com:587 | SendGrid: smtp.sendgrid.net:587"
+            "Para Gmail: smtp.gmail.com:587 | SendGrid: smtp.sendgrid.net:587 | Brevo: smtp-relay.brevo.com:587"
             "</p>",
             unsafe_allow_html=True,
         )
@@ -1665,7 +1722,7 @@ def tab_config():
         with col_m1:
             env_host = st.text_input(
                 "SMTP_HOST",
-                value=os.environ.get("SMTP_HOST", "smtp-mail.outlook.com"),
+                value=os.environ.get("SMTP_HOST", "smtp.gmail.com"),
                 key="env_smtp_host",
                 help="Servidor SMTP do provedor",
             )
@@ -1931,7 +1988,11 @@ def tab_diagnostico():
 
     col1, col2 = st.columns([1, 1])
     with col1:
-        st.button("Executar Todos os Testes", type="primary", use_container_width=True)
+        if st.button("Executar Todos os Testes", type="primary", use_container_width=True):
+            for label, fn in tests:
+                key = f"diag_{label.replace(' ','_').replace('(','').replace(')','').replace(':','')}"
+                st.session_state[key] = _run_service_test(label, fn)
+            st.rerun()
     with col2:
         clear = st.button("Limpar Resultados", use_container_width=True)
         if clear:
@@ -1993,7 +2054,7 @@ def tab_diagnostico():
                     msg["Subject"] = "CustoDoce - Teste SMTP"
                     msg["From"] = f"CustoDoce <{smtp_from or smtp_user}>"
                     msg["To"] = email_to
-                    with smtplib.SMTP(smtp_host or "smtp-mail.outlook.com", int(smtp_port or "587"), timeout=15) as server:
+                    with smtplib.SMTP(smtp_host or "smtp.gmail.com", int(smtp_port or "587"), timeout=15) as server:
                         server.ehlo()
                         server.starttls()
                         server.login(smtp_user, smtp_pass)
@@ -2072,26 +2133,53 @@ def tab_agendamentos():
                         "enabled": enabled,
                         "payload": json.loads(payload),
                     })
-                    st.success(f"Agendamento '{name}' salvo!")
+                    st.toast(f"Agendamento '{name}' salvo!")
                     st.rerun()
                 except Exception as e:
                     st.error(f"Erro: {e}")
 
-    # Edit/Delete existing
+    # Edit/Delete/Execute existing
     if schedules:
-        with st.expander("✏️  Editar / Excluir", expanded=False):
+        with st.expander("✏️  Editar / Executar / Excluir", expanded=False):
             for s in schedules:
-                cols = st.columns([3, 2, 2, 1, 1])
+                cols = st.columns([3, 2, 2, 1, 1, 1])
                 cols[0].write(s["name"])
                 cols[1].write(s["cron_expression"])
                 cols[2].write("✅" if s["enabled"] else "⏸️")
                 if cols[3].button("Editar", key=f"edit_sched_{s['id']}", use_container_width=True):
                     st.session_state[f"editing_sched_{s['id']}"] = True
                     st.rerun()
-                if cols[4].button("Excluir", key=f"del_sched_{s['id']}", use_container_width=True, type="secondary"):
-                    delete_schedule(s["id"])
-                    st.success(f"Agendamento '{s['name']}' excluído!")
-                    st.rerun()
+                if cols[4].button("Executar", key=f"run_sched_{s['id']}", use_container_width=True, type="primary"):
+                    try:
+                        import json
+                        import httpx
+                        gh_token = os.environ.get("GH_PAT", "")
+                        repo = _get_repo_from_git()
+                        payload = s.get("payload") or {}
+                        resp = httpx.post(
+                            f"https://api.github.com/repos/{repo}/actions/workflows/scrape.yml/dispatches",
+                            json={"ref": "master", "inputs": payload},
+                            headers={"Authorization": f"Bearer {gh_token}", "Accept": "application/vnd.github+json"},
+                            timeout=30,
+                        )
+                        if resp.status_code in (200, 204):
+                            st.success(f"Workflow disparado para '{s['name']}'!")
+                        else:
+                            st.error(f"Erro GitHub API: {resp.status_code} — {resp.text[:200]}")
+                    except Exception as e:
+                        st.error(f"Erro ao executar: {e}")
+                if cols[5].button("🗑️ Excluir" if not st.session_state.get(f"confirm_del_sched_{s['id']}") else "✅ Confirmar?", key=f"del_sched_{s['id']}", use_container_width=True, type="primary" if st.session_state.get(f"confirm_del_sched_{s['id']}") else "secondary"):
+                    if st.session_state.get(f"confirm_del_sched_{s['id']}"):
+                        try:
+                            delete_schedule(s["id"])
+                            st.toast(f"Agendamento '{s['name']}' excluído!")
+                            st.session_state[f"confirm_del_sched_{s['id']}"] = False
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao excluir: {e}")
+                    else:
+                        st.session_state[f"confirm_del_sched_{s['id']}"] = True
+                        st.rerun()
 
 
 def tab_frequencias():
@@ -2133,9 +2221,12 @@ def tab_frequencias():
                     data["store_id"] = store_id
                 if tier:
                     data["tier"] = tier
-                upsert_scrape_frequency(data)
-                st.success("Frequência salva!")
-                st.rerun()
+                try:
+                    upsert_scrape_frequency(data)
+                    st.toast("Frequência salva!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao salvar frequência: {e}")
 
 
 def tab_alertas():
@@ -2163,9 +2254,12 @@ def tab_alertas():
                     name = st.text_input("Nome (opcional)", placeholder="Financeiro, Gestor, etc")
                     active = st.checkbox("Ativo", value=True)
                 if st.form_submit_button("Salvar", use_container_width=True):
-                    upsert_recipient({"channel": channel, "target": target, "name": name, "active": active})
-                    st.success("Destinatário salvo!")
-                    st.rerun()
+                    try:
+                        upsert_recipient({"channel": channel, "target": target, "name": name, "active": active})
+                        st.toast("Destinatário salvo!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao salvar destinatário: {e}")
 
         if recipients:
             with st.expander("✏️  Editar / Excluir", expanded=False):
@@ -2177,10 +2271,18 @@ def tab_alertas():
                     if cols[3].button("Editar", key=f"edit_rec_{r['id']}", use_container_width=True):
                         st.session_state[f"editing_rec_{r['id']}"] = True
                         st.rerun()
-                    if cols[4].button("Excluir", key=f"del_rec_{r['id']}", use_container_width=True, type="secondary"):
-                        delete_recipient(r["id"])
-                        st.success("Destinatário excluído!")
-                        st.rerun()
+                    if cols[4].button("🗑️ Excluir" if not st.session_state.get(f"confirm_del_rec_{r['id']}") else "✅ Confirmar?", key=f"del_rec_{r['id']}", use_container_width=True, type="primary" if st.session_state.get(f"confirm_del_rec_{r['id']}") else "secondary"):
+                        if st.session_state.get(f"confirm_del_rec_{r['id']}"):
+                            try:
+                                delete_recipient(r["id"])
+                                st.toast("Destinatário excluído!")
+                                st.session_state[f"confirm_del_rec_{r['id']}"] = False
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro ao excluir: {e}")
+                        else:
+                            st.session_state[f"confirm_del_rec_{r['id']}"] = True
+                            st.rerun()
 
     with tab_rules:
         rules = get_all_alert_rules(include_disabled=True)
@@ -2206,19 +2308,22 @@ def tab_alertas():
                 condition = st.text_area("Condição JSON", value='{"threshold_pct": 10}', height=80)
                 template = st.text_area("Template Jinja2 (opcional)", placeholder="{{ ingredient }} caiu para {{ price }}", height=80)
                 if st.form_submit_button("Salvar", use_container_width=True):
-                    import json
-                    upsert_alert_rule({
-                        "name": name,
-                        "channel": channel,
-                        "trigger": trigger,
-                        "condition": json.loads(condition) if condition else {},
-                        "frequency_minutes": freq,
-                        "recipients": recipient_ids,
-                        "template": template or None,
-                        "enabled": enabled,
-                    })
-                    st.success("Regra salva!")
-                    st.rerun()
+                    try:
+                        import json
+                        upsert_alert_rule({
+                            "name": name,
+                            "channel": channel,
+                            "trigger": trigger,
+                            "condition": json.loads(condition) if condition else {},
+                            "frequency_minutes": freq,
+                            "recipients": recipient_ids,
+                            "template": template or None,
+                            "enabled": enabled,
+                        })
+                        st.toast("Regra salva!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao salvar regra: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -2237,87 +2342,90 @@ def tab_fontes():
         selected = st.selectbox("Ingrediente", ing_options, key="fontes_ing")
         tier_filter = st.multiselect("Tier", [1, 2, 3, 4], default=[1, 2, 3], key="fontes_tier")
         if st.button("Buscar Fontes", type="primary", key="btn_fontes"):
-            prices = search_prices(selected, valid_only=valid_only, limit=100)
-            if not prices:
-                info_box(f"Nenhum preco encontrado para '{selected}'", "info")
-                return
-            df = pd.DataFrame(prices)
-            df = df[df["tier"].isin(tier_filter)]
-            if df.empty:
-                info_box("Nenhum resultado para os tiers selecionados", "warning")
-                return
-            df["price_per_kg"] = _get_kg(df)
+            with st.spinner("Buscando precos..."):
+                prices = search_prices(selected, valid_only=valid_only, limit=100)
+                if not prices:
+                    info_box(f"Nenhum preco encontrado para '{selected}'", "info")
+                    return
+                df = pd.DataFrame(prices)
+                df = df[df["tier"].isin(tier_filter)]
+                if df.empty:
+                    info_box("Nenhum resultado para os tiers selecionados", "warning")
+                    return
+                df["price_per_kg"] = _get_kg(df)
 
-            src = df.groupby("store_name").agg(
-                Precos=("raw_price", "count"),
-                Menor_kg=("price_per_kg", "min"),
-                Medio_kg=("price_per_kg", "mean"),
-                Promocoes=("is_promotion", "sum"),
-                Cidade=("city", lambda x: x.mode().iloc[0] if not x.mode().empty else ""),
-                Ultima=("collected_at", "max"),
-            ).reset_index().sort_values("Menor_kg")
+                src = df.groupby("store_name").agg(
+                    Precos=("raw_price", "count"),
+                    Menor_kg=("price_per_kg", "min"),
+                    Medio_kg=("price_per_kg", "mean"),
+                    Promocoes=("is_promotion", "sum"),
+                    Cidade=("city", lambda x: x.mode().iloc[0] if not x.mode().empty else ""),
+                    Ultima=("collected_at", "max"),
+                ).reset_index().sort_values("Menor_kg")
 
-            st.markdown(f"**{len(src)} fontes** para **{selected}**")
-            src["Menor_kg"] = src["Menor_kg"].apply(lambda x: f"R$ {x:.2f}")
-            src["Medio_kg"] = src["Medio_kg"].apply(lambda x: f"R$ {x:.2f}")
-            src["Promocoes"] = src["Promocoes"].astype(int)
-            st.dataframe(src, use_container_width=True, hide_index=True)
+                st.markdown(f"**{len(src)} fontes** para **{selected}**")
+                src["Menor_kg"] = src["Menor_kg"].apply(lambda x: f"R$ {x:.2f}")
+                src["Medio_kg"] = src["Medio_kg"].apply(lambda x: f"R$ {x:.2f}")
+                src["Promocoes"] = src["Promocoes"].astype(int)
+                st.dataframe(src.head(100), use_container_width=True, hide_index=True)
 
-            if get_config("features.export.csv_enabled", True):
-                csv_src = src.to_csv(index=False).encode("utf-8")
-                st.download_button("Exportar CSV", csv_src, f"fontes_{selected}.csv", "text/csv", key="csv_fontes", use_container_width=True)
+                if get_config("features.export.csv_enabled", True):
+                    csv_src = src.to_csv(index=False).encode("utf-8")
+                    st.download_button("Exportar CSV", csv_src, f"fontes_{selected}.csv", "text/csv", key="csv_fontes", use_container_width=True)
 
     with tab_promos:
         st.markdown("### Ofertas e Promocoes")
         tier_p = st.multiselect("Tier", [1, 2, 3, 4], default=[1, 2, 3], key="promos_tier")
         limit_p = st.number_input("Limite", min_value=10, max_value=200, value=50, key="promos_limit")
         if st.button("Buscar Promocoes", type="primary", key="btn_promos"):
-            all_promo = []
-            for ing in ing_options:
-                prices = search_prices(ing, valid_only=valid_only, limit=limit_p)
-                for p in prices:
-                    if p.get("is_promotion") and p.get("tier") in tier_p:
-                        all_promo.append({**p, "_ingredient": ing})
-            if not all_promo:
-                info_box("Nenhuma promocao ativa encontrada", "info")
-                return
-            dfp = pd.DataFrame(all_promo)
-            dfp["price_per_kg"] = dfp["normalized"].apply(_format_kg)
-            dfp = dfp.sort_values("price_per_kg")
-            st.success(f"{len(dfp)} promocoes ativas")
-            display_p = dfp[["_ingredient", "store_name", "raw_product", "raw_price", "raw_unit", "price_per_kg", "valid_until"]].copy()
-            display_p["price_per_kg"] = display_p["price_per_kg"].apply(lambda x: f"R$ {x:.2f}" if x > 0 else "—")
-            display_p.columns = ["Ingrediente", "Loja", "Produto", "Preco", "Unidade", "R$/kg", "Valido ate"]
-            st.dataframe(display_p, use_container_width=True, hide_index=True)
+            with st.spinner("Buscando precos..."):
+                all_promo = []
+                for ing in ing_options:
+                    prices = search_prices(ing, valid_only=valid_only, limit=limit_p)
+                    for p in prices:
+                        if p.get("is_promotion") and p.get("tier") in tier_p:
+                            all_promo.append({**p, "_ingredient": ing})
+                if not all_promo:
+                    info_box("Nenhuma promocao ativa encontrada", "info")
+                    return
+                dfp = pd.DataFrame(all_promo)
+                dfp["price_per_kg"] = dfp["normalized"].apply(_format_kg)
+                dfp = dfp.sort_values("price_per_kg")
+                st.success(f"{len(dfp)} promocoes ativas")
+                display_p = dfp[["_ingredient", "store_name", "brand", "raw_product", "raw_price", "raw_unit", "price_per_kg", "valid_until"]].copy()
+                display_p["price_per_kg"] = display_p["price_per_kg"].apply(lambda x: f"R$ {x:.2f}" if x > 0 else "—")
+                display_p.columns = ["Ingrediente", "Loja", "Marca", "Produto", "Preco", "Unidade", "R$/kg", "Valido ate"]
+                st.dataframe(display_p.head(100), use_container_width=True, hide_index=True)
 
     with tab_ranking_fontes:
         st.markdown("### Lojas com maior cobertura de ingredientes")
         tier_r = st.multiselect("Tier", [1, 2, 3, 4], default=[1, 2, 3], key="ranking_tier")
         if st.button("Calcular", type="primary", key="btn_ranking"):
-            store_coverage = {}
-            for ing in ing_options:
-                pp = search_prices(ing, valid_only=valid_only, limit=50)
-                for p in pp:
-                    if p.get("tier") in tier_r:
-                        s_name = p.get("store_name", "?")
-                        if s_name not in store_coverage:
-                            store_coverage[s_name] = set()
-                        store_coverage[s_name].add(ing)
-            if not store_coverage:
-                info_box("Nenhum dado disponivel", "info")
-                return
-            rank_df = pd.DataFrame([
-                {"Loja": s, "Ingredientes": len(ings), "Cobertura": f"{len(ings)}/{len(ing_options)}"}
-                for s, ings in sorted(store_coverage.items(), key=lambda x: -len(x[1]))
-            ])
-            st.dataframe(rank_df, use_container_width=True, hide_index=True)
-            fig_r = px.bar(rank_df.head(15), x="Loja", y="Ingredientes",
-                           title="Top 15 lojas por cobertura",
-                           color="Ingredientes",
-                           color_continuous_scale="Oranges",
-                           labels={"Ingredientes": "Ingredientes disponiveis"})
-            fig_r.update_layout(showlegend=False)
-            st.plotly_chart(fig_r, use_container_width=True)
+            with st.spinner("Buscando precos..."):
+                store_coverage = {}
+                for ing in ing_options:
+                    pp = search_prices(ing, valid_only=valid_only, limit=50)
+                    for p in pp:
+                        if p.get("tier") in tier_r:
+                            s_name = p.get("store_name", "?")
+                            if s_name not in store_coverage:
+                                store_coverage[s_name] = set()
+                            store_coverage[s_name].add(ing)
+                if not store_coverage:
+                    info_box("Nenhum dado disponivel", "info")
+                    return
+                rank_df = pd.DataFrame([
+                    {"Loja": s, "Ingredientes": len(ings), "Cobertura": f"{len(ings)}/{len(ing_options)}"}
+                    for s, ings in sorted(store_coverage.items(), key=lambda x: -len(x[1]))
+                ])
+                st.dataframe(rank_df.head(100), use_container_width=True, hide_index=True)
+                fig_r = px.bar(rank_df.head(15), x="Loja", y="Ingredientes",
+                               title="Top 15 lojas por cobertura",
+                               color="Ingredientes",
+                               color_continuous_scale="Oranges",
+                               labels={"Ingredientes": "Ingredientes disponiveis"})
+                fig_r.update_layout(showlegend=False)
+                st.plotly_chart(fig_r, use_container_width=True)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -2340,71 +2448,73 @@ def tab_ranking():
         chart_style = st.selectbox("Estilo", ["Linha", "Area", "Barras"], key="ranking_style")
 
     if st.button("Gerar Ranking", type="primary"):
-        history = get_price_history(selected, days=days, valid_only=valid_only)
-        if not history:
-            info_box(f"Sem historico para '{selected}' no periodo", "info")
-            return
-        df = pd.DataFrame(history)
-        df["collected_at"] = pd.to_datetime(df["collected_at"])
-        df["price_per_kg"] = df["normalized"].apply(_format_kg)
-        df = df[df["price_per_kg"] > 0].copy()
+        with st.spinner("Buscando precos..."):
+            history = get_price_history(selected, days=days, valid_only=valid_only)
+            if not history:
+                info_box(f"Sem historico para '{selected}' no periodo", "info")
+                return
+            df = pd.DataFrame(history)
+            df["collected_at"] = pd.to_datetime(df["collected_at"])
+            df["price_per_kg"] = df["normalized"].apply(_format_kg)
+            df = df[df["price_per_kg"] > 0].copy()
 
-        store_avg = df.groupby("store_name")["price_per_kg"].mean().reset_index()
-        top_stores = store_avg.nsmallest(top_n, "price_per_kg")["store_name"].tolist()
-        df_top = df[df["store_name"].isin(top_stores)]
+            store_avg = df.groupby("store_name")["price_per_kg"].mean().reset_index()
+            top_stores = store_avg.nsmallest(top_n, "price_per_kg")["store_name"].tolist()
+            df_top = df[df["store_name"].isin(top_stores)]
 
-        if df_top.empty:
-            info_box("Dados insuficientes para o ranking", "warning")
-            return
+            if df_top.empty:
+                info_box("Dados insuficientes para o ranking", "warning")
+                return
 
-        if chart_style == "Linha":
-            fig = px.line(df_top, x="collected_at", y="price_per_kg", color="store_name",
-                          title=f"{selected} - Ranking de precos ({days} dias)",
-                          labels={"collected_at": "Data", "price_per_kg": "R$/kg", "store_name": "Loja"},
-                          color_discrete_sequence=[CD_ORANGE, CD_PINK, CD_BLUE, "#FBBF5E", "#60A5FA", "#C94D78"])
-            fig.update_traces(mode="lines+markers")
-        elif chart_style == "Area":
-            fig = px.area(df_top, x="collected_at", y="price_per_kg", color="store_name",
-                          title=f"{selected} - Ranking de precos ({days} dias)",
-                          labels={"collected_at": "Data", "price_per_kg": "R$/kg", "store_name": "Loja"},
-                          color_discrete_sequence=[CD_ORANGE, CD_PINK, CD_BLUE, "#FBBF5E", "#60A5FA", "#C94D78"])
-        else:
-            df_agg = df_top.groupby(["collected_at", "store_name"])["price_per_kg"].mean().reset_index()
-            fig = px.bar(df_agg, x="collected_at", y="price_per_kg", color="store_name",
-                         title=f"{selected} - Barras por loja ({days} dias)",
-                         labels={"collected_at": "Data", "price_per_kg": "R$/kg", "store_name": "Loja"},
-                         barmode="group",
-                         color_discrete_sequence=[CD_ORANGE, CD_PINK, CD_BLUE, "#FBBF5E", "#60A5FA", "#C94D78"])
-        st.plotly_chart(fig, use_container_width=True)
+            if chart_style == "Linha":
+                fig = px.line(df_top, x="collected_at", y="price_per_kg", color="store_name",
+                              title=f"{selected} - Ranking de precos ({days} dias)",
+                              labels={"collected_at": "Data", "price_per_kg": "R$/kg", "store_name": "Loja"},
+                              color_discrete_sequence=[CD_ORANGE, CD_PINK, CD_BLUE, "#FBBF5E", "#60A5FA", "#C94D78"])
+                fig.update_traces(mode="lines+markers")
+            elif chart_style == "Area":
+                fig = px.area(df_top, x="collected_at", y="price_per_kg", color="store_name",
+                              title=f"{selected} - Ranking de precos ({days} dias)",
+                              labels={"collected_at": "Data", "price_per_kg": "R$/kg", "store_name": "Loja"},
+                              color_discrete_sequence=[CD_ORANGE, CD_PINK, CD_BLUE, "#FBBF5E", "#60A5FA", "#C94D78"])
+            else:
+                df_agg = df_top.groupby(["collected_at", "store_name"])["price_per_kg"].mean().reset_index()
+                fig = px.bar(df_agg, x="collected_at", y="price_per_kg", color="store_name",
+                             title=f"{selected} - Barras por loja ({days} dias)",
+                             labels={"collected_at": "Data", "price_per_kg": "R$/kg", "store_name": "Loja"},
+                             barmode="group",
+                             color_discrete_sequence=[CD_ORANGE, CD_PINK, CD_BLUE, "#FBBF5E", "#60A5FA", "#C94D78"])
+            st.plotly_chart(fig, use_container_width=True)
 
-        st.markdown("### Ranking atual (ultima coleta por loja)")
-        latest = df_top.sort_values("collected_at").groupby("store_name").last().reset_index()
-        latest = latest.sort_values("price_per_kg")
-        latest["R$/kg"] = latest["price_per_kg"].apply(lambda x: f"R$ {x:.2f}")
-        latest["Ultima coleta"] = latest["collected_at"].dt.strftime("%d/%m/%Y")
-        latest["Produto"] = latest["raw_product"]
-        rank_display = latest[["store_name", "Produto", "R$/kg", "Ultima coleta"]]
-        rank_display.columns = ["Loja", "Produto", "R$/kg", "Ultima coleta"]
-        st.dataframe(rank_display, use_container_width=True, hide_index=True)
+            st.markdown("### Ranking atual (ultima coleta por loja)")
+            latest = df_top.sort_values("collected_at").groupby("store_name").last().reset_index()
+            latest = latest.sort_values("price_per_kg")
+            latest["R$/kg"] = latest["price_per_kg"].apply(lambda x: f"R$ {x:.2f}")
+            latest["Ultima coleta"] = latest["collected_at"].dt.strftime("%d/%m/%Y")
+            latest["Produto"] = latest["raw_product"]
+            latest["Marca"] = latest.get("brand", "")
+            rank_display = latest[["store_name", "Marca", "Produto", "R$/kg", "Ultima coleta"]]
+            rank_display.columns = ["Loja", "Marca", "Produto", "R$/kg", "Ultima coleta"]
+            st.dataframe(rank_display, use_container_width=True, hide_index=True)
 
-        st.markdown("### Estatisticas do periodo")
-        stats = df_top.groupby("store_name").agg(
-            Media=("price_per_kg", "mean"),
-            Minimo=("price_per_kg", "min"),
-            Maximo=("price_per_kg", "max"),
-            Coletas=("price_per_kg", "count"),
-        ).reset_index().sort_values("Media")
-        stats["Media"] = stats["Media"].apply(lambda x: f"R$ {x:.2f}")
-        stats["Minimo"] = stats["Minimo"].apply(lambda x: f"R$ {x:.2f}")
-        stats["Maximo"] = stats["Maximo"].apply(lambda x: f"R$ {x:.2f}")
-        stats.columns = ["Loja", "Media", "Minimo", "Maximo", "Coletas"]
-        st.dataframe(stats, use_container_width=True, hide_index=True)
+            st.markdown("### Estatisticas do periodo")
+            stats = df_top.groupby("store_name").agg(
+                Media=("price_per_kg", "mean"),
+                Minimo=("price_per_kg", "min"),
+                Maximo=("price_per_kg", "max"),
+                Coletas=("price_per_kg", "count"),
+            ).reset_index().sort_values("Media")
+            stats["Media"] = stats["Media"].apply(lambda x: f"R$ {x:.2f}")
+            stats["Minimo"] = stats["Minimo"].apply(lambda x: f"R$ {x:.2f}")
+            stats["Maximo"] = stats["Maximo"].apply(lambda x: f"R$ {x:.2f}")
+            stats.columns = ["Loja", "Media", "Minimo", "Maximo", "Coletas"]
+            st.dataframe(stats, use_container_width=True, hide_index=True)
 
-        if get_config("features.export.csv_enabled", True):
-            csv_stats = stats.to_csv(index=False).encode("utf-8")
-            st.download_button("Exportar Estatisticas CSV", csv_stats,
-                               f"ranking_{selected}_{datetime.utcnow().strftime('%Y%m%d')}.csv",
-                               "text/csv", key="csv_ranking", use_container_width=True)
+            if get_config("features.export.csv_enabled", True):
+                csv_stats = stats.to_csv(index=False).encode("utf-8")
+                st.download_button("Exportar Estatisticas CSV", csv_stats,
+                                   f"ranking_{selected}_{datetime.utcnow().strftime('%Y%m%d')}.csv",
+                                   "text/csv", key="csv_ranking", use_container_width=True)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -2412,125 +2522,204 @@ def tab_ranking():
 # ═══════════════════════════════════════════════════════════════
 
 def tab_insights():
-    section_title("Insights Produto x Loja", "Heatmap, outliers e melhores ofertas")
+    section_title("Insights Produto x Loja", "Heatmap, outliers, vencedores historicos, tendencias e melhores ofertas")
     valid_only = _valid_only_toggle()
     ingredients = load_ingredients()
     ing_options = [i["canonical"] for i in ingredients] if ingredients else []
 
-    tab_heatmap, tab_outliers, tab_melhores = st.tabs(["Heatmap Precos", "Outliers", "Melhores Ofertas"])
+    tab_heatmap, tab_outliers, tab_melhores, tab_vencedores, tab_tendencias, tab_cross = st.tabs([
+        "Heatmap Precos", "Outliers", "Melhores Ofertas",
+        "Vencedores Historicos", "Tendencias", "Ranking Cross-Ingredient"
+    ])
 
     with tab_heatmap:
         st.markdown("### Comparacao de precos entre lojas e ingredientes")
         tier_h = st.multiselect("Tier", [1, 2, 3, 4], default=[1, 2], key="heatmap_tier")
         limit_ing = st.number_input("Max ingredientes", min_value=3, max_value=20, value=10, key="heatmap_lim")
         if st.button("Gerar Heatmap", type="primary", key="btn_heatmap"):
-            rows = []
-            for ing in ing_options[:limit_ing]:
-                pp = search_prices(ing, valid_only=valid_only, limit=20)
-                for p in pp:
-                    if p.get("tier") in tier_h:
-                        n = p.get("normalized") or {}
-                        rows.append({"ingrediente": ing, "loja": p.get("store_name", "?"),
-                                     "price_per_kg": n.get("price_per_kg", 0) or 0})
-            if not rows:
-                info_box("Sem dados para o heatmap", "info")
-                return
-            dfh = pd.DataFrame(rows)
-            dfh = dfh[dfh["price_per_kg"] > 0]
-            if dfh.empty:
-                info_box("Sem precos validos para o heatmap", "warning")
-                return
-            heat = dfh.groupby(["ingrediente", "loja"])["price_per_kg"].mean().reset_index()
-            pivot = heat.pivot(index="ingrediente", columns="loja", values="price_per_kg")
-            fig = px.imshow(pivot, text_auto=".2f", aspect="auto",
-                            title="Preco medio por kg — Ingrediente vs Loja",
-                            color_continuous_scale="YlOrRd",
-                            labels={"x": "Loja", "y": "Ingrediente", "color": "R$/kg"})
-            fig.update_layout(height=max(400, len(pivot) * 40))
-            st.plotly_chart(fig, use_container_width=True)
+            with st.spinner("Buscando precos..."):
+                rows = []
+                for ing in ing_options[:limit_ing]:
+                    pp = search_prices(ing, valid_only=valid_only, limit=20)
+                    for p in pp:
+                        if p.get("tier") in tier_h:
+                            n = p.get("normalized") or {}
+                            rows.append({"ingrediente": ing, "loja": p.get("store_name", "?"),
+                                         "price_per_kg": n.get("price_per_kg", 0) or 0})
+                if not rows:
+                    info_box("Sem dados para o heatmap", "info")
+                    return
+                dfh = pd.DataFrame(rows)
+                dfh = dfh[dfh["price_per_kg"] > 0]
+                if dfh.empty:
+                    info_box("Sem precos validos para o heatmap", "warning")
+                    return
+                heat = dfh.groupby(["ingrediente", "loja"])["price_per_kg"].mean().reset_index()
+                pivot = heat.pivot(index="ingrediente", columns="loja", values="price_per_kg")
+                fig = px.imshow(pivot, text_auto=".2f", aspect="auto",
+                                title="Preco medio por kg — Ingrediente vs Loja",
+                                color_continuous_scale="YlOrRd",
+                                labels={"x": "Loja", "y": "Ingrediente", "color": "R$/kg"})
+                fig.update_layout(height=max(400, len(pivot) * 40))
+                st.plotly_chart(fig, use_container_width=True)
 
     with tab_outliers:
         st.markdown("### Precos destoantes (acima ou abaixo da media)")
         tier_o = st.multiselect("Tier", [1, 2, 3, 4], default=[1, 2], key="outlier_tier")
         threshold = st.slider("Desvio padrao", 1.0, 3.0, 2.0, 0.25, key="outlier_threshold")
         if st.button("Detectar Outliers", type="primary", key="btn_outliers"):
-            out_rows = []
-            for ing in ing_options:
-                pp = search_prices(ing, valid_only=valid_only, limit=50)
-                vals = []
-                for p in pp:
-                    if p.get("tier") in tier_o:
-                        n = p.get("normalized") or {}
-                        vals.append({"store": p.get("store_name", "?"), "product": p.get("raw_product", ""),
-                                     "price": n.get("price_per_kg", 0) or 0,
-                                     "raw_price": p.get("raw_price", 0), "raw_unit": p.get("raw_unit", "")})
-                if len(vals) >= 3:
-                    valid_vals = [v for v in vals if v["price"] > 0]
-                    if not valid_vals:
-                        continue
-                    import statistics
-                    prices_list = [v["price"] for v in valid_vals]
-                    avg = statistics.mean(prices_list)
-                    std = statistics.stdev(prices_list) if len(prices_list) > 1 else 0
-                    for v in valid_vals:
-                        if std > 0 and abs(v["price"] - avg) / std >= threshold:
-                            out_rows.append({**v, "ingrediente": ing, "media": avg, "desvio": std})
-            if not out_rows:
-                info_box("Nenhum outlier detectado com esse threshold", "success")
-                return
-            dfo = pd.DataFrame(out_rows)
-            dfo["z_score"] = abs(dfo["price"] - dfo["media"]) / dfo["desvio"]
-            dfo = dfo.sort_values("z_score", ascending=False)
-            st.warning(f"{len(dfo)} outlier(s) detectado(s)")
-            dfo["price"] = dfo["price"].apply(lambda x: f"R$ {x:.2f}")
-            dfo["media"] = dfo["media"].apply(lambda x: f"R$ {x:.2f}")
-            display_o = dfo[["ingrediente", "store", "product", "price", "media", "z_score"]].copy()
-            display_o.columns = ["Ingrediente", "Loja", "Produto", "Preco", "Media", "Z-Score"]
-            st.dataframe(display_o, use_container_width=True, hide_index=True)
+            with st.spinner("Buscando precos..."):
+                out_rows = []
+                for ing in ing_options:
+                    pp = search_prices(ing, valid_only=valid_only, limit=50)
+                    vals = []
+                    for p in pp:
+                        if p.get("tier") in tier_o:
+                            n = p.get("normalized") or {}
+                            vals.append({"store": p.get("store_name", "?"), "product": p.get("raw_product", ""),
+                                         "price": n.get("price_per_kg", 0) or 0,
+                                         "raw_price": p.get("raw_price", 0), "raw_unit": p.get("raw_unit", "")})
+                    if len(vals) >= 3:
+                        valid_vals = [v for v in vals if v["price"] > 0]
+                        if not valid_vals:
+                            continue
+                        import statistics
+                        prices_list = [v["price"] for v in valid_vals]
+                        avg = statistics.mean(prices_list)
+                        std = statistics.stdev(prices_list) if len(prices_list) > 1 else 0
+                        for v in valid_vals:
+                            if std > 0 and abs(v["price"] - avg) / std >= threshold:
+                                out_rows.append({**v, "ingrediente": ing, "media": avg, "desvio": std})
+                if not out_rows:
+                    info_box("Nenhum outlier detectado com esse threshold", "success")
+                    return
+                dfo = pd.DataFrame(out_rows)
+                dfo["z_score"] = abs(dfo["price"] - dfo["media"]) / dfo["desvio"]
+                dfo = dfo.sort_values("z_score", ascending=False)
+                st.warning(f"{len(dfo)} outlier(s) detectado(s)")
+                dfo["price"] = dfo["price"].apply(lambda x: f"R$ {x:.2f}")
+                dfo["media"] = dfo["media"].apply(lambda x: f"R$ {x:.2f}")
+                display_o = dfo[["ingrediente", "store", "product", "price", "media", "z_score"]].copy()
+                display_o.columns = ["Ingrediente", "Loja", "Produto", "Preco", "Media", "Z-Score"]
+                st.dataframe(display_o.head(100), use_container_width=True, hide_index=True)
 
     with tab_melhores:
         st.markdown("### Melhores ofertas do momento")
         tier_m = st.multiselect("Tier", [1, 2, 3, 4], default=[1, 2], key="melhores_tier")
         top_m = st.number_input("Top por ingrediente", min_value=1, max_value=10, value=3, key="melhores_top")
         if st.button("Encontrar Melhores", type="primary", key="btn_melhores"):
-            best_rows = []
-            for ing in ing_options:
-                pp = search_prices(ing, valid_only=valid_only, limit=30)
-                valid_pp = [p for p in pp if p.get("tier") in tier_m]
-                if not valid_pp:
-                    continue
-                for p in valid_pp:
-                    n = p.get("normalized") or {}
-                    p["_price_kg"] = n.get("price_per_kg", 0) or 0
-                valid_pp.sort(key=lambda x: x["_price_kg"])
-                for p in valid_pp[:top_m]:
-                    best_rows.append({
-                        "ingrediente": ing,
-                        "loja": p.get("store_name", "?"),
-                        "produto": p.get("raw_product", ""),
-                        "preco": p.get("raw_price", 0),
-                        "unidade": p.get("raw_unit", ""),
-                        "R$/kg": p["_price_kg"],
-                        "promocao": p.get("is_promotion", False),
-                        "validade": p.get("valid_until", ""),
-                    })
-            if not best_rows:
-                info_box("Nenhuma oferta encontrada", "info")
-                return
-            dfb = pd.DataFrame(best_rows)
-            dfb = dfb.sort_values(["ingrediente", "R$/kg"])
-            st.success(f"{len(dfb)} ofertas encontradas")
-            dfb["R$/kg"] = dfb["R$/kg"].apply(lambda x: f"R$ {x:.2f}" if x > 0 else "—")
-            dfb["preco"] = dfb.apply(lambda r: f"R$ {r['preco']:.2f} {r['unidade']}", axis=1)
-            display_b = dfb[["ingrediente", "loja", "produto", "preco", "R$/kg", "promocao", "validade"]].copy()
-            display_b.columns = ["Ingrediente", "Loja", "Produto", "Preco", "R$/kg", "Promocao", "Validade"]
-            st.dataframe(display_b, use_container_width=True, hide_index=True)
+            with st.spinner("Buscando precos..."):
+                best_rows = []
+                for ing in ing_options:
+                    pp = search_prices(ing, valid_only=valid_only, limit=30)
+                    valid_pp = [p for p in pp if p.get("tier") in tier_m]
+                    if not valid_pp:
+                        continue
+                    for p in valid_pp:
+                        n = p.get("normalized") or {}
+                        p["_price_kg"] = n.get("price_per_kg", 0) or 0
+                    valid_pp.sort(key=lambda x: x["_price_kg"])
+                    for p in valid_pp[:top_m]:
+                        brand = p.get("brand", "")
+                        best_rows.append({
+                            "ingrediente": ing,
+                            "loja": p.get("store_name", "?"),
+                            "marca": brand,
+                            "produto": p.get("raw_product", ""),
+                            "preco": p.get("raw_price", 0),
+                            "unidade": p.get("raw_unit", ""),
+                            "R$/kg": p["_price_kg"],
+                            "promocao": p.get("is_promotion", False),
+                            "validade": p.get("valid_until", ""),
+                        })
+                if not best_rows:
+                    info_box("Nenhuma oferta encontrada", "info")
+                    return
+                dfb = pd.DataFrame(best_rows)
+                dfb = dfb.sort_values(["ingrediente", "R$/kg"])
+                st.success(f"{len(dfb)} ofertas encontradas")
+                dfb["R$/kg"] = dfb["R$/kg"].apply(lambda x: f"R$ {x:.2f}" if x > 0 else "—")
+                dfb["preco"] = dfb.apply(lambda r: f"R$ {r['preco']:.2f} {r['unidade']}", axis=1)
+                display_b = dfb[["ingrediente", "loja", "marca", "produto", "preco", "R$/kg", "promocao", "validade"]].copy()
+                display_b.columns = ["Ingrediente", "Loja", "Marca", "Produto", "Preco", "R$/kg", "Promocao", "Validade"]
+                st.dataframe(display_b.head(100), use_container_width=True, hide_index=True)
 
-            if get_config("features.export.csv_enabled", True):
-                csv_best = display_b.to_csv(index=False).encode("utf-8")
-                st.download_button("Exportar Ofertas CSV", csv_best,
-                                   f"melhores_ofertas_{datetime.utcnow().strftime('%Y%m%d')}.csv",
-                                   "text/csv", key="csv_melhores", use_container_width=True)
+                if get_config("features.export.csv_enabled", True):
+                    csv_best = display_b.to_csv(index=False).encode("utf-8")
+                    st.download_button("Exportar Ofertas CSV", csv_best,
+                                       f"melhores_ofertas_{datetime.utcnow().strftime('%Y%m%d')}.csv",
+                                       "text/csv", key="csv_melhores", use_container_width=True)
+
+    with tab_vencedores:
+        st.markdown("### Lojas que mais vezes foram a mais barata")
+        st.caption("Contagem de dias em que cada loja teve o menor price_per_kg por ingrediente nos ultimos 90 dias.")
+        if st.button("Calcular Vencedores", type="primary", key="btn_vencedores"):
+            with st.spinner("Buscando precos..."):
+                winners = get_longitudinal_winners(days=90)
+                if not winners:
+                    info_box("Sem dados historicos suficientes", "info")
+                else:
+                    df_w = pd.DataFrame(winners)
+                    st.success(f"{df_w['ingredient_id'].nunique()} ingredientes, {df_w['store_name'].nunique()} lojas")
+                    fig_w = px.bar(df_w.head(20), x="store_name", y="wins", color="ingredient_id",
+                                   title="Top 20 Lojas com mais vitorias (preco mais baixo)",
+                                   labels={"store_name": "Loja", "wins": "Dias como mais barata", "ingredient_id": "Ingrediente"},
+                                   color_discrete_sequence=[CD_ORANGE, CD_PINK, CD_BLUE, "#FBBF5E", "#60A5FA"])
+                    fig_w.update_layout(showlegend=True)
+                    st.plotly_chart(fig_w, use_container_width=True)
+                    st.dataframe(df_w.head(50), use_container_width=True, hide_index=True)
+                    if get_config("features.export.csv_enabled", True):
+                        csv_w = df_w.to_csv(index=False).encode("utf-8")
+                        st.download_button("Exportar CSV", csv_w, "vencedores.csv", "text/csv", key="csv_vencedores")
+
+    with tab_tendencias:
+        st.markdown("### Evolucao de precos por ingrediente")
+        st.caption("Media, minimo e maximo de price_per_kg ao longo do tempo.")
+        ing_t = st.selectbox("Ingrediente", ing_options, key="tendencia_ing")
+        days_t = st.slider("Dias", 30, 365, 90, key="tendencia_dias")
+        if st.button("Gerar Grafico", type="primary", key="btn_tendencias"):
+            with st.spinner("Buscando precos..."):
+                trends = get_price_trends(ing_t, days=days_t)
+                if not trends:
+                    info_box("Sem dados historicos para este ingrediente", "info")
+                else:
+                    df_t = pd.DataFrame(trends)
+                    df_t["date"] = pd.to_datetime(df_t["date"])
+                    fig_t = px.line(df_t, x="date", y=["avg_ppk", "min_ppk", "max_ppk"],
+                                    title=f"{ing_t} - Evolucao de precos ({days_t} dias)",
+                                    labels={"date": "Data", "value": "R$/kg", "variable": "Metrica"},
+                                    color_discrete_map={"avg_ppk": CD_ORANGE, "min_ppk": "#10B981", "max_ppk": "#EF4444"})
+                    fig_t.update_layout(legend=dict(orientation="h", y=-0.3))
+                    st.plotly_chart(fig_t, use_container_width=True)
+                    st.dataframe(df_t.tail(30), use_container_width=True, hide_index=True)
+                    if get_config("features.export.csv_enabled", True):
+                        csv_t = df_t.to_csv(index=False).encode("utf-8")
+                        st.download_button("Exportar CSV", csv_t, f"tendencias_{ing_t}.csv", "text/csv", key="csv_tendencias")
+
+    with tab_cross:
+        st.markdown("### Lojas com melhor ranking entre ingredientes")
+        st.caption("Quantos ingredientes cada loja lidera (top 3) nos ultimos 90 dias.")
+        if st.button("Calcular Ranking", type="primary", key="btn_cross"):
+            with st.spinner("Buscando precos..."):
+                ranking = get_cross_ingredient_ranking(days=90)
+                if not ranking:
+                    info_box("Sem dados suficientes", "info")
+                else:
+                    df_r = pd.DataFrame(ranking)
+                    st.success(f"{len(df_r)} lojas ranqueadas")
+                    fig_r = px.bar(df_r.head(15), x="store_name", y=["top1_count", "top3_count"],
+                                   title="Top 15 Lojas - Ingredientes onde sao top 1 e top 3",
+                                   labels={"store_name": "Loja", "value": "Ingredientes", "variable": "Posicao"},
+                                   barmode="group",
+                                   color_discrete_map={"top1_count": CD_ORANGE, "top3_count": CD_PINK})
+                    fig_r.update_layout(legend=dict(orientation="h", y=-0.3))
+                    st.plotly_chart(fig_r, use_container_width=True)
+                    df_r_display = df_r.copy()
+                    df_r_display.columns = ["Loja", "Top 1", "Top 3", "Total Ingredientes"]
+                    st.dataframe(df_r_display.head(100), use_container_width=True, hide_index=True)
+                    if get_config("features.export.csv_enabled", True):
+                        csv_r = df_r.to_csv(index=False).encode("utf-8")
+                        st.download_button("Exportar CSV", csv_r, "cross_ranking.csv", "text/csv", key="csv_cross")
 
 
 # ═══════════════════════════════════════════════════════════════

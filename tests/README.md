@@ -5,7 +5,7 @@
 A cada fase, rodar este checklist completo antes de avançar:
 
 ```
-[ ] ruff check .                    — lint (zero erros)
+[ ] ruff check .                    — lint (zero erros, config pyproject.toml)
 [ ] bandit -r admin/ dashboard/ services/ -x tests/ — segurança
 [ ] pip-audit                       — CVEs conhecidas
 [ ] python -m pytest tests/ -v      — 100% pass
@@ -23,7 +23,7 @@ A cada fase, rodar este checklist completo antes de avançar:
 pip install -r requirements-dev.txt
 
 # Lint
-ruff check . --fix
+ruff check .
 
 # Type hints
 mypy admin/ dashboard/ services/ --ignore-missing-imports
@@ -99,6 +99,10 @@ auth, rate_limiter, imports, UI components, login, YAML, estrutura, CSS, navega�
 ### Fase 9 — Dashboard Insights (2 testes)
 - `test_all_imports` — 17 páginas + handlers callable
 - `test_cleanup_imports` — imports + default values
+
+### Fase 10 — Brand Extraction (2+ testes)
+- `brand_extractor.py` — extract_brand() + extract_brand_from_all()
+- vtex_scraper parse_product com ing param
 
 ## Regras
 

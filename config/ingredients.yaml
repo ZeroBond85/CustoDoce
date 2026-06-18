@@ -1,5 +1,6 @@
 ingredients:
   - canonical: "Leite Condensado Integral"
+    brands: ["Moça", "Piracanjuba", "Itambé", "Italac", "Mococa"]
     search_terms: ["leite condensado", "leite cond"]
     aliases:
       - "Leite Condensado Moça 12un"
@@ -16,6 +17,7 @@ ingredients:
     category: "lacteos"
 
   - canonical: "Creme de Leite 20% Gordura"
+    brands: ["Nestlé", "Piracanjuba", "Itambé", "Batavo"]
     search_terms: ["creme de leite", "creme leite"]
     aliases:
       - "Creme de Leite Nestlé 12x200g"
@@ -30,6 +32,7 @@ ingredients:
     category: "lacteos"
 
   - canonical: "Chocolate em Pó 50% Cacau"
+    brands: ["Melken", "Sicao", "Nestlé", "Dois Frades"]
     search_terms: ["chocolate em pó", "chocolate po", "cacau 50%"]
     aliases:
       - "Chocolate em Pó Melken 1kg"
@@ -45,6 +48,7 @@ ingredients:
     category: "chocolates"
 
   - canonical: "Leite Ninho Integral"
+    brands: ["Ninho"]
     search_terms: ["leite ninho", "ninho"]
     aliases:
       - "Leite Ninho Integral 800g"
@@ -59,6 +63,7 @@ ingredients:
     category: "lacteos"
 
   - canonical: "Granulado Melken Ao Leite"
+    brands: ["Melken"]
     search_terms: ["granulado melken", "granulado ao leite"]
     aliases:
       - "Granulado Melken Ao Leite 1kg"
@@ -72,6 +77,7 @@ ingredients:
     category: "confeitos"
 
   - canonical: "Granulado Melken Branco"
+    brands: ["Melken"]
     search_terms: ["granulado melken", "granulado branco"]
     aliases:
       - "Granulado Melken Branco 1kg"
@@ -84,6 +90,7 @@ ingredients:
     category: "confeitos"
 
   - canonical: "Granulado Melken Meio Amargo"
+    brands: ["Melken"]
     search_terms: ["granulado melken", "granulado meio amargo"]
     aliases:
       - "Granulado Melken Meio Amargo 1kg"
@@ -96,6 +103,7 @@ ingredients:
     category: "confeitos"
 
   - canonical: "Nutella"
+    brands: ["Nutella"]
     search_terms: ["nutella"]
     aliases:
       - "Nutella 3kg"
@@ -109,6 +117,7 @@ ingredients:
     category: "pastas"
 
   - canonical: "Coloretti Granulado Colorido"
+    brands: ["Coloretti"]
     search_terms: ["coloretti", "granulado colorido"]
     aliases:
       - "Coloretti 1kg"
@@ -121,6 +130,7 @@ ingredients:
     category: "confeitos"
 
   - canonical: "Coco Ralado Grosso sem Açúcar"
+    brands: ["Socôco", "Ducoco"]
     search_terms: ["coco ralado", "coco grosso"]
     aliases:
       - "Coco Ralado Grosso s Açúcar"
@@ -134,6 +144,7 @@ ingredients:
     category: "secos"
 
   - canonical: "Chocolate Nobre Blend Harald"
+    brands: ["Harald", "Sicao"]
     search_terms: ["chocolate nobre", "harald"]
     aliases:
       - "Chocolate Nobre Blend Harald 2.1kg"

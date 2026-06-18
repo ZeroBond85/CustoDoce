@@ -5,11 +5,33 @@ from datetime import date
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
+from email.mime.image import MIMEImage
+from pathlib import Path
 from typing import Optional
+
+# ── Brand ( cores do logo CustoDoce ) ─────────────────────────────────
+_BRAND = {
+    "name": "CustoDoce",
+    "primary": "#F59E42",       # laranja (Custo)
+    "secondary": "#E91E8C",     # rosa (Doce)
+    "accent": "#3B82F6",        # azul (cupcake icon)
+    "bg": "#FFF9F5",
+    "text": "#3D2C1E",
+    "muted": "#8B7355",
+    "light": "#9CA3AF",
+    "white": "#FFFFFF",
+    "danger": "#DC2626",
+    "success": "#16A34A",
+    "promo_bg": "#FDF2F8",      # rosa claro
+    "promo_border": "#FBCFE8",  # rosa borda
+    "promo_text": "#9D174D",    # rosa texto
+}
+
+_LOGO_PATH = Path(__file__).resolve().parent.parent / "Logocustodocepqueno.png"
 
 
 def _get_smtp_config():
-    """Retorna config SMTP das env vars com fallback para Gmail legado."""
+    """Retorna config SMTP das env vars com fallback para Gmail."""
     host = os.environ.get("SMTP_HOST") or "smtp.gmail.com"
     port = int(os.environ.get("SMTP_PORT") or "587")
     user = os.environ.get("SMTP_USER") or os.environ.get("GMAIL_USER") or ""
@@ -18,6 +40,236 @@ def _get_smtp_config():
     return host, port, user, password, from_addr
 
 
+def _logo_cid() -> str | None:
+    """Retorna CID do logo se o arquivo existir, senão None."""
+    if _LOGO_PATH.exists():
+        return "logo"
+    return None
+
+
+def _logo_tag() -> str:
+    """Tag <img> para o logo (inline CID ou fallback texto)."""
+    if _LOGO_PATH.exists():
+        return (
+            '<img src="cid:logo" alt="CustoDoce" class="logo-img" '
+            'style="height:56px;width:auto;display:block;margin-bottom:8px;" '
+            'width="auto">'
+        )
+    return (
+        '<span style="font-size:28px;font-weight:700;">'
+        f'<span style="color:{_BRAND["primary"]};">Custo</span>'
+        f'<span style="color:{_BRAND["secondary"]};">Doce</span>'
+        '</span>'
+    )
+
+
+def _tagline() -> str:
+    """Tagline curta da empresa para o header do email."""
+    return (
+        '<p style="margin:2px 0 0 0;font-size:12px;color:rgba(255,255,255,0.85);">'
+        'Compare precos de confeitaria e encontre as melhores ofertas da sua regiao.'
+        '</p>'
+    )
+
+
+def _wrap_html(title: str, preheader: str, body_inner: str) -> str:
+    """Envelope HTML responsivo com preheader para clients de email."""
+    return f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="format-detection" content="telephone=no,date=no,address=no,email=no,url=no">
+<title>{_html.escape(title)}</title>
+<!--[if mso]>
+<noscript>
+<xml>
+<o:OfficeDocumentSettings>
+<o:PixelsPerInch>96</o:PixelsPerInch>
+</o:OfficeDocumentSettings>
+</xml>
+</noscript>
+<![endif]-->
+<style type="text/css">
+/* Mobile-first responsive */
+@media only screen and (max-width:480px){{
+  table[class~=body-table] {{ width:100% !important; }}
+  td[class~=body-cell] {{ padding:12px !important; }}
+  td[class~=header-cell] {{ padding:16px 16px !important; }}
+  img[class~=logo-img] {{ height:48px !important; }}
+  h1[class~=email-h1] {{ font-size:18px !important; }}
+  h2[class~=email-h2] {{ font-size:16px !important; }}
+  p[class~=email-p] {{ font-size:14px !important; }}
+  td[class~=table-th] {{ font-size:12px !important; padding:8px 6px !important; }}
+  td[class~=table-td] {{ font-size:13px !important; padding:8px 6px !important; }}
+  .table-wrap {{ overflow-x:auto; -webkit-overflow-scrolling:touch; }}
+}}
+@media only screen and (max-width:640px){{
+  .table-wrap {{ overflow-x:auto; -webkit-overflow-scrolling:touch; }}
+}}
+</style>
+</head>
+<body style="margin:0;padding:0;background:{_BRAND['bg']};font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:{_BRAND['text']};-webkit-text-size-adjust:100%;">
+<!-- preheader -->
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;">{_html.escape(preheader)}</div>
+<!-- wrapper -->
+<table class="body-table" role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{_BRAND['bg']};">
+<tr><td align="center" style="padding:24px 12px;" class="body-cell">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+       style="max-width:640px;width:100%;background:{_BRAND['white']};border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06);">
+  <!-- header -->
+  <tr><td style="background:linear-gradient(135deg,{_BRAND['primary']},{_BRAND['secondary']});padding:20px 28px;" class="header-cell">
+    {_logo_tag()}
+    {_tagline()}
+  </td></tr>
+  <!-- body -->
+  <tr><td style="padding:28px;" class="body-cell">
+{body_inner}
+  </td></tr>
+  <!-- footer -->
+  <tr><td style="padding:16px 28px;border-top:1px solid #F3F4F6;text-align:center;">
+    <p style="margin:0;font-size:12px;color:{_BRAND['light']};">
+      Gerado automaticamente em {date.today().strftime("%d/%m/%Y")}. &mdash; CustoDoce
+    </p>
+  </td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>"""
+
+
+# ── Relatório completo (email) ────────────────────────────────────────
+def build_full_report_html(prices_by_ingredient: dict) -> str:
+    """Gera relatório HTML responsivo com todos os preços, ordenados por R$/kg ASC."""
+    total = sum(len(v) for v in prices_by_ingredient.values())
+    n_stores = len({p.get("store_id") for v in prices_by_ingredient.values() for p in v})
+
+    sections = ""
+    for ing_name, prices in sorted(prices_by_ingredient.items()):
+        safe_ing = _html.escape(ing_name)
+        sorted_prices = sorted(
+            prices,
+            key=lambda x: (x.get("normalized") or {}).get("price_per_kg", 999999),
+        )
+        best = sorted_prices[0] if sorted_prices else None
+        best_ppk = (best.get("normalized") or {}).get("price_per_kg", 0) if best else 0
+        best_store = _html.escape(best.get("store_name", "?")) if best else ""
+
+        rows = ""
+        for p in sorted_prices:
+            store = _html.escape(p.get("store_name", "?"))
+            product = _html.escape(p.get("raw_product", "?")[:45])
+            raw_p = float(p.get("raw_price", 0))
+            unit = p.get("raw_unit", "")
+            norm = p.get("normalized") or {}
+            ppk = norm.get("price_per_kg", 0)
+            ppk_str = f"R$ {ppk:.2f}" if ppk else "—"
+            promo = " <span style='background:{};color:{};padding:2px 6px;border-radius:4px;font-size:11px;'>PROMO</span>".format(
+                _BRAND["promo_bg"], _BRAND["promo_text"]
+            ) if p.get("is_promotion") else ""
+            valid = p.get("valid_until", "")
+            valid_str = f"<br><span style='font-size:11px;color:{_BRAND['light']}'>até {valid}</span>" if valid else ""
+            highlight = "background:#FFFBEB;" if p == best else ""
+            rows += f"""<tr style="{highlight}">
+              <td class="table-td" style="padding:10px 12px;border-bottom:1px solid #F3F4F6;">{store}{promo}{valid_str}</td>
+              <td class="table-td" style="padding:10px 12px;border-bottom:1px solid #F3F4F6;font-size:13px;word-break:break-word;">{product}</td>
+              <td class="table-td" style="padding:10px 12px;border-bottom:1px solid #F3F4F6;white-space:nowrap;">R$ {raw_p:.2f} {unit}</td>
+              <td class="table-td" style="padding:10px 12px;border-bottom:1px solid #F3F4F6;white-space:nowrap;font-weight:600;">{ppk_str}</td>
+            </tr>"""
+
+        sections += f"""
+        <div style="margin-bottom:24px;">
+          <h2 class="email-h2" style="margin:0 0 4px 0;font-size:17px;color:{_BRAND['text']};">{safe_ing}</h2>
+          <p class="email-p" style="margin:0 0 10px 0;font-size:13px;color:{_BRAND['muted']};">Melhor: {best_store} &mdash; R$ {best_ppk:.2f}/kg</p>
+          <div class="table-wrap" style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                 style="border-collapse:collapse;background:{_BRAND['white']};border-radius:8px;overflow:hidden;border:1px solid #F3F4F6;min-width:420px;">
+            <thead>
+              <tr style="background:{_BRAND['primary']};color:{_BRAND['white']};">
+                <th class="table-th" style="padding:10px 12px;text-align:left;font-size:13px;">Loja</th>
+                <th class="table-th" style="padding:10px 12px;text-align:left;font-size:13px;">Produto</th>
+                <th class="table-th" style="padding:10px 12px;text-align:left;font-size:13px;">Preço</th>
+                <th class="table-th" style="padding:10px 12px;text-align:left;font-size:13px;">R$/kg</th>
+              </tr>
+            </thead>
+            <tbody>{rows}</tbody>
+          </table>
+          </div>
+        </div>"""
+
+    body = f"""
+    <h1 class="email-h1" style="margin:0 0 4px 0;font-size:20px;color:{_BRAND['text']};">Cotação de Preços</h1>
+    <p class="email-p" style="margin:0 0 20px 0;font-size:14px;color:{_BRAND['muted']};">
+      {total} preços em {n_stores} lojas &mdash; {date.today().strftime('%d/%m/%Y')}
+    </p>
+    {sections}
+    <p class="email-p" style="margin:20px 0 0 0;font-size:12px;color:{_BRAND['light']};text-align:center;">
+      Preços ordenados por R$/kg (menor primeiro). Loja destaque em amarelo.
+    </p>"""
+    return _wrap_html("Cotação CustoDoce", f"Cotação com {total} preços de {n_stores} lojas.", body)
+
+
+# ── Alerta de oferta (email) ──────────────────────────────────────────
+def send_critical_alert(
+    ingredient_name: str,
+    price: float,
+    store: str,
+    to_email: Optional[str] = None,
+):
+    safe_name = _html.escape(ingredient_name)
+    safe_store = _html.escape(store)
+    body = f"""
+    <h2 style="margin:0 0 16px 0;font-size:20px;color:{_BRAND['text']};">🎯 Oferta Encontrada</h2>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+           style="background:{_BRAND['promo_bg']};border-radius:8px;border:1px solid {_BRAND['promo_border']};">
+      <tr>
+        <td style="padding:20px;">
+          <p style="margin:0 0 6px 0;font-size:13px;color:{_BRAND['muted']};">Ingrediente</p>
+          <p style="margin:0 0 16px 0;font-size:18px;font-weight:700;color:{_BRAND['text']};">{safe_name}</p>
+          <p style="margin:0 0 6px 0;font-size:13px;color:{_BRAND['muted']};">Preço</p>
+          <p style="margin:0 0 16px 0;font-size:28px;font-weight:700;color:{_BRAND['secondary']};">R$ {price:.2f}</p>
+          <p style="margin:0 0 6px 0;font-size:13px;color:{_BRAND['muted']};">Loja</p>
+          <p style="margin:0;font-size:16px;font-weight:600;color:{_BRAND['text']};">{safe_store}</p>
+        </td>
+      </tr>
+    </table>"""
+    send_daily_report(
+        report_html=body,
+        subject=f"🎯 Oferta: {ingredient_name} - R$ {price:.2f} em {store}",
+        to_email=to_email,
+    )
+
+
+# ── Erro de scraper (email) ───────────────────────────────────────────
+def send_scraper_error(store_name: str, error: str, to_email: Optional[str] = None):
+    safe_store = _html.escape(store_name)
+    safe_error = _html.escape(error)
+    body = f"""
+    <h2 style="margin:0 0 16px 0;font-size:20px;color:{_BRAND['text']};">⚠️ Erro no Scraper</h2>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+           style="background:#FEF2F2;border-radius:8px;border:1px solid #FECACA;">
+      <tr>
+        <td style="padding:20px;">
+          <p style="margin:0 0 6px 0;font-size:13px;color:{_BRAND['muted']};">Loja</p>
+          <p style="margin:0 0 16px 0;font-size:18px;font-weight:700;color:{_BRAND['text']};">{safe_store}</p>
+          <p style="margin:0 0 6px 0;font-size:13px;color:{_BRAND['muted']};">Erro</p>
+          <p style="margin:0;font-size:14px;color:{_BRAND['danger']};font-family:monospace;word-break:break-all;">{safe_error}</p>
+        </td>
+      </tr>
+    </table>
+    <p style="margin:16px 0 0 0;font-size:13px;color:{_BRAND['muted']};">
+      Verifique os <a href="https://github.com/user/CustoDoce/actions" style="color:{_BRAND['secondary']};">logs do GitHub Actions</a>.
+    </p>"""
+    send_daily_report(
+        report_html=body,
+        subject=f"⚠️ Erro Scraper: {store_name}",
+        to_email=to_email,
+    )
+
+
+# ── Envio genérico ────────────────────────────────────────────────────
 def send_daily_report(
     report_html: str,
     csv_bytes: Optional[bytes] = None,
@@ -33,8 +285,8 @@ def send_daily_report(
         )
 
     msg = MIMEMultipart("mixed")
-    msg["Subject"] = subject or f"CustoDoce - Relatorio Diario {date.today()}"
-    msg["From"] = f"CustoDoce Bot <{from_addr}>"
+    msg["Subject"] = subject or f"📊 Cotação de Preços CustoDoce • {date.today().strftime('%d/%m/%Y')}"
+    msg["From"] = f"CustoDoce <{from_addr}>"
     msg["To"] = to_email
 
     msg_alternative = MIMEMultipart("alternative")
@@ -50,6 +302,15 @@ def send_daily_report(
             )
         )
 
+    # Anexa logo como CID inline (se existir)
+    if _LOGO_PATH.exists():
+        with open(_LOGO_PATH, "rb") as f:
+            img_data = f.read()
+        img = MIMEImage(img_data, _subtype="png")
+        img.add_header("Content-ID", "<logo>")
+        img.add_header("Content-Disposition", "inline", filename="logo.png")
+        msg.attach(img)
+
     if port == 465:
         import smtplib as _ssl_smtplib
         server = _ssl_smtplib.SMTP_SSL(host, port, timeout=30)
@@ -63,98 +324,46 @@ def send_daily_report(
     server.send_message(msg)
 
 
-def send_critical_alert(ingredient_name: str, price: float, store: str, to_email: Optional[str] = None):
-    safe_name = _html.escape(ingredient_name)
-    safe_store = _html.escape(store)
-    html = f"""
-    <html><body>
-    <h2>Oferta Encontrada - CustoDoce</h2>
-    <p><strong>{safe_name}</strong></p>
-    <p>Preco: <strong>R$ {price:.2f}</strong></p>
-    <p>Loja: {safe_store}</p>
-    <hr>
-    <p><small>Enviado automaticamente pelo CustoDoce</small></p>
-    </body></html>
-    """
-    send_daily_report(
-        report_html=html,
-        subject=f"Oferta: {ingredient_name} - R$ {price:.2f} em {store}",
-        to_email=to_email,
-    )
-
-
-def send_scraper_error(store_name: str, error: str, to_email: Optional[str] = None):
-    safe_store = _html.escape(store_name)
-    safe_error = _html.escape(error)
-    html = f"""
-    <html><body>
-    <h2>Erro no Scraper - CustoDoce</h2>
-    <p><strong>Loja:</strong> {safe_store}</p>
-    <p><strong>Erro:</strong> {safe_error}</p>
-    <hr>
-    <p><small>Verifique os logs do GitHub Actions.</small></p>
-    </body></html>
-    """
-    send_daily_report(
-        report_html=html,
-        subject=f"Erro Scraper: {store_name}",
-        to_email=to_email,
-    )
-
-
+# ── Telegram: 1 mensagem consolidada ──────────────────────────────────
 def send_telegram_report(token: str, chat_id: str, ingredients: list[dict], prices_by_ingredient: dict):
+    """Envia 1 única mensagem Telegram com top-5 por ingrediente + resumo."""
     import httpx
+
     today = date.today().strftime("%d/%m/%Y")
-    for ing_name, prices in prices_by_ingredient.items():
+    lines = ["📊 *CustoDoce — Cotação de Preços*", f"📅 {today}\n"]
+    n_with_prices = 0
+
+    for ing in ingredients:
+        name = ing["canonical"]
+        prices = prices_by_ingredient.get(name, [])
         if not prices:
             continue
-        line = f"{today}\n\n{ing_name}\n"
+        n_with_prices += 1
+        best = prices[0]
+        best_ppk = (best.get("normalized") or {}).get("price_per_kg", 0)
+
+        lines.append(f"🏷️ *{name}*")
+        lines.append(f"   Melhor: R\\$ {best_ppk:.2f}/kg\n")
+
         for i, p in enumerate(prices[:5], 1):
             store = p.get("store_name", "?")
             raw_p = float(p.get("raw_price", 0))
             norm = p.get("normalized") or {}
             ppk = norm.get("price_per_kg", 0)
             unit = p.get("raw_unit", "")
-            promo = " [PROMO]" if p.get("is_promotion") else ""
-            line += f"\n{i}. {store}{promo}\nR$ {raw_p:.2f} {unit} | R$ {ppk:.2f}/kg"
-        line += "\n\n---"
-        httpx.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            json={"chat_id": chat_id, "text": line},
-            timeout=15,
-        )
-
-
-def build_full_report_html(prices_by_ingredient: dict) -> str:
-    hoje = date.today().strftime("%d/%m/%Y")
-    sections = ""
-    for ing_name, prices in sorted(prices_by_ingredient.items()):
-        safe_ing = _html.escape(ing_name)
-        sorted_prices = sorted(prices, key=lambda x: (
-            (x.get("normalized") or {}).get("price_per_kg", 999999)
-        ))
-        rows = ""
-        for p in sorted_prices:
-            store = _html.escape(p.get("store_name", "?"))
-            product = _html.escape(p.get("raw_product", "?")[:50])
-            raw_p = float(p.get("raw_price", 0))
-            unit = p.get("raw_unit", "")
-            norm = p.get("normalized") or {}
-            ppk = norm.get("price_per_kg", 0)
-            ppk_str = f"R$ {ppk:.2f}/kg" if ppk else ""
+            medal = ["🥇", "🥈", "🥉"][i - 1] if i <= 3 else f"  {i}."
             promo = " 🏷️" if p.get("is_promotion") else ""
-            valid = p.get("valid_until", "")
-            valid_str = f" (ate {valid})" if valid else ""
-            rows += f"<tr><td>{store}{promo}</td><td>{product}</td><td>R$ {raw_p:.2f} {unit}</td><td>{ppk_str}</td><td>{valid_str}</td></tr>"
-        sections += f"""
-        <h3 style="color:#3D2C1E;margin-top:1.5rem;">{safe_ing}</h3>
-        <table style="width:100%;border-collapse:collapse;background:#FFF;border-radius:10px;overflow:hidden;margin-bottom:1rem;">
-        <tr style="background:#F59E42;color:#FFF;"><th>Loja</th><th>Produto</th><th>Preco</th><th>R$/kg</th><th>Validade</th></tr>
-        {rows}</table>"""
+            lines.append(f"{medal} {store}{promo}")
+            lines.append(f"   R\\$ {raw_p:.2f} {unit} → R\\$ {ppk:.2f}/kg")
 
-    return f"""<html><body style="font-family:Nunito,sans-serif;background:#FFF9F5;padding:20px;">
-<h1 style="color:#F59E42;">CustoDoce - Relatorio Completo de Precos</h1>
-<p style="color:#8B7355;">{hoje}</p>
-{sections}
-<p style="color:#9CA3AF;font-size:0.8rem;margin-top:20px;">Gerado automaticamente pelo CustoDoce</p>
-</body></html>"""
+        lines.append("")  # separador entre ingredientes
+
+    if not n_with_prices:
+        lines.append("❌ Nenhum preço encontrado hoje.")
+
+    text = "\n".join(lines)
+    httpx.post(
+        f"https://api.telegram.org/bot{token}/sendMessage",
+        json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
+        timeout=15,
+    )

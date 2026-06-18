@@ -1,5 +1,6 @@
 import logging
 
+from parsers.brand_extractor import extract_brand
 from parsers.unit_extractor import extract_unit
 from scrapers.base_web_scraper import BaseWebScraper
 
@@ -32,7 +33,7 @@ class VtexScraper(BaseWebScraper):
             return []
         entries = []
         for prod in results:
-            entries.extend(self.parse_product(prod))
+            entries.extend(self.parse_product(prod, ing))
         return entries
 
     def _fetch_products(self, query: str) -> list[dict]:
@@ -46,9 +47,10 @@ class VtexScraper(BaseWebScraper):
             logger.warning("[%s] Error searching '%s': %s", self.name, query, e)
             return []
 
-    def parse_product(self, product: dict) -> list[dict]:
+    def parse_product(self, product: dict, ing: dict) -> list[dict]:
         entries = []
         product_name = product.get("productName", "")
+        brand_api = product.get("brand", "")
         items = product.get("items", [])
 
         for item in items:
@@ -57,6 +59,7 @@ class VtexScraper(BaseWebScraper):
                 or item.get("name")
                 or product_name
             )
+            brand = brand_api or extract_brand(item_name, ing)
             sellers = item.get("sellers", [])
             for seller in sellers:
                 offer = seller.get("commertialOffer", {})
@@ -74,6 +77,7 @@ class VtexScraper(BaseWebScraper):
                     "price": float(price),
                     "unit": unit,
                     "validity_raw": validity_raw,
+                    "brand": brand,
                 })
         return entries
 

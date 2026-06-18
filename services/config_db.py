@@ -56,7 +56,7 @@ def delete_ingredient(ingredient_id: str) -> bool:
 # ============================================================
 def get_active_stores(tier: Optional[int] = None, store_type: Optional[str] = None) -> list[dict]:
     client = get_supabase()
-    query = client.table("stores").select("*").eq("active", True).order("priority")
+    query = client.table("stores").select("*").eq("is_active", True).order("priority")
     if tier:
         query = query.eq("tier", tier)
     if store_type:
@@ -69,7 +69,7 @@ def get_all_stores(include_inactive: bool = False) -> list[dict]:
     client = get_supabase()
     query = client.table("stores").select("*").order("priority")
     if not include_inactive:
-        query = query.eq("active", True)
+        query = query.eq("is_active", True)
     result = query.execute()
     return result.data or []
 

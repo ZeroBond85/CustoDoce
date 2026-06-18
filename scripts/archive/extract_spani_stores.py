@@ -7,8 +7,8 @@ with httpx.Client(timeout=20, follow_redirects=True, verify=False) as client:
     r = client.get(url)
     links = re.findall(r'href=[\'"](/lojas/[^\'"]*)', r.text)
     stores = set()
-    for l in links:
-        match = re.search(r"/lojas/([a-z0-9\-]+)", l)
+    for link in links:
+        match = re.search(r"/lojas/([a-z0-9\-]+)", link)
         if match:
             stores.add(match.group(1))
     print(f"Found {len(stores)} store slugs:")

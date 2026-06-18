@@ -209,7 +209,8 @@ CustoDoce/
 │   └── unit_extractor.py            # Extrator centralizado de unidade
 ├── parsers/
 │   ├── normalizer.py                # Extrai unidade → R$/kg + R$/un
-│   └── matcher.py                   # token_set_ratio ≥80% (RapidFuzz)
+│   ├── matcher.py                   # token_set_ratio ≥80% (RapidFuzz)
+│   └── brand_extractor.py           # Extrai marca do texto do produto via YAML
 ├── services/
 │   ├── supabase_client.py           # Singleton conexão
 │   ├── price_service.py             # CRUD + busca + cleanup_old_prices/logs
@@ -231,17 +232,19 @@ CustoDoce/
 │       └── layout.py                # Sidebar com navegação (17 páginas)
 ├── supabase/
 │   ├── seed.sql                     # Tabelas + índices + RLS + triggers
-│   └── consolidated_migration.sql   # Migração consolidada (574 linhas)
+│   ├── consolidated_migration.sql   # Migração consolidada (574 linhas)
+│   └── 002_add_brand_column.sql     # Adiciona coluna brand nas tabelas
 ├── scripts/
 │   ├── seed_prices.py               # Gera dados sintéticos (--dry-run/--execute/--json)
 │   ├── deploy_database.py           # Migração SQL (--dry-run/--execute/--output)
 │   ├── send_daily_report.py         # Relatório diário por email
 │   └── deploy_check.py              # Health check pré-deploy
 ├── tests/
-│   ├── test_dashboard_full.py       # 78 testes unitários
-│   ├── test_services_mocked.py      # 49 testes com mocks
+│   ├── test_dashboard_full.py       # 85 testes unitários
+│   ├── test_services_mocked.py      # 75 testes com mocks
 │   └── README.md                    # Plano de testes
 ├── main.py                          # Orquestrador: collect + cleanup loop
+├── pyproject.toml                   # Ruff config (line-length=120, ignore E501)
 ├── requirements.txt                 # Dependências runtime
 ├── requirements-dev.txt             # Ferramentas de qualidade
 ├── packages.txt                     # System deps (tesseract-ocr, poppler-utils)
@@ -270,6 +273,7 @@ CustoDoce/
 - [x] **Fase 7** — Polish & Deploy: config declarativa, acessibilidade, export CSV, deploy check
 - [x] **Fase 8** — Dedup & Cleanup: collected_at truncado, review dedup, cleanup_old_prices/logs/flyers, XSS sanitization
 - [x] **Fase 9** — Dashboard Insights: Fontes & Ofertas, Ranking, Insights (heatmap + outliers + melhores ofertas)
+- [x] **Fase 10** — Brand Extraction + Email/TG UX: coluna brand no DB/dashboard, templates responsivos, SMTP Gmail, Ruff config
 
 ## Contribuindo
 

@@ -34,7 +34,7 @@ with httpx.Client(timeout=15, follow_redirects=True, verify=False) as client:
                         break
                     else:
                         print(f"200 {name:25s} {slug:30s} -> sem PDF")
-            except:
+            except httpx.HTTPError:
                 pass
         else:
             print(f"404 {name:25s} NENHUM slug funcional")

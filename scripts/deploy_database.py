@@ -151,6 +151,16 @@ DO $$ BEGIN
 END $$;
 """)
 
+    # ─── 6. Add brand column to prices/price_history/review_queue ──
+    gen.append("""
+-- ============================================================
+-- PHASE 6: Add brand column (002_add_brand_column.sql)
+-- ============================================================
+ALTER TABLE prices ADD COLUMN IF NOT EXISTS brand TEXT DEFAULT '';
+ALTER TABLE price_history ADD COLUMN IF NOT EXISTS brand TEXT DEFAULT '';
+ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS brand TEXT DEFAULT '';
+""")
+
     gen.append("\n-- ============================================================")
     gen.append("-- Migration complete. Verify with:")
     gen.append("--   SELECT table_name FROM information_schema.tables")

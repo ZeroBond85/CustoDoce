@@ -56,6 +56,7 @@ def upsert_price(price_entry: dict) -> dict:
         "normalized": price_entry.get("normalized"),
         "city": price_entry.get("city"),
         "logistics": price_entry.get("logistics"),
+        "brand": price_entry.get("brand", "Desconhecido"),
     }
     result = client.table("prices").upsert(
         data,
@@ -146,6 +147,7 @@ def insert_review_item(item: dict) -> dict:
         "suggestions": item.get("suggestions", []),
         "validity_raw": item.get("validity_raw", ""),
         "status": "pending",
+        "brand": item.get("brand", ""),
     }
     result = client.table("review_queue").insert(data).execute()
     return result.data[0] if result.data else {}
@@ -266,3 +268,127 @@ def log_scraper_run(
     }
     result = client.table("scraping_logs").insert(data).execute()
     return result.data[0] if result.data else {}
+
+
+def get_longitudinal_winners(days: int = 90) -> list[dict]:
+    """Retorna contagem de vezes que cada loja foi a mais barata por ingrediente.
+
+    Para cada ingrediente, em cada dia com dados, identifica a loja com menor
+    price_per_kg e acumula um contador. Retorna lista de dicts:
+    [{"ingredient_id": str, "store_name": str, "wins": int}, ...]
+    """
+    from datetime import timedelta
+    client = get_supabase()
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    result = (
+        client.table("prices")
+        .select("ingredient_id, store_name, raw_price, raw_unit, normalized, collected_at")
+        .gte("collected_at", cutoff)
+        .execute()
+    )
+    if not result.data:
+        return []
+    from collections import defaultdict
+    daily: dict = defaultdict(lambda: defaultdict(list))
+    for p in result.data:
+        ing = p.get("ingredient_id", "")
+        day = p.get("collected_at", "")[:10]
+        norm = p.get("normalized") or {}
+        ppk = norm.get("price_per_kg", 0) or 0
+        if ppk <= 0:
+            continue
+        daily[ing][day].append({"store": p.get("store_name", "?"), "ppk": ppk})
+    wins: dict = defaultdict(lambda: defaultdict(int))
+    for ing, days_dict in daily.items():
+        for day, entries in days_dict.items():
+            if not entries:
+                continue
+            best = min(entries, key=lambda x: x["ppk"])
+            wins[ing][best["store"]] += 1
+    rows = []
+    for ing, stores in wins.items():
+        for store, count in stores.items():
+            rows.append({"ingredient_id": ing, "store_name": store, "wins": count})
+    rows.sort(key=lambda r: r["wins"], reverse=True)
+    return rows
+
+
+def get_price_trends(ingredient_id: str, days: int = 90) -> list[dict]:
+    """Retorna média móvel de price_per_kg por dia para um ingrediente."""
+    from datetime import timedelta
+    client = get_supabase()
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    result = (
+        client.table("prices")
+        .select("store_name, raw_price, normalized, collected_at")
+        .eq("ingredient_id", ingredient_id)
+        .gte("collected_at", cutoff)
+        .execute()
+    )
+    if not result.data:
+        return []
+    from collections import defaultdict
+    daily: dict = defaultdict(list)
+    for p in result.data:
+        day = p.get("collected_at", "")[:10]
+        norm = p.get("normalized") or {}
+        ppk = norm.get("price_per_kg", 0) or 0
+        if ppk > 0:
+            daily[day].append(ppk)
+    trends = []
+    for day in sorted(daily):
+        vals = daily[day]
+        trends.append({
+            "date": day,
+            "avg_ppk": round(sum(vals) / len(vals), 2),
+            "min_ppk": round(min(vals), 2),
+            "max_ppk": round(max(vals), 2),
+            "store_count": len(vals),
+        })
+    return trends
+
+
+def get_cross_ingredient_ranking(days: int = 90) -> list[dict]:
+    """Retorna ranking de lojas por número de ingredientes onde são top-3."""
+    from datetime import timedelta
+    client = get_supabase()
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    result = (
+        client.table("prices")
+        .select("ingredient_id, store_name, normalized, collected_at")
+        .gte("collected_at", cutoff)
+        .execute()
+    )
+    if not result.data:
+        return []
+    from collections import defaultdict
+    per_ing: dict = defaultdict(list)
+    for p in result.data:
+        ing = p.get("ingredient_id", "")
+        norm = p.get("normalized") or {}
+        ppk = norm.get("price_per_kg", 0) or 0
+        if ppk > 0:
+            per_ing[ing].append({"store": p.get("store_name", "?"), "ppk": ppk})
+    store_scores: dict = defaultdict(lambda: {"top1": 0, "top3": 0, "total": 0})
+    for ing, entries in per_ing.items():
+        sorted_entries = sorted(entries, key=lambda x: x["ppk"])
+        seen = set()
+        for rank, e in enumerate(sorted_entries, 1):
+            if e["store"] in seen:
+                continue
+            seen.add(e["store"])
+            store_scores[e["store"]]["total"] += 1
+            if rank == 1:
+                store_scores[e["store"]]["top1"] += 1
+            if rank <= 3:
+                store_scores[e["store"]]["top3"] += 1
+    rows = []
+    for store, scores in store_scores.items():
+        rows.append({
+            "store_name": store,
+            "top1_count": scores["top1"],
+            "top3_count": scores["top3"],
+            "total_ingredients": scores["total"],
+        })
+    rows.sort(key=lambda r: (r["top1_count"], r["top3_count"]), reverse=True)
+    return rows

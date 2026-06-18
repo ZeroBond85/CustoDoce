@@ -18,6 +18,7 @@ from scrapers.max_api_scraper import MaxApiScraper
 from scrapers.aggregator_scraper import TiendeoScraper
 from parsers.normalizer import normalize_price
 from parsers.matcher import match_ingredient, rank_ingredients
+from parsers.brand_extractor import extract_brand
 from services.price_service import upsert_price, insert_review_item, log_scraper_run, cleanup_old_prices, cleanup_old_logs, _detect_promotion, _weekday_pt
 from services.flyer_service import cleanup_old_flyers
 from services.flyer_service import upsert_flyer
@@ -66,9 +67,11 @@ def build_product_entry(
     raw_unit: str,
     confidence: float,
     validity_raw: str = "",
+    brand: str = "",
 ) -> dict:
     normalized = normalize_price(raw_price, raw_unit)
     validity = validity_raw or _extract_validity_from_product(raw_product)
+    brand = brand or extract_brand(raw_product, ingredient)
     return {
         "ingredient_id": ingredient["canonical"],
         "store_id": store.get("id") or store["name"].lower().replace(" ", "_"),
@@ -85,6 +88,7 @@ def build_product_entry(
         "normalized": normalized.to_dict() if normalized else None,
         "city": store.get("cities", [""])[0] if isinstance(store.get("cities"), list) else store.get("city", ""),
         "logistics": store.get("logistics", "pickup_local"),
+        "brand": brand,
     }
 
 
@@ -95,6 +99,7 @@ def process_price_match(
     raw_unit: str,
     ingredients: list[dict],
     validity_raw: str = "",
+    brand: str = "",
 ) -> dict | None:
     ingredient, score, match_type = match_ingredient(product_text, ingredients)
     if ingredient and score >= 80.0:
@@ -102,6 +107,7 @@ def process_price_match(
             store, ingredient, product_text,
             raw_price, raw_unit, score / 100.0,
             validity_raw=validity_raw,
+            brand=brand,
         )
         upsert_price(entry)
         return entry
@@ -119,6 +125,7 @@ def process_price_match(
             "confidence": score / 100.0,
             "suggestions": suggestions,
             "validity_raw": validity,
+            "brand": brand,
         }
         try:
             insert_review_item(review_item)
@@ -155,6 +162,7 @@ def _collect_prices(
                     prod.get("unit", ""),
                     ingredients,
                     validity_raw=prod.get("validity_raw", ""),
+                    brand=prod.get("brand", ""),
                 )
                 if entry:
                     matched += 1

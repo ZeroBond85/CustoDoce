@@ -26,7 +26,7 @@ def test_store_reachability(store: dict):
     """Test if store URL is reachable and returns HTML."""
     base = store.get("base_url", "").rstrip("/")
     search_url_tpl = store.get("search_url") or f"{base}/busca?q={{query}}"
-    
+
     result = {
         "name": store["name"],
         "tier": store.get("tier"),
@@ -44,17 +44,17 @@ def test_store_reachability(store: dict):
         "sample_products": [],
         "error": None,
     }
-    
+
     try:
         scraper = WebsiteScraper(store)
         html = scraper.fetch_search("leite condensado")
         if not html:
             result["error"] = "No HTML returned"
             return result
-        
+
         result["reachable"] = True
         result["html_size"] = len(html)
-        
+
         try:
             products = scraper.parse_results(html)
             result["products_found"] = len(products)
@@ -69,10 +69,10 @@ def test_store_reachability(store: dict):
                     break
             result["products_found"] = len(cards)
             result["error"] = f"Parse error: {e}"
-    
+
     except Exception as e:
         result["error"] = str(e)[:200]
-    
+
     return result
 
 def test_new_candidate(name: str, base_url: str, search_url: str = None, city: str = ""):
@@ -91,28 +91,28 @@ def test_new_candidate(name: str, base_url: str, search_url: str = None, city: s
 
 def main():
     stores = load_stores()
-    
+
     # Filter website_catalog stores (both scraper types)
     website_stores = [
         s for s in stores
-        if s.get("type") in ("website_catalog",) 
+        if s.get("type") in ("website_catalog",)
         and s.get("scraper") in ("website_scraper", "carrefour_scraper")
     ]
-    
+
     # Also test VTEX stores quickly
     vtex_stores = [
         s for s in stores
         if s.get("scraper") == "vtex_scraper"
     ]
-    
+
     print("=" * 70)
     print("VERIFICAÇÃO DE LOJAS - CustoDoce")
     print(f"Total website_catalog: {len(website_stores)}")
     print(f"Total VTEX: {len(vtex_stores)}")
     print("=" * 70)
-    
+
     results = {}
-    
+
     # Test website stores
     print("\n## WEBSITE CATALOG STORES ##")
     for store in website_stores:
@@ -120,7 +120,7 @@ def main():
         print(f"    URL: {store['base_url']}")
         result = test_store_reachability(store)
         results[store["name"]] = result
-        
+
         status = "✅" if result["reachable"] and result["products_with_price"] > 0 else \
                  "⚠️" if result["reachable"] else "❌"
         print(f"    {status} HTTP {result['status_code']} | HTML: {result['html_size']}b | "
@@ -131,7 +131,7 @@ def main():
             for p in result["sample_products"]:
                 print(f"      → {p['product'][:60]} | R$ {p.get('price', '?')} | {p.get('unit', '')}")
         time.sleep(0.5)
-    
+
     # Test VTEX stores (quick reachability check)
     print("\n## VTEX STORES (alcance rápido) ##")
     client = httpx.Client(timeout=10.0, follow_redirects=True, headers={
@@ -149,7 +149,7 @@ def main():
         except Exception as e:
             print(f"    ❌ Erro: {str(e)[:80]}")
         time.sleep(0.3)
-    
+
     # Test new candidates
     print("\n## CANDIDATAS NOVAS ##")
     candidates = [
@@ -178,7 +178,7 @@ def main():
         except Exception as e:
             print(f"    ❌ Falha: {str(e)[:100]}")
         time.sleep(0.5)
-    
+
     # Summary
     print("\n" + "=" * 70)
     print("RESUMO")

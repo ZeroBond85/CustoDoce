@@ -17,5 +17,5 @@ with httpx.Client(timeout=15, follow_redirects=True, verify=False) as client:
             r = client.head(url)
             if r.status_code == 200:
                 print(f"OK  {city} -> {r.headers.get('content-length', '?')} bytes")
-        except:
+        except httpx.HTTPError:
             pass

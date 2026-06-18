@@ -31,7 +31,7 @@ with httpx.Client(timeout=15, follow_redirects=True, verify=False) as client:
                     if pdfs:
                         print(f"{name:25s} {slug:30s} -> {pdfs[0]}")
                         break
-            except:
+            except httpx.HTTPError:
                 pass
         else:
             print(f"{name:25s} NENHUM slug funcional")

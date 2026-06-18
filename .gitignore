@@ -5,6 +5,8 @@ __pycache__/
 venv/
 data/cache/  # PDF hash cache (persisted via GitHub Actions cache)
 data/rate_limiter.db
+data/seed_validation.json
 .mypy_cache/
 .pytest_cache/
 bandit_output.json
+.streamlit/secrets.toml

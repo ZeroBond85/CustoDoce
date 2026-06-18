@@ -66,10 +66,10 @@ def seed_stores():
             "contact": store.get("contact", ""),
             "coverage": store.get("coverage", ""),
             "priority": store.get("priority", 99),
-            "active": store.get("is_active", True),
+            "is_active": store.get("is_active", True),
         }
         upsert_store(store_data)
-        status = "✓" if store_data["active"] else "⊘"
+        status = "✓" if store_data["is_active"] else "⊘"
         print(f"  {status} Store: {store['name']} (Tier {store_data['tier']})")
 
 

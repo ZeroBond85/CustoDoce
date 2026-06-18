@@ -52,7 +52,8 @@ CustoDoce/
 │   └── unit_extractor.py            # Extrator centralizado de unidade
 ├── parsers/
 │   ├── normalizer.py                # Extrai unidade → R$/kg + R$/un
-│   └── matcher.py                   # token_set_ratio ≥80% (RapidFuzz)
+│   ├── matcher.py                   # token_set_ratio ≥80% (RapidFuzz)
+│   └── brand_extractor.py           # Extrai marca do texto do produto via YAML
 ├── services/
 │   ├── supabase_client.py           # Singleton conexão
 │   ├── price_service.py             # CRUD + busca + cleanup_old_prices/logs
@@ -74,17 +75,19 @@ CustoDoce/
 │       └── layout.py                # Sidebar com navegação (17 páginas)
 ├── supabase/
 │   ├── seed.sql                     # Tabelas + índices + RLS + triggers
-│   └── consolidated_migration.sql   # Migração consolidada (574 linhas)
+│   ├── consolidated_migration.sql   # Migração consolidada (574 linhas)
+│   └── 002_add_brand_column.sql     # Adiciona coluna brand nas tabelas
 ├── scripts/
 │   ├── seed_prices.py               # Gera dados sintéticos (--dry-run/--execute/--json)
 │   ├── deploy_database.py           # Migração SQL (--dry-run/--execute/--output)
 │   ├── send_daily_report.py         # Relatório diário por email
 │   └── deploy_check.py              # Health check pré-deploy
 ├── tests/
-│   ├── test_dashboard_full.py       # 78 testes unitários
-│   ├── test_services_mocked.py      # 49 testes com mocks
+│   ├── test_dashboard_full.py       # 85 testes unitários
+│   ├── test_services_mocked.py      # 75 testes com mocks
 │   └── README.md                    # Plano de testes
 ├── main.py                          # Orquestrador: collect + cleanup loop
+├── pyproject.toml                   # Ruff config (line-length=120, ignore E501)
 ├── requirements.txt                 # Dependências runtime
 ├── requirements-dev.txt             # Ferramentas de qualidade
 ├── packages.txt                     # System deps (tesseract-ocr, poppler-utils)
@@ -238,12 +241,13 @@ python -c "import json, jsonschema; s=json.load(open('config/schema_prices.json'
 ## Infraestrutura de Testes
 
 ### Ferramentas
-- `ruff` — lint (zero erros)
+- `ruff` — lint (zero erros, config `pyproject.toml`)
 - `mypy` — type hints (pendente)
 - `bandit` — segurança (zero issues)
 - `pip-audit` — CVEs (zero vulnerabilidades)
 - `radon` — complexidade (média B)
-- `pytest` — 127 testes (F1-2: 22, F3: 20, F4-6: 20, F7: 8, F8: 6, F9: 6, Cleanup: 8, Security: 2, Imports: 2)
+- `pytest` — 160 testes (dashboard: 85, services: 75)
+- `flake8` / `vulture` — código morto (opcional)
 
 ### Checklist por Fase
 ```
@@ -253,8 +257,8 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 ### Arquivos
 - `tests/README.md` — plano de testes completo
 - `requirements-dev.txt` — ferramentas de qualidade
-- `tests/test_dashboard_full.py` — 78 testes unitários
-- `tests/test_services_mocked.py` — 49 testes com mocks
+- `tests/test_dashboard_full.py` — 85 testes unitários
+- `tests/test_services_mocked.py` — 75 testes com mocks
 
 ## Fase 4 — CRUD Console (concluida)
 
@@ -334,6 +338,25 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 | 17 páginas no dashboard sidebar | ✅ |
 | 127 testes, ruff, bandit, pip-audit | ✅ Todos limpos |
 
+## Fase 10 — Brand Extraction, Email/TG UX & Ruff Config (concluida)
+
+| O que foi feito | Resultado |
+|----------------|-----------|
+| `config/ingredients.yaml` — campo `brands` adicionado a todos 11 ingredientes | ✅ |
+| `parsers/brand_extractor.py` — `extract_brand()` + `extract_brand_from_all()` | ✅ |
+| `scrapers/vtex_scraper.py` — lê `brand` da API + fallback `extract_brand()` | ✅ |
+| `main.py` — `brand` propagado via `build_product_entry()` / `process_price_match()` | ✅ |
+| `supabase/002_add_brand_column.sql` — coluna `brand` em prices/price_history/review_queue | ✅ |
+| `services/price_service.py` — `brand` incluído no upsert de prices e review_queue | ✅ |
+| `admin/app.py` — coluna "Marca" exibida em Preços, Histórico, Revisão, Promoções, Ranking, Ofertas | ✅ |
+| Email templates rewrite — responsivo, logo CID, laranja+rosa, preheader, tagline, "Cotação de Preços" | ✅ |
+| SMTP migrado de Outlook → Gmail (custodoce.alertas@gmail.com) | ✅ |
+| Telegram template — mensagem consolidada com medals 🥇🥈🥉 | ✅ |
+| UX audit — 32 issues identificadas (6 críticas) | 🔍 Pendente |
+| `pyproject.toml` — Ruff config (`line-length=120`, `ignore=["E501"]`) | ✅ |
+| `scripts/archive/` — 6 fixes E741 + E722 | ✅ |
+| 160 testes, ruff clean, bandit/pip-audit | ✅ Todos limpos |
+
 ## Status das Fases
 
 - **Fase 1** ✅ Estrutura base (pastas, parsers, services, schema, base_flyer)
@@ -347,3 +370,4 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 - **Fase 7** ✅ Polish & Deploy — `config/features.yaml` (flags declarativas liga/desliga); `services/config.py` com `get()` + cache + `reload()`; config guards no dashboard; `:focus-visible` rings CSS + `aria-label` sidebar; export CSV com `st.download_button`; `scripts/deploy_check.py`
 - **Fase 8** ✅ Dedup & Cleanup — `collected_at` truncado pra data; review queue dedup sem filtro status; `cleanup_old_prices(90)` + `cleanup_old_logs(30)` + `cleanup_old_flyers(60)`; XSS sanitization; HTML injection fix; consolidated migration SQL
 - **Fase 9** ✅ Dashboard Insights — `tab_fontes` (cobertura + promoções + ranking); `tab_ranking` (gráficos + estatísticas); `tab_insights` (heatmap + outliers + melhores ofertas); CI/CD (ci.yml + packages.txt); seed data (4128 preços sintéticos)
+- **Fase 10** ✅ Brand Extraction — `brand_extractor.py`, coluna `brand` no DB, coluna "Marca" no dashboard; Email/TG UX overhaul; Ruff config (`pyproject.toml`)

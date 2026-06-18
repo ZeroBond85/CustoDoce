@@ -20,7 +20,7 @@ with httpx.Client(timeout=20, follow_redirects=True, verify=False) as client:
                 prints = re.findall(r'(?:print|imprimir|offline|download|baixar)[^>]*href=[\'"]([^\'"]+)', r.text, re.IGNORECASE)
                 # Check for printpdf pattern
                 printpdfs = re.findall(r'printpdf[^>]*href=[\'"]([^\'"]+)', r.text, re.IGNORECASE)
-                
+
                 print(f"=== Assai {city_name} ===")
                 if pdfs:
                     for p in pdfs:
