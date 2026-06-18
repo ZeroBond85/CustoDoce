@@ -16,8 +16,7 @@ on:
         type: boolean
         default: false
 
-  # Ensure workflow_dispatch is registered
-  # Updated: 2026-06-17
+  # workflow_dispatch trigger registered
 
 env:
   PYTHON_VERSION: '3.11'
