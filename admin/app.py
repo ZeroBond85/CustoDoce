@@ -85,6 +85,32 @@ CD_ORANGE = "#F59E42"
 CD_PINK = "#E8739A"
 CD_BLUE = "#3B7DD8"
 
+_COL_PT = {
+    "store_name": "Loja", "ingredient_id": "Ingrediente", "raw_product": "Produto",
+    "raw_price": "Preco Bruto (R$)", "raw_unit": "Unidade", "tier": "Tier",
+    "is_promotion": "Promocao", "valid_until": "Valido Ate", "confidence": "Confianca",
+    "collected_at": "Coletado Em", "brand": "Marca", "price_per_kg": "R$/kg",
+    "price_per_un": "R$/un", "active": "Ativo", "channel": "Canal",
+    "target": "Destino", "name": "Nome", "trigger": "Gatilho",
+    "frequency_minutes": "Frequencia (min)", "enabled": "Ativo",
+    "canonical_name": "Nome", "category": "Categoria", "aliases": "Aliases",
+    "unit_target": "Unidade Alvo", "status": "Status", "items_found": "Itens",
+    "started_at": "Inicio", "duration_s": "Duracao (s)", "duration_ms": "Duracao (ms)",
+    "error_message": "Erro", "normalizado": "Normalizado (R$/kg | R$/un)",
+    "store_id": "Loja ID", "max_retries": "Tentativas Max",
+    "timeout_seconds": "Timeout (s)", "rate_limit_per_minute": "Rate Limit/min",
+    "cron_expression": "Cron", "timezone": "Fuso Horario",
+    "last_run": "Ultima Execucao", "next_run": "Proxima Execucao",
+    "created_at": "Criado Em", "updated_at": "Atualizado Em",
+    "wins": "Dias como mais barata",
+}
+
+
+def _pt_cols(df):
+    """Rename DataFrame columns from DB names to PT display names."""
+    rename = {c: _COL_PT[c] for c in df.columns if c in _COL_PT}
+    return df.rename(columns=rename) if rename else df
+
 
 @st.cache_data(ttl=600)
 def load_ingredients():
@@ -182,7 +208,7 @@ def _render_latest_prices(df):
     st.markdown("### Ultimos Precos")
     cols = ["store_name", "ingredient_id", "raw_product", "raw_price", "raw_unit", "tier", "is_promotion", "valid_until", "confidence", "collected_at"]
     cols = [c for c in cols if c in df.columns]
-    st.dataframe(df[cols].sort_values("collected_at", ascending=False).head(100), use_container_width=True, hide_index=True)
+    st.dataframe(_pt_cols(df[cols].sort_values("collected_at", ascending=False).head(100)), use_container_width=True, hide_index=True)
 
 
 def _render_boxplot(df):
@@ -433,9 +459,9 @@ def tab_precos():
                         else [""] * len(s)
                     )
                 styled = df_display.style.apply(highlight_row, axis=1)
-                st.dataframe(styled, use_container_width=True, hide_index=True)
+                st.dataframe(_pt_cols(styled.data), use_container_width=True, hide_index=True)
             else:
-                st.dataframe(df_display, use_container_width=True, hide_index=True)
+                st.dataframe(_pt_cols(df_display), use_container_width=True, hide_index=True)
 
             if get_config("features.export.csv_enabled", True):
                 csv = df_display.to_csv(index=False).encode("utf-8")
@@ -520,14 +546,14 @@ def tab_historico():
         ).reset_index()
         store_stats.columns = ["Loja", "Coletas", "Preco Medio (R$)", "Ultima Coleta"]
         store_stats = store_stats.sort_values("Ultima Coleta", ascending=False)
-        st.dataframe(store_stats, use_container_width=True, hide_index=True)
+        st.dataframe(_pt_cols(store_stats), use_container_width=True, hide_index=True)
 
         st.markdown("### Dados Brutos")
         display_cols = [c for c in ["store_name", "brand", "raw_product", "raw_price", "raw_unit", "is_promotion", "valid_until", "collected_at"] if c in df.columns]
         if "price_per_kg" in df.columns:
             df["R$/kg"] = df["price_per_kg"].apply(lambda x: f"R$ {x:.2f}" if x > 0 else "—")
             display_cols.append("R$/kg")
-        st.dataframe(df[display_cols].tail(100), use_container_width=True, hide_index=True)
+        st.dataframe(_pt_cols(df[display_cols].tail(100)), use_container_width=True, hide_index=True)
 
         if get_config("features.export.csv_enabled", True):
             csv_data = store_stats.to_csv(index=False).encode("utf-8")
@@ -769,7 +795,7 @@ def tab_lojas():
                 df["city_str"] = df["city"].apply(lambda x: ", ".join(x) if x else "—")
                 cols = ["name", "tier", "type", "logistics", "city_str", "zone", "is_active"]
                 cols = [c for c in cols if c in df.columns]
-                st.dataframe(df[cols].head(100), use_container_width=True, hide_index=True)
+                st.dataframe(_pt_cols(df[cols].head(100)), use_container_width=True, hide_index=True)
             else:
                 info_box("Nenhuma loja encontrada com esse filtro.", "info")
         else:
@@ -912,7 +938,7 @@ def tab_ingredientes():
             df["active"] = df["active"].map({True: "✅", False: "⏸️"})
             df["aliases_str"] = df["aliases"].apply(lambda x: ", ".join(x[:5]) if x else "—")
             st.dataframe(
-                df[["canonical_name", "category", "aliases_str", "unit_target", "active"]],
+                _pt_cols(df[["canonical_name", "category", "aliases_str", "unit_target", "active"]]),
                 use_container_width=True,
                 hide_index=True,
             )
@@ -1439,7 +1465,7 @@ def tab_scrapers():
             if logs.data:
                 df_logs = pd.DataFrame(logs.data)
                 st.dataframe(
-                    df_logs[
+                    _pt_cols(df_logs[
                         [
                             "store_name",
                             "status",
@@ -1447,9 +1473,9 @@ def tab_scrapers():
                             "duration_ms",
                             "created_at",
                         ]
-                    ]
+                    ])
                     if "store_name" in df_logs.columns
-                    else df_logs,
+                    else _pt_cols(df_logs),
                     use_container_width=True,
                     hide_index=True,
                 )
@@ -2104,7 +2130,7 @@ def tab_agendamentos():
         df = pd.DataFrame(schedules)
         df["enabled"] = df["enabled"].map({True: "✅ Ativo", False: "⏸️ Inativo"})
         st.dataframe(
-            df[["name", "cron_expression", "timezone", "enabled", "last_run", "next_run"]],
+            _pt_cols(df[["name", "cron_expression", "timezone", "enabled", "last_run", "next_run"]]),
             use_container_width=True,
             hide_index=True,
         )
@@ -2193,7 +2219,7 @@ def tab_frequencias():
         df = pd.DataFrame(freqs)
         df["enabled"] = df["enabled"].map({True: "✅", False: "⏸️"})
         st.dataframe(
-            df[["store_id", "tier", "frequency_minutes", "max_retries", "timeout_seconds", "rate_limit_per_minute", "enabled"]],
+            _pt_cols(df[["store_id", "tier", "frequency_minutes", "max_retries", "timeout_seconds", "rate_limit_per_minute", "enabled"]]),
             use_container_width=True,
             hide_index=True,
         )
@@ -2241,7 +2267,7 @@ def tab_alertas():
         if recipients:
             df = pd.DataFrame(recipients)
             df["active"] = df["active"].map({True: "✅", False: "⏸️"})
-            st.dataframe(df[["channel", "target", "name", "active"]], use_container_width=True, hide_index=True)
+            st.dataframe(_pt_cols(df[["channel", "target", "name", "active"]]), use_container_width=True, hide_index=True)
         else:
             st.info("Nenhum destinatário cadastrado.")
 
@@ -2290,7 +2316,7 @@ def tab_alertas():
         if rules:
             df = pd.DataFrame(rules)
             df["enabled"] = df["enabled"].map({True: "✅", False: "⏸️"})
-            st.dataframe(df[["name", "channel", "trigger", "frequency_minutes", "enabled"]], use_container_width=True, hide_index=True)
+            st.dataframe(_pt_cols(df[["name", "channel", "trigger", "frequency_minutes", "enabled"]]), use_container_width=True, hide_index=True)
         else:
             st.info("Nenhuma regra cadastrada.")
 
@@ -2668,7 +2694,7 @@ def tab_insights():
                                    color_discrete_sequence=[CD_ORANGE, CD_PINK, CD_BLUE, "#FBBF5E", "#60A5FA"])
                     fig_w.update_layout(showlegend=True)
                     st.plotly_chart(fig_w, use_container_width=True)
-                    st.dataframe(df_w.head(50), use_container_width=True, hide_index=True)
+                    st.dataframe(_pt_cols(df_w.head(50)), use_container_width=True, hide_index=True)
                     if get_config("features.export.csv_enabled", True):
                         csv_w = df_w.to_csv(index=False).encode("utf-8")
                         st.download_button("Exportar CSV", csv_w, "vencedores.csv", "text/csv", key="csv_vencedores")
@@ -2692,7 +2718,7 @@ def tab_insights():
                                     color_discrete_map={"avg_ppk": CD_ORANGE, "min_ppk": "#10B981", "max_ppk": "#EF4444"})
                     fig_t.update_layout(legend=dict(orientation="h", y=-0.3))
                     st.plotly_chart(fig_t, use_container_width=True)
-                    st.dataframe(df_t.tail(30), use_container_width=True, hide_index=True)
+                    st.dataframe(_pt_cols(df_t.tail(30)), use_container_width=True, hide_index=True)
                     if get_config("features.export.csv_enabled", True):
                         csv_t = df_t.to_csv(index=False).encode("utf-8")
                         st.download_button("Exportar CSV", csv_t, f"tendencias_{ing_t}.csv", "text/csv", key="csv_tendencias")
