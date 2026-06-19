@@ -201,7 +201,7 @@ def _render_kpi_flyers(df):
             unsafe_allow_html=True,
         )
     except Exception:
-        pass  # nosec B110
+        st.caption("Indicadores de flyers indisponiveis")
 
 
 def _render_latest_prices(df):
@@ -842,6 +842,9 @@ def tab_lojas():
                 active = st.checkbox("Ativo", value=default.get("is_active", True))
 
             if st.form_submit_button("Salvar", use_container_width=True):
+                if not name or not name.strip():
+                    st.error("Nome da loja e obrigatorio.")
+                    st.stop()
                 city = [c.strip() for c in city_str.split("\n") if c.strip()]
                 try:
                     import json
@@ -966,6 +969,9 @@ def tab_ingredientes():
                 aliases_str = st.text_area("Aliases (um por linha)", value="\n".join(default.get("aliases", [])))
                 active = st.checkbox("Ativo", value=default.get("active", True))
             if st.form_submit_button("Salvar", use_container_width=True):
+                if not canonical or not canonical.strip():
+                    st.error("Nome canonico e obrigatorio.")
+                    st.stop()
                 aliases = [a.strip() for a in aliases_str.split("\n") if a.strip()]
                 try:
                     upsert_ingredient({
@@ -1034,6 +1040,17 @@ def _render_schedule_info():
                 )
                 new_crons.append(new_c)
             if st.button("Salvar Agendamento", type="primary", use_container_width=True):
+                import re
+                valid = True
+                for c in new_crons:
+                    if not re.match(r"^(\d+|\*)([-\/,*]\d*)*(\s+(\d+|\*)([-\/,*]\d*)*){4}$", c.strip()):
+                        st.error(f"Cron invalido: '{c}' — use o formato 'minuto hora dia mes dia-semana'")
+                        valid = False
+                if not valid:
+                    st.stop()
+                backup_path = path + ".bak"
+                import shutil
+                shutil.copy2(path, backup_path)
                 new_content = content
                 for i, (old, new) in enumerate(zip(crons, new_crons)):
                     new_content = new_content.replace(
@@ -1041,7 +1058,7 @@ def _render_schedule_info():
                     )
                 with open(path, "w", encoding="utf-8") as f:
                     f.write(new_content)
-                st.success("Agendamento atualizado!")
+                st.success("Agendamento atualizado! Backup salvo em scrape.yml.bak")
 
     except FileNotFoundError:
         info_box("Arquivo scrape.yml nao encontrado.", "warning")
@@ -1753,14 +1770,12 @@ def tab_config():
                 key="env_smtp_host",
                 help="Servidor SMTP do provedor",
             )
-            os.environ["SMTP_HOST"] = env_host
             env_user = st.text_input(
                 "SMTP_USER (email do remetente)",
                 value=os.environ.get("SMTP_USER", ""),
                 key="env_smtp_user",
                 help="Email cadastrado no provedor SMTP",
             )
-            os.environ["SMTP_USER"] = env_user
         with col_m2:
             env_port = st.text_input(
                 "SMTP_PORT",
@@ -1768,7 +1783,6 @@ def tab_config():
                 key="env_smtp_port",
                 help="Porta do servidor SMTP (587 TLS ou 465 SSL)",
             )
-            os.environ["SMTP_PORT"] = env_port
             env_pass = st.text_input(
                 "SMTP_PASSWORD (senha ou API Key)",
                 value=os.environ.get("SMTP_PASSWORD", ""),
@@ -1776,7 +1790,6 @@ def tab_config():
                 key="env_smtp_pass",
                 help="Senha do email ou API Key do provedor",
             )
-            os.environ["SMTP_PASSWORD"] = env_pass
         with col_m3:
             env_from = st.text_input(
                 "SMTP_FROM (opcional)",
@@ -1784,14 +1797,12 @@ def tab_config():
                 key="env_smtp_from",
                 help="Email do remetente (se diferente de SMTP_USER)",
             )
-            os.environ["SMTP_FROM"] = env_from
             env_to = st.text_input(
                 "ALERT_EMAIL_TO (email destino)",
                 value=os.environ.get("ALERT_EMAIL_TO", ""),
                 key="env_smtp_to",
                 help="Para qual email os relatorios serao enviados",
             )
-            os.environ["ALERT_EMAIL_TO"] = env_to
         if env_user and env_pass and env_to:
             if st.button("Testar Envio de Email", key="test_email_cfg", use_container_width=True):
                 ok, msg = _test_smtp(env_host, int(env_port or "587"), env_user, env_pass, env_to, env_from)
@@ -1811,7 +1822,6 @@ def tab_config():
                 key="env_tg_token",
                 help="Token do bot (ex: 123456:ABC-DEF1234...) - obtenha com @BotFather",
             )
-            os.environ["TELEGRAM_TOKEN"] = env_tg_token
         with col_t2:
             env_tg_chat = st.text_input(
                 "TELEGRAM_CHAT_ID",
@@ -1819,7 +1829,6 @@ def tab_config():
                 key="env_tg_chat",
                 help="Seu ID numerico do Telegram - obtenha com @userinfobot",
             )
-            os.environ["TELEGRAM_CHAT_ID"] = env_tg_chat
         if env_tg_token and env_tg_chat:
             if st.button("Testar Envio Telegram", key="test_tg_cfg", use_container_width=True):
                 ok, msg = _test_telegram(env_tg_token, env_tg_chat)
@@ -1857,8 +1866,6 @@ def tab_config():
                             key=f"env_{k}",
                             type="password" if "KEY" in k or "TOKEN" in k or "PASSWORD" in k or "SECRET" in k else "default",
                         )
-                        if new_val != current:
-                            os.environ[k] = new_val
                     else:
                         st.markdown(
                             f'<div style="display:flex;justify-content:space-between;'
@@ -1891,7 +1898,7 @@ def tab_config():
                             if stripped and "=" in stripped:
                                 ek = stripped.split("=", 1)[0].strip()
                                 if ek in existing_keys:
-                                    new_val = os.environ.get(ek, "")
+                                    new_val = st.session_state.get(f"env_{ek}", os.environ.get(ek, ""))
                                     new_lines.append(f'{ek}="{new_val}"\n')
                                     existing_keys[ek] = True
                                 else:
@@ -1900,7 +1907,7 @@ def tab_config():
                                 new_lines.append(line)
                         for k, found in existing_keys.items():
                             if not found:
-                                new_val = os.environ.get(k, "")
+                                new_val = st.session_state.get(f"env_{k}", os.environ.get(k, ""))
                                 new_lines.append(f'{k}="{new_val}"\n')
                         with open(env_path, "w", encoding="utf-8") as f:
                             f.writelines(new_lines)
@@ -2381,14 +2388,16 @@ def tab_fontes():
                     return
                 df["price_per_kg"] = _get_kg(df)
 
-                src = df.groupby("store_name").agg(
-                    Precos=("raw_price", "count"),
-                    Menor_kg=("price_per_kg", "min"),
-                    Medio_kg=("price_per_kg", "mean"),
-                    Promocoes=("is_promotion", "sum"),
-                    Cidade=("city", lambda x: x.mode().iloc[0] if not x.mode().empty else ""),
-                    Ultima=("collected_at", "max"),
-                ).reset_index().sort_values("Menor_kg")
+                agg_cols = {
+                    "Precos": ("raw_price", "count"),
+                    "Menor_kg": ("price_per_kg", "min"),
+                    "Medio_kg": ("price_per_kg", "mean"),
+                    "Promocoes": ("is_promotion", "sum"),
+                    "Ultima": ("collected_at", "max"),
+                }
+                if "city" in df.columns:
+                    agg_cols["Cidade"] = ("city", lambda x: x.mode().iloc[0] if not x.mode().empty else "")
+                src = df.groupby("store_name").agg(**agg_cols).reset_index().sort_values("Menor_kg")
 
                 st.markdown(f"**{len(src)} fontes** para **{selected}**")
                 src["Menor_kg"] = src["Menor_kg"].apply(lambda x: f"R$ {x:.2f}")

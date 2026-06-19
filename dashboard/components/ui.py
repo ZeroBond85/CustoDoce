@@ -47,7 +47,7 @@ def inject_css():
     --cd-danger: #EF4444;
     --cd-bg: #FFF9F5;
     --cd-bg-card: #FFFFFF;
-    --cd-bg-sidebar: linear-gradient(180deg, #F59E42 0%, #E8739A 100%);
+    --cd-bg-sidebar: linear-gradient(180deg, #B45309 0%, #BE185D 100%);
     --cd-text: #3D2C1E;
     --cd-text-secondary: #8B7355;
     --cd-border: #F0E6DB;

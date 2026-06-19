@@ -260,7 +260,7 @@ def send_scraper_error(store_name: str, error: str, to_email: Optional[str] = No
       </tr>
     </table>
     <p style="margin:16px 0 0 0;font-size:13px;color:{_BRAND['muted']};">
-      Verifique os <a href="https://github.com/user/CustoDoce/actions" style="color:{_BRAND['secondary']};">logs do GitHub Actions</a>.
+      Verifique os <a href="https://github.com/ZeroBond85/CustoDoce/actions" style="color:{_BRAND['secondary']};">logs do GitHub Actions</a>.
     </p>"""
     send_daily_report(
         report_html=body,
