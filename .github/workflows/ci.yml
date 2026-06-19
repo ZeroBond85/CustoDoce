@@ -69,7 +69,7 @@ jobs:
       - name: Validate Streamlit Cloud
         run: python scripts/validate_streamlit_cloud.py
         env:
-          STREAMLIT_APP_URL: https://custodoce.streamlit.app
+          STREAMLIT_APP_URL: https://share.streamlit.io/ZeroBond85/CustoDoce/master/~/admin/app.py
           STREAMLIT_TEST_USER: admin
           STREAMLIT_TEST_PASS: ${{ secrets.ADMIN_PASSWORD }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

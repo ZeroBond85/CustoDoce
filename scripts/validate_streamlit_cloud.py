@@ -14,7 +14,7 @@ except ImportError:
     print("Playwright not installed. Run: pip install playwright && playwright install chromium")
     sys.exit(1)
 
-APP_URL = os.environ.get("STREAMLIT_APP_URL", "https://custodoce.streamlit.app")
+APP_URL = os.environ.get("STREAMLIT_APP_URL", "https://share.streamlit.io/ZeroBond85/CustoDoce/master/~/admin/app.py")
 LOGIN_USER = os.environ.get("STREAMLIT_TEST_USER", "admin")
 LOGIN_PASS = os.environ.get("STREAMLIT_TEST_PASS", "custodoce2907")
 WRONG_PASS = "senhaerrada123"
