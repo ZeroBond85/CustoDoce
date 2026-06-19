@@ -91,20 +91,30 @@ def search_prices(
         query = query.eq("tier", tier)
     if logistics:
         query = query.eq("logistics", logistics)
-    if city:
-        query = query.eq("city", city)
+    # Apply ordering to PostgREST query ONLY if sort_by is a direct column
+    # and does NOT require client-side sorting.
+    # We know 'price_per_kg' and 'price_per_un' are within 'normalized' JSONB,
+    # so they require client-side sorting.
+    if sort_by not in ("price_per_kg", "price_per_un", "raw_price"):
+        # Apply database ordering if sort_by is a direct column
+        query = query.order(sort_by, desc=(sort_order == "desc"))
+    # If sort_by requires client-side sorting, we DON'T apply ordering here.
+    # The 'collected_at' default ordering is also removed if client-side sort is needed.
 
-    result = query.order("collected_at", desc=True).execute()
+    result = query.execute()
     data = result.data if result.data else []
     if not data:
         return []
 
-    if sort_by in ("raw_price",):
+    # Client-side sorting for price_per_kg, price_per_un, raw_price
+    if sort_by in ("raw_price", "price_per_kg", "price_per_un"):
         reverse = sort_order == "desc"
-        data.sort(key=lambda x: x.get(sort_by, 0), reverse=reverse)
-    else:
-        reverse = sort_order == "desc"
-        data.sort(key=lambda x: (x.get("normalized") or {}).get(sort_by, 0), reverse=reverse)
+        # For normalized fields, access them from the 'normalized' JSONB column
+        if sort_by in ("price_per_kg", "price_per_un"):
+            data.sort(key=lambda x: (x.get("normalized") or {}).get(sort_by, 0), reverse=reverse)
+        else: # sort_by is "raw_price"
+            data.sort(key=lambda x: x.get(sort_by, 0), reverse=reverse)
+    # else: If sort_by was not client-side sortable, it would have been ordered by DB already.
 
     return data[:limit]
 
