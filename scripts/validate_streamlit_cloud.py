@@ -177,6 +177,15 @@ def validate_app() -> ValidationResult:
             return result
         page.screenshot(path=str(SCREENSHOTS_DIR / "01_app.png"), full_page=True)
 
+        # Debug: print page content to understand what's rendered
+        try:
+            title = page.title()
+            body_text = page.locator("body").inner_text(timeout=5000)[:500]
+            print(f"   Title: {title}")
+            print(f"   Body preview: {body_text[:200]}")
+        except Exception:
+            pass
+
         # 2. Test wrong password login
         print("2. Testando login com senha errada...")
         try:
