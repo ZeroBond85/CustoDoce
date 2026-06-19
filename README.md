@@ -274,6 +274,7 @@ CustoDoce/
 - [x] **Fase 8** — Dedup & Cleanup: collected_at truncado, review dedup, cleanup_old_prices/logs/flyers, XSS sanitization
 - [x] **Fase 9** — Dashboard Insights: Fontes & Ofertas, Ranking, Insights (heatmap + outliers + melhores ofertas)
 - [x] **Fase 10** — Brand Extraction + Email/TG UX: coluna brand no DB/dashboard, templates responsivos, SMTP Gmail, Ruff config
+- [x] **Fase 11** — Correção de Constraints: UNIQUE (ingredient_id, store_id, collected_at) em prices e price_history, correção do scrape_frequencies, tratamento de erro 42P10
 
 ## Contribuindo
 

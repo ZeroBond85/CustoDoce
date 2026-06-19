@@ -323,6 +323,8 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 | Senha hardcoded removida — `os.environ.get("ADMIN_PASSWORD")` + fallback | ✅ |
 | HTML injection fix em `email_service.py` — _html.escape() | ✅ |
 | `consolidated_migration.sql` — 574 linhas, todas as tabelas + funções | ✅ |
+| **Adicionada constraint UNIQUE (ingredient_id, store_id, collected_at) em prices e price_history** | ✅ |
+| **Correção da tabela scrape_frequencies: store_id TEXT REFERENCES stores(id)** | ✅ |
 | 127 testes, ruff, bandit, pip-audit | ✅ Todos limpos |
 
 ## Fase 9 — Dashboard Insights (concluida)
@@ -353,7 +355,7 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 | SMTP migrado de Outlook → Gmail (custodoce.alertas@gmail.com) | ✅ |
 | Telegram template — mensagem consolidada com medals 🥇🥈🥉 | ✅ |
 | UX audit — 32 issues identificadas (6 críticas) | 🔍 Pendente |
-| `pyproject.toml` — Ruff config (`line-length=120`, `ignore=["E501"]`) | ✅ |
+| `pyproject.toml` — Ruff config (`line-length=120`, `ignore=["E501"]`) + per-file-ignores `"admin/app.py" = ["E402"]` | ✅ |
 | `scripts/archive/` — 6 fixes E741 + E722 | ✅ |
 | 160 testes, ruff clean, bandit/pip-audit | ✅ Todos limpos |
 
