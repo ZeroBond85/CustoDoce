@@ -321,16 +321,21 @@ class TestPriceService:
 
     @patch("services.price_service.get_supabase")
     def test_search_prices_default_order_asc(self, mock_get):
-        """Ordena por price_per_kg ASC por padrao."""
+        """Ordena por price_per_kg ASC no cliente (fallback de collected_at no server)."""
         from services.price_service import search_prices
 
         mock_client, _, qb = make_mocks()
         qb._return_data = SAMPLE_PRICES
         mock_get.return_value = mock_client
 
-        search_prices("Leite Condensado Integral")
+        result = search_prices("Leite Condensado Integral")
 
-        assert ("order", "price_per_kg", False) in qb._applied_filters
+        # server-side: ordena por collected_at DESC
+        assert ("order", "collected_at", True) in qb._applied_filters
+        # client-side: retorna ordenado por price_per_kg ASC
+        assert len(result) > 0
+        ppk = [r.get("normalized", {}).get("price_per_kg", 0) for r in result]
+        assert ppk == sorted(ppk)
 
     # ── get_latest_prices ──────────────────────────────────────
 
@@ -549,16 +554,19 @@ class TestPriceService:
 
     @patch("services.price_service.get_supabase")
     def test_get_prices_for_ingredient_default_order(self, mock_get):
-        """Ordena por price_per_kg ASC."""
+        """Ordena por price_per_kg ASC no cliente."""
         from services.price_service import get_prices_for_ingredient
 
         mock_client, _, qb = make_mocks()
         qb._return_data = SAMPLE_PRICES
         mock_get.return_value = mock_client
 
-        get_prices_for_ingredient("Leite Condensado Integral")
+        result = get_prices_for_ingredient("Leite Condensado Integral")
 
-        assert ("order", "price_per_kg", False) in qb._applied_filters
+        assert ("order", "collected_at", True) in qb._applied_filters
+        assert len(result) > 0
+        ppk = [r.get("normalized", {}).get("price_per_kg", 0) for r in result]
+        assert ppk == sorted(ppk)
 
 
 # ── main.process_price_match ───────────────────────────────────

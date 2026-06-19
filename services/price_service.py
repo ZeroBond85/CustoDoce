@@ -86,9 +86,6 @@ def search_prices(
         query = query.lte("valid_from", today)
         query = query.gte("valid_until", today)
 
-    query = query.order(sort_by, desc=(sort_order == "desc"))
-    query = query.limit(limit)
-
     if tier:
         query = query.eq("tier", tier)
     if logistics:
@@ -96,8 +93,19 @@ def search_prices(
     if city:
         query = query.eq("city", city)
 
-    result = query.execute()
-    return result.data if result.data else []
+    result = query.order("collected_at", desc=True).execute()
+    data = result.data if result.data else []
+    if not data:
+        return []
+
+    if sort_by in ("raw_price",):
+        reverse = sort_order == "desc"
+        data.sort(key=lambda x: x.get(sort_by, 0), reverse=reverse)
+    else:
+        reverse = sort_order == "desc"
+        data.sort(key=lambda x: (x.get("normalized") or {}).get(sort_by, 0), reverse=reverse)
+
+    return data[:limit]
 
 
 def get_prices_for_ingredient(ingredient_canonical: str) -> list[dict]:
