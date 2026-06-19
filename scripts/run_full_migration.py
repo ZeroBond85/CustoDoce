@@ -1,5 +1,6 @@
 """Run ALL pending migrations on Supabase production DB."""
-import psycopg2, os
+import psycopg2
+import os
 
 url = os.environ.get("SUPABASE_URL", "")
 proj = url.split("//")[1].split(".")[0]
@@ -8,7 +9,7 @@ pwd = os.environ.get("SUPABASE_DB_PASSWORD", "")
 def get_conn():
     for host, port, user in [
         (f"db.{proj}.supabase.co", 5432, "postgres"),
-        (f"aws-0-us-west-1.pooler.supabase.com", 6543, f"postgres.{proj}"),
+        ("aws-0-us-west-1.pooler.supabase.com", 6543, f"postgres.{proj}"),
     ]:
         try:
             conn = psycopg2.connect(host=host, dbname="postgres", user=user, password=pwd, port=port, connect_timeout=10)

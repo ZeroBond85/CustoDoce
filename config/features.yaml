@@ -41,3 +41,7 @@ features:
 
   export:
     csv_enabled: true
+
+  offline:
+    enabled: false
+    banner_message: "Modo Offline — os dados exibidos podem estar desatualizados ou indisponiveis."

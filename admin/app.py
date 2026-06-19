@@ -187,6 +187,8 @@ def _render_kpi_flyers(df):
             for val in df["collected_at"]:
                 if pd.notna(val):
                     dt = pd.to_datetime(val)
+                    if dt.tzinfo is not None:
+                        dt = dt.replace(tzinfo=None)
                     if dt.date() == hoje:
                         precos_hoje += 1
                     if (datetime.utcnow() - dt).days > 7:
@@ -243,7 +245,10 @@ def _render_coverage_heatmap(df):
                 ts = p.get("collected_at", "")
                 if ts:
                     try:
-                        days_ago = (datetime.utcnow() - pd.to_datetime(ts)).days
+                        dt = pd.to_datetime(ts)
+                        if dt.tzinfo is not None:
+                            dt = dt.replace(tzinfo=None)
+                        days_ago = (datetime.utcnow() - dt).days
                         row[s] = "hoje" if days_ago <= 3 else "semana" if days_ago <= 7 else "antigo"
                     except Exception:
                         row[s] = "erro"
@@ -268,6 +273,7 @@ def _render_variation_alerts(df):
     st.markdown("### Alertas de Variacao")
     alert_pct = get_config("features.alerts.price_variation_pct", 15)
     try:
+        alerts_found = False
         for ing in load_ingredients()[:6]:
             ing_name = ing["canonical"]
             ing_prices = df[df["ingredient_id"] == ing_name]
@@ -282,6 +288,7 @@ def _render_variation_alerts(df):
                 continue
             change = ((current - avg) / avg) * 100
             if abs(change) > alert_pct:
+                alerts_found = True
                 icon = "subiu" if change > 0 else "caiu"
                 color = "#EF4444" if change > 0 else "#10B981"
                 st.markdown(
@@ -291,6 +298,8 @@ def _render_variation_alerts(df):
                     f"</div>",
                     unsafe_allow_html=True,
                 )
+        if not alerts_found:
+            st.caption("Nenhuma variacao significativa detectada (limite: ±{:.0f}%).".format(alert_pct))
     except Exception as e:
         st.caption(f"Alertas indisponiveis: {e}")
 
@@ -2788,6 +2797,13 @@ def main():
     plotly_theme()
     inject_css()
     render_sidebar()
+
+    if get_config("features.offline.enabled", False):
+        msg = get_config("features.offline.banner_message", "Modo Offline")
+        st.warning(msg, icon="⚠️")
+        st.session_state.offline_mode = True
+    else:
+        st.session_state.offline_mode = False
 
     page = st.session_state.get("page", "visao_geral")
     handler = PAGE_HANDLERS.get(page)

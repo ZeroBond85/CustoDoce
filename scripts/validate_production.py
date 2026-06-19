@@ -1,5 +1,8 @@
 """Comprehensive production validation — no browser needed."""
-import psycopg2, os, httpx, json, sys
+import psycopg2
+import os
+import httpx
+import sys
 
 url = os.environ.get("SUPABASE_URL", "")
 proj = url.split("//")[1].split(".")[0]
@@ -11,7 +14,7 @@ def db():
         return None
     for host, port, user in [
         (f"db.{proj}.supabase.co", 5432, "postgres"),
-        (f"aws-0-us-west-1.pooler.supabase.com", 6543, f"postgres.{proj}"),
+        ("aws-0-us-west-1.pooler.supabase.com", 6543, f"postgres.{proj}"),
     ]:
         try:
             conn = psycopg2.connect(host=host, dbname="postgres", user=user, password=pwd, port=port, connect_timeout=10)
