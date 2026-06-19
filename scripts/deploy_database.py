@@ -12,6 +12,7 @@ Usage:
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -59,9 +60,24 @@ def generate_consolidated() -> str:
                 filtered.append("-- SKIPPED: stores table already exists from seed.sql")
                 skip_until_empty = True
                 continue
-            # Skip CREATE TABLE IF NOT EXISTS scrape_frequencies (FK to stores UUID)
+            # Skip CREATE TABLE scrape_frequencies (UUID PK → TEXT PK mismatch)
+            # and insert the corrected CREATE TABLE so later Phase 3 refs work
             if "create table if not exists scrape_frequencies" in s:
-                filtered.append("-- SKIPPED: scrape_frequencies depends on stores UUID PK")
+                filtered.append("-- REPLACED: scrape_frequencies with TEXT PK (original used UUID)")
+                filtered.append(
+                    "CREATE TABLE IF NOT EXISTS scrape_frequencies ("
+                    "id UUID PRIMARY KEY DEFAULT gen_random_uuid(),"
+                    "store_id TEXT REFERENCES stores(id) ON DELETE CASCADE,"
+                    "tier INT,"
+                    "frequency_minutes INT DEFAULT 1440,"
+                    "max_retries INT DEFAULT 2,"
+                    "timeout_seconds INT DEFAULT 30,"
+                    "rate_limit_per_minute INT DEFAULT 10,"
+                    "enabled BOOLEAN DEFAULT TRUE,"
+                    "created_at TIMESTAMPTZ DEFAULT NOW(),"
+                    "updated_at TIMESTAMPTZ DEFAULT NOW()"
+                    ");"
+                )
                 skip_until_empty = True
                 continue
             # End skip when we hit a DDL statement or empty line
@@ -161,6 +177,75 @@ ALTER TABLE price_history ADD COLUMN IF NOT EXISTS brand TEXT DEFAULT '';
 ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS brand TEXT DEFAULT '';
 """)
 
+    gen.append("""
+-- ============================================================
+-- PHASE 7: Ensure UNIQUE constraint on prices + price_history
+-- (Fix 42P10 error when approving review queue items)
+-- ============================================================
+-- Remove exact duplicates before adding constraint (keep 1 row per exact match)
+DELETE FROM prices p1 USING (
+    SELECT ingredient_id, store_id, collected_at, MIN(ctid) AS keep_ctid
+    FROM prices
+    GROUP BY ingredient_id, store_id, collected_at
+    HAVING COUNT(*) > 1
+) p2
+WHERE p1.ingredient_id = p2.ingredient_id
+  AND p1.store_id = p2.store_id
+  AND p1.collected_at = p2.collected_at
+  AND p1.ctid <> p2.keep_ctid;
+
+DELETE FROM price_history ph1 USING (
+    SELECT ingredient_id, store_id, collected_at, MIN(ctid) AS keep_ctid
+    FROM price_history
+    GROUP BY ingredient_id, store_id, collected_at
+    HAVING COUNT(*) > 1
+) ph2
+WHERE ph1.ingredient_id = ph2.ingredient_id
+  AND ph1.store_id = ph2.store_id
+  AND ph1.collected_at = ph2.collected_at
+  AND ph1.ctid <> ph2.keep_ctid;
+
+-- Drop the old 2-column constraint if it still exists
+ALTER TABLE prices DROP CONSTRAINT IF EXISTS prices_ingredient_id_store_id_key;
+ALTER TABLE price_history DROP CONSTRAINT IF EXISTS price_history_ingredient_id_store_id_key;
+
+-- Add the 3-column constraint (safe: skip if already exists)
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'prices'::regclass
+        AND conname = 'prices_ingredient_id_store_id_collected_at_key'
+    ) THEN
+        ALTER TABLE prices
+        ADD CONSTRAINT prices_ingredient_id_store_id_collected_at_key
+        UNIQUE (ingredient_id, store_id, collected_at);
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'price_history'::regclass
+        AND conname = 'price_history_ingredient_id_store_id_collected_at_key'
+    ) THEN
+        ALTER TABLE price_history
+        ADD CONSTRAINT price_history_ingredient_id_store_id_collected_at_key
+        UNIQUE (ingredient_id, store_id, collected_at);
+    END IF;
+END $$;
+
+-- ============================================================
+-- PHASE 8: scrape_frequencies indexes + RLS (table already created in Phase 3)
+-- ============================================================
+CREATE INDEX IF NOT EXISTS idx_scrape_freq_store ON scrape_frequencies(store_id);
+CREATE INDEX IF NOT EXISTS idx_scrape_freq_tier ON scrape_frequencies(tier);
+CREATE INDEX IF NOT EXISTS idx_scrape_freq_enabled ON scrape_frequencies(enabled);
+
+ALTER TABLE scrape_frequencies ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all" ON scrape_frequencies FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "anon_read" ON scrape_frequencies FOR SELECT USING (true);
+""")
+
     gen.append("\n-- ============================================================")
     gen.append("-- Migration complete. Verify with:")
     gen.append("--   SELECT table_name FROM information_schema.tables")
@@ -168,6 +253,72 @@ ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS brand TEXT DEFAULT '';
     gen.append("-- ============================================================")
 
     return "\n".join(gen)
+
+
+def _split_sql_statements(sql: str) -> list[str]:
+    """Split SQL by ; respecting dollar-quote $$ ... $$ blocks and string literals."""
+    stmts = []
+    current = []
+    in_dollar = False
+    in_line_comment = False
+    in_block_comment = False
+    i = 0
+    while i < len(sql):
+        c = sql[i]
+
+        # Line comment --
+        if not in_dollar and not in_block_comment and c == '-' and i + 1 < len(sql) and sql[i + 1] == '-':
+            in_line_comment = True
+            current.append(c)
+            i += 1
+            continue
+
+        if in_line_comment:
+            if c == '\n':
+                in_line_comment = False
+            current.append(c)
+            i += 1
+            continue
+
+        # Block comment /* */
+        if not in_dollar and c == '/' and i + 1 < len(sql) and sql[i + 1] == '*':
+            in_block_comment = True
+            current.append(c)
+            i += 1
+            continue
+
+        if in_block_comment:
+            if c == '*' and i + 1 < len(sql) and sql[i + 1] == '/':
+                in_block_comment = False
+            current.append(c)
+            i += 1
+            continue
+
+        # Dollar quote start/end (PL/pgSQL $$)
+        if c == '$' and i + 1 < len(sql) and sql[i + 1] == '$':
+            in_dollar = not in_dollar
+            current.append(c)
+            i += 1
+            continue
+
+        # Semicolon separator (only at top level)
+        if c == ';' and not in_dollar and not in_block_comment:
+            stmt = ''.join(current).strip()
+            if stmt:
+                stmts.append(stmt)
+            current = []
+            i += 1
+            continue
+
+        current.append(c)
+        i += 1
+
+    # Last statement
+    stmt = ''.join(current).strip()
+    if stmt:
+        stmts.append(stmt)
+
+    return stmts
 
 
 def main():
@@ -210,11 +361,16 @@ def main():
             print(f"ERROR: Cannot connect to Supabase DB: {e}")
             sys.exit(1)
 
-        # Split into statements and execute each one
+        # Split SQL respecting $$ blocks
+        statements = _split_sql_statements(sql)
         ok, fail = 0, 0
-        for stmt in sql.split(";"):
+        for stmt in statements:
             stmt = stmt.strip()
-            if not stmt or stmt.startswith("--"):
+            # Skip only pure-comment statements (allow comments + SQL combined)
+            if not stmt:
+                continue
+            lines = stmt.split("\n")
+            if all(l.strip().startswith("--") for l in lines if l.strip()):
                 continue
             try:
                 cur.execute(stmt + ";")

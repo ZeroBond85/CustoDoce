@@ -746,8 +746,25 @@ def tab_revisao():
                                 f"custom_ingredient_{item_id}", ""
                             )
                         if chosen:
-                            approve_review_item(item_id, chosen)
-                            st.rerun()
+                            try:
+                                approve_review_item(item_id, chosen)
+                                st.rerun()
+                            except Exception as e:
+                                err_msg = str(e)
+                                st.error(f"Erro ao aprovar: {err_msg}")
+
+                                # Se for erro de constraint (42P10), mostrar instrucao
+                                if "42P10" in err_msg:
+                                    st.caption(
+                                        "A constraint UNIQUE esta faltando no banco. "
+                                        "Execute no SQL Editor do Supabase:"
+                                    )
+                                    st.code(
+                                        "ALTER TABLE prices "
+                                        "ADD CONSTRAINT prices_ingredient_id_store_id_collected_at_key "
+                                        "UNIQUE (ingredient_id, store_id, collected_at);",
+                                        language="sql",
+                                    )
                         else:
                             st.warning("Selecione um ingrediente antes de aprovar.")
                 with cols[3]:

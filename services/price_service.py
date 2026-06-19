@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, date, timedelta
 from typing import Optional
 
@@ -207,8 +208,15 @@ def approve_review_item(item_id: str, ingredient_id: str) -> dict:
         "validity_raw": item.data.get("validity_raw", ""),
         "tier": 2,
         "confidence": float(item.data.get("confidence", 0.8)),
+        "brand": item.data.get("brand", ""),
+        "city": item.data.get("city", ""),
+        "logistics": "pickup_local",
     }
-    upsert_price(price_entry)
+    try:
+        upsert_price(price_entry)
+    except Exception as e:
+        logging.getLogger(__name__).error("approve_review_item upsert failed: %s", e)
+        raise
 
     return result.data[0] if result.data else {}
 

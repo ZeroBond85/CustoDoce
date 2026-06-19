@@ -399,15 +399,14 @@ create trigger trg_schedules_updated_at
 -- ============================================================
 -- SCRAPE FREQUENCIES (per store/tier config)
 -- ============================================================
--- SKIPPED: scrape_frequencies depends on stores UUID PK
-create index if not exists idx_scrape_freq_store on scrape_frequencies(store_id);
-create index if not exists idx_scrape_freq_tier on scrape_frequencies(tier);
-create index if not exists idx_scrape_freq_enabled on scrape_frequencies(enabled);
-
-drop trigger if exists trg_scrape_freq_updated_at on scrape_frequencies;
-create trigger trg_scrape_freq_updated_at
-    before update on scrape_frequencies
-    for each row execute function update_updated_at_column();
+-- SKIPPED: scrape_frequencies table + indexes + trigger recreated in Phase 8
+-- SKIPPED: create index if not exists idx_scrape_freq_store on scrape_frequencies(store_id);
+-- SKIPPED: create index if not exists idx_scrape_freq_tier on scrape_frequencies(tier);
+-- SKIPPED: create index if not exists idx_scrape_freq_enabled on scrape_frequencies(enabled);
+-- SKIPPED: drop trigger if exists trg_scrape_freq_updated_at on scrape_frequencies;
+-- SKIPPED: create trigger trg_scrape_freq_updated_at
+-- SKIPPED:     before update on scrape_frequencies
+-- SKIPPED:     for each row execute function update_updated_at_column();
 
 -- ============================================================
 -- ALERT RECIPIENTS (email, telegram, whatsapp)
@@ -484,7 +483,8 @@ create trigger trg_feature_flags_updated_at
 alter table ingredients enable row level security;
 alter table stores enable row level security;
 alter table schedules enable row level security;
-alter table scrape_frequencies enable row level security;
+-- SKIPPED: scrape_frequencies RLS + policies recreated in Phase 8
+-- SKIPPED: alter table scrape_frequencies enable row level security;
 alter table alert_recipients enable row level security;
 alter table alert_rules enable row level security;
 alter table feature_flags enable row level security;
@@ -493,7 +493,7 @@ alter table feature_flags enable row level security;
 create policy "service_role_all" on ingredients for all using (auth.role() = 'service_role');
 create policy "service_role_all" on stores for all using (auth.role() = 'service_role');
 create policy "service_role_all" on schedules for all using (auth.role() = 'service_role');
-create policy "service_role_all" on scrape_frequencies for all using (auth.role() = 'service_role');
+-- SKIPPED: create policy "service_role_all" on scrape_frequencies for all using (auth.role() = 'service_role');
 create policy "service_role_all" on alert_recipients for all using (auth.role() = 'service_role');
 create policy "service_role_all" on alert_rules for all using (auth.role() = 'service_role');
 create policy "service_role_all" on feature_flags for all using (auth.role() = 'service_role');
@@ -502,7 +502,7 @@ create policy "service_role_all" on feature_flags for all using (auth.role() = '
 create policy "anon_read" on ingredients for select using (true);
 create policy "anon_read" on stores for select using (true);
 create policy "anon_read" on schedules for select using (true);
-create policy "anon_read" on scrape_frequencies for select using (true);
+-- SKIPPED: create policy "anon_read" on scrape_frequencies for select using (true);
 create policy "anon_read" on alert_recipients for select using (true);
 create policy "anon_read" on alert_rules for select using (true);
 create policy "anon_read" on feature_flags for select using (true);
@@ -590,6 +590,86 @@ BEGIN
     DELETE FROM flyers WHERE ocr_status = 'failed' AND collected_at < now() - (retention_days || ' days')::interval;
 END;
 $$;
+
+-- ============================================================
+-- PHASE 7: Ensure UNIQUE constraint on prices + price_history
+-- (Fix 42P10 error when approving review queue items)
+-- ============================================================
+-- Remove exact duplicates before adding constraint (keep 1 row per exact match)
+DELETE FROM prices p1 USING (
+    SELECT ingredient_id, store_id, collected_at, MIN(ctid) AS keep_ctid
+    FROM prices
+    GROUP BY ingredient_id, store_id, collected_at
+    HAVING COUNT(*) > 1
+) p2
+WHERE p1.ingredient_id = p2.ingredient_id
+  AND p1.store_id = p2.store_id
+  AND p1.collected_at = p2.collected_at
+  AND p1.ctid <> p2.keep_ctid;
+
+DELETE FROM price_history ph1 USING (
+    SELECT ingredient_id, store_id, collected_at, MIN(ctid) AS keep_ctid
+    FROM price_history
+    GROUP BY ingredient_id, store_id, collected_at
+    HAVING COUNT(*) > 1
+) ph2
+WHERE ph1.ingredient_id = ph2.ingredient_id
+  AND ph1.store_id = ph2.store_id
+  AND ph1.collected_at = ph2.collected_at
+  AND ph1.ctid <> ph2.keep_ctid;
+
+-- Drop the old 2-column constraint if it still exists
+ALTER TABLE prices DROP CONSTRAINT IF EXISTS prices_ingredient_id_store_id_key;
+ALTER TABLE price_history DROP CONSTRAINT IF EXISTS price_history_ingredient_id_store_id_key;
+
+-- Add the 3-column constraint (safe: skip if already exists)
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'prices'::regclass
+        AND conname = 'prices_ingredient_id_store_id_collected_at_key'
+    ) THEN
+        ALTER TABLE prices
+        ADD CONSTRAINT prices_ingredient_id_store_id_collected_at_key
+        UNIQUE (ingredient_id, store_id, collected_at);
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'price_history'::regclass
+        AND conname = 'price_history_ingredient_id_store_id_collected_at_key'
+    ) THEN
+        ALTER TABLE price_history
+        ADD CONSTRAINT price_history_ingredient_id_store_id_collected_at_key
+        UNIQUE (ingredient_id, store_id, collected_at);
+    END IF;
+END $$;
+
+-- ============================================================
+-- PHASE 8: Create scrape_frequencies table (was skipped due to UUID mismatch)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS scrape_frequencies (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    store_id TEXT REFERENCES stores(id) ON DELETE CASCADE,
+    tier INT,
+    frequency_minutes INT DEFAULT 1440,
+    max_retries INT DEFAULT 2,
+    timeout_seconds INT DEFAULT 30,
+    rate_limit_per_minute INT DEFAULT 10,
+    enabled BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_scrape_freq_store ON scrape_frequencies(store_id);
+CREATE INDEX IF NOT EXISTS idx_scrape_freq_tier ON scrape_frequencies(tier);
+CREATE INDEX IF NOT EXISTS idx_scrape_freq_enabled ON scrape_frequencies(enabled);
+
+ALTER TABLE scrape_frequencies ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all" ON scrape_frequencies FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "anon_read" ON scrape_frequencies FOR SELECT USING (true);
 
 -- ============================================================
 -- Migration complete. Verify with:

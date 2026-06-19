@@ -6,6 +6,9 @@ target-version = "py39"
 select = ["F", "E", "W"]
 ignore = ["E501"]
 
+[tool.ruff.lint.per-file-ignores]
+"admin/app.py" = ["E402"]
+
 [tool.mypy]
 python_version = "3.11"
 ignore_missing_imports = true
