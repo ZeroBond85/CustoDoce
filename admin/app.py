@@ -734,6 +734,9 @@ def tab_revisao():
                     st.caption(
                         f"{extra}Loja: {store_name} | Confianca: {confidence * 100:.0f}%"
                     )
+                    st.caption(
+                        "ℹ️ Revisão necessária: a confiança é inferior a 80%."
+                    )
                 with cols[1]:
                     st.markdown(f"R$ {float(raw_price):.2f} {raw_unit}")
                 with cols[2]:
