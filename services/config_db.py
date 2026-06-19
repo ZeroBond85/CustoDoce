@@ -51,6 +51,20 @@ def delete_ingredient(ingredient_id: str) -> bool:
     return bool(result.data)
 
 
+def add_alias_to_ingredient(ingredient_id: str, new_alias: str) -> Optional[dict]:
+    client = get_service_client()
+    ingredient = get_ingredient_by_id(ingredient_id)
+    if not ingredient:
+        return None
+
+    aliases = ingredient.get("aliases", [])
+    if new_alias not in aliases:
+        aliases.append(new_alias)
+        ingredient["aliases"] = aliases
+        return upsert_ingredient(ingredient)
+    return ingredient # Return the existing ingredient if alias already present
+
+
 # ============================================================
 # STORES
 # ============================================================

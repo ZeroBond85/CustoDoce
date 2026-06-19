@@ -3,6 +3,7 @@ from datetime import datetime, date, timedelta
 from typing import Optional
 
 from services.supabase_client import get_supabase, get_service_client
+from services.config_db import add_alias_to_ingredient
 
 
 def _weekday_pt(dt: datetime) -> str:
@@ -224,12 +225,14 @@ def approve_review_item(item_id: str, ingredient_id: str) -> dict:
     }
     try:
         upsert_price(price_entry)
+        # Add the raw_product as an alias to the ingredient for future exact matches
+        if ingredient_id and price_entry.get('raw_product'):
+            add_alias_to_ingredient(ingredient_id, price_entry['raw_product'])
     except Exception as e:
         logging.getLogger(__name__).error("approve_review_item upsert failed: %s", e)
         raise
 
     return result.data[0] if result.data else {}
-
 
 def reject_review_item(item_id: str) -> dict:
     client = get_service_client()
