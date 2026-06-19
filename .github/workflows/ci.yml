@@ -9,6 +9,7 @@ on:
 
 env:
   PYTHON_VERSION: '3.11'
+  PYTHONUNBUFFERED: '1'
 
 jobs:
   test:
@@ -36,7 +37,7 @@ jobs:
         run: bandit -r admin/ dashboard/ services/ -x tests/
 
       - name: Pytest
-        run: python -m pytest tests/ -v --tb=short
+        run: python -m pytest tests/ --tb=short --no-header -q
 
       - name: pip-audit
         run: pip-audit --strict --ignore-vuln PIP-1
