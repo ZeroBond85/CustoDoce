@@ -518,7 +518,7 @@ def tab_historico():
             return
 
         df = pd.DataFrame(history)
-        df["collected_at"] = pd.to_datetime(df["collected_at"])
+        df["collected_at"] = pd.to_datetime(df["collected_at"], utc=True)
         df = df.sort_values("collected_at")
 
         df["price_per_kg"] = df["normalized"].apply(_format_kg)
@@ -610,7 +610,7 @@ def tab_flyers():
             return
 
         df = pd.DataFrame(flyers)
-        df["collected_at"] = pd.to_datetime(df["collected_at"])
+        df["collected_at"] = pd.to_datetime(df["collected_at"], utc=True)
 
         total = len(df)
         processed = len(df[df["ocr_status"].isin(["done", "processed"])]) if "ocr_status" in df.columns else 0
@@ -2505,7 +2505,7 @@ def tab_ranking():
                 info_box(f"Sem historico para '{selected}' no periodo", "info")
                 return
             df = pd.DataFrame(history)
-            df["collected_at"] = pd.to_datetime(df["collected_at"])
+            df["collected_at"] = pd.to_datetime(df["collected_at"], utc=True)
             df["price_per_kg"] = df["normalized"].apply(_format_kg)
             df = df[df["price_per_kg"] > 0].copy()
 
