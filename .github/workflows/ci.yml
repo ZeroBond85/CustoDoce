@@ -43,6 +43,14 @@ jobs:
         run: pip-audit --strict --ignore-vuln PIP-1
         continue-on-error: true
 
+      - name: Production validation
+        run: python scripts/validate_production.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
   streamlit-validate:
     runs-on: ubuntu-latest
     timeout-minutes: 15

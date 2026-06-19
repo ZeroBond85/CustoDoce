@@ -4,3 +4,4 @@ bandit>=1.8
 pip-audit>=2.9
 radon>=6.0
 pytest>=9.1
+psycopg2-binary>=2.9
