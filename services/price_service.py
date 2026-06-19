@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import Optional
 
 from services.supabase_client import get_supabase, get_service_client
@@ -125,7 +125,8 @@ def get_price_history(ingredient_canonical: str, days: int = 30, valid_only: boo
         today = date.today().isoformat()
         query = query.lte("valid_from", today).gte("valid_until", today)
 
-    result = query.gte("collected_at", f"now() - interval '{days} days'").order("collected_at", desc=True).execute()
+    cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+    result = query.gte("collected_at", cutoff).order("collected_at", desc=True).execute()
     return result.data if result.data else []
 
 

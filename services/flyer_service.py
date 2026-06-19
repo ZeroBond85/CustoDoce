@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from services.supabase_client import get_supabase, get_service_client
@@ -67,8 +67,9 @@ def cleanup_old_flyers(retention_days: int = 60) -> dict:
 
 def get_recent_flyers(days: int = 7, source: Optional[str] = None) -> list[dict]:
     client = get_supabase()
+    cutoff = (datetime.now() - timedelta(days=days)).isoformat()
     query = client.table("flyers").select("*") \
-        .gte("collected_at", f"now() - interval '{days} days'") \
+        .gte("collected_at", cutoff) \
         .order("collected_at", desc=True)
     if source:
         query = query.eq("source", source)
