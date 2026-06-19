@@ -190,39 +190,44 @@ def main():
 
     if args.execute:
         print("Executing migrations on Supabase...")
+        import psycopg2
+        url = os.environ.get("SUPABASE_URL", "")
+        if not url:
+            print("ERROR: SUPABASE_URL not set")
+            sys.exit(1)
+        proj = url.split("//")[1].split(".")[0]
+        pwd = os.environ.get("SUPABASE_DB_PASSWORD", "")
+        if not pwd:
+            print("ERROR: SUPABASE_DB_PASSWORD not set (use .env)")
+            sys.exit(1)
         try:
-            from services.supabase_client import get_service_client
-            client = get_service_client()
+            conn = psycopg2.connect(
+                host=f"db.{proj}.supabase.co", dbname="postgres",
+                user="postgres", password=pwd, port=5432, connect_timeout=10
+            )
+            cur = conn.cursor()
         except Exception as e:
-            print(f"ERROR: Cannot connect to Supabase: {e}")
-            print("Make sure SUPABASE_URL and SUPABASE_SERVICE_KEY are set in .env")
+            print(f"ERROR: Cannot connect to Supabase DB: {e}")
             sys.exit(1)
 
         # Split into statements and execute each one
-        statements = []
-        current = []
-        for line in sql.split("\n"):
-            current.append(line)
-            if line.strip().endswith(";"):
-                statements.append("\n".join(current))
-                current = []
-        if current:
-            stmt = "\n".join(current).strip()
-            if stmt and not stmt.startswith("--"):
-                statements.append(stmt)
-
         ok, fail = 0, 0
-        for stmt in statements:
-            if not stmt.strip() or stmt.strip().startswith("--"):
+        for stmt in sql.split(";"):
+            stmt = stmt.strip()
+            if not stmt or stmt.startswith("--"):
                 continue
             try:
-                client.postgrest.rpc("exec_sql", {"sql": stmt.strip()}).execute()
+                cur.execute(stmt + ";")
+                conn.commit()
                 ok += 1
             except Exception as e:
+                conn.rollback()
                 err = str(e)[:120]
                 print(f"  WARN: {err}")
                 fail += 1
 
+        cur.close()
+        conn.close()
         print(f"\nMigration complete: {ok} OK, {fail} WARN")
         print(f"Expected tables: {total_tables}")
         print("Verify in Supabase Dashboard > Database > Tables")
