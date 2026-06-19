@@ -1,4 +1,5 @@
 import html
+import logging
 import os
 import sys
 from datetime import datetime
@@ -9,6 +10,8 @@ import plotly.express as px
 import streamlit as st
 import yaml
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from services.auth import (
@@ -243,15 +246,16 @@ def _render_coverage_heatmap(df):
                 if s not in row:
                     continue
                 ts = p.get("collected_at", "")
-                if ts:
+                if pd.notna(ts):
                     try:
                         dt = pd.to_datetime(ts)
                         if dt.tzinfo is not None:
                             dt = dt.replace(tzinfo=None)
                         days_ago = (datetime.utcnow() - dt).days
                         row[s] = "hoje" if days_ago <= 3 else "semana" if days_ago <= 7 else "antigo"
-                    except Exception:
-                        row[s] = "erro"
+                    except Exception as e:
+                        row[s] = f"erro: {e}"
+                        logger.warning("Coverage heatmap: ts=%s err=%s", ts, e)
             matrix.append(row)
         df_heat = pd.DataFrame(matrix)
 
@@ -262,6 +266,8 @@ def _render_coverage_heatmap(df):
                 return "background:#FEF3C7;color:#92400E;font-weight:700;"
             if val == "antigo":
                 return "background:#FEE2E2;color:#991B1B;font-weight:700;"
+            if isinstance(val, str) and val.startswith("erro"):
+                return "background:#FEE2E2;color:#DC2626;font-weight:700;"
             return "background:#F3F4F6;color:#9CA3AF;"
 
         st.dataframe(df_heat.style.map(color_cell), use_container_width=True, hide_index=True)
