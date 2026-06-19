@@ -51,9 +51,9 @@ def delete_ingredient(ingredient_id: str) -> bool:
     return bool(result.data)
 
 
-def add_alias_to_ingredient(ingredient_id: str, new_alias: str) -> Optional[dict]:
+def add_alias_to_ingredient(canonical_name: str, new_alias: str) -> Optional[dict]:
     client = get_service_client()
-    ingredient = get_ingredient_by_id(ingredient_id)
+    ingredient = get_ingredient_by_name(canonical_name)
     if not ingredient:
         return None
 
