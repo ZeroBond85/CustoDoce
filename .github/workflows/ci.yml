@@ -37,7 +37,7 @@ jobs:
         run: bandit -r admin/ dashboard/ services/ -x tests/
 
       - name: Pytest
-        run: python -m pytest tests/ --tb=short --no-header -q
+        run: python -m pytest tests/ --tb=short --no-header -q --capture=no
 
       - name: pip-audit
         run: pip-audit --strict --ignore-vuln PIP-1
