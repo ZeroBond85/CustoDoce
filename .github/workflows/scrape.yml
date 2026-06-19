@@ -90,11 +90,13 @@ jobs:
 
       - name: Commit Latest Prices
         run: |
+          mkdir -p data/cache
           git config user.name "custodoce-bot"
           git config user.email "bot@custodoce.com.br"
           git add data/prices_latest.json data/cache/
           git diff --staged --quiet || git commit -m "📊 Update prices $(date +'%Y-%m-%d %H:%M')"
           git push
+        continue-on-error: true
 
       - name: Monthly History Archive (1st of month)
         if: github.event_name == 'schedule' && github.event.schedule == '0 12 1 * *'
@@ -113,3 +115,4 @@ jobs:
 
       - name: Send Daily Email Report
         run: python scripts/send_daily_report.py
+        continue-on-error: true
