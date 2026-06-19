@@ -5,3 +5,32 @@ target-version = "py39"
 [tool.ruff.lint]
 select = ["F", "E", "W"]
 ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+explicit_package_bases = true
+exclude = [
+    "scripts/archive/",
+    "tests/",
+    "scripts/",        # utility scripts, not core
+    "scrapers/",       # network-dependent, many stub issues
+    "telegram_bot/",   # python-telegram-bot stubs incomplete
+]
+warn_unused_ignores = false
+check_untyped_defs = false
+disallow_any_unimported = false
+disallow_subclassing_any = false
+
+[[tool.mypy.overrides]]
+module = [
+    "supabase.*",
+    "postgrest.*",
+    "streamlit.*",
+    "plotly.*",
+    "pandas.*",
+    "pdfplumber.*",
+    "pytesseract.*",
+    "playwright.*",
+]
+ignore_missing_imports = true

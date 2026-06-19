@@ -43,6 +43,10 @@ jobs:
         run: pip-audit --strict --ignore-vuln PIP-1
         continue-on-error: true
 
+      - name: mypy type check
+        run: pip install types-PyYAML types-psycopg2 types-openpyxl && mypy . --ignore-missing-imports --explicit-package-bases --exclude='tests/' --exclude='scripts/archive/' | tail -5
+        continue-on-error: true
+
       - name: Production validation
         run: python scripts/validate_production.py
         env:
