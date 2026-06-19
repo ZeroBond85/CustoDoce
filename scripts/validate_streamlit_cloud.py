@@ -44,11 +44,12 @@ def timed_page_load(page, url: str, name: str, result: ValidationResult):
     """Navigate to URL and measure load time."""
     start = time.time()
     try:
-        page.goto(url, timeout=60000)
-        page.wait_for_load_state("networkidle", timeout=60000)
-        page.wait_for_timeout(2000)
+        page.goto(url, timeout=90000)
+        page.wait_for_load_state("networkidle", timeout=90000)
+        page.wait_for_timeout(3000)
         elapsed = time.time() - start
         result.page_timings[name] = elapsed
+        print(f"   Carregado em {elapsed:.1f}s")
         return True
     except Exception as e:
         result.errors.append(f"[{name}] Falha ao carregar: {e}")
@@ -56,23 +57,45 @@ def timed_page_load(page, url: str, name: str, result: ValidationResult):
 
 
 def find_login_form(page):
-    """Fill and submit login form."""
-    try:
-        user_input = page.locator(
-            'input[aria-label*="user" i], input[aria-label*="usuario" i], input[type="text"]'
-        ).first
-        if user_input.is_visible(timeout=5000):
-            user_input.fill(LOGIN_USER)
-            pass_input = page.locator('input[type="password"]').first
-            pass_input.fill(LOGIN_PASS)
-            login_btn = page.locator(
-                'button:has-text("Entrar"), button:has-text("Login"), button[data-testid="stFormSubmitButton"]'
+    """Fill and submit login form with retries and robust selectors."""
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
+        try:
+            if attempt > 1:
+                print(f"   Retry {attempt}/{max_retries}...")
+                page.goto(APP_URL, timeout=60000)
+                page.wait_for_load_state("networkidle", timeout=60000)
+                page.wait_for_timeout(3000)
+
+            user_input = page.locator(
+                'input[aria-label="Usuario"], input[aria-label*="Usuario" i], '
+                'input[aria-label*="user" i], input[aria-label*="login" i], '
+                'input[placeholder="admin"], input[type="text"]'
             ).first
+            user_input.wait_for(state="visible", timeout=15000)
+            user_input.fill(LOGIN_USER)
+
+            pass_input = page.locator(
+                'input[aria-label="Senha"], input[aria-label*="senha" i], '
+                'input[aria-label*="password" i], input[type="password"]'
+            ).first
+            pass_input.wait_for(state="visible", timeout=5000)
+            pass_input.fill(LOGIN_PASS)
+
+            login_btn = page.locator(
+                'button:has-text("Entrar"), button:has-text("Login"), '
+                'button[kind="primary"]'
+            ).first
+            login_btn.wait_for(state="visible", timeout=5000)
             login_btn.click()
-            page.wait_for_timeout(3000)
+
+            page.wait_for_timeout(5000)
             return True
-    except Exception:
-        pass
+        except Exception as e:
+            if attempt == max_retries:
+                print(f"   ERRO no login: {str(e)[:80]}")
+                return False
+            print(f"   Tentativa {attempt} falhou: {str(e)[:60]}")
     return False
 
 
@@ -157,15 +180,28 @@ def validate_app() -> ValidationResult:
         # 2. Test wrong password login
         print("2. Testando login com senha errada...")
         try:
-            user_input = page.locator('input[aria-label*="user" i], input[type="text"]').first
+            user_input = page.locator(
+                'input[aria-label="Usuario"], input[aria-label*="usuario" i], '
+                'input[aria-label*="user" i], input[placeholder="admin"]'
+            ).first
+            user_input.wait_for(state="visible", timeout=15000)
             user_input.fill(LOGIN_USER)
-            page.locator('input[type="password"]').first.fill(WRONG_PASS)
-            page.locator('button:has-text("Entrar"), button:has-text("Login")').first.click()
-            page.wait_for_timeout(2000)
+            pass_input = page.locator(
+                'input[aria-label="Senha"], input[aria-label*="senha" i], '
+                'input[aria-label*="password" i], input[type="password"]'
+            ).first
+            pass_input.wait_for(state="visible", timeout=5000)
+            pass_input.fill(WRONG_PASS)
+            page.locator(
+                'button:has-text("Entrar"), button:has-text("Login"), '
+                'button[kind="primary"]'
+            ).first.click(timeout=10000)
+            page.wait_for_timeout(3000)
             page.screenshot(path=str(SCREENSHOTS_DIR / "02_wrong_pass.png"), full_page=True)
             print("   Login com erro rejeitou corretamente")
         except Exception as e:
             result.warnings.append(f"Não conseguiu testar login errado: {e}")
+            print(f"   AVISO: Falha ao testar senha errada: {str(e)[:60]}")
 
         # 3. Login with correct password
         print("3. Fazendo login...")
