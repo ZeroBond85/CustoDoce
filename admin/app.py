@@ -446,9 +446,9 @@ def tab_precos():
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        sort_by = st.selectbox(
-            "Ordenar por", ["price_per_kg", "price_per_un", "raw_price"]
-        )
+        sort_options = {"R$/kg": "price_per_kg", "R$/un": "price_per_un", "Preço bruto": "raw_price"}
+        sort_label = st.selectbox("Ordenar por", list(sort_options.keys()))
+        sort_by = sort_options[sort_label]
     with col2:
         sort_order = st.selectbox("Ordem", ["Crescente", "Decrescente"])
     with col3:
