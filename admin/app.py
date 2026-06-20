@@ -341,6 +341,29 @@ def _render_coverage_heatmap(df):
                 return "background:#FEE2E2;color:#DC2626;font-weight:700;"
             return "background:#F3F4F6;color:#9CA3AF;"
 
+        # Legenda
+        st.markdown(
+            '<div style="display:flex;gap:1rem;margin-bottom:0.5rem;font-size:0.85rem;">'
+            '<span style="display:flex;align-items:center;gap:0.3rem;">'
+            '<span style="width:14px;height:14px;background:#D1FAE5;border:1px solid #A7F3D0;border-radius:3px;"></span>'
+            '<strong style="color:#065F46;">hoje</strong> <span style="color:#6B7280;">(≤3 dias)</span>'
+            '</span>'
+            '<span style="display:flex;align-items:center;gap:0.3rem;">'
+            '<span style="width:14px;height:14px;background:#FEF3C7;border:1px solid #FDE68A;border-radius:3px;"></span>'
+            '<strong style="color:#92400E;">semana</strong> <span style="color:#6B7280;">(4–7 dias)</span>'
+            '</span>'
+            '<span style="display:flex;align-items:center;gap:0.3rem;">'
+            '<span style="width:14px;height:14px;background:#FEE2E2;border:1px solid #FECACA;border-radius:3px;"></span>'
+            '<strong style="color:#991B1B;">antigo</strong> <span style="color:#6B7280;">(>7 dias)</span>'
+            '</span>'
+            '<span style="display:flex;align-items:center;gap:0.3rem;">'
+            '<span style="width:14px;height:14px;background:#F3F4F6;border:1px solid #E5E7EB;border-radius:3px;"></span>'
+            '<span style="color:#9CA3AF;">sem dados</span>'
+            '</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
         st.dataframe(df_heat.style.map(color_cell), use_container_width=True, hide_index=True)
     except Exception as e:
         st.caption(f"Grade indisponivel: {e}")
