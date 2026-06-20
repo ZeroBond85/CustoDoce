@@ -739,7 +739,7 @@ def tab_flyers():
             return
 
         df = pd.DataFrame(flyers)
-        df["collected_at"] = pd.to_datetime(df["collected_at"], utc=True)
+        df["collected_at"] = pd.to_datetime(df["collected_at"], utc=True, format="ISO8601")
 
         total = len(df)
         processed = len(df[df["ocr_status"].isin(["done", "processed"])]) if "ocr_status" in df.columns else 0
