@@ -558,6 +558,18 @@ def tab_precos():
             if "collected_at" in df.columns:
                 df["collected_at"] = pd.to_datetime(df["collected_at"], utc=True, errors="coerce").dt.strftime("%d/%m/%Y %H:%M")
 
+            # Legenda das colunas
+            with st.expander("ℹ️ Legenda das colunas", expanded=False):
+                st.markdown("""
+                **Normalizado** — Preço padronizado para comparação: `R$ XX.XX/kg | R$ YY.YY/un`  
+                **Confiança** — Qualidade do match produto→ingrediente (1.0=exato, 0.8+=fuzzy, <0.8=revisão)  
+                **Tier** — Nível da loja (1=PDF direto, 2=E-commerce, 3=Agregadores, 4=Manual)  
+                **Promoção** — Detectado automaticamente por palavras-chave (PROMO, OFERTA, etc.)  
+                **Válido até** — Data fim da promoção/preço (se informada no folheto)  
+                **Coletado em** — Data/hora da coleta (fuso BR)  
+                **Cidade / Bairro** — Local da unidade onde o preço foi coletado
+                """)
+
             df_display = df[display_cols].head(limit).copy()
             min_price_idx = None
             if "price_per_kg" in df.columns and sort_by in df.columns:
