@@ -130,6 +130,12 @@ auth, rate_limiter, imports, UI components, login, YAML, estrutura, CSS, navega�
 - `test_scraper_health()` em `deploy_check.py` — valida scrapers no pré-deploy
 - 7 novos ingredientes no `ingredients.yaml` (18 total)
 
+### Fase 14c — Review Queue Overhaul (testes incluídos)
+- `test_insert_review_item` — dedup por (store_name, raw_product) independente de status
+- `test_process_price_match_review_has_validity` — threshold 55%, validity_raw, confidence
+- `test_coverage_heatmap_tz_aware` — regressão datetime tz-aware
+- 227 testes passando
+
 ## Regras
 
 1. **Nunca secrets no código** — usar env vars ou Streamlit Cloud Secrets

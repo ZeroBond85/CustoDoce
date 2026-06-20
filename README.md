@@ -278,6 +278,7 @@ CustoDoce/
 - [x] **Fase 11** — Correção de Constraints: UNIQUE (ingredient_id, store_id, collected_at) em prices e price_history, correção do scrape_frequencies, tratamento de erro 42P10
 - [x] **Fase 12** — Self-Learning Review Queue: ordenação client-side, aliases automáticos ao aprovar
 - [x] **Fase 13** — UX Audit Fixes + Calculadora de Receita: 27 UX issues corrigidas, calculadora com auto-fill do DB, salvar receitas no Supabase, 18 abas, 168 testes
+- [x] **Fase 14c** — Review Queue Overhaul: threshold 30%→55%, colunas image_url/source_url/match_reason/brand na review_queue, matcher retorna matched_term, tab_revisao com folheto/link/motivo
 
 ## Contribuindo
 
