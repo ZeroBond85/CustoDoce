@@ -315,13 +315,14 @@ def _render_coverage_heatmap(df):
                 s = p.get("store_name", "")
                 if s not in row:
                     continue
-                ts = p.get("collected_at", "")
-                if pd.notna(ts):
-                    try:
-                        dt = pd.to_datetime(ts)
-                        if dt.tzinfo is not None:
-                            dt = dt.replace(tzinfo=None)
-                        days_ago = (datetime.now(timezone.utc) - dt).days
+                 ts = p.get("collected_at", "")
+                 if pd.notna(ts):
+                     try:
+                         dt = pd.to_datetime(ts)
+                         if dt.tzinfo is not None:
+                             dt = dt.replace(tzinfo=None)
+                         now = datetime.now()
+                         days_ago = (now - dt).days
                         row[s] = "hoje" if days_ago <= 3 else "semana" if days_ago <= 7 else "antigo"
                     except Exception as e:
                         row[s] = f"erro: {e}"
