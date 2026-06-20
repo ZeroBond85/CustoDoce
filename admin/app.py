@@ -110,6 +110,7 @@ _COL_PT = {
     "last_run": "Ultima Execucao", "next_run": "Proxima Execucao",
     "created_at": "Criado Em", "updated_at": "Atualizado Em",
     "wins": "Dias como mais barata",
+    "city": "Cidade", "zone": "Bairro/Zona",
 }
 
 
@@ -479,6 +480,9 @@ def tab_precos():
                 colors = ["#F59E42", "#E8739A", "#3B7DD8"]
                 for i, (_, row) in enumerate(top3.iterrows()):
                     store = _sanitize(row.get("store_name", "?"))
+                    city = _sanitize(row.get("city", ""))
+                    zone = _sanitize(row.get("zone", ""))
+                    location = f"{city}" + (f" - {zone}" if zone else "")
                     product = _sanitize(row.get("raw_product", "?"))[:40]
                     ppk = row.get("price_per_kg", 0)
                     raw_p = row.get("raw_price", 0)
@@ -493,6 +497,7 @@ def tab_precos():
                         f'<div style="font-size:1.25rem;font-weight:800;color:#3D2C1E;'
                         f"margin:0.25rem 0;\">R$ {ppk:.2f}/kg</div>"
                         f'<div style="font-size:0.85rem;color:#6B7280;">{store}</div>'
+                        f'<div style="font-size:0.75rem;color:#9CA3AF;">{location}</div>'
                         f'<div style="font-size:0.75rem;color:#9CA3AF;">{product}</div>'
                         f'<div style="font-size:0.75rem;color:#9CA3AF;">'
                         f"R$ {raw_p:.2f} {unit}</div>"
@@ -532,6 +537,8 @@ def tab_precos():
                 "valid_until",
                 "confidence",
                 "collected_at",
+                "city",
+                "zone",
             ]
             display_cols = [c for c in display_cols if c in df.columns]
 

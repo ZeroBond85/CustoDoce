@@ -47,13 +47,31 @@ def seed_stores():
         data = yaml.safe_load(f)
 
     for store in data.get("stores", []):
+        units = store.get("units", [])
+        cities = store.get("cities", [])
+        # Extract city from first city or first unit address
+        city = ""
+        zone = ""
+        if cities:
+            city = cities[0]
+        elif units and units[0].get("address"):
+            addr = units[0]["address"]
+            # Extract city from address (format: "Av. ..., Bairro, Cidade")
+            parts = [p.strip() for p in addr.split(",")]
+            if len(parts) >= 2:
+                city = parts[-1]
+                zone = parts[-2]
+        elif store.get("city"):
+            city = store.get("city", "")
+            zone = store.get("zone", "")
+
         store_data = {
             "name": store["name"],
             "tier": store.get("tier", 2),
             "type": store.get("type", "website_catalog"),
             "logistics": store.get("logistics", "pickup_local"),
-            "city": store.get("cities", [store.get("city", "")]),
-            "zone": store.get("zone", ""),
+            "city": city,
+            "zone": zone,
             "url_pattern": store.get("url_pattern", ""),
             "base_url": store.get("base_url", ""),
             "api_endpoint": store.get("api_endpoint", ""),
