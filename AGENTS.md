@@ -359,6 +359,33 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 | `scripts/archive/` — 6 fixes E741 + E722 | ✅ |
 | 160 testes, ruff clean, bandit/pip-audit | ✅ Todos limpos |
 
+## Fase 11 — Correção de Constraints & Migration (concluida)
+
+| O que foi feito | Resultado |
+|----------------|-----------|
+| `_split_sql_statements()` — split SQL respeitando blocos `$$` (DO blocks) | ✅ |
+| `deploy_database.py` — adicionado PHASE 7 com constraints UNIQUE 3-colunas | ✅ |
+| `deploy_database.py` — adicionado PHASE 8 com scrape_frequencies corrigida | ✅ |
+| `consolidated_migration.sql` — atualizado com PHASE 7 + 8 | ✅ |
+| Constraint `UNIQUE (ingredient_id, store_id, collected_at)` em prices | ✅ |
+| Constraint `UNIQUE (ingredient_id, store_id, collected_at)` em price_history | ✅ |
+| Tabela `scrape_frequencies` com `store_id TEXT REFERENCES stores(id)` | ✅ |
+| Migração executada: 124 OK, 34 WARN (todos inofensivos) | ✅ |
+| Tratamento de erro 42P10 no dashboard com instrução SQL | ✅ |
+
+## Fase 12 — Self-Learning Review Queue & Fixes (concluida)
+
+| O que foi feito | Resultado |
+|----------------|-----------|
+| `search_prices()` — ordenação client-side para price_per_kg e price_per_un | ✅ |
+| `search_prices()` — condicional `.order()` só para colunas diretas do DB | ✅ |
+| `add_alias_to_ingredient()` — novo alias é adicionado ao ingrediente no DB | ✅ |
+| `approve_review_item()` — aprovação adiciona raw_product como alias automaticamente | ✅ |
+| `tab_revisao()` — explicação "Revisão necessária: confiança inferior a 80%" | ✅ |
+| Bug `get_ingredient_by_id` corrigido para `get_ingredient_by_name` | ✅ |
+| README.md — Fase 11 adicionada ao roadmap | ✅ |
+| AGENTS.md — Fases 11 e 12 adicionadas ao Status | ✅ |
+
 ## Status das Fases
 
 - **Fase 1** ✅ Estrutura base (pastas, parsers, services, schema, base_flyer)
@@ -373,3 +400,5 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 - **Fase 8** ✅ Dedup & Cleanup — `collected_at` truncado pra data; review queue dedup sem filtro status; `cleanup_old_prices(90)` + `cleanup_old_logs(30)` + `cleanup_old_flyers(60)`; XSS sanitization; HTML injection fix; consolidated migration SQL
 - **Fase 9** ✅ Dashboard Insights — `tab_fontes` (cobertura + promoções + ranking); `tab_ranking` (gráficos + estatísticas); `tab_insights` (heatmap + outliers + melhores ofertas); CI/CD (ci.yml + packages.txt); seed data (4128 preços sintéticos)
 - **Fase 10** ✅ Brand Extraction — `brand_extractor.py`, coluna `brand` no DB, coluna "Marca" no dashboard; Email/TG UX overhaul; Ruff config (`pyproject.toml`)
+- **Fase 11** ✅ Correção de Constraints — UNIQUE (ingredient_id, store_id, collected_at) em prices e price_history, correção scrape_frequencies (store_id TEXT), tratamento de erro 42P10
+- **Fase 12** ✅ Self-Learning Review Queue — ordenação client-side, aliases automáticos ao aprovar, explicação na UI
