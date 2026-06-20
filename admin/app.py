@@ -647,8 +647,12 @@ def tab_historico():
             return
 
         df = pd.DataFrame(history)
-        df["collected_at"] = pd.to_datetime(df["collected_at"], utc=True)
+        df["collected_at"] = pd.to_datetime(df["collected_at"], utc=True, format="ISO8601", errors="coerce")
         df = df.sort_values("collected_at")
+
+        # Format collected_at to pt-BR datetime for display
+        if "collected_at" in df.columns:
+            df["collected_at_display"] = df["collected_at"].dt.strftime("%d/%m/%Y %H:%M")
 
         df["price_per_kg"] = df["normalized"].apply(_format_kg)
         y_col = "price_per_kg" if "R$/kg" in chart_type else "raw_price"
@@ -693,7 +697,19 @@ def tab_historico():
         st.dataframe(_pt_cols(store_stats), use_container_width=True, hide_index=True)
 
         st.markdown("### Dados Brutos")
-        display_cols = [c for c in ["store_name", "brand", "raw_product", "raw_price", "raw_unit", "is_promotion", "valid_until", "collected_at"] if c in df.columns]
+        # Legenda das colunas
+        with st.expander("ℹ️ Legenda das colunas", expanded=False):
+            st.markdown("""
+            **Normalizado** — Preço padronizado: `R$ XX.XX/kg | R$ YY.YY/un`  
+            **R$/kg** — Preço por kg (calculado do Normalizado)  
+            **Confiança** — Match produto→ingrediente (1.0=exato, 0.8+=fuzzy, <0.8=revisão)  
+            **Promoção** — Detectado por palavras-chave (PROMO, OFERTA, etc.)  
+            **Válido até** — Data fim da promoção/preço  
+            **Coletado em** — Data/hora da coleta (fuso BR)  
+            **Cidade / Bairro** — Local da unidade onde o preço foi coletado
+            """)
+
+        display_cols = [c for c in ["store_name", "brand", "raw_product", "raw_price", "raw_unit", "is_promotion", "valid_until", "collected_at_display", "city", "zone"] if c in df.columns]
         if "price_per_kg" in df.columns:
             df["R$/kg"] = df["price_per_kg"].apply(lambda x: f"R$ {x:.2f}" if x > 0 else "—")
             display_cols.append("R$/kg")
