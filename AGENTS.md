@@ -337,7 +337,7 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 | `packages.txt` — tesseract-ocr + poppler-utils para Streamlit Cloud | ✅ |
 | `ci.yml` — ruff + bandit + pytest + pip-audit em cada push/PR | ✅ |
 | `seed_prices.py` — gera 4128 preços sintéticos (11 ing × 20 lojas × 91 dias) | ✅ |
-| 17 páginas no dashboard sidebar | ✅ |
+| 17 páginas no dashboard sidebar (18 na Fase 13) | ✅ |
 | 127 testes, ruff, bandit, pip-audit | ✅ Todos limpos |
 
 ## Fase 10 — Brand Extraction, Email/TG UX & Ruff Config (concluida)
@@ -386,6 +386,23 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 | README.md — Fase 11 adicionada ao roadmap | ✅ |
 | AGENTS.md — Fases 11 e 12 adicionadas ao Status | ✅ |
 
+## Fase 13 — UX Audit Fixes + Calculadora de Receita (concluida)
+
+| O que foi feito | Resultado |
+|----------------|-----------|
+| `docs/ux_audit.md` — 27 issues documentadas (6 críticas, 9 high, 8 medium, 4 low) | ✅ |
+| UX fixes: bare excepts eliminados, spinners adicionados, dataframes com fallback, KPIs responsivos | ✅ |
+| UX fixes: timezone padronizado, botões com confirmação, acessibilidade (tabindex, aria-label) | ✅ |
+| `tab_calculadora()` — aba com modo Simples/Completo, auto-fill do menor preço do DB | ✅ |
+| Modo Completo: top 3 lojas por ingrediente, 3 cenários de margem, salvar receita no Supabase | ✅ |
+| `get_cheapest_prices()` — função no price_service que retorna top N preços mais baratos | ✅ |
+| `recipes` + `recipe_items` — tabelas no Supabase (PHASE 9 da migration) | ✅ |
+| Telegram inline: envio do resumo da receita via bot | ✅ |
+| `supabase/consolidated_migration.sql` — PHASE 9 adicionada | ✅ |
+| `dashboard/components/ui.py` — CSS do calculator (result cards, scenarios, ingredient rows) | ✅ |
+| 18 páginas no dashboard sidebar | ✅ |
+| 168 testes (85 dashboard + 80 services + 3 novos), ruff, bandit, pip-audit | ✅ Todos limpos |
+
 ## Status das Fases
 
 - **Fase 1** ✅ Estrutura base (pastas, parsers, services, schema, base_flyer)
@@ -402,3 +419,4 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 - **Fase 10** ✅ Brand Extraction — `brand_extractor.py`, coluna `brand` no DB, coluna "Marca" no dashboard; Email/TG UX overhaul; Ruff config (`pyproject.toml`)
 - **Fase 11** ✅ Correção de Constraints — UNIQUE (ingredient_id, store_id, collected_at) em prices e price_history, correção scrape_frequencies (store_id TEXT), tratamento de erro 42P10
 - **Fase 12** ✅ Self-Learning Review Queue — ordenação client-side, aliases automáticos ao aprovar, explicação na UI
+- **Fase 13** ✅ UX Audit Fixes + Calculadora de Receita — 27 UX issues corrigidas, calculadora Simples/Completo com auto-fill, salvar receitas no Supabase, 168 testes

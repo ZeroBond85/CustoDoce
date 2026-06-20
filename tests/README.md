@@ -104,6 +104,17 @@ auth, rate_limiter, imports, UI components, login, YAML, estrutura, CSS, navega�
 - `brand_extractor.py` — extract_brand() + extract_brand_from_all()
 - vtex_scraper parse_product com ing param
 
+### Fase 11-12 — Constraints + Self-Learning (já coberto)
+- Testes existentes cobrem UNIQUE constraints e review queue dedup
+
+### Fase 13 — UX Audit Fixes + Calculadora de Receita (4+ testes)
+- `test_all_imports` — 18 páginas (agora com calculadora) + handlers callable
+- `test_calculadora_imports` — get_cheapest_prices importável e tab_calculadora callable
+- `test_get_cheapest_prices_basic` — parâmetros corretos repassados ao search_prices
+- `test_get_cheapest_prices_empty` — retorno vazio quando sem dados
+- CSS calculator: cd-calc-result-card, cd-calc-ing-row, cd-calc-scenario, cd-calc-alert
+- Migration PHASE 9: tabelas recipes + recipe_items com RLS
+
 ## Regras
 
 1. **Nunca secrets no código** — usar env vars ou Streamlit Cloud Secrets

@@ -158,13 +158,21 @@ def test_all_imports():
         PAGE_HANDLERS,
     )
 
-    assert len(PAGES) == 17  # + fontes, ranking, insights
+    assert len(PAGES) == 18  # + fontes, ranking, insights, calculadora
     for page_id, icon, label in PAGES:
         assert page_id in PAGE_HANDLERS, f"Faltando handler para {page_id}"
 
     # testa que cada handler existe e é callable
     for page_id, handler in PAGE_HANDLERS.items():
         assert callable(handler), f"Handler {page_id} não é callable"
+
+
+def test_calculadora_imports():
+    """Verifica que get_cheapest_prices existe e tab_calculadora é callable."""
+    from services.price_service import get_cheapest_prices
+    assert callable(get_cheapest_prices)
+    from admin.app import tab_calculadora
+    assert callable(tab_calculadora)
 
 
 def test_cleanup_imports():

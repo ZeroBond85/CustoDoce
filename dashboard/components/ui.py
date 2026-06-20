@@ -284,6 +284,85 @@ div[data-testid="stSidebar"] .stButton>button:focus-visible {
     outline-offset: 2px;
 }
 
+/* ── Calculator ────────────────────────────── */
+.cd-calc-result-card {
+    background: var(--cd-bg-card);
+    border-radius: var(--cd-radius);
+    padding: 1.25rem;
+    border: 1px solid var(--cd-border);
+    box-shadow: var(--cd-shadow);
+    margin-bottom: 0.75rem;
+}
+.cd-calc-result-card .cd-calc-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--cd-text-secondary);
+    letter-spacing: 0.02em;
+}
+.cd-calc-result-card .cd-calc-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--cd-text);
+}
+.cd-calc-result-card .cd-calc-value.highlight {
+    color: var(--cd-orange);
+    font-size: 2rem;
+}
+.cd-calc-ing-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 0.75rem;
+    background: var(--cd-bg);
+    border-radius: var(--cd-radius-sm);
+    border: 1px solid var(--cd-border);
+    margin-bottom: 0.4rem;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.cd-calc-ing-row .store-opt {
+    font-size: 0.75rem;
+    color: var(--cd-text-secondary);
+}
+.cd-calc-ing-row .price-mini {
+    font-size: 0.85rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.cd-calc-scenario {
+    text-align: center;
+    padding: 1rem;
+    border-radius: var(--cd-radius-sm);
+    border: 1px solid var(--cd-border);
+    background: var(--cd-bg-card);
+}
+.cd-calc-scenario h4 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    color: var(--cd-text-secondary);
+    margin: 0 0 0.3rem;
+}
+.cd-calc-scenario .price {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--cd-text);
+}
+.cd-calc-scenario .profit {
+    font-size: 0.8rem;
+    color: var(--cd-success);
+    font-weight: 700;
+}
+.cd-calc-alert {
+    font-size: 0.75rem;
+    padding: 0.3rem 0.6rem;
+    border-radius: 6px;
+    background: #FEF3C7;
+    color: #92400E;
+    font-weight: 600;
+    display: inline-block;
+}
+
 @media (max-width: 640px) {
     .cd-flyer-grid {
         grid-template-columns: 1fr;

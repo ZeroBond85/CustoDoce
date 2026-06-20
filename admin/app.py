@@ -9,6 +9,11 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 import yaml
+import json
+import re
+import shutil
+import httpx
+import statistics
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
@@ -29,11 +34,14 @@ from services.price_service import (
     get_longitudinal_winners,
     get_price_trends,
     get_cross_ingredient_ranking,
+    get_cheapest_prices,
     reject_review_item,
     search_prices,
 )
+from services.supabase_client import get_service_client
 from services.config_db import (
     get_all_ingredients,
+    get_active_ingredients,
     upsert_ingredient,
     delete_ingredient,
     get_all_stores,
@@ -70,11 +78,6 @@ if not os.environ.get("ADMIN_PASSWORD"):
     import secrets
     generated = secrets.token_urlsafe(16)
     os.environ.setdefault("ADMIN_PASSWORD", generated)
-    st.warning(
-        "ADMIN_PASSWORD nao definida. Senha temporaria gerada. "
-        "Defina ADMIN_PASSWORD no .env para uma senha fixa.",
-        icon="🔑"
-    )
 
 st.set_page_config(
     page_title="CustoDoce - Painel de Precos",
@@ -149,8 +152,8 @@ def _get_repo_from_git() -> str:
             repo = origin.replace("https://github.com/", "").replace(".git", "")
             repo = repo.replace("git@github.com:", "")
             return repo
-    except Exception:  # nosec B110 — fallback silencioso para env var
-        pass
+    except Exception:
+        logger.warning("Falha ao obter repo do git, usando fallback")
     return os.environ.get("GH_REPO", "user/CustoDoce")
 
 
@@ -166,15 +169,13 @@ def _render_kpi_prices(df):
     lojas = df["store_name"].nunique() if "store_name" in df.columns else 0
     matched = len(df[df.get("confidence", 1) >= 0.8])
     review = len(get_review_queue())
-    st.markdown(
-        '<div class="cd-kpi-row" style="display:flex;gap:0.75rem;margin-bottom:1.5rem;">'
-        f'<div style="flex:1;"><div class="cd-metric"><div class="label">Total Precos</div><div class="value">{total}</div></div></div>'
-        f'<div style="flex:1;"><div class="cd-metric"><div class="label">Lojas</div><div class="value">{lojas}</div></div></div>'
-        f'<div style="flex:1;"><div class="cd-metric"><div class="label">Confiaveis >=80%</div><div class="value">{matched}</div></div></div>'
-        f'<div style="flex:1;"><div class="cd-metric"><div class="label">Fila Revisao</div><div class="value">{review}</div></div></div>'
-        "</div>",
-        unsafe_allow_html=True,
-    )
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.markdown(f'<div class="cd-metric"><div class="label">Total Precos</div><div class="value">{total}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="cd-metric"><div class="label">Confiaveis >=80%</div><div class="value">{matched}</div></div>', unsafe_allow_html=True)
+    with col_b:
+        st.markdown(f'<div class="cd-metric"><div class="label">Lojas</div><div class="value">{lojas}</div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="cd-metric"><div class="label">Fila Revisao</div><div class="value">{review}</div></div>', unsafe_allow_html=True)
 
 
 def _render_kpi_flyers(df):
@@ -183,7 +184,7 @@ def _render_kpi_flyers(df):
         flyers = get_recent_flyers(days=3)
         f_total = len(flyers) if flyers else 0
         f_processed = len([f for f in (flyers or []) if f.get("ocr_status") in ("done", "processed")])
-        hoje = datetime.utcnow().date()
+        hoje = pd.Timestamp.utcnow().date()
         precos_hoje = 0
         desatualizados = 0
         if "collected_at" in df.columns:
@@ -194,33 +195,39 @@ def _render_kpi_flyers(df):
                         dt = dt.replace(tzinfo=None)
                     if dt.date() == hoje:
                         precos_hoje += 1
-                    if (datetime.utcnow() - dt).days > 7:
+                    if (pd.Timestamp.utcnow() - dt).days > 7:
                         desatualizados += 1
-        st.markdown(
-            '<div class="cd-kpi-row" style="display:flex;gap:0.75rem;margin-bottom:1.5rem;">'
-            f'<div style="flex:1;"><div class="cd-metric" style="border-left-color:#3B7DD8;"><div class="label">Flyers (3d)</div><div class="value">{f_total}</div></div></div>'
-            f'<div style="flex:1;"><div class="cd-metric" style="border-left-color:#10B981;"><div class="label">Processados</div><div class="value">{f_processed}</div></div></div>'
-            f'<div style="flex:1;"><div class="cd-metric" style="border-left-color:#F59E0B;"><div class="label">Precos Hoje</div><div class="value">{precos_hoje}</div></div></div>'
-            f'<div style="flex:1;"><div class="cd-metric" style="border-left-color:#EF4444;"><div class="label">Desatualizados (+7d)</div><div class="value">{desatualizados}</div></div></div>'
-            "</div>",
-            unsafe_allow_html=True,
-        )
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.markdown(f'<div class="cd-metric" style="border-left-color:#3B7DD8;"><div class="label">Flyers (3d)</div><div class="value">{f_total}</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="cd-metric" style="border-left-color:#F59E0B;"><div class="label">Precos Hoje</div><div class="value">{precos_hoje}</div></div>', unsafe_allow_html=True)
+        with col_b:
+            st.markdown(f'<div class="cd-metric" style="border-left-color:#10B981;"><div class="label">Processados</div><div class="value">{f_processed}</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="cd-metric" style="border-left-color:#EF4444;"><div class="label">Desatualizados (+7d)</div><div class="value">{desatualizados}</div></div>', unsafe_allow_html=True)
     except Exception:
         st.caption("Indicadores de flyers indisponiveis")
 
 
 def _render_latest_prices(df):
     st.markdown("### Ultimos Precos")
+    if df is None or df.empty:
+        st.caption("Nenhum preco disponivel.")
+        return
     cols = ["store_name", "ingredient_id", "raw_product", "raw_price", "raw_unit", "tier", "is_promotion", "valid_until", "confidence", "collected_at"]
     cols = [c for c in cols if c in df.columns]
     st.dataframe(_pt_cols(df[cols].sort_values("collected_at", ascending=False).head(100)), use_container_width=True, hide_index=True)
 
 
 def _render_boxplot(df):
+    if df is None or df.empty:
+        st.caption("Dados insuficientes para boxplot.")
+        return
     if "normalized" not in df.columns or not df["normalized"].notna().any():
+        st.caption("Dados normalizados indisponiveis para boxplot.")
         return
     df_norm = df[df["normalized"].notna() & (df["price_per_kg"] > 0)].copy()
     if df_norm.empty:
+        st.caption("Nenhum preco valido para boxplot.")
         return
     fig = px.box(df_norm, x="ingredient_id", y="price_per_kg", title="Preco por kg por Ingrediente",
                  labels={"ingredient_id": "Ingrediente", "price_per_kg": "R$/kg"},
@@ -235,6 +242,7 @@ def _render_coverage_heatmap(df):
         ing_names = [i["canonical"] for i in ingredients[:11]]
         stores = sorted(df["store_name"].unique().tolist())
         if not stores or not ing_names:
+            st.caption("Dados insuficientes para grade de cobertura.")
             return
         matrix = []
         for ing in ing_names:
@@ -350,7 +358,7 @@ def tab_precos():
         index=0 if ingredient_options else 0,
     )
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     with col1:
         sort_by = st.selectbox(
             "Ordenar por", ["price_per_kg", "price_per_un", "raw_price"]
@@ -359,14 +367,13 @@ def tab_precos():
         sort_order = st.selectbox("Ordem", ["Crescente", "Decrescente"])
     with col3:
         limit = st.number_input("Limite", min_value=5, max_value=100, value=30)
-    with col4:
-        pass
 
     if st.button("Buscar", type="primary"):
-        prices = search_prices(
-            selected, sort_by=sort_by, sort_order=sort_order, limit=limit,
-            valid_only=valid_only,
-        )
+        with st.spinner("Buscando precos..."):
+            prices = search_prices(
+                selected, sort_by=sort_by, sort_order=sort_order, limit=limit,
+                valid_only=valid_only,
+            )
         if prices:
             df = pd.DataFrame(prices)
             df["price_per_kg"] = _get_kg(df)
@@ -478,7 +485,8 @@ def tab_precos():
             else:
                 st.dataframe(_pt_cols(df_display), use_container_width=True, hide_index=True)
 
-            if get_config("features.export.csv_enabled", True):
+            export_ok = get_config("features.export.csv_enabled", True)
+            if export_ok:
                 csv = df_display.to_csv(index=False).encode("utf-8")
                 st.download_button(
                     "Exportar CSV",
@@ -486,6 +494,15 @@ def tab_precos():
                     f"precos_{selected}_{datetime.utcnow().strftime('%Y%m%d')}.csv",
                     "text/csv",
                     key=f"csv_precos_{selected}",
+                    use_container_width=True,
+                )
+            else:
+                st.download_button(
+                    "Exportar CSV",
+                    data="",
+                    disabled=True,
+                    help="Exportacao desabilitada em config/features.yaml",
+                    key=f"csv_precos_{selected}_disabled",
                     use_container_width=True,
                 )
         else:
@@ -570,7 +587,8 @@ def tab_historico():
             display_cols.append("R$/kg")
         st.dataframe(_pt_cols(df[display_cols].tail(100)), use_container_width=True, hide_index=True)
 
-        if get_config("features.export.csv_enabled", True):
+        export_ok = get_config("features.export.csv_enabled", True)
+        if export_ok:
             csv_data = store_stats.to_csv(index=False).encode("utf-8")
             st.download_button(
                 "Exportar Cobertura CSV",
@@ -589,6 +607,23 @@ def tab_historico():
                 key="csv_historico",
                 use_container_width=True,
             )
+        else:
+            st.download_button(
+                "Exportar Cobertura CSV",
+                data="",
+                disabled=True,
+                help="Exportacao desabilitada em config/features.yaml",
+                key="csv_cobertura_disabled",
+                use_container_width=True,
+            )
+            st.download_button(
+                "Exportar Dados Brutos CSV",
+                data="",
+                disabled=True,
+                help="Exportacao desabilitada em config/features.yaml",
+                key="csv_historico_disabled",
+                use_container_width=True,
+            )
 
 
 def _flyer_status_color(status):
@@ -596,7 +631,8 @@ def _flyer_status_color(status):
     return m.get(status.lower(), "#6B7280")
 
 def _flyer_status_label(status):
-    m = {"done": "processado", "processed": "processado", "pending": "pendente", "failed": "falha", "error": "falha"}
+    status = "done" if status == "processed" else status
+    m = {"done": "processado", "pending": "pendente", "failed": "falha", "error": "falha"}
     return m.get(status.lower(), status)
 
 def tab_flyers():
@@ -739,6 +775,21 @@ def tab_revisao():
                     )
                 with cols[1]:
                     st.markdown(f"R$ {float(raw_price):.2f} {raw_unit}")
+                options = suggestions + ["Outro..."]
+                selected = st.selectbox(
+                    "Ingrediente",
+                    options,
+                    key=f"ingredient_{item_id}",
+                    index=0 if suggestions else len(options) - 1,
+                    label_visibility="collapsed",
+                )
+                if selected == "Outro..." or not suggestions:
+                    st.text_input(
+                        "Digite o nome do ingrediente",
+                        key=f"custom_ingredient_{item_id}",
+                        placeholder="Ex: Leite Condensado Integral",
+                        label_visibility="collapsed",
+                    )
                 with cols[2]:
                     if st.button(
                         "Aprovar", key=f"app_{item_id}", use_container_width=True
@@ -776,22 +827,6 @@ def tab_revisao():
                     ):
                         reject_review_item(item_id)
                         st.rerun()
-
-                options = suggestions + ["Outro..."]
-                selected = st.selectbox(
-                    "Ingrediente",
-                    options,
-                    key=f"ingredient_{item_id}",
-                    index=0 if suggestions else len(options) - 1,
-                    label_visibility="collapsed",
-                )
-                if selected == "Outro..." or not suggestions:
-                    st.text_input(
-                        "Digite o nome do ingrediente",
-                        key=f"custom_ingredient_{item_id}",
-                        placeholder="Ex: Leite Condensado Integral",
-                        label_visibility="collapsed",
-                    )
     else:
         info_box("Nenhum item na fila de revisao!", "success")
 
@@ -864,8 +899,8 @@ def tab_lojas():
                 url_pattern = st.text_input("URL Pattern (PDF)", value=default.get("url_pattern", ""))
             with col2:
                 base_url = st.text_input("URL Base", value=default.get("base_url", ""))
-                api_endpoint = st.text_input("API Endpoint (VTEX)", value=default.get("api_endpoint", ""))
-                search_url = st.text_input("URL de Busca", value=default.get("search_url", ""))
+                api_endpoint = st.text_input("API Endpoint (VTEX)", value=default.get("api_endpoint", ""), placeholder="https://loja.api/v2/produtos")
+                search_url = st.text_input("URL de Busca", value=default.get("search_url", ""), placeholder="https://loja.com/busca?q=")
                 selectors = st.text_area("Seletores JSON", value=str(default.get("selectors", {})))
                 publish_day = st.selectbox("Dia Publicação", ["", "quarta", "quinta"], index=["", "quarta", "quinta"].index(default.get("publish_day", "")))
                 collection_method = st.selectbox("Método Coleta", ["automatico", "visita_manual", "manual"], index=["automatico", "visita_manual", "manual"].index(default.get("collection_method", "automatico")))
@@ -882,7 +917,6 @@ def tab_lojas():
                     st.stop()
                 city = [c.strip() for c in city_str.split("\n") if c.strip()]
                 try:
-                    import json
                     selectors_json = json.loads(selectors) if selectors else {}
                 except Exception:
                     selectors_json = {}
@@ -1044,12 +1078,11 @@ def _render_schedule_info():
     try:
         with open(path, encoding="utf-8") as f:
             content = f.read()
-        import re
         crons = re.findall(r"cron:\s*'([^']+)'", content)
         st.markdown(
             '<div style="display:flex;gap:0.75rem;flex-wrap:wrap;">'
             + "".join(
-                f'<div style="flex:1;min-width:200px;background:#FFF;padding:0.75rem 1rem;border-radius:10px;border:1px solid #F0E6DB;">'
+                f'<div tabindex="0" role="region" style="flex:1;min-width:200px;background:#FFF;padding:0.75rem 1rem;border-radius:10px;border:1px solid #F0E6DB;">'
                 f'<div style="font-size:0.7rem;font-weight:700;color:#8B7355;">Cron {i+1}</div>'
                 f'<div style="font-size:1rem;font-weight:800;color:#3D2C1E;">{c}</div>'
                 f'</div>'
@@ -1075,7 +1108,6 @@ def _render_schedule_info():
                 )
                 new_crons.append(new_c)
             if st.button("Salvar Agendamento", type="primary", use_container_width=True):
-                import re
                 valid = True
                 for c in new_crons:
                     if not re.match(r"^(\d+|\*)([-\/,*]\d*)*(\s+(\d+|\*)([-\/,*]\d*)*){4}$", c.strip()):
@@ -1084,7 +1116,6 @@ def _render_schedule_info():
                 if not valid:
                     st.stop()
                 backup_path = path + ".bak"
-                import shutil
                 shutil.copy2(path, backup_path)
                 new_content = content
                 for i, (old, new) in enumerate(zip(crons, new_crons)):
@@ -1166,19 +1197,21 @@ def _render_scraper_maintenance(_client_unused=None):
     try:
         with open(config_path, encoding="utf-8") as f:
             stores_config = yaml.safe_load(f).get("stores", [])
-    except Exception:  # nosec B110
-        pass
+    except Exception as e:
+        logger.warning("Falha ao carregar stores.yaml: %s", e)
+        st.caption("Nao foi possivel carregar lojas do arquivo.")
 
     try:
         from services.supabase_client import get_service_client
         client = get_service_client()
-        logs = (
-            client.table("scraping_logs")
-            .select("*")
-            .order("started_at", desc=True)
-            .limit(200)
-            .execute()
-        )
+        with st.spinner("Carregando lojas..."):
+            logs = (
+                client.table("scraping_logs")
+                .select("*")
+                .order("started_at", desc=True)
+                .limit(200)
+                .execute()
+            )
 
         if not logs.data:
             st.info("Nenhum log de scraping encontrado.")
@@ -1381,6 +1414,16 @@ def _render_selector_editor(stores_config: list, config_path: Path):
             )
             new_selectors[sel_key] = [v.strip() for v in val.split(",") if v.strip()]
 
+        if not st.session_state.get("confirm_stores_save"):
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                if st.button("Confirmar salvamento?", type="primary", key="confirm_stores_btn"):
+                    st.session_state.confirm_stores_save = True
+                    st.rerun()
+            with col2:
+                st.caption("💡 Clique em confirmar para ativar o salvamento.")
+            st.stop()
+
         col1, col2 = st.columns([1, 3])
         with col1:
             if st.button("💾 Salvar Seletores", type="primary", key="save_selectors"):
@@ -1394,6 +1437,7 @@ def _render_selector_editor(stores_config: list, config_path: Path):
                     _send_telegram_selector_update(store_names[selected_idx])
                 except Exception as e:
                     st.error(f"Erro ao salvar: {e}")
+                st.session_state.pop("confirm_stores_save", None)
         with col2:
             st.caption("💡 Os scrapers usarão os novos seletores na próxima execução.")
 
@@ -1456,15 +1500,14 @@ def _send_telegram_selector_update(store_name: str):
         return
 
     try:
-        import httpx
         message = f"🔧 *Seletores Atualizados*\n\nLoja: *{store_name}*\n\nOs seletores CSS foram ajustados no CustoDoce. A próxima execução usará os novos valores."
         httpx.post(
             f"https://api.telegram.org/bot{bot_token}/sendMessage",
             json={"chat_id": chat_id, "text": message, "parse_mode": "Markdown"},
             timeout=15,
         )
-    except Exception:  # nosec B110
-        pass  # Silencioso
+    except Exception as e:
+        logger.warning("Falha ao enviar atualizacao via Telegram: %s", e)
 
 
 def tab_scrapers():
@@ -1480,12 +1523,16 @@ def tab_scrapers():
             if st.button(
                 "Forcar Coleta Agora", type="primary", use_container_width=True
             ):
-                gh_pat = os.environ.get("GH_PAT")
-                repo = os.environ.get("GITHUB_REPOSITORY", "CustoDoce/CustoDoce")
-                if gh_pat:
-                    import httpx
-
-                    resp = httpx.post(
+                if not st.session_state.get("confirm_force_scrape"):
+                    st.session_state.confirm_force_scrape = True
+                    st.rerun()
+            if st.session_state.get("confirm_force_scrape"):
+                st.warning("Confirma disparo do workflow no GitHub Actions?")
+                if st.button("Sim, disparar", key="confirm_force_yes"):
+                    gh_pat = os.environ.get("GH_PAT")
+                    repo = os.environ.get("GITHUB_REPOSITORY", "CustoDoce/CustoDoce")
+                    if gh_pat:
+                        resp = httpx.post(
                         f"https://api.github.com/repos/{repo}/dispatches",
                         headers={
                             "Authorization": f"token {gh_pat}",
@@ -1493,13 +1540,17 @@ def tab_scrapers():
                         },
                         json={"event_type": "manual_trigger"},
                         timeout=30,
-                    )
-                    if resp.status_code == 204:
-                        st.success("Coleta disparada com sucesso!")
+                        )
+                        if resp.status_code == 204:
+                            st.success("Coleta disparada com sucesso!")
+                        else:
+                            st.error(f"Erro: {resp.status_code}")
                     else:
-                        st.error(f"Erro: {resp.status_code}")
-                else:
-                    st.warning("GH_PAT nao configurado nas secrets do ambiente.")
+                        st.warning("GH_PAT nao configurado nas secrets do ambiente.")
+                    st.session_state.pop("confirm_force_scrape", None)
+                if st.button("Cancelar", key="confirm_force_no"):
+                    st.session_state.pop("confirm_force_scrape", None)
+                    st.rerun()
         with col2:
             st.info("Clique para acionar a coleta manual via GitHub Actions.")
 
@@ -1507,13 +1558,14 @@ def tab_scrapers():
             from services.supabase_client import get_service_client
 
             client = get_service_client()
-            logs = (
-                client.table("scraping_logs")
-                .select("*")
-                .order("created_at", desc=True)
-                .limit(50)
-                .execute()
-            )
+            with st.spinner("Carregando logs..."):
+                logs = (
+                    client.table("scraping_logs")
+                    .select("*")
+                    .order("created_at", desc=True)
+                    .limit(50)
+                    .execute()
+                )
             if logs.data:
                 df_logs = pd.DataFrame(logs.data)
                 st.dataframe(
@@ -1587,7 +1639,6 @@ def _test_smtp(host: str, port: int, user: str, password: str, to_email: str, fr
 
 
 def _test_telegram(token: str, chat_id: str):
-    import httpx
     try:
         resp = httpx.post(
             f"https://api.telegram.org/bot{token}/sendMessage",
@@ -1616,7 +1667,7 @@ def tab_relatorios():
         with col2:
             limit = st.number_input("Produtos", 5, 50, 20)
         with col3:
-            pass
+            pass  # reservado
 
         if st.button("Gerar Preview", type="primary", use_container_width=True):
             prices = get_price_history(selected, days=days)
@@ -1627,17 +1678,35 @@ def tab_relatorios():
                 st.markdown("### Enviar por Email")
                 smtp_from = os.environ.get("SMTP_FROM") or os.environ.get("SMTP_USER") or os.environ.get("GMAIL_USER", "")
                 to_email = os.environ.get("ALERT_EMAIL_TO", "")
-                if smtp_from and to_email:
-                    if st.button("Enviar Relatorio Agora", key="send_report", use_container_width=True):
-                        try:
-                            from services.email_service import send_daily_report
-                            send_daily_report(report_html=html, to_email=to_email,
-                                              subject=f"📊 Relatorio {selected} - {days}d")
-                            st.success("Relatorio enviado com sucesso!")
-                        except Exception as e:
-                            st.error(f"Erro ao enviar: {e}")
-                else:
-                    info_box("Configure SMTP_USER e ALERT_EMAIL_TO nas secrets.", "warning")
+                send_disabled = not (smtp_from and to_email)
+                if st.button(
+                    "Enviar Relatorio Agora",
+                    key="send_report",
+                    use_container_width=True,
+                    disabled=send_disabled,
+                    help="Configure SMTP nas secrets primeiro" if send_disabled else "Enviar relatorio por email",
+                ):
+                    if not st.session_state.get("confirm_send_report"):
+                        st.session_state.confirm_send_report = True
+                        st.rerun()
+                if st.session_state.get("confirm_send_report"):
+                    st.warning(f"Confirma envio para {to_email}?")
+                    col_y, col_n = st.columns(2)
+                    with col_y:
+                        if st.button("Sim, enviar", key="send_yes"):
+                            try:
+                                from services.email_service import send_daily_report
+                                send_daily_report(report_html=html, to_email=to_email,
+                                                  subject=f"📊 Relatorio {selected} - {days}d")
+                                st.success("Relatorio enviado com sucesso!")
+                            except Exception as e:
+                                st.error(f"Erro ao enviar: {e}")
+                            st.session_state.pop("confirm_send_report", None)
+                            st.rerun()
+                    with col_n:
+                        if st.button("Cancelar", key="send_no"):
+                            st.session_state.pop("confirm_send_report", None)
+                            st.rerun()
             else:
                 info_box(f"Nenhum dado para '{selected}' no periodo.", "info")
 
@@ -1717,6 +1786,7 @@ def _render_admin_account():
     tab_senha, tab_totp = st.tabs(["Alterar Senha", "Configurar 2FA"])
 
     with tab_senha:
+        st.markdown("### Conta Admin")
         nova = st.text_input(
             "Nova senha",
             type="password",
@@ -1759,6 +1829,7 @@ def _render_admin_account():
                 f"Ou digite manualmente: <strong>{secret}</strong></p>",
                 unsafe_allow_html=True,
             )
+            st.markdown("### Autenticacao de Dois Fatores")
             teste = st.text_input(
                 "Digite o codigo do app para confirmar",
                 max_chars=6,
@@ -1911,42 +1982,40 @@ def tab_config():
                             unsafe_allow_html=True,
                         )
 
-                if st.session_state.edit_mode:
-                    if st.button(
-                        f"Salvar {group}",
-                        key=f"save_{group}",
-                        type="primary",
-                        use_container_width=True,
-                    ):
-                        lines = []
-                        env_path = ".env"
-                        try:
-                            with open(env_path, encoding="utf-8") as f:
-                                lines = f.readlines()
-                        except FileNotFoundError:
-                            pass
-                        # atualiza linhas existentes ou adiciona
-                        existing_keys = {k: False for k in keys}
-                        new_lines = []
-                        for line in lines:
-                            stripped = line.strip()
-                            if stripped and "=" in stripped:
-                                ek = stripped.split("=", 1)[0].strip()
-                                if ek in existing_keys:
-                                    new_val = st.session_state.get(f"env_{ek}", os.environ.get(ek, ""))
-                                    new_lines.append(f'{ek}="{new_val}"\n')
-                                    existing_keys[ek] = True
-                                else:
-                                    new_lines.append(line)
-                            else:
-                                new_lines.append(line)
-                        for k, found in existing_keys.items():
-                            if not found:
-                                new_val = st.session_state.get(f"env_{k}", os.environ.get(k, ""))
-                                new_lines.append(f'{k}="{new_val}"\n')
-                        with open(env_path, "w", encoding="utf-8") as f:
-                            f.writelines(new_lines)
-                        st.success(f"{group} salvo com sucesso!")
+        if st.session_state.edit_mode:
+            st.markdown("---")
+            if st.button("Salvar todas as alteracoes", type="primary", use_container_width=True):
+                all_keys = [k for ks in SECRET_GROUPS.values() for k in ks]
+                lines = []
+                env_path = ".env"
+                try:
+                    with open(env_path, encoding="utf-8") as f:
+                        lines = f.readlines()
+                except FileNotFoundError:
+                    pass
+                existing_keys = {k: False for k in all_keys}
+                new_lines = []
+                for line in lines:
+                    stripped = line.strip()
+                    if stripped and "=" in stripped:
+                        ek = stripped.split("=", 1)[0].strip()
+                        if ek in existing_keys:
+                            new_val = st.session_state.get(f"env_{ek}", os.environ.get(ek, ""))
+                            new_lines.append(f'{ek}="{new_val}"\n')
+                            existing_keys[ek] = True
+                        else:
+                            new_lines.append(line)
+                    else:
+                        new_lines.append(line)
+                for k, found in existing_keys.items():
+                    if not found:
+                        new_val = st.session_state.get(f"env_{k}", os.environ.get(k, ""))
+                        new_lines.append(f'{k}="{new_val}"\n')
+                with open(env_path, "w", encoding="utf-8") as f:
+                    f.writelines(new_lines)
+                for k in all_keys:
+                    os.environ[k] = st.session_state.get(f"env_{k}", os.environ.get(k, ""))
+                st.success("Configuracoes salvas e aplicadas imediatamente!")
 
     with tab_ing:
         st.markdown("**Ingredientes (ingredients.yaml)**")
@@ -2145,7 +2214,6 @@ def tab_diagnostico():
                 tg_chat_inp = st.text_input("TELEGRAM_CHAT_ID", value=tg_chat, key="diag_tg_chat")
             if st.button("Enviar Mensagem de Teste", key="diag_btn_telegram", use_container_width=True):
                 try:
-                    import httpx
                     resp = httpx.post(
                         f"https://api.telegram.org/bot{tg_token_inp}/sendMessage",
                         json={"chat_id": tg_chat_inp, "text": f"Teste CustoDoce - {datetime.now().isoformat()}"},
@@ -2177,7 +2245,7 @@ def tab_agendamentos():
             hide_index=True,
         )
     else:
-        st.info("Nenhum agendamento cadastrado.")
+        info_box("Nenhum agendamento encontrado.", "info")
 
     st.divider()
 
@@ -2194,8 +2262,8 @@ def tab_agendamentos():
                 payload = st.text_area("Payload JSON", value='{"force_full": false, "run_playwright": false}', height=100)
             if st.form_submit_button("Salvar", use_container_width=True):
                 try:
-                    import json
                     upsert_schedule({
+
                         "name": name,
                         "cron_expression": cron,
                         "timezone": tz,
@@ -2219,36 +2287,55 @@ def tab_agendamentos():
                     st.session_state[f"editing_sched_{s['id']}"] = True
                     st.rerun()
                 if cols[4].button("Executar", key=f"run_sched_{s['id']}", use_container_width=True, type="primary"):
-                    try:
-                        import json
-                        import httpx
-                        gh_token = os.environ.get("GH_PAT", "")
-                        repo = _get_repo_from_git()
-                        payload = s.get("payload") or {}
-                        resp = httpx.post(
-                            f"https://api.github.com/repos/{repo}/actions/workflows/scrape.yml/dispatches",
-                            json={"ref": "master", "inputs": payload},
-                            headers={"Authorization": f"Bearer {gh_token}", "Accept": "application/vnd.github+json"},
-                            timeout=30,
-                        )
-                        if resp.status_code in (200, 204):
-                            st.success(f"Workflow disparado para '{s['name']}'!")
-                        else:
-                            st.error(f"Erro GitHub API: {resp.status_code} — {resp.text[:200]}")
-                    except Exception as e:
-                        st.error(f"Erro ao executar: {e}")
-                if cols[5].button("🗑️ Excluir" if not st.session_state.get(f"confirm_del_sched_{s['id']}") else "✅ Confirmar?", key=f"del_sched_{s['id']}", use_container_width=True, type="primary" if st.session_state.get(f"confirm_del_sched_{s['id']}") else "secondary"):
-                    if st.session_state.get(f"confirm_del_sched_{s['id']}"):
-                        try:
-                            delete_schedule(s["id"])
-                            st.toast(f"Agendamento '{s['name']}' excluído!")
-                            st.session_state[f"confirm_del_sched_{s['id']}"] = False
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Erro ao excluir: {e}")
-                    else:
-                        st.session_state[f"confirm_del_sched_{s['id']}"] = True
+                    if not st.session_state.get(f"confirm_exec_{s['id']}"):
+                        st.session_state[f"confirm_exec_{s['id']}"] = True
                         st.rerun()
+                if st.session_state.get(f"confirm_exec_{s['id']}"):
+                    st.warning("Confirma execucao?")
+                    col_y, col_n = st.columns(2)
+                    with col_y:
+                        if st.button("Sim", key=f"exec_yes_{s['id']}"):
+                            try:
+                                gh_token = os.environ.get("GH_PAT", "")
+                                repo = _get_repo_from_git()
+                                payload = s.get("payload") or {}
+                                resp = httpx.post(
+                                    f"https://api.github.com/repos/{repo}/actions/workflows/scrape.yml/dispatches",
+                                    json={"ref": "master", "inputs": payload},
+                                    headers={"Authorization": f"Bearer {gh_token}", "Accept": "application/vnd.github+json"},
+                                    timeout=30,
+                                )
+                                if resp.status_code in (200, 204):
+                                    st.success(f"Workflow disparado para '{s['name']}'!")
+                                else:
+                                    st.error(f"Erro GitHub API: {resp.status_code} — {resp.text[:200]}")
+                            except Exception as e:
+                                st.error(f"Erro ao executar: {e}")
+                            st.session_state.pop(f"confirm_exec_{s['id']}", None)
+                            st.rerun()
+                    with col_n:
+                        if st.button("Cancelar", key=f"exec_no_{s['id']}"):
+                            st.session_state.pop(f"confirm_exec_{s['id']}", None)
+                            st.rerun()
+                delete_key = f"confirm_del_sched_{s['id']}"
+                if cols[5].button("🗑️ Excluir", key=f"del_btn_{s['id']}", use_container_width=True):
+                    st.session_state[delete_key] = True
+                if st.session_state.get(delete_key):
+                    st.warning("Confirmar exclusao?")
+                    col_y, col_n = st.columns(2)
+                    with col_y:
+                        if st.button("Sim, excluir", key=f"del_yes_{s['id']}"):
+                            try:
+                                delete_schedule(s["id"])
+                                st.toast(f"Agendamento '{s['name']}' excluído!")
+                                st.session_state.pop(delete_key, None)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro ao excluir: {e}")
+                    with col_n:
+                        if st.button("Cancelar", key=f"del_no_{s['id']}"):
+                            st.session_state.pop(delete_key, None)
+                            st.rerun()
 
 
 def tab_frequencias():
@@ -2266,7 +2353,7 @@ def tab_frequencias():
             hide_index=True,
         )
     else:
-        st.info("Nenhuma frequência configurada. Defaults por tier são aplicados.")
+        info_box("Nenhum resultado encontrado.", "info")
 
     st.divider()
 
@@ -2275,7 +2362,10 @@ def tab_frequencias():
         with st.form("form_freq"):
             col1, col2, col3 = st.columns(3)
             with col1:
-                store_id = st.text_input("Store ID (opcional)", placeholder="uuid da loja")
+                _all_stores = get_all_stores()
+                _store_options = {s["name"]: s["id"] for s in _all_stores if "id" in s and "name" in s}
+                selected_store = st.selectbox("Loja (opcional)", options=[""] + list(_store_options.keys()))
+                store_id = _store_options[selected_store] if selected_store else ""
                 tier = st.number_input("Tier (opcional)", min_value=1, max_value=4, step=1, value=None)
             with col2:
                 freq_min = st.number_input("Frequência (minutos)", min_value=60, value=1440, step=60)
@@ -2311,7 +2401,7 @@ def tab_alertas():
             df["active"] = df["active"].map({True: "✅", False: "⏸️"})
             st.dataframe(_pt_cols(df[["channel", "target", "name", "active"]]), use_container_width=True, hide_index=True)
         else:
-            st.info("Nenhum destinatário cadastrado.")
+            info_box("Nenhum destinatario cadastrado.", "info")
 
         with st.expander("➕  Novo Destinatário", expanded=False):
             with st.form("form_recipient"):
@@ -2340,18 +2430,25 @@ def tab_alertas():
                     if cols[3].button("Editar", key=f"edit_rec_{r['id']}", use_container_width=True):
                         st.session_state[f"editing_rec_{r['id']}"] = True
                         st.rerun()
-                    if cols[4].button("🗑️ Excluir" if not st.session_state.get(f"confirm_del_rec_{r['id']}") else "✅ Confirmar?", key=f"del_rec_{r['id']}", use_container_width=True, type="primary" if st.session_state.get(f"confirm_del_rec_{r['id']}") else "secondary"):
-                        if st.session_state.get(f"confirm_del_rec_{r['id']}"):
-                            try:
-                                delete_recipient(r["id"])
-                                st.toast("Destinatário excluído!")
-                                st.session_state[f"confirm_del_rec_{r['id']}"] = False
+                    delete_key = f"confirm_del_rec_{r['id']}"
+                    if cols[4].button("🗑️ Excluir", key=f"del_btn_rec_{r['id']}", use_container_width=True):
+                        st.session_state[delete_key] = True
+                    if st.session_state.get(delete_key):
+                        st.warning("Confirmar exclusao?")
+                        col_y, col_n = st.columns(2)
+                        with col_y:
+                            if st.button("Sim, excluir", key=f"del_yes_rec_{r['id']}"):
+                                try:
+                                    delete_recipient(r["id"])
+                                    st.toast("Destinatário excluído!")
+                                    st.session_state.pop(delete_key, None)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao excluir: {e}")
+                        with col_n:
+                            if st.button("Cancelar", key=f"del_no_rec_{r['id']}"):
+                                st.session_state.pop(delete_key, None)
                                 st.rerun()
-                            except Exception as e:
-                                st.error(f"Erro ao excluir: {e}")
-                        else:
-                            st.session_state[f"confirm_del_rec_{r['id']}"] = True
-                            st.rerun()
 
     with tab_rules:
         rules = get_all_alert_rules(include_disabled=True)
@@ -2360,7 +2457,7 @@ def tab_alertas():
             df["enabled"] = df["enabled"].map({True: "✅", False: "⏸️"})
             st.dataframe(_pt_cols(df[["name", "channel", "trigger", "frequency_minutes", "enabled"]]), use_container_width=True, hide_index=True)
         else:
-            st.info("Nenhuma regra cadastrada.")
+            info_box("Nenhuma regra de alerta configurada.", "info")
 
         with st.expander("➕  Nova Regra", expanded=False):
             with st.form("form_rule"):
@@ -2375,11 +2472,17 @@ def tab_alertas():
                     recipient_ids = st.multiselect("Destinatários", options=[r["id"] for r in recipients_list], format_func=lambda x: next((r["target"] for r in recipients_list if r["id"] == x), x))
                     enabled = st.checkbox("Ativo", value=True)
                 condition = st.text_area("Condição JSON", value='{"threshold_pct": 10}', height=80)
+                if condition and condition.strip():
+                    try:
+                        parsed = json.loads(condition)
+                        st.caption(f"JSON valido: {json.dumps(parsed, indent=2)[:200]}")
+                    except json.JSONDecodeError as e:
+                        st.caption(f"JSON invalido: {e}")
                 template = st.text_area("Template Jinja2 (opcional)", placeholder="{{ ingredient }} caiu para {{ price }}", height=80)
                 if st.form_submit_button("Salvar", use_container_width=True):
                     try:
-                        import json
                         upsert_alert_rule({
+
                             "name": name,
                             "channel": channel,
                             "trigger": trigger,
@@ -2584,7 +2687,7 @@ def tab_ranking():
             if get_config("features.export.csv_enabled", True):
                 csv_stats = stats.to_csv(index=False).encode("utf-8")
                 st.download_button("Exportar Estatisticas CSV", csv_stats,
-                                   f"ranking_{selected}_{datetime.utcnow().strftime('%Y%m%d')}.csv",
+                                   f"ranking_{selected}_{pd.Timestamp.utcnow().strftime('%Y%m%d')}.csv",
                                    "text/csv", key="csv_ranking", use_container_width=True)
 
 
@@ -2654,7 +2757,6 @@ def tab_insights():
                         valid_vals = [v for v in vals if v["price"] > 0]
                         if not valid_vals:
                             continue
-                        import statistics
                         prices_list = [v["price"] for v in valid_vals]
                         avg = statistics.mean(prices_list)
                         std = statistics.stdev(prices_list) if len(prices_list) > 1 else 0
@@ -2718,7 +2820,7 @@ def tab_insights():
                 if get_config("features.export.csv_enabled", True):
                     csv_best = display_b.to_csv(index=False).encode("utf-8")
                     st.download_button("Exportar Ofertas CSV", csv_best,
-                                       f"melhores_ofertas_{datetime.utcnow().strftime('%Y%m%d')}.csv",
+                                       f"melhores_ofertas_{pd.Timestamp.utcnow().strftime('%Y%m%d')}.csv",
                                        "text/csv", key="csv_melhores", use_container_width=True)
 
     with tab_vencedores:
@@ -2795,6 +2897,295 @@ def tab_insights():
 
 # ═══════════════════════════════════════════════════════════════
 
+def tab_calculadora():
+    section_title("Calculadora de Receita", "Calcule o custo e valor de venda dos seus doces")
+    ingredients = get_active_ingredients() if callable(getattr(get_active_ingredients, '__call__', None)) else load_ingredients()
+    ing_options = {}
+    if ingredients and isinstance(ingredients, list):
+        for i in ingredients:
+            if isinstance(i, dict) and i.get("canonical_name"):
+                ing_options[i["canonical_name"]] = i
+            elif isinstance(i, dict) and i.get("canonical"):
+                ing_options[i["canonical"]] = i
+    if not ing_options:
+        info_box("Nenhum ingrediente cadastrado.", "warning")
+        return
+    ing_list = sorted(ing_options.keys())
+
+    mode = st.radio("Modo", ["Simples", "Completo"], horizontal=True, key="calc_mode")
+    is_complete = mode == "Completo"
+
+    st.markdown("### Receita")
+    col_nome, col_r, col_o, col_p = st.columns([3, 1, 1, 1])
+    with col_nome:
+        recipe_name = st.text_input("Nome da receita", placeholder="Ex: Brigadeiro Belga", key="calc_name")
+    with col_r:
+        yield_qty = st.number_input("Rendimento (un)", min_value=1, value=40, key="calc_yield")
+    with col_o:
+        overhead_pct = st.number_input("Custos adicionais %", min_value=0.0, max_value=100.0, value=15.0, step=1.0, key="calc_overhead")
+    with col_p:
+        profit_pct = st.number_input("Lucro %", min_value=0.0, max_value=1000.0, value=300.0, step=10.0, key="calc_profit")
+
+    st.markdown("### Ingredientes")
+    if "calc_rows" not in st.session_state:
+        st.session_state.calc_rows = [{"id": 0}]
+    row_id_counter = len(st.session_state.calc_rows)
+
+    calc_prices = {}
+    for row in st.session_state.calc_rows:
+        rid = row["id"]
+        cols = st.columns([3, 1, 1.5, 2, 0.5])
+        with cols[0]:
+            sel_ing = st.selectbox("Ingrediente", ing_list, key=f"calc_ing_{rid}", label_visibility="collapsed", placeholder="Selecione...")
+        with cols[1]:
+            qty = st.number_input("Qtd (g)", min_value=0.0, value=0.0, step=10.0, key=f"calc_qty_{rid}", label_visibility="collapsed")
+        with cols[2]:
+            if sel_ing and qty > 0:
+                prices = get_cheapest_prices(sel_ing, top_n=3)
+                calc_prices[rid] = prices
+                if prices:
+                    best = prices[0]
+                    ppk = best.get("normalized", {}).get("price_per_kg", 0) if isinstance(best.get("normalized"), dict) else 0
+                    if not ppk and "price_per_kg" in best:
+                        ppk = best["price_per_kg"]
+                    if not ppk:
+                        ppk = prices[0].get("price_per_kg", 0)
+                    cost = (qty / 1000) * ppk
+                    st.markdown(
+                        f'<div style="font-size:0.85rem;font-weight:700;color:var(--cd-orange);margin-top:1.4rem;">'
+                        f"R$ {cost:.2f}</div>",
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.caption("Sem precos")
+            else:
+                st.caption("—")
+        with cols[3]:
+            if prices and is_complete:
+                store_opts = []
+                for pi, p in enumerate(prices):
+                    ppk = p.get("normalized", {}).get("price_per_kg", 0) if isinstance(p.get("normalized"), dict) else 0
+                    if not ppk:
+                        ppk = p.get("price_per_kg", 0)
+                    label = f"{p.get('store_name', '?')} — R$ {ppk:.2f}/kg"
+                    store_opts.append(label)
+                st.selectbox("Loja", store_opts, key=f"calc_store_{rid}", label_visibility="collapsed")
+            elif prices:
+                ppk = prices[0].get("normalized", {}).get("price_per_kg", 0) if isinstance(prices[0].get("normalized"), dict) else 0
+                if not ppk:
+                    ppk = prices[0].get("price_per_kg", 0)
+                st.markdown(
+                    f'<div class="store-opt" style="margin-top:1.4rem;font-size:0.8rem;">'
+                    f"{prices[0].get('store_name', '?')}: R$ {ppk:.2f}/kg</div>",
+                    unsafe_allow_html=True,
+                )
+        with cols[4]:
+            if len(st.session_state.calc_rows) > 1:
+                if st.button("✕", key=f"calc_del_{rid}", help="Remover ingrediente"):
+                    st.session_state.calc_rows = [r for r in st.session_state.calc_rows if r["id"] != rid]
+                    st.rerun()
+
+    if st.button("+ Adicionar Ingrediente", use_container_width=True):
+        st.session_state.calc_rows.append({"id": row_id_counter})
+        st.rerun()
+
+    st.markdown("---")
+
+    if st.button("Calcular", type="primary", use_container_width=True, key="calc_btn"):
+        if not recipe_name or not recipe_name.strip():
+            st.error("Informe o nome da receita.")
+            st.stop()
+        total_material = 0.0
+        ingredients_used = []
+        alerts = []
+        for row in st.session_state.calc_rows:
+            rid = row["id"]
+            sel_ing = st.session_state.get(f"calc_ing_{rid}", "")
+            qty = st.session_state.get(f"calc_qty_{rid}", 0.0)
+            if not sel_ing or qty <= 0:
+                continue
+            prices = calc_prices.get(rid, [])
+            if prices:
+                ppk = prices[0].get("normalized", {}).get("price_per_kg", 0) if isinstance(prices[0].get("normalized"), dict) else 0
+                if not ppk:
+                    ppk = prices[0].get("price_per_kg", 0)
+                cost_item = (qty / 1000) * ppk
+                total_material += cost_item
+                ingredients_used.append({"name": sel_ing, "qty_g": qty, "ppk": ppk, "cost": cost_item, "store": prices[0].get("store_name", "?")})
+                if is_complete and len(prices) >= 3:
+                    cheapest = prices[0]["normalized"]["price_per_kg"] if isinstance(prices[0].get("normalized"), dict) else prices[0].get("price_per_kg", 0)
+                    most_expensive = prices[-1]["normalized"]["price_per_kg"] if isinstance(prices[-1].get("normalized"), dict) else prices[-1].get("price_per_kg", 0)
+                    if most_expensive and cheapest and most_expensive > cheapest * 1.2:
+                        alerts.append(f"{sel_ing}: diferenca de {((most_expensive/cheapest)-1)*100:.0f}% entre lojas")
+
+        if total_material <= 0:
+            st.error("Adicione pelo menos um ingrediente com quantidade valida.")
+            st.stop()
+
+        overhead_cost = total_material * (overhead_pct / 100)
+        total_cost = total_material + overhead_cost
+        unit_cost = total_cost / yield_qty
+        sale_price = unit_cost * (1 + profit_pct / 100)
+        total_profit = (sale_price * yield_qty) - total_cost
+
+        st.markdown("## Resultado")
+        if alerts:
+            for a in alerts:
+                st.markdown(f'<div class="cd-calc-alert">⚠️ {a}</div>', unsafe_allow_html=True)
+
+        col_r1, col_r2, col_r3 = st.columns(3)
+        with col_r1:
+            st.markdown(
+                f'<div class="cd-calc-result-card">'
+                f'<div class="cd-calc-label">Custo Materiais</div>'
+                f'<div class="cd-calc-value">R$ {total_material:.2f}</div>'
+                f'</div>', unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="cd-calc-result-card">'
+                f'<div class="cd-calc-label">Custos Adicionais ({overhead_pct:.0f}%)</div>'
+                f'<div class="cd-calc-value">R$ {overhead_cost:.2f}</div>'
+                f'</div>', unsafe_allow_html=True)
+        with col_r2:
+            st.markdown(
+                f'<div class="cd-calc-result-card">'
+                f'<div class="cd-calc-label">Custo Total</div>'
+                f'<div class="cd-calc-value">R$ {total_cost:.2f}</div>'
+                f'</div>', unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="cd-calc-result-card">'
+                f'<div class="cd-calc-label">Custo por Unidade</div>'
+                f'<div class="cd-calc-value">R$ {unit_cost:.2f}</div>'
+                f'</div>', unsafe_allow_html=True)
+        with col_r3:
+            st.markdown(
+                f'<div class="cd-calc-result-card">'
+                f'<div class="cd-calc-label">Valor de Venda (unid.)</div>'
+                f'<div class="cd-calc-value highlight">R$ {sale_price:.2f}</div>'
+                f'</div>', unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="cd-calc-result-card">'
+                f'<div class="cd-calc-label">Lucro Total</div>'
+                f'<div class="cd-calc-value">R$ {total_profit:.2f}</div>'
+                f'</div>', unsafe_allow_html=True)
+
+        if is_complete:
+            st.markdown("### Cenarios de Margem")
+            scenarios = [
+                ("Conservador", 100),
+                ("Moderado", 200),
+                ("Agressivo", 300),
+            ]
+            sc_cols = st.columns(3)
+            for sci, (sname, spct) in enumerate(scenarios):
+                sp = unit_cost * (1 + spct / 100)
+                sprofit = (sp * yield_qty) - total_cost
+                with sc_cols[sci]:
+                    st.markdown(
+                        f'<div class="cd-calc-scenario">'
+                        f'<h4>{sname}</h4>'
+                        f'<div class="price">R$ {sp:.2f}</div>'
+                        f'<div class="profit">Lucro: R$ {sprofit:.2f}</div>'
+                        f'<div style="font-size:0.7rem;color:var(--cd-text-secondary);">Margem: {spct}%</div>'
+                        f'</div>', unsafe_allow_html=True)
+
+        summary = (
+            f"🧮 *{recipe_name}*\n"
+            f"Rendimento: {yield_qty} un | Custos: {overhead_pct:.0f}% | Lucro: {profit_pct:.0f}%\n\n"
+            f"Materiais: R$ {total_material:.2f}\n"
+            f"Custo total: R$ {total_cost:.2f}\n"
+            f"Custo/un: R$ {unit_cost:.2f}\n"
+            f"**Venda/un: R$ {sale_price:.2f}**\n"
+            f"Lucro total: R$ {total_profit:.2f}\n\n"
+            f"Ingredientes:\n"
+        )
+        for ing in ingredients_used:
+            summary += f"- {ing['name']}: {ing['qty_g']:.0f}g x R$ {ing['ppk']:.2f}/kg = R$ {ing['cost']:.2f} ({ing['store']})\n"
+        summary += "\nCustoDoce -- cotacao automatica"
+
+        col_share, col_save, col_tg = st.columns(3)
+        with col_share:
+            if st.button("Copiar Resumo", use_container_width=True, key="calc_copy"):
+                st.code(summary, language="")
+                st.toast("Resumo copiado! Cole onde quiser.", icon="✅")
+        with col_save:
+            if st.button("Salvar Receita", type="primary", use_container_width=True, key="calc_save"):
+                try:
+                    client = get_service_client()
+                    recipe_data = {
+                        "name": recipe_name.strip(),
+                        "yield_qty": yield_qty,
+                        "overhead_pct": overhead_pct,
+                        "profit_pct": profit_pct,
+                    }
+                    recipe_res = client.table("recipes").insert(recipe_data).execute()
+                    if recipe_res.data:
+                        recipe_id = recipe_res.data[0]["id"]
+                        for ing in ingredients_used:
+                            item_data = {
+                                "recipe_id": recipe_id,
+                                "ingredient_id": ing["name"],
+                                "quantity_g": ing["qty_g"],
+                                "selected_store": ing["store"],
+                                "price_per_kg": ing["ppk"],
+                            }
+                            client.table("recipe_items").insert(item_data).execute()
+                        st.success(f"Receita '{recipe_name}' salva com {len(ingredients_used)} ingredientes!")
+                except Exception as e:
+                    st.error(f"Erro ao salvar: {e}")
+        with col_tg:
+            tg_token = os.environ.get("TELEGRAM_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN", "")
+            tg_chat = os.environ.get("TELEGRAM_CHAT_ID", "")
+            if tg_token and tg_chat:
+                if st.button("Enviar via Telegram", use_container_width=True, key="calc_tg"):
+                    try:
+                        resp = httpx.post(
+                            f"https://api.telegram.org/bot{tg_token}/sendMessage",
+                            json={"chat_id": tg_chat, "text": summary, "parse_mode": "Markdown"},
+                            timeout=15,
+                        )
+                        if resp.status_code == 200:
+                            st.toast("Enviado via Telegram!", icon="📬")
+                        else:
+                            st.error(f"Erro Telegram: {resp.status_code}")
+                    except Exception as e:
+                        st.error(f"Falha no Telegram: {e}")
+            else:
+                st.button("Telegram (sem config)", disabled=True, help="Configure TELEGRAM_TOKEN e TELEGRAM_CHAT_ID", use_container_width=True, key="calc_tg_disabled")
+
+    st.markdown("---")
+    if is_complete:
+        st.markdown("### Receitas Salvas")
+        try:
+            client = get_service_client()
+            saved = client.table("recipes").select("*").order("created_at", desc=True).limit(10).execute()
+            if saved.data:
+                for r in saved.data:
+                    with st.expander(f"{r.get('name', 'Sem nome')} — {r.get('yield_qty', '?')} un"):
+                        st.caption(f"Criada em {r.get('created_at', '')[:10]} | Overhead: {r.get('overhead_pct', 0)}% | Lucro: {r.get('profit_pct', 0)}%")
+                        items = client.table("recipe_items").select("*").eq("recipe_id", r["id"]).execute()
+                        if items.data:
+                            for it in items.data:
+                                st.markdown(f"- {it.get('ingredient_id', '?')}: {it.get('quantity_g', 0):.0f}g — R$ {it.get('price_per_kg', 0):.2f}/kg ({it.get('selected_store', '?')})")
+                        if st.button("Carregar", key=f"calc_load_{r['id']}"):
+                            st.session_state.calc_name = r.get("name", "")
+                            st.session_state.calc_yield = r.get("yield_qty", 40)
+                            st.session_state.calc_overhead = float(r.get("overhead_pct", 15))
+                            st.session_state.calc_profit = float(r.get("profit_pct", 300))
+                            if items.data:
+                                st.session_state.calc_rows = []
+                                for idx, it in enumerate(items.data):
+                                    st.session_state.calc_rows.append({"id": idx})
+                                    st.session_state[f"calc_ing_{idx}"] = it.get("ingredient_id", "")
+                                    st.session_state[f"calc_qty_{idx}"] = float(it.get("quantity_g", 0))
+                            st.rerun()
+            else:
+                st.caption("Nenhuma receita salva ainda.")
+        except Exception:
+            st.caption("Nao foi possivel carregar receitas salvas.")
+
+
+# ═══════════════════════════════════════════════════════════════
+
 PAGE_HANDLERS = {
     "visao_geral": tab_visao_geral,
     "precos": tab_precos,
@@ -2812,6 +3203,7 @@ PAGE_HANDLERS = {
     "scrapers": tab_scrapers,
     "relatorios": tab_relatorios,
     "config": tab_config,
+    "calculadora": tab_calculadora,
     "diagnostico": tab_diagnostico,
 }
 

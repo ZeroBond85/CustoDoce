@@ -672,6 +672,40 @@ CREATE POLICY "service_role_all" ON scrape_frequencies FOR ALL USING (auth.role(
 CREATE POLICY "anon_read" ON scrape_frequencies FOR SELECT USING (true);
 
 -- ============================================================
+-- PHASE 9: Recipe calculator tables
+-- ============================================================
+CREATE TABLE IF NOT EXISTS recipes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    user_id TEXT DEFAULT 'admin',
+    yield_qty INT NOT NULL DEFAULT 1,
+    overhead_pct NUMERIC(5,2) DEFAULT 15.0,
+    profit_pct NUMERIC(5,2) DEFAULT 300.0,
+    notes TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS recipe_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    recipe_id UUID REFERENCES recipes(id) ON DELETE CASCADE,
+    ingredient_id TEXT NOT NULL,
+    quantity_g NUMERIC(10,2) NOT NULL,
+    selected_store TEXT,
+    price_per_kg NUMERIC(10,2),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_recipe_items_recipe ON recipe_items(recipe_id);
+
+ALTER TABLE recipes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE recipe_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all" ON recipes FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "service_role_all" ON recipe_items FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "anon_read" ON recipes FOR SELECT USING (true);
+CREATE POLICY "anon_read" ON recipe_items FOR SELECT USING (true);
+
+-- ============================================================
 -- Migration complete. Verify with:
 --   SELECT table_name FROM information_schema.tables
 --   WHERE table_schema = 'public' ORDER BY table_name;

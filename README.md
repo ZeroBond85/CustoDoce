@@ -5,7 +5,7 @@ Sistema automatizado de busca e comparação de preços de ingredientes para con
 ## Funcionalidades
 
 - 🔍 **Busca automática 2x/dia** - Coleta preços de PDFs de atacados, APIs VTEX e sites
-- 🏪 **17 abas no dashboard** - Visão geral, preços, histórico, flyers, revisão, fontes, ranking, insights, lojas, ingredientes, scrapers, relatórios, config, diagnóstico
+- 🏪 **18 abas no dashboard** - Visão geral, preços, histórico, flyers, revisão, fontes, ranking, insights, lojas, ingredientes, calculadora, scrapers, relatórios, config, diagnóstico
 - 🤖 **Telegram Bot** - `/preco <ingrediente>` → lista ordenada por R$/kg
 - ⚙️ **Config declarativa** - Edite `config/features.yaml` para ligar/desligar funções sem alterar código
 - 📊 **Export CSV** - Download de preços e histórico em CSV
@@ -173,6 +173,7 @@ Ou crie o repositório manualmente e faça upload dos arquivos.
 | **Fontes & Ofertas** | Cobertura por ingrediente, promoções ativas, ranking de fontes |
 | **Ranking** | Gráfico linha/área/barras, ranking atual, estatísticas do período |
 | **Insights** | Heatmap preço×loja, outliers por desvio padrão, melhores ofertas |
+| **Calculadora** | Cálculo de custo de receita (auto-fill preços), modo Simples/Completo, 3 cenários de margem, salvar receitas |
 | **Lojas** | CRUD via YAML inline, filtros tier, busca |
 | **Ingredientes** | CRUD via YAML, testadores normalizer + matcher |
 | **Scrapers** | Trigger manual GitHub Actions, schedule info + editor, logs |
@@ -275,6 +276,8 @@ CustoDoce/
 - [x] **Fase 9** — Dashboard Insights: Fontes & Ofertas, Ranking, Insights (heatmap + outliers + melhores ofertas)
 - [x] **Fase 10** — Brand Extraction + Email/TG UX: coluna brand no DB/dashboard, templates responsivos, SMTP Gmail, Ruff config
 - [x] **Fase 11** — Correção de Constraints: UNIQUE (ingredient_id, store_id, collected_at) em prices e price_history, correção do scrape_frequencies, tratamento de erro 42P10
+- [x] **Fase 12** — Self-Learning Review Queue: ordenação client-side, aliases automáticos ao aprovar
+- [x] **Fase 13** — UX Audit Fixes + Calculadora de Receita: 27 UX issues corrigidas, calculadora com auto-fill do DB, salvar receitas no Supabase, 18 abas, 168 testes
 
 ## Contribuindo
 

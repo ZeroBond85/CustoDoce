@@ -378,6 +378,28 @@ def get_price_trends(ingredient_id: str, days: int = 90) -> list[dict]:
     return trends
 
 
+def get_cheapest_prices(ingredient_id: str, top_n: int = 3) -> list[dict]:
+    """Retorna os top N precos mais baratos (price_per_kg) para um ingrediente.
+
+    Args:
+        ingredient_id: Nome canonico do ingrediente
+        top_n: Quantidade de resultados (default 3)
+
+    Returns:
+        Lista de dicts com os precos mais baratos, cada um contendo:
+        store_name, raw_product, raw_price, raw_unit, price_per_kg,
+        brand, is_promotion, valid_until, city, collected_at
+    """
+    prices = search_prices(
+        ingredient_id,
+        sort_by="price_per_kg",
+        sort_order="asc",
+        limit=top_n,
+        valid_only=True,
+    )
+    return prices
+
+
 def get_cross_ingredient_ranking(days: int = 90) -> list[dict]:
     """Retorna ranking de lojas por número de ingredientes onde são top-3."""
     from datetime import timedelta

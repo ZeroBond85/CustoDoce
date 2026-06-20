@@ -18,6 +18,7 @@ PAGES = [
     ("scrapers", "🤖", "Scrapers & Logs"),
     ("relatorios", "📬", "Relatorios"),
     ("config", "⚙️", "Configuracao"),
+    ("calculadora", "🧮", "Calculadora"),
     ("diagnostico", "🔬", "Diagnostico"),
 ]
 
@@ -60,6 +61,7 @@ def render_sidebar():
                 use_container_width=True,
                 type="primary" if selected else "secondary",
                 help=f"Ir para {label}",
+                aria_label=f"Navegar para {label}",
             )
             if btn:
                 st.session_state.page = page_id

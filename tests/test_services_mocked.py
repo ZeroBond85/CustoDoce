@@ -573,6 +573,27 @@ class TestPriceService:
         assert ppk == sorted(ppk)
 
 
+# ── get_cheapest_prices ─────────────────────────────────────
+
+    @patch("services.price_service.search_prices")
+    def test_get_cheapest_prices_basic(self, mock_search):
+        """get_cheapest_prices() must call search_prices with correct params."""
+        from services.price_service import get_cheapest_prices
+        mock_search.return_value = [{"store_name": "Assai", "normalized": {"price_per_kg": 8.5}}]
+        result = get_cheapest_prices("Leite Condensado", top_n=3)
+        mock_search.assert_called_once_with("Leite Condensado", sort_by="price_per_kg", sort_order="asc", limit=3, valid_only=True)
+        assert len(result) == 1
+        assert result[0]["store_name"] == "Assai"
+
+    @patch("services.price_service.search_prices")
+    def test_get_cheapest_prices_empty(self, mock_search):
+        """get_cheapest_prices() must return [] when no prices found."""
+        from services.price_service import get_cheapest_prices
+        mock_search.return_value = []
+        result = get_cheapest_prices("Inexistente")
+        assert result == []
+
+
 # ── main.process_price_match ───────────────────────────────────
 
     @patch("main.upsert_price")
