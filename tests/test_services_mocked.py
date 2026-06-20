@@ -632,14 +632,14 @@ class TestPriceService:
         """Review queue deve receber validity_raw."""
         from main import process_price_match
 
-        mock_match.return_value = (None, 50.0, "fuzzy")
+        mock_match.return_value = (None, 60.0, "fuzzy")
 
         store = {"name": "Extra", "type": "website"}
         process_price_match(store, "Produto Desconto 30%", 15.0, "un", [], validity_raw="Promo Semanal")
 
         inserted = mock_insert.call_args[0][0]
         assert inserted["validity_raw"] == "Promo Semanal"
-        assert inserted["confidence"] == 0.5
+        assert inserted["confidence"] == 0.6
 
     @patch("main.upsert_price")
     @patch("main.match_ingredient")

@@ -561,12 +561,12 @@ def tab_precos():
             # Legenda das colunas
             with st.expander("ℹ️ Legenda das colunas", expanded=False):
                 st.markdown("""
-                **Normalizado** — Preço padronizado para comparação: `R$ XX.XX/kg | R$ YY.YY/un`  
-                **Confiança** — Qualidade do match produto→ingrediente (1.0=exato, 0.8+=fuzzy, <0.8=revisão)  
-                **Tier** — Nível da loja (1=PDF direto, 2=E-commerce, 3=Agregadores, 4=Manual)  
-                **Promoção** — Detectado automaticamente por palavras-chave (PROMO, OFERTA, etc.)  
-                **Válido até** — Data fim da promoção/preço (se informada no folheto)  
-                **Coletado em** — Data/hora da coleta (fuso BR)  
+                **Normalizado** — Preço padronizado para comparação: `R$ XX.XX/kg | R$ YY.YY/un`
+                **Confiança** — Qualidade do match produto→ingrediente (1.0=exato, 0.8+=fuzzy, <0.8=revisão)
+                **Tier** — Nível da loja (1=PDF direto, 2=E-commerce, 3=Agregadores, 4=Manual)
+                **Promoção** — Detectado automaticamente por palavras-chave (PROMO, OFERTA, etc.)
+                **Válido até** — Data fim da promoção/preço (se informada no folheto)
+                **Coletado em** — Data/hora da coleta (fuso BR)
                 **Cidade / Bairro** — Local da unidade onde o preço foi coletado
                 """)
 
@@ -574,10 +574,7 @@ def tab_precos():
             min_price_idx = None
             if "price_per_kg" in df.columns and sort_by in df.columns:
                 price_per_kg_series = df_display.get("price_per_kg")
-                if price_per_kg_series is not None:
-                    valid = df_display[price_per_kg_series > 0].index
-                else:
-                    valid = pd.Index([])
+                valid = df_display[price_per_kg_series > 0].index if price_per_kg_series is not None else pd.Index([])
                 if not valid.empty:
                     if sort_order == "Crescente":
                         min_price_idx = df_display.loc[valid, sort_by].idxmin()
@@ -700,12 +697,12 @@ def tab_historico():
         # Legenda das colunas
         with st.expander("ℹ️ Legenda das colunas", expanded=False):
             st.markdown("""
-            **Normalizado** — Preço padronizado: `R$ XX.XX/kg | R$ YY.YY/un`  
-            **R$/kg** — Preço por kg (calculado do Normalizado)  
-            **Confiança** — Match produto→ingrediente (1.0=exato, 0.8+=fuzzy, <0.8=revisão)  
-            **Promoção** — Detectado por palavras-chave (PROMO, OFERTA, etc.)  
-            **Válido até** — Data fim da promoção/preço  
-            **Coletado em** — Data/hora da coleta (fuso BR)  
+            **Normalizado** — Preço padronizado: `R$ XX.XX/kg | R$ YY.YY/un`
+            **R$/kg** — Preço por kg (calculado do Normalizado)
+            **Confiança** — Match produto→ingrediente (1.0=exato, 0.8+=fuzzy, <0.8=revisão)
+            **Promoção** — Detectado por palavras-chave (PROMO, OFERTA, etc.)
+            **Válido até** — Data fim da promoção/preço
+            **Coletado em** — Data/hora da coleta (fuso BR)
             **Cidade / Bairro** — Local da unidade onde o preço foi coletado
             """)
 
@@ -905,6 +902,9 @@ def tab_revisao():
             raw_price = item.get("raw_price", 0)
             raw_unit = item.get("raw_unit", "")
             suggestions = item.get("suggestions", [])
+            image_url = item.get("image_url", "")
+            source_url = item.get("source_url", "")
+            match_reason = item.get("match_reason", "")
 
             with st.container(border=True):
                 cols = st.columns([3, 2, 1, 1])
@@ -915,9 +915,22 @@ def tab_revisao():
                     st.caption(
                         f"{extra}Loja: {store_name} | Confianca: {confidence * 100:.0f}%"
                     )
-                    st.caption(
-                        "ℹ️ Revisão necessária: a confiança é inferior a 80%."
-                    )
+                    if match_reason:
+                        st.caption(f"⚠️ Motivo: {match_reason}")
+                    elif confidence < 0.8:
+                        st.caption(
+                            "ℹ️ Revisão necessária: a confiança é inferior a 80%."
+                        )
+
+                    # Show flyer image if available
+                    if image_url:
+                        with st.expander("🖼️ Ver Panfleto de Origem", expanded=False):
+                            st.image(image_url, use_container_width=True)
+                            st.caption("Clique com botão direito → Salvar imagem para download")
+
+                    # Show source link if available
+                    if source_url:
+                        st.link_button("🔗 Abrir Página do Produto", source_url, use_container_width=True)
                 with cols[1]:
                     st.markdown(f"R$ {float(raw_price):.2f} {raw_unit}")
                 options = suggestions + ["Outro..."]

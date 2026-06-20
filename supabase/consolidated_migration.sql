@@ -94,7 +94,11 @@ CREATE TABLE IF NOT EXISTS review_queue (
     status TEXT DEFAULT 'pending',
     resolved_ingredient TEXT,
     collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    reviewed_at TIMESTAMPTZ
+    reviewed_at TIMESTAMPTZ,
+    image_url TEXT,
+    source_url TEXT,
+    match_reason TEXT,
+    brand TEXT DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_review_status ON review_queue(status);

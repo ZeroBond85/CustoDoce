@@ -84,20 +84,26 @@ def rank_ingredients(
     product_text: str,
     ingredients: list[dict],
     top_n: int = 3,
-) -> list[tuple[dict, float, str]]:
+) -> list[tuple[dict, float, str, str]]:
+    """Returns list of (ingredient, score, match_type, matched_term)"""
     product_clean = clean_text(product_text)
     candidates = []
 
     for ing in ingredients:
         canonical_clean = clean_text(ing["canonical"])
         score = fuzz.token_set_ratio(product_clean, canonical_clean)
+        match_type = "fuzzy_canonical"
+        matched_term = ing["canonical"]
 
         for alias in ing.get("aliases", []):
             alias_clean = clean_text(alias)
             alias_score = fuzz.token_set_ratio(product_clean, alias_clean)
-            score = max(score, alias_score)
+            if alias_score > score:
+                score = alias_score
+                match_type = "fuzzy_alias"
+                matched_term = alias
 
-        candidates.append((ing, score))
+        candidates.append((ing, score, match_type, matched_term))
 
     candidates.sort(key=lambda x: x[1], reverse=True)
-    return [(c[0], c[1], "fuzzy") for c in candidates[:top_n]]
+    return [(c[0], c[1], c[2], c[3]) for c in candidates[:top_n]]

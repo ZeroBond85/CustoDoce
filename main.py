@@ -105,6 +105,8 @@ def process_price_match(
     ingredients: list[dict],
     validity_raw: str = "",
     brand: str = "",
+    image_url: str = "",
+    source_url: str = "",
 ) -> dict | None:
     ingredient, score, match_type = match_ingredient(product_text, ingredients)
     if ingredient and score >= 80.0:
@@ -117,10 +119,19 @@ def process_price_match(
         upsert_price(entry)
         return entry
 
-    if score >= 30.0:
+    if score >= 55.0:
         candidates = rank_ingredients(product_text, ingredients, top_n=3)
-        suggestions = [c[0]["canonical"] for c in candidates if c[1] >= 30.0]
+        suggestions = [c[0]["canonical"] for c in candidates if c[1] >= 55.0]
         validity = validity_raw or _extract_validity_from_product(product_text)
+        
+        # Build match reason explanation
+        match_reason = ""
+        if candidates:
+            top = candidates[0]
+            match_reason = f"Fuzzy match de {top[1]:.0f}% com '{top[0]['canonical']}' (match via '{top[3]}')"
+        else:
+            match_reason = f"Score {score:.0f}% - nenhum match forte encontrado"
+        
         review_item = {
             "raw_product": product_text,
             "raw_price": raw_price,
@@ -131,6 +142,9 @@ def process_price_match(
             "suggestions": suggestions,
             "validity_raw": validity,
             "brand": brand,
+            "image_url": image_url,
+            "source_url": source_url,
+            "match_reason": match_reason,
         }
         try:
             insert_review_item(review_item)
@@ -197,6 +211,7 @@ def _collect_prices(
                     ingredients,
                     validity_raw=prod.get("validity_raw", ""),
                     brand=prod.get("brand", ""),
+                    source_url=prod.get("source_url", ""),
                 )
                 if entry:
                     matched += 1
@@ -362,7 +377,8 @@ def process_ocr_queue() -> int:
                     raw_price=prod.get("price", 0),
                     raw_unit=prod.get("unit", ""),
                     ingredients=ingredients,
-                    validity_raw=prod.get("validity_raw", "")
+                    validity_raw=prod.get("validity_raw", ""),
+                    image_url=flyer.get("image_url", ""),
                 )
                 if entry:
                     matched += 1
