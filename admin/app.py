@@ -547,6 +547,10 @@ def tab_precos():
                 df["normalizado"] = df["normalized"].apply(format_norm)
                 display_cols = display_cols + ["normalizado"]
 
+            # Format collected_at to pt-BR datetime
+            if "collected_at" in df.columns:
+                df["collected_at"] = pd.to_datetime(df["collected_at"], utc=True, errors="coerce").dt.strftime("%d/%m/%Y %H:%M")
+
             df_display = df[display_cols].head(limit).copy()
             min_price_idx = None
             if "price_per_kg" in df.columns and sort_by in df.columns:
