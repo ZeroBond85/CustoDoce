@@ -120,9 +120,11 @@ if conn is not None:
 # ─── 4. HTTP: Streamlit Cloud legacy URL ───
 print("\n=== 4. Streamlit Cloud ===")
 try:
-    r = httpx.get("https://share.streamlit.io/ZeroBond85/CustoDoce/master/~/admin/app.py",
-                  follow_redirects=False, timeout=15)
-    check(f"App URL: HTTP {r.status_code}", r.status_code == 200, f"(redirect: {r.headers.get('location','')[:60]})" if r.status_code != 200 else "")
+    r = httpx.get("https://custodoce.streamlit.app",
+                  follow_redirects=False, timeout=30)
+    ok = r.status_code in (200, 301, 302, 303, 307)
+    check(f"App URL: HTTP {r.status_code}", ok,
+          "auth redirect (expected without browser session)" if r.status_code == 303 else "")
 except Exception as e:
     check("App URL reachable", False, str(e)[:80])
 

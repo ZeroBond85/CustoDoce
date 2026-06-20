@@ -135,7 +135,7 @@ Ou crie o repositório manualmente e faça upload dos arquivos.
 
 ### 11. Deploy do Streamlit Dashboard
 
-1. Acesse [share.streamlit.io](https://share.streamlit.io)
+1. Acesse [streamlit.io/cloud](https://streamlit.io/cloud)
 2. Faça login com GitHub
 3. Clique **"New app"**
 4. Selecione o repositório `CustoDoce`
