@@ -845,7 +845,24 @@ def tab_flyers():
             )
             img_url = selected.get("image_url", "")
             if img_url:
-                st.image(img_url, use_container_width=True)
+                col_img, col_dl = st.columns([3, 1])
+                with col_img:
+                    st.image(img_url, use_container_width=True)
+                with col_dl:
+                    try:
+                        import httpx
+                        resp = httpx.get(img_url, timeout=10)
+                        if resp.status_code == 200:
+                            ext = ".webp" if "webp" in resp.headers.get("content-type", "") else ".jpg"
+                            st.download_button(
+                                "⬇️ Baixar Flyer",
+                                data=resp.content,
+                                file_name=f"flyer_{selected.get('id', 'unknown')}{ext}",
+                                mime=resp.headers.get("content-type", "image/jpeg"),
+                                use_container_width=True,
+                            )
+                    except Exception as e:
+                        st.caption(f"Erro ao baixar: {e}")
             ocr_text = selected.get("ocr_text", "")
             if ocr_text:
                 with st.expander("Texto OCR"):
