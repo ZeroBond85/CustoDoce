@@ -321,7 +321,7 @@ class TestPriceService:
 
     @patch("services.price_service.get_supabase")
     def test_search_prices_default_order_asc(self, mock_get):
-        """Ordena por price_per_kg ASC no cliente (fallback de collected_at no server)."""
+        """Ordena por price_per_kg ASC no cliente (sem order no server)."""
         from services.price_service import search_prices
 
         mock_client, _, qb = make_mocks()
@@ -330,8 +330,9 @@ class TestPriceService:
 
         result = search_prices("Leite Condensado Integral")
 
-        # server-side: ordena por collected_at DESC
-        assert ("order", "collected_at", True) in qb._applied_filters
+        # server-side: NENHUM order aplicado (price_per_kg é client-side)
+        orders = [f for f in qb._applied_filters if f[0] == "order"]
+        assert len(orders) == 0, f"Esperado 0 orders, encontrado: {orders}"
         # client-side: retorna ordenado por price_per_kg ASC
         assert len(result) > 0
         ppk = [r.get("normalized", {}).get("price_per_kg", 0) for r in result]
@@ -554,7 +555,7 @@ class TestPriceService:
 
     @patch("services.price_service.get_supabase")
     def test_get_prices_for_ingredient_default_order(self, mock_get):
-        """Ordena por price_per_kg ASC no cliente."""
+        """Ordena por price_per_kg ASC no cliente (sem order no server)."""
         from services.price_service import get_prices_for_ingredient
 
         mock_client, _, qb = make_mocks()
@@ -563,7 +564,10 @@ class TestPriceService:
 
         result = get_prices_for_ingredient("Leite Condensado Integral")
 
-        assert ("order", "collected_at", True) in qb._applied_filters
+        # server-side: NENHUM order aplicado
+        orders = [f for f in qb._applied_filters if f[0] == "order"]
+        assert len(orders) == 0, f"Esperado 0 orders, encontrado: {orders}"
+        # client-side: ordenado por price_per_kg ASC
         assert len(result) > 0
         ppk = [r.get("normalized", {}).get("price_per_kg", 0) for r in result]
         assert ppk == sorted(ppk)

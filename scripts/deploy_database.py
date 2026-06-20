@@ -370,7 +370,7 @@ def main():
             if not stmt:
                 continue
             lines = stmt.split("\n")
-            if all(l.strip().startswith("--") for l in lines if l.strip()):
+            if all(line.strip().startswith("--") for line in lines if line.strip()):
                 continue
             try:
                 cur.execute(stmt + ";")
