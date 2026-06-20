@@ -354,7 +354,7 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 | Email templates rewrite — responsivo, logo CID, laranja+rosa, preheader, tagline, "Cotação de Preços" | ✅ |
 | SMTP migrado de Outlook → Gmail (custodoce.alertas@gmail.com) | ✅ |
 | Telegram template — mensagem consolidada com medals 🥇🥈🥉 | ✅ |
-| UX audit — 32 issues identificadas (6 críticas) | 🔍 Pendente |
+| UX audit — 27 issues corrigidas + docs/ux_audit.md | ✅ |
 | `pyproject.toml` — Ruff config (`line-length=120`, `ignore=["E501"]`) + per-file-ignores `"admin/app.py" = ["E402"]` | ✅ |
 | `scripts/archive/` — 6 fixes E741 + E722 | ✅ |
 | 160 testes, ruff clean, bandit/pip-audit | ✅ Todos limpos |
