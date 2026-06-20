@@ -2395,34 +2395,33 @@ def tab_frequencias():
     st.divider()
 
     # Form to add/edit
-    with st.expander("➕  Nova Frequência", expanded=False):
-        with st.form("form_freq"):
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                _all_stores = _cached_get_all_stores()
-                _store_options = {s["name"]: s["id"] for s in _all_stores if "id" in s and "name" in s}
-                selected_store = st.selectbox("Loja (opcional)", options=[""] + list(_store_options.keys()))
-                store_id = _store_options[selected_store] if selected_store else ""
-                tier = st.number_input("Tier (opcional)", min_value=1, max_value=4, step=1, value=None)
-            with col2:
-                freq_min = st.number_input("Frequência (minutos)", min_value=60, value=1440, step=60)
-                max_retries = st.number_input("Max Retries", min_value=0, max_value=5, value=2)
-            with col3:
-                timeout = st.number_input("Timeout (segundos)", min_value=10, max_value=300, value=30, step=10)
-                rate_limit = st.number_input("Rate Limit (req/min)", min_value=1, max_value=60, value=10)
-            enabled = st.checkbox("Ativo", value=True)
-            if st.form_submit_button("Salvar", use_container_width=True):
-                data = {"frequency_minutes": freq_min, "max_retries": max_retries, "timeout_seconds": timeout, "rate_limit_per_minute": rate_limit, "enabled": enabled}
-                if store_id:
-                    data["store_id"] = store_id
-                if tier:
-                    data["tier"] = tier
-                try:
-                    upsert_scrape_frequency(data)
-                    st.toast("Frequência salva!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Erro ao salvar frequência: {e}")
+    with st.expander("➕  Nova Frequência", expanded=False), st.form("form_freq"):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            _all_stores = _cached_get_all_stores()
+            _store_options = {s["name"]: s["id"] for s in _all_stores if "id" in s and "name" in s}
+            selected_store = st.selectbox("Loja (opcional)", options=[""] + list(_store_options.keys()))
+            store_id = _store_options[selected_store] if selected_store else ""
+            tier = st.number_input("Tier (opcional)", min_value=1, max_value=4, step=1, value=None)
+        with col2:
+            freq_min = st.number_input("Frequência (minutos)", min_value=60, value=1440, step=60)
+            max_retries = st.number_input("Max Retries", min_value=0, max_value=5, value=2)
+        with col3:
+            timeout = st.number_input("Timeout (segundos)", min_value=10, max_value=300, value=30, step=10)
+            rate_limit = st.number_input("Rate Limit (req/min)", min_value=1, max_value=60, value=10)
+        enabled = st.checkbox("Ativo", value=True)
+        if st.form_submit_button("Salvar", use_container_width=True):
+            data = {"frequency_minutes": freq_min, "max_retries": max_retries, "timeout_seconds": timeout, "rate_limit_per_minute": rate_limit, "enabled": enabled}
+            if store_id:
+                data["store_id"] = store_id
+            if tier:
+                data["tier"] = tier
+            try:
+                upsert_scrape_frequency(data)
+                st.toast("Frequência salva!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Erro ao salvar frequência: {e}")
 
 
 def tab_alertas():
@@ -2440,22 +2439,21 @@ def tab_alertas():
         else:
             info_box("Nenhum destinatario cadastrado.", "info")
 
-        with st.expander("➕  Novo Destinatário", expanded=False):
-            with st.form("form_recipient"):
-                col1, col2 = st.columns(2)
-                with col1:
-                    channel = st.selectbox("Canal", ["email", "telegram", "whatsapp"], format_func=lambda x: {"email": "Email", "telegram": "Telegram", "whatsapp": "WhatsApp"}.get(x, x))
-                    target = st.text_input("Destino", placeholder="email@dominio.com ou -1001234567890")
-                with col2:
-                    name = st.text_input("Nome (opcional)", placeholder="Financeiro, Gestor, etc")
-                    active = st.checkbox("Ativo", value=True)
-                if st.form_submit_button("Salvar", use_container_width=True):
-                    try:
-                        upsert_recipient({"channel": channel, "target": target, "name": name, "active": active})
-                        st.toast("Destinatário salvo!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Erro ao salvar destinatário: {e}")
+        with st.expander("➕  Novo Destinatário", expanded=False), st.form("form_recipient"):
+            col1, col2 = st.columns(2)
+            with col1:
+                channel = st.selectbox("Canal", ["email", "telegram", "whatsapp"], format_func=lambda x: {"email": "Email", "telegram": "Telegram", "whatsapp": "WhatsApp"}.get(x, x))
+                target = st.text_input("Destino", placeholder="email@dominio.com ou -1001234567890")
+            with col2:
+                name = st.text_input("Nome (opcional)", placeholder="Financeiro, Gestor, etc")
+                active = st.checkbox("Ativo", value=True)
+            if st.form_submit_button("Salvar", use_container_width=True):
+                try:
+                    upsert_recipient({"channel": channel, "target": target, "name": name, "active": active})
+                    st.toast("Destinatário salvo!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao salvar destinatário: {e}")
 
         if recipients:
             with st.expander("✏️  Editar / Excluir", expanded=False):
@@ -2496,18 +2494,17 @@ def tab_alertas():
         else:
             info_box("Nenhuma regra de alerta configurada.", "info")
 
-        with st.expander("➕  Nova Regra", expanded=False):
-            with st.form("form_rule"):
-                col1, col2 = st.columns(2)
-                with col1:
-                    name = st.text_input("Nome da Regra", placeholder="ex: Alerta Queda Preço Leite Condensado")
-                    channel = st.selectbox("Canal", ["email", "telegram", "whatsapp"], format_func=lambda x: {"email": "Email", "telegram": "Telegram", "whatsapp": "WhatsApp"}.get(x, x))
-                    trigger = st.selectbox("Gatilho", ["price_drop", "new_low_price", "daily_report", "scrape_failure", "review_queue_threshold"], format_func=lambda x: {"price_drop": "Queda de Preço", "new_low_price": "Menor Preço Histórico", "daily_report": "Relatório Diário", "scrape_failure": "Falha no Scraper", "review_queue_threshold": "Fila de Revisão"}.get(x, x))
-                with col2:
-                    freq = st.number_input("Anti-spam (minutos)", min_value=60, value=1440, step=60)
-                    recipients_list = get_active_recipients(channel)
-                    recipient_ids = st.multiselect("Destinatários", options=[r["id"] for r in recipients_list], format_func=lambda x: next((r["target"] for r in recipients_list if r["id"] == x), x))
-                    enabled = st.checkbox("Ativo", value=True)
+        with st.expander("➕  Nova Regra", expanded=False), st.form("form_rule"):
+            col1, col2 = st.columns(2)
+            with col1:
+                name = st.text_input("Nome da Regra", placeholder="ex: Alerta Queda Preço Leite Condensado")
+                channel = st.selectbox("Canal", ["email", "telegram", "whatsapp"], format_func=lambda x: {"email": "Email", "telegram": "Telegram", "whatsapp": "WhatsApp"}.get(x, x))
+                trigger = st.selectbox("Gatilho", ["price_drop", "new_low_price", "daily_report", "scrape_failure", "review_queue_threshold"], format_func=lambda x: {"price_drop": "Queda de Preço", "new_low_price": "Menor Preço Histórico", "daily_report": "Relatório Diário", "scrape_failure": "Falha no Scraper", "review_queue_threshold": "Fila de Revisão"}.get(x, x))
+            with col2:
+                freq = st.number_input("Anti-spam (minutos)", min_value=60, value=1440, step=60)
+                recipients_list = get_active_recipients(channel)
+                recipient_ids = st.multiselect("Destinatários", options=[r["id"] for r in recipients_list], format_func=lambda x: next((r["target"] for r in recipients_list if r["id"] == x), x))
+                enabled = st.checkbox("Ativo", value=True)
                 condition = st.text_area("Condição JSON", value='{"threshold_pct": 10}', height=80)
                 if condition and condition.strip():
                     try:
