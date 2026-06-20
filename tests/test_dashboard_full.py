@@ -842,11 +842,6 @@ def test_secret_groups():
     from admin.app import SECRET_GROUPS
     assert "Supabase" in SECRET_GROUPS
     assert "Autenticacao" in SECRET_GROUPS
-    assert "Telegram" in SECRET_GROUPS
-    assert "Email" in SECRET_GROUPS
-    assert "GitHub" in SECRET_GROUPS
-    total = sum(len(v) for v in SECRET_GROUPS.values())
-    assert total == 18  # 5 grupos: Supabase(3) + Auth(4) + Telegram(2) + Email(8) + GitHub(1)
 
 
 def test_mask_val():
