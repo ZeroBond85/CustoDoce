@@ -550,9 +550,11 @@ def tab_precos():
             df_display = df[display_cols].head(limit).copy()
             min_price_idx = None
             if "price_per_kg" in df.columns and sort_by in df.columns:
-                valid = df_display[
-                    df_display.get("price_per_kg", pd.Series([0])) > 0
-                ].index
+                price_per_kg_series = df_display.get("price_per_kg")
+                if price_per_kg_series is not None:
+                    valid = df_display[price_per_kg_series > 0].index
+                else:
+                    valid = pd.Index([])
                 if not valid.empty:
                     if sort_order == "Crescente":
                         min_price_idx = df_display.loc[valid, sort_by].idxmin()
