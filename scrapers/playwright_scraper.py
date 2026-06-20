@@ -2,7 +2,8 @@ import asyncio
 import logging
 import re
 
-from playwright.async_api import async_playwright, Page, Browser
+from playwright.async_api import Page, Browser
+from scrapers.playwright_pool import get_browser_pool
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,8 @@ class PlaywrightAggregatorScraper:
 
                 flyers.append(flyer)
 
-            except Exception:  # nosec B112
+            except Exception as e:  # nosec B112
+                logger.warning("Falha ao extrair flyer: %s", e)
                 continue
 
         return flyers
@@ -96,11 +98,13 @@ class PlaywrightAggregatorScraper:
         source = self.name.lower().replace(" ", "_")
         city_urls = self._build_city_urls()
 
-        async with async_playwright() as pw:
-            browser = await pw.chromium.launch(headless=True)
+        pool = await get_browser_pool()
+        browser = pool.browser
+        try:
             tasks = [self._scrape_city(browser, url, region, source) for url, region in city_urls]
             results = await asyncio.gather(*tasks)
-            await browser.close()
+        finally:
+            pass  # Pool handles cleanup
 
         all_flyers = []
         for flyers in results:

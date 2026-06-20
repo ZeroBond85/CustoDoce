@@ -3,7 +3,6 @@ import sqlite3
 import time
 import threading
 from pathlib import Path
-from typing import Dict
 
 
 class RateLimiter:
@@ -13,7 +12,7 @@ class RateLimiter:
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self._max_attempts = max_attempts
         self._window = window_seconds
-        self._local: Dict[str, list] = {}
+        self._local: dict[str, list] = {}
         self._lock = threading.Lock()
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.execute(

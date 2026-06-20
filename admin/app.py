@@ -2,7 +2,7 @@ import html
 import logging
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -202,8 +202,12 @@ def _sanitize(value) -> str:
 def _get_repo_from_git() -> str:
     try:
         import subprocess  # nosec B404
-        origin = subprocess.run(  # nosec B603 B607
-            ["git", "remote", "get-url", "origin"],
+        import shutil
+        git_path = shutil.which("git")
+        if not git_path:
+            return "CustoDoce/CustoDoce"
+        origin = subprocess.run(  # nosec B603
+            [git_path, "remote", "get-url", "origin"],
             capture_output=True, text=True, timeout=5
         ).stdout.strip()
         if origin:
@@ -317,7 +321,7 @@ def _render_coverage_heatmap(df):
                         dt = pd.to_datetime(ts)
                         if dt.tzinfo is not None:
                             dt = dt.replace(tzinfo=None)
-                        days_ago = (datetime.utcnow() - dt).days
+                        days_ago = (datetime.now(timezone.utc) - dt).days
                         row[s] = "hoje" if days_ago <= 3 else "semana" if days_ago <= 7 else "antigo"
                     except Exception as e:
                         row[s] = f"erro: {e}"
@@ -371,7 +375,7 @@ def _render_variation_alerts(df):
                     unsafe_allow_html=True,
                 )
         if not alerts_found:
-            st.caption("Nenhuma variacao significativa detectada (limite: ±{:.0f}%).".format(alert_pct))
+            st.caption(f"Nenhuma variacao significativa detectada (limite: ±{alert_pct:.0f}%).")
     except Exception as e:
         st.caption(f"Alertas indisponiveis: {e}")
 
@@ -587,7 +591,8 @@ def tab_historico():
     load = st.button("Carregar", type="primary")
 
     if load:
-        history = _cached_get_price_history(selected, days=days, valid_only=valid_only)
+        with st.spinner("Carregando historico..."):
+            history = _cached_get_price_history(selected, days=days, valid_only=valid_only)
         if not history:
             info_box(f"Nenhum historico disponivel para '{selected}' no periodo.", "info")
             return
@@ -660,7 +665,7 @@ def tab_historico():
             st.download_button(
                 "Exportar Dados Brutos CSV",
                 csv_full,
-                f"historico_{selected}_{datetime.utcnow().strftime('%Y%m%d')}.csv",
+                f"historico_{selected}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.csv",
                 "text/csv",
                 key="csv_historico",
                 use_container_width=True,
@@ -902,7 +907,7 @@ def tab_lojas():
             tiers = [s.get("tier", 3) for s in stores]
             col2.metric("Tiers", f"{min(tiers)}-{max(tiers)}" if tiers else "—")
             col3.metric("Ativas", len([s for s in stores if s.get("is_active")]))
-            col4.metric("Tipos", len(set(s.get("type") for s in stores if s.get("type"))))
+            col4.metric("Tipos", len({s.get("type") for s in stores if s.get("type")}))
 
             col_s1, col_s2 = st.columns([3, 1])
             with col_s2:
@@ -1174,7 +1179,7 @@ def _render_schedule_info():
                 backup_path = path + ".bak"
                 shutil.copy2(path, backup_path)
                 new_content = content
-                for i, (old, new) in enumerate(zip(crons, new_crons)):
+                for _i, (old, new) in enumerate(zip(crons, new_crons)):
                     new_content = new_content.replace(
                         f"cron: '{old}'", f"cron: '{new}'"
                     )
@@ -1200,9 +1205,7 @@ def _get_criticality_level(store_name: str, stores_config: list, last_success: s
 
     if tier == 1 and days_failed >= 1:
         return "🔴 Crítico", "red"
-    elif tier == 1 and days_failed >= 0:
-        return "🟡 Alto", "orange"
-    elif tier == 2 and days_failed >= 2:
+    elif tier == 1 or (tier == 2 and days_failed >= 2):
         return "🟡 Alto", "orange"
     elif tier == 2 and days_failed >= 1:
         return "🟢 Médio", "yellow"
@@ -1218,7 +1221,7 @@ def _render_scraper_health_dashboard(df: pd.DataFrame, stores_config: list):
 
     completed_with_data = df[(df["status"] == "completed") & (df["items_found"] > 0)]["store_name"].nunique() if not df.empty else 0
 
-    active_pct = int((completed_with_data / total_stores * 100)) if total_stores > 0 else 0
+    active_pct = int(completed_with_data / total_stores * 100) if total_stores > 0 else 0
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -1329,8 +1332,7 @@ def _render_scraper_maintenance(_client_unused=None):
                 store_name = row.get("store_name", "?")
                 started_at = row.get("started_at", "")
 
-                # Calcular dias desde última execução
-                from datetime import datetime
+# Calcular dias desde última execução
                 days_ago = 0
                 if started_at:
                     try:
@@ -1563,10 +1565,9 @@ def tab_scrapers():
         with col1:
             if st.button(
                 "Forcar Coleta Agora", type="primary", use_container_width=True
-            ):
-                if not st.session_state.get("confirm_force_scrape"):
-                    st.session_state.confirm_force_scrape = True
-                    st.rerun()
+            ) and not st.session_state.get("confirm_force_scrape"):
+                st.session_state.confirm_force_scrape = True
+                st.rerun()
             if st.session_state.get("confirm_force_scrape"):
                 st.warning("Confirma disparo do workflow no GitHub Actions?")
                 if st.button("Sim, disparar", key="confirm_force_yes"):
@@ -1632,22 +1633,22 @@ def tab_scrapers():
 
 
 def _build_report_html(ingredient: str, days: int, prices: list) -> str:
-    hoje = datetime.utcnow().strftime("%d/%m/%Y")
+    hoje = datetime.now(timezone.utc).strftime("%d/%m/%Y")
     sorted_prices = sorted(prices, key=lambda x: (
         (x.get("normalized") or {}).get("price_per_kg", 999999)
     ))
     rows = ""
     for p in sorted_prices[:50]:
-        store = p.get("store_name", "?")
-        product = p.get("raw_product", "?")[:50]
+        store = html.escape(p.get("store_name", "?"))
+        product = html.escape(p.get("raw_product", "?")[:50])
         price = float(p.get("raw_price", 0))
-        unit = p.get("raw_unit", "")
+        unit = html.escape(p.get("raw_unit", ""))
         ppk = ""
         if isinstance(p.get("normalized"), dict):
             ppk = p["normalized"].get("price_per_kg", 0)
             ppk = f"R$ {ppk:.2f}/kg" if ppk else ""
         promo = " 🏷️" if p.get("is_promotion") else ""
-        valid = p.get("valid_until", "")
+        valid = html.escape(p.get("valid_until", ""))
         valid_str = f" (ate {valid})" if valid else ""
         rows += f"<tr><td>{store}{promo}</td><td>{product}</td><td>R$ {price:.2f} {unit}</td><td>{ppk}</td><td>{valid_str}</td></tr>"
     return f"""<html><body style="font-family:Nunito,sans-serif;background:#FFF9F5;padding:20px;">
@@ -1726,10 +1727,9 @@ def tab_relatorios():
                     use_container_width=True,
                     disabled=send_disabled,
                     help="Configure SMTP nas secrets primeiro" if send_disabled else "Enviar relatorio por email",
-                ):
-                    if not st.session_state.get("confirm_send_report"):
-                        st.session_state.confirm_send_report = True
-                        st.rerun()
+                ) and not st.session_state.get("confirm_send_report"):
+                    st.session_state.confirm_send_report = True
+                    st.rerun()
                 if st.session_state.get("confirm_send_report"):
                     st.warning(f"Confirma envio para {to_email}?")
                     col_y, col_n = st.columns(2)
@@ -1812,7 +1812,7 @@ def _render_admin_account():
     pw_hash = os.environ.get("ADMIN_PASSWORD_HASH", "")
     pw_plain = os.environ.get("ADMIN_PASSWORD", "")
     totp_enabled = os.environ.get("TOTP_ENABLED", "")
-    has_password = bool(pw_hash or (pw_plain and pw_plain != "custodoce2907"))
+    has_password = bool(pw_hash or pw_plain)
 
     c1, c2 = st.columns(2)
     with c1:
@@ -1950,8 +1950,7 @@ def tab_config():
                 key="env_smtp_to",
                 help="Para qual email os relatorios serao enviados",
             )
-        if env_user and env_pass and env_to:
-            if st.button("Testar Envio de Email", key="test_email_cfg", use_container_width=True):
+        if env_user and env_pass and env_to and st.button("Testar Envio de Email", key="test_email_cfg", use_container_width=True):
                 ok, msg = _test_smtp(env_host, int(env_port or "587"), env_user, env_pass, env_to, env_from)
                 if ok:
                     st.success(msg)
@@ -1976,8 +1975,7 @@ def tab_config():
                 key="env_tg_chat",
                 help="Seu ID numerico do Telegram - obtenha com @userinfobot",
             )
-        if env_tg_token and env_tg_chat:
-            if st.button("Testar Envio Telegram", key="test_tg_cfg", use_container_width=True):
+        if env_tg_token and env_tg_chat and st.button("Testar Envio Telegram", key="test_tg_cfg", use_container_width=True):
                 ok, msg = _test_telegram(env_tg_token, env_tg_chat)
                 if ok:
                     st.success(msg)
@@ -2034,7 +2032,7 @@ def tab_config():
                         lines = f.readlines()
                 except FileNotFoundError:
                     pass
-                existing_keys = {k: False for k in all_keys}
+                existing_keys = dict.fromkeys(all_keys, False)
                 new_lines = []
                 for line in lines:
                     stripped = line.strip()
@@ -2291,30 +2289,29 @@ def tab_agendamentos():
     st.divider()
 
     # Form to add/edit
-    with st.expander("➕  Novo Agendamento", expanded=False):
-        with st.form("form_schedule"):
-            col1, col2 = st.columns(2)
-            with col1:
-                name = st.text_input("Nome único", placeholder="ex: coleta_diaria_tier1")
-                cron = st.text_input("Expressão Cron", placeholder="0 12 * * 1,3,5")
-                tz = st.text_input("Timezone", value="America/Sao_Paulo")
-            with col2:
-                enabled = st.checkbox("Ativo", value=True)
-                payload = st.text_area("Payload JSON", value='{"force_full": false, "run_playwright": false}', height=100)
-            if st.form_submit_button("Salvar", use_container_width=True):
-                try:
-                    upsert_schedule({
+    with st.expander("➕  Novo Agendamento", expanded=False), st.form("form_schedule"):
+        col1, col2 = st.columns(2)
+        with col1:
+            name = st.text_input("Nome único", placeholder="ex: coleta_diaria_tier1")
+            cron = st.text_input("Expressão Cron", placeholder="0 12 * * 1,3,5")
+            tz = st.text_input("Timezone", value="America/Sao_Paulo")
+        with col2:
+            enabled = st.checkbox("Ativo", value=True)
+            payload = st.text_area("Payload JSON", value='{"force_full": false, "run_playwright": false}', height=100)
+        if st.form_submit_button("Salvar", use_container_width=True):
+            try:
+                upsert_schedule({
 
-                        "name": name,
-                        "cron_expression": cron,
-                        "timezone": tz,
-                        "enabled": enabled,
-                        "payload": json.loads(payload),
-                    })
-                    st.toast(f"Agendamento '{name}' salvo!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Erro: {e}")
+                    "name": name,
+                    "cron_expression": cron,
+                    "timezone": tz,
+                    "enabled": enabled,
+                    "payload": json.loads(payload),
+                })
+                st.toast(f"Agendamento '{name}' salvo!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Erro: {e}")
 
     # Edit/Delete/Execute existing
     if schedules:
@@ -2327,8 +2324,7 @@ def tab_agendamentos():
                 if cols[3].button("Editar", key=f"edit_sched_{s['id']}", use_container_width=True):
                     st.session_state[f"editing_sched_{s['id']}"] = True
                     st.rerun()
-                if cols[4].button("Executar", key=f"run_sched_{s['id']}", use_container_width=True, type="primary"):
-                    if not st.session_state.get(f"confirm_exec_{s['id']}"):
+                if cols[4].button("Executar", key=f"run_sched_{s['id']}", use_container_width=True, type="primary") and not st.session_state.get(f"confirm_exec_{s['id']}"):
                         st.session_state[f"confirm_exec_{s['id']}"] = True
                         st.rerun()
                 if st.session_state.get(f"confirm_exec_{s['id']}"):
@@ -2914,7 +2910,7 @@ def tab_insights():
                                     title=f"{ing_t} - Evolucao de precos ({days_t} dias)",
                                     labels={"date": "Data", "value": "R$/kg", "variable": "Metrica"},
                                     color_discrete_map={"avg_ppk": CD_ORANGE, "min_ppk": "#10B981", "max_ppk": "#EF4444"})
-                    fig_t.update_layout(legend=dict(orientation="h", y=-0.3))
+                    fig_t.update_layout(legend={"orientation": "h", "y": -0.3})
                     st.plotly_chart(fig_t, use_container_width=True)
                     st.dataframe(_pt_cols(df_t.tail(30)), use_container_width=True, hide_index=True)
                     if get_config("features.export.csv_enabled", True):
@@ -2937,7 +2933,7 @@ def tab_insights():
                                    labels={"store_name": "Loja", "value": "Ingredientes", "variable": "Posicao"},
                                    barmode="group",
                                    color_discrete_map={"top1_count": CD_ORANGE, "top3_count": CD_PINK})
-                    fig_r.update_layout(legend=dict(orientation="h", y=-0.3))
+                    fig_r.update_layout(legend={"orientation": "h", "y": -0.3})
                     st.plotly_chart(fig_r, use_container_width=True)
                     df_r_display = df_r.copy()
                     df_r_display.columns = ["Loja", "Top 1", "Top 3", "Total Ingredientes"]
@@ -3015,7 +3011,7 @@ def tab_calculadora():
         with cols[3]:
             if prices and is_complete:
                 store_opts = []
-                for pi, p in enumerate(prices):
+                for _pi, p in enumerate(prices):
                     ppk = p.get("normalized", {}).get("price_per_kg", 0) if isinstance(p.get("normalized"), dict) else 0
                     if not ppk:
                         ppk = p.get("price_per_kg", 0)
@@ -3032,8 +3028,7 @@ def tab_calculadora():
                     unsafe_allow_html=True,
                 )
         with cols[4]:
-            if len(st.session_state.calc_rows) > 1:
-                if st.button("✕", key=f"calc_del_{rid}", help="Remover ingrediente"):
+            if len(st.session_state.calc_rows) > 1 and st.button("✕", key=f"calc_del_{rid}", help="Remover ingrediente"):
                     st.session_state.calc_rows = [r for r in st.session_state.calc_rows if r["id"] != rid]
                     st.rerun()
 
@@ -3285,3 +3280,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

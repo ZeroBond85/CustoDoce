@@ -2,11 +2,11 @@ import asyncio
 import logging
 import re
 
-from playwright.async_api import async_playwright
 from selectolax.parser import HTMLParser
 
 from parsers.unit_extractor import extract_unit
 from scrapers.base_web_scraper import BaseWebScraper
+from scrapers.playwright_pool import get_browser_pool
 
 logger = logging.getLogger(__name__)
 
@@ -48,19 +48,20 @@ class PlaywrightPriceScraper(BaseWebScraper):
 
     async def _run_async(self, ingredients: list[dict]) -> list[dict]:
         all_products = []
-        async with async_playwright() as pw:
-            browser = await pw.chromium.launch(headless=True)
-            context = await browser.new_context(
-                user_agent=(
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/125.0.0.0 Safari/537.36"
-                )
+        pool = await get_browser_pool()
+        context = await pool.new_context(
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/125.0.0.0 Safari/537.36"
             )
+        )
+        try:
             for ing in ingredients:
                 products = await self._search_and_parse_async(context, ing)
                 all_products.extend(products)
-            await browser.close()
+        finally:
+            await context.close()
         return all_products
 
     async def _search_and_parse_async(self, context, ing: dict) -> list[dict]:

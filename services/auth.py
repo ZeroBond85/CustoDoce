@@ -86,10 +86,7 @@ def verify_totp(secret: str, code: str, window: int = 1) -> bool:
     except (ValueError, TypeError):
         return False
     now = int(time.time()) // TOTP_INTERVAL
-    for i in range(-window, window + 1):
-        if _totp_int(secret, now + i) == expected:
-            return True
-    return False
+    return any(_totp_int(secret, now + i) == expected for i in range(-window, window + 1))
 
 
 def get_totp_uri(secret: str, label: str = "CustoDoce", issuer: str = "CustoDoce") -> str:

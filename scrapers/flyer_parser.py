@@ -10,7 +10,7 @@ STOP_WORDS = {
     "promoção", "promocao", "confira", "apenas", "www", "http",
     "facebook", "instagram", "whatsapp", "telefone", "celular",
     "sac", "não", "nao", "nº", "numero", "número", "página", "pagina",
-    "encarte", "folheto", "ofertas", "ofertas", "parcele",
+    "encarte", "folheto", "ofertas", "parcele",
     "cartão", "cartao", "crédito", "credito", "débito", "debito",
     "dinheiro", "total", "subtotal", "desconto", "economize",
     "condições", "condicoes", "geral",

@@ -173,12 +173,13 @@ def render_login():
                 return False
 
             import os as _os
+            import hmac as _hmac
 
             pw_plain = _os.environ.get("ADMIN_PASSWORD", "")
             stored_hash = config.admin_password_hash
 
             if pw_plain:
-                valid = password == pw_plain
+                valid = _hmac.compare_digest(password, pw_plain)
             else:
                 valid = verify_password(password, stored_hash)
 

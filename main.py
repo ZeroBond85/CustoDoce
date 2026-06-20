@@ -3,6 +3,7 @@ import json
 import logging
 import re
 import sys
+from contextlib import suppress
 from datetime import datetime, date
 from pathlib import Path
 
@@ -250,10 +251,8 @@ def _collect_flyers(
 
         except Exception as e:
             logger.error("[%s] %s: %s", label, store_name, e)
-            try:
+            with suppress(Exception):
                 send_scraper_error(store_name, str(e))
-            except Exception:
-                pass
 
     return all_flyers
 
@@ -373,10 +372,8 @@ def process_ocr_queue() -> int:
 
         except Exception as e:
             logger.error("[OCR] Error processing flyer %s: %s", flyer.get("id"), e)
-            try:
+            with suppress(Exception):
                 mark_failed(flyer["id"])
-            except Exception:
-                pass
 
     return processed
 
@@ -397,6 +394,10 @@ def main():
     logger.info("Coletando Tier 1 (API Flyers)...")
     tier1_flyers = collect_tier1_api_flyers(ingredients)
     logger.info("-> %d folhetos coletados", len(tier1_flyers))
+
+    logger.info("Processando OCR dos flyers coletados...")
+    ocr_processed = process_ocr_queue()
+    logger.info("-> %d flyers processados via OCR", ocr_processed)
 
     logger.info("Coletando Tier 2a (VTEX)...")
     tier2_products = collect_tier2_vtex(ingredients)

@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from typing import Optional
 
 from services.supabase_client import get_supabase, get_service_client
@@ -20,7 +20,7 @@ def _detect_promotion(raw_product: str, raw_unit: str) -> bool:
 
 def upsert_price(price_entry: dict) -> dict:
     client = get_service_client()
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     valid_until = price_entry.get("valid_until")
     if valid_until is None:
         valid_until = date.today().isoformat()
@@ -216,7 +216,7 @@ def approve_review_item(item_id: str, ingredient_id: str) -> dict:
         .update({
             "status": "approved",
             "resolved_ingredient": ingredient_id,
-            "reviewed_at": datetime.utcnow().isoformat(),
+            "reviewed_at": datetime.now(timezone.utc).isoformat(),
         })
         .eq("id", item_id)
         .execute()
@@ -305,7 +305,7 @@ def log_scraper_run(
 ) -> dict:
     """Log scraper execution to scraping_logs table."""
     client = get_service_client()
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     data = {
         "store_name": store_name,
         "status": status,
@@ -349,7 +349,7 @@ def get_longitudinal_winners(days: int = 90) -> list[dict]:
         daily[ing][day].append({"store": p.get("store_name", "?"), "ppk": ppk})
     wins: dict = defaultdict(lambda: defaultdict(int))
     for ing, days_dict in daily.items():
-        for day, entries in days_dict.items():
+        for _day, entries in days_dict.items():
             if not entries:
                 continue
             best = min(entries, key=lambda x: x["ppk"])
@@ -441,7 +441,7 @@ def get_cross_ingredient_ranking(days: int = 90) -> list[dict]:
         if ppk > 0:
             per_ing[ing].append({"store": p.get("store_name", "?"), "ppk": ppk})
     store_scores: dict = defaultdict(lambda: {"top1": 0, "top3": 0, "total": 0})
-    for ing, entries in per_ing.items():
+    for _ing, entries in per_ing.items():
         sorted_entries = sorted(entries, key=lambda x: x["ppk"])
         seen = set()
         for rank, e in enumerate(sorted_entries, 1):

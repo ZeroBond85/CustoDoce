@@ -5,6 +5,7 @@ from supabase import Client, create_client
 
 
 _supabase_client: Optional[Client] = None
+_service_client: Optional[Client] = None
 
 
 def get_supabase() -> Client:
@@ -22,10 +23,15 @@ def get_supabase() -> Client:
 
 
 def get_service_client() -> Client:
+    global _service_client
+    if _service_client is not None:
+        return _service_client
     key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
     url = os.environ.get("SUPABASE_URL")
 
     if url and key:
-        return create_client(url, key)
+        _service_client = create_client(url, key)
+        return _service_client
 
-    return get_supabase()
+    _service_client = get_supabase()
+    return _service_client

@@ -147,7 +147,7 @@ class TiendeoScraper:
             results = await asyncio.gather(*tasks)
 
         all_flyers = []
-        for (url, region), html in zip(city_urls, results):
+        for (_url, region), html in zip(city_urls, results):
             if not html:
                 continue
             flyers = self.parse_flyers(html, region)

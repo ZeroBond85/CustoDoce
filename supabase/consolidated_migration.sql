@@ -706,6 +706,53 @@ CREATE POLICY "anon_read" ON recipes FOR SELECT USING (true);
 CREATE POLICY "anon_read" ON recipe_items FOR SELECT USING (true);
 
 -- ============================================================
+-- PHASE 10: Brand column, city in review_queue, dedup index
+-- ============================================================
+
+-- A2: Add brand column to prices
+ALTER TABLE prices ADD COLUMN IF NOT EXISTS brand TEXT DEFAULT '';
+
+-- A2: Add brand column to price_history
+ALTER TABLE price_history ADD COLUMN IF NOT EXISTS brand TEXT DEFAULT '';
+
+-- A2: Add brand column to review_queue
+ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS brand TEXT DEFAULT '';
+
+-- A4: Add city column to review_queue
+ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS city TEXT DEFAULT '';
+
+-- A3: Update trigger to include brand
+CREATE OR REPLACE FUNCTION update_history_from_prices()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO price_history (
+        price_id, ingredient_id, store_id, store_name,
+        raw_product, raw_price, raw_unit, normalized,
+        valid_from, valid_until, validity_raw, collected_weekday, is_promotion,
+        collected_at, brand
+    ) VALUES (
+        NEW.id, NEW.ingredient_id, NEW.store_id, NEW.store_name,
+        NEW.raw_product, NEW.raw_price, NEW.raw_unit, NEW.normalized,
+        NEW.valid_from, NEW.valid_until, NEW.validity_raw, NEW.collected_weekday, NEW.is_promotion,
+        NEW.collected_at, NEW.brand
+    );
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- A5: Add dedup index on review_queue
+CREATE INDEX IF NOT EXISTS idx_review_store_product ON review_queue(store_name, raw_product);
+
+-- Add updated_at trigger to recipes
+DROP TRIGGER IF EXISTS trg_recipes_updated_at ON recipes;
+CREATE TRIGGER trg_recipes_updated_at
+    BEFORE UPDATE ON recipes
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Add stores name UNIQUE constraint (needed by upsert_store on_conflict)
+ALTER TABLE stores ADD CONSTRAINT IF NOT EXISTS stores_name_key UNIQUE (name);
+
+-- ============================================================
 -- Migration complete. Verify with:
 --   SELECT table_name FROM information_schema.tables
 --   WHERE table_schema = 'public' ORDER BY table_name;
