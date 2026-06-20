@@ -139,6 +139,6 @@ auth, rate_limiter, imports, UI components, login, YAML, estrutura, CSS, navega�
 ## Regras
 
 1. **Nunca secrets no código** — usar env vars ou Streamlit Cloud Secrets
-2. **Testes sem dependência externa** — mockar Supabase, APIs, etc.
+2. **Testes em contexto real sempre que possível** — evitar mocks; usar Supabase test container, fixtures reais, integração ponto-a-ponto. Mocks apenas para APIs externas não controladas (ex: sites de terceiros com rate limit/IP block).
 3. **Responsivo validado** — 320px, 768px, 1024px
 4. **Últimas versões estáveis** se não quebrar funcionalidades
