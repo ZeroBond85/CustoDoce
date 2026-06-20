@@ -40,7 +40,7 @@ jobs:
         run: python -m pytest tests/ --tb=short -q
 
       - name: pip-audit
-        run: pip-audit --strict --ignore-vuln PIP-1
+        run: pip-audit --strict
         continue-on-error: true
 
       - name: mypy type check
