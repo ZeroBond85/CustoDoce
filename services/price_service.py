@@ -133,7 +133,21 @@ def get_latest_prices(valid_only: bool = True) -> list[dict]:
         query = query.lte("valid_from", today)
         query = query.gte("valid_until", today)
 
-    result = query.order("collected_at", desc=True).limit(500).execute()
+    result = query.order("collected_at", desc=True).limit(2000).execute()
+    return result.data if result.data else []
+
+
+def get_all_current_prices(valid_only: bool = True, limit: int = 2000) -> list[dict]:
+    """Busca todos os precos de uma vez. Substitui N+1 loops de search_prices()."""
+    client = get_supabase()
+    query = client.table("prices").select("*")
+
+    if valid_only:
+        today = date.today().isoformat()
+        query = query.lte("valid_from", today)
+        query = query.gte("valid_until", today)
+
+    result = query.order("collected_at", desc=True).limit(limit).execute()
     return result.data if result.data else []
 
 
@@ -247,12 +261,17 @@ def reject_review_item(item_id: str) -> dict:
 
 def get_telegram_report(ingredients: list[dict], top_n: int = 5) -> list[dict]:
     messages = []
+    try:
+        all_prices = get_all_current_prices(valid_only=True, limit=2000)
+    except Exception:
+        all_prices = []
+    from collections import defaultdict
+    by_ing = defaultdict(list)
+    for p in all_prices:
+        by_ing[p.get("ingredient_id", "")].append(p)
     for ing in ingredients:
         name = ing["canonical"]
-        try:
-            prices = get_prices_for_ingredient(name)
-        except Exception:
-            prices = []
+        prices = by_ing.get(name, [])
         valid = [p for p in prices if p.get("normalized")
                  and isinstance(p["normalized"], dict)
                  and p["normalized"].get("price_per_kg", 0) > 0]

@@ -158,3 +158,76 @@ ingredients:
       - "Chocolate nobre Blend 1kg"
       - "Cobertura nobre Blend Harald"
     category: "chocolates"
+
+  - canonical: "Açúcar Mascavo"
+    brands: ["JR"]
+    search_terms: ["açúcar mascavo", "acucar mascavo"]
+    aliases:
+      - "Açúcar Mascavo 1kg JR"
+      - "ACUCAR MASCAVO 1KG JR"
+      - "Açúcar Mascavo 1kg"
+    category: "acucares"
+
+  - canonical: "Açúcar de Confeiteiro"
+    brands: ["Mavalerio"]
+    search_terms: ["açúcar de confeiteiro", "snow sugar", "icing sugar"]
+    aliases:
+      - "Açúcar Snow Sugar 500g Mavalerio"
+      - "SNOW SUGAR 500G MAVALERIO"
+      - "Snow Sugar 500g"
+      - "Açúcar Confeiteiro 500g"
+      - "ACUCAR CONFEITEIRO"
+    category: "acucares"
+
+  - canonical: "Chocolate em Pó 70% Cacau"
+    brands: ["Sicao"]
+    search_terms: ["chocolate em pó 70", "chocolate po 70", "cacau 70%"]
+    aliases:
+      - "Chocolate Pó 70 Sicao 500g"
+      - "CHOCOLATE PO 70 SICAO 500G"
+      - "Chocolate em Pó 70% 500g"
+      - "Chocolate Pó 70%"
+      - "CHOCOLATE PO 70%"
+    category: "chocolates"
+
+  - canonical: "Farinha de Trigo"
+    brands: ["Dona Benta"]
+    search_terms: ["farinha de trigo", "farinha trigo"]
+    aliases:
+      - "Farinha Trigo Dona Benta 1kg"
+      - "FARINHA TRIGO DONA BENTA 1KG"
+      - "Farinha de Trigo 1kg"
+      - "Farinha Trigo 1kg"
+      - "FARINHA TRIGO 1KG"
+    category: "farinhas"
+
+  - canonical: "Micro Ball"
+    brands: ["Mavalerio"]
+    search_terms: ["micro ball", "microball"]
+    aliases:
+      - "Micro Ball Leite Branco 500g Mavalerio"
+      - "MICRO BALL BRANCO 500G"
+      - "Micro Ball 500g"
+      - "Micro Ball Mavalerio"
+    category: "confeitos"
+
+  - canonical: "Top Confete Morango"
+    brands: ["Harald"]
+    search_terms: ["top confete morango", "confete morango"]
+    aliases:
+      - "Top Confete Morango 400g Harald"
+      - "CONFETE MORANGO HARALD 400G"
+      - "Confete Morango 400g"
+      - "Top Confete Morango 400g"
+    category: "confeitos"
+
+  - canonical: "Gotas de Chocolate Branco"
+    brands: ["Melken"]
+    search_terms: ["gotas de chocolate branco", "gotas chocolate branco", "gotas melken branca"]
+    aliases:
+      - "Gotas Melken Branca 205kg"
+      - "GOTAS MELKEN BRANCA 205KG"
+      - "Gotas Chocolate Branco Melken"
+      - "Gotas Brancas Melken"
+      - "Gotas de Chocolate Branco 1kg"
+    category: "chocolates"

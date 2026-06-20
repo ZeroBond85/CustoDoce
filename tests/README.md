@@ -8,7 +8,7 @@ A cada fase, rodar este checklist completo antes de avançar:
 [ ] ruff check .                    — lint (zero erros, config pyproject.toml)
 [ ] bandit -r admin/ dashboard/ services/ -x tests/ — segurança
 [ ] pip-audit                       — CVEs conhecidas
-[ ] python -m pytest tests/ -v      — 100% pass
+[ ] python -m pytest tests/ -v      — 225 testes, 100% pass
 [ ] Responsivo 320/768/1024         — CSS media queries
 [ ] XSS review                      — unsafe_allow_html=True
 [ ] Secrets vazados                 — git diff + grep credenciais
@@ -114,6 +114,21 @@ auth, rate_limiter, imports, UI components, login, YAML, estrutura, CSS, navega�
 - `test_get_cheapest_prices_empty` — retorno vazio quando sem dados
 - CSS calculator: cd-calc-result-card, cd-calc-ing-row, cd-calc-scenario, cd-calc-alert
 - Migration PHASE 9: tabelas recipes + recipe_items com RLS
+
+### Fase 14a — Performance Optimization (16 testes)
+- `get_all_current_prices()` — uma query substitui 55+ N+1
+- 8 wrappers cached `@st.cache_data(ttl=300)` para config_db
+- 3 wrappers cached para price_service
+- Hoisting `get_all_stores()` / `get_all_ingredients()` acima das tabs
+- `get_latest_prices()` limit 500→2000
+- `get_telegram_report()` N+1 fix (1 query em vez de 11)
+- `_cached_load_stores_yaml()` para YAML reads
+
+### Fase 14b — Playwright Scraper + Health Check (9 testes)
+- `scrapers/playwright_price_scraper.py` — scraper genérico para e-commerce SPA
+- `_auto_disable_if_needed()` — desativa loja após 3 falhas consecutivas
+- `test_scraper_health()` em `deploy_check.py` — valida scrapers no pré-deploy
+- 7 novos ingredientes no `ingredients.yaml` (18 total)
 
 ## Regras
 

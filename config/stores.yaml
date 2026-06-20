@@ -239,16 +239,20 @@ stores:
 
   - name: "BarraDoce"
     tier: 2
-    type: "vtex_api"
-    is_active: false
-    inactive_reason: "Astro SPA (JS client-side). Busca retorna HTML sem precos. Produtos individuais tem precos SSR mas nao ha search API para encontra-los. Requer Playwright."
+    type: "website_js"
+    is_active: true
     logistics: "pickup_sp"
     base_url: "https://www.barradoce.com.br"
+    search_url: "https://www.barradoce.com.br/busca?q={query}"
+    selectors:
+      product_card: [".product-card", ".produto-card", ".item-produto", "[class*=product]", "[class*=produto]"]
+      product_name: [".product-name a", ".nome-produto", ".product-title a", "h2 a", "h3 a"]
+      product_price: [".product-price", ".preco-produto", ".price", ".sale-price"]
     address: "Av. dos Eucaliptos, 305 - Indianópolis, SP"
     zone: "sul"
     coverage: "Atacado chocolates, ingredientes, confeitaria"
     collection_method: "automated"
-    scraper: "vtex_scraper"
+    scraper: "playwright_price_scraper"
     priority: 12
 
   - name: "Casa Santa Luzia"

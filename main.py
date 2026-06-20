@@ -16,6 +16,7 @@ from scrapers.tenda_api_scraper import TendaApiScraper
 from scrapers.roldao_api_scraper import RoldaoApiScraper
 from scrapers.max_api_scraper import MaxApiScraper
 from scrapers.aggregator_scraper import TiendeoScraper
+from scrapers.playwright_price_scraper import PlaywrightPriceScraper
 from parsers.normalizer import normalize_price
 from parsers.matcher import match_ingredient, rank_ingredients
 from parsers.brand_extractor import extract_brand
@@ -24,6 +25,9 @@ from services.flyer_service import cleanup_old_flyers
 from services.flyer_service import upsert_flyer
 from services.email_service import send_daily_report, send_scraper_error
 from services.config_db import get_active_ingredients, get_active_stores
+from services.supabase_client import get_service_client
+
+_auto_disable_threshold = 3
 
 logging.basicConfig(
     level=logging.INFO,
@@ -135,6 +139,35 @@ def process_price_match(
     return None
 
 
+def _auto_disable_if_needed(store_name: str, threshold: int = 3):
+    """Auto-desativa loja se ultimos N logs sao todos erros."""
+    try:
+        client = get_service_client()
+        logs = (
+            client.table("scraping_logs")
+            .select("status")
+            .eq("store_name", store_name)
+            .order("created_at", desc=True)
+            .limit(threshold)
+            .execute()
+        )
+        if not logs.data or len(logs.data) < threshold:
+            return
+        if all(log["status"] in ("error", "failed") for log in logs.data):
+            store = (
+                client.table("stores")
+                .select("id, is_active")
+                .eq("name", store_name)
+                .single()
+                .execute()
+            )
+            if store.data and store.data.get("is_active") is not False:
+                client.table("stores").update({"is_active": False}).eq("id", store.data["id"]).execute()
+                logger.warning("[AUTO-DISABLE] %s desativada apos %d falhas consecutivas", store_name, threshold)
+    except Exception as e:
+        logger.debug("auto-disable check failed for %s: %s", store_name, e)
+
+
 def _collect_prices(
     stores: list[dict],
     scraper_cls: type,
@@ -178,6 +211,7 @@ def _collect_prices(
                 send_scraper_error(store_name, str(e))
             except Exception:
                 pass
+            _auto_disable_if_needed(store_name)
 
     return all_products
 
@@ -260,6 +294,11 @@ def collect_tier3_websites(ingredients: list[dict]) -> list[dict]:
 def collect_carrefour(ingredients: list[dict]) -> list[dict]:
     stores = [s for s in load_stores() if s.get("scraper") == "carrefour_scraper" and s.get("type") == "website_catalog"]
     return _collect_prices(stores, CarrefourScraper, ingredients, "Carrefour")
+
+
+def collect_tier2_js(ingredients: list[dict]) -> list[dict]:
+    stores = [s for s in load_stores() if s.get("scraper") == "playwright_price_scraper" and s.get("type") == "website_js"]
+    return _collect_prices(stores, PlaywrightPriceScraper, ingredients, "Playwright")
 
 
 def collect_aggregators_ssr() -> list[dict]:
@@ -371,11 +410,15 @@ def main():
     carrefour_products = collect_carrefour(ingredients)
     logger.info("-> %d precos coletados", len(carrefour_products))
 
+    logger.info("Coletando Tier 2 JS (Playwright)...")
+    js_products = collect_tier2_js(ingredients)
+    logger.info("-> %d precos coletados", len(js_products))
+
     logger.info("Coletando Agregadores SSR...")
     ssr_flyers = collect_aggregators_ssr()
     logger.info("-> %d folhetos coletados", len(ssr_flyers))
 
-    all_products = tier1_products + tier2_products + tier3_products + carrefour_products
+    all_products = tier1_products + tier2_products + tier3_products + carrefour_products + js_products
     snapshot = {
         "collected_at": datetime.now().isoformat(),
         "total_prices": len(all_products),

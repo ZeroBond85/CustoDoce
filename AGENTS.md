@@ -31,7 +31,7 @@ CustoDoce/
 │   ├── scrape.yml                   # Coleta automática (cron + deploy)
 │   └── ci.yml                       # CI: ruff + bandit + pytest + pip-audit
 ├── config/
-│   ├── ingredients.yaml             # 11 ingredientes canônicos + aliases + search_terms
+│   ├── ingredients.yaml             # 18 ingredientes canônicos + aliases + search_terms
 │   ├── stores.yaml                  # 49 lojas (Tier 1-4)
 │   ├── features.yaml                # Flags declarativas liga/desliga
 │   └── schema_prices.json           # Contrato de dados
@@ -48,6 +48,7 @@ CustoDoce/
 │   ├── max_api_scraper.py           # API Max (herda BaseWebScraper)
 │   ├── aggregator_scraper.py        # Agregadores SSR (Tiendeo, Guiato)
 │   ├── playwright_scraper.py        # Agregadores JS (Playwright)
+│   ├── playwright_price_scraper.py  # Scraper e-commerce SPA (Playwright)
 │   ├── ocr.py                       # OCR fallback (Tesseract)
 │   └── unit_extractor.py            # Extrator centralizado de unidade
 ├── parsers/
@@ -67,12 +68,12 @@ CustoDoce/
 ├── telegram_bot/
 │   └── handlers.py                  # /preco, /lista, /status
 ├── admin/
-│   └── app.py                       # Streamlit dashboard (17 abas)
+│   └── app.py                       # Streamlit dashboard (18 abas)
 ├── dashboard/
 │   ├── login_page.py                # Auth + 2FA
 │   └── components/
 │       ├── ui.py                    # CSS + componentes reutilizáveis
-│       └── layout.py                # Sidebar com navegação (17 páginas)
+│       └── layout.py                # Sidebar com navegação (18 páginas)
 ├── supabase/
 │   ├── seed.sql                     # Tabelas + índices + RLS + triggers
 │   ├── consolidated_migration.sql   # Migração consolidada (574 linhas)
@@ -105,7 +106,7 @@ CustoDoce/
 | 3 | Agregadores (Tiendeo, Guiato) | Fallback | Automatizado - if tier 1/2 fail |
 | 4 | Manual (WhatsApp, visita local) | Sob demanda | Planilha .xlsx |
 
-## Ingredientes Monitorados (11)
+## Ingredientes Monitorados (18)
 1. Leite Condensado Integral (lacteos)
 2. Creme de Leite 20% Gordura (lacteos)
 3. Chocolate em Pó 50% Cacau (chocolates)
@@ -117,6 +118,13 @@ CustoDoce/
 9. Coloretti Granulado Colorido (confeitos)
 10. Coco Ralado Grosso sem Açúcar (secos)
 11. Chocolate Nobre Blend Harald (chocolates)
+12. Açúcar Mascavo (acucares)
+13. Açúcar de Confeiteiro (acucares)
+14. Chocolate em Pó 70% Cacau (chocolates)
+15. Farinha de Trigo (farinhas)
+16. Micro Ball (confeitos)
+17. Top Confete Morango (confeitos)
+18. Gotas de Chocolate Branco (chocolates)
 
 ## Fluxo de Coleta (GitHub Actions)
 
@@ -246,7 +254,7 @@ python -c "import json, jsonschema; s=json.load(open('config/schema_prices.json'
 - `bandit` — segurança (zero issues)
 - `pip-audit` — CVEs (zero vulnerabilidades)
 - `radon` — complexidade (média B)
-- `pytest` — 160 testes (dashboard: 85, services: 75)
+- `pytest` — 225 testes (dashboard: 85, services: 80, playwright+health: 60)
 - `flake8` / `vulture` — código morto (opcional)
 
 ### Checklist por Fase
@@ -420,3 +428,5 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 - **Fase 11** ✅ Correção de Constraints — UNIQUE (ingredient_id, store_id, collected_at) em prices e price_history, correção scrape_frequencies (store_id TEXT), tratamento de erro 42P10
 - **Fase 12** ✅ Self-Learning Review Queue — ordenação client-side, aliases automáticos ao aprovar, explicação na UI
 - **Fase 13** ✅ UX Audit Fixes + Calculadora de Receita — 27 UX issues corrigidas, calculadora Simples/Completo com auto-fill, salvar receitas no Supabase, 168 testes
+- **Fase 14a** ✅ Performance Optimization — `get_all_current_prices()` elimina 55+ N+1; 12 cached wrappers `@st.cache_data`; hoisting de queries duplicadas; `get_latest_prices()` limit 500→2000; `get_telegram_report()` 1 query em vez de 11
+- **Fase 14b** ✅ Playwright Price Scraper + Health Check — `playwright_price_scraper.py` (SPA e-commerce); `_auto_disable_if_needed()` (3 falhas → desativa); `test_scraper_health()` no deploy_check; 7 novos ingredientes (18 total); 225 testes

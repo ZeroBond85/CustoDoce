@@ -109,6 +109,32 @@ def test_smtp():
         server.send_message(msg)
 
 
+def test_scraper_health():
+    """Valida saude dos scrapers: sem falhas recorrentes nos ultimos 3 runs."""
+    from services.supabase_client import get_supabase
+    client = get_supabase()
+    logs = (
+        client.table("scraping_logs")
+        .select("store_name, status")
+        .order("created_at", desc=True)
+        .limit(200)
+        .execute()
+    )
+    if not logs.data:
+        return
+    from collections import defaultdict
+    by_store = defaultdict(list)
+    for log in logs.data:
+        by_store[log["store_name"]].append(log["status"])
+    failing = []
+    for store, statuses in by_store.items():
+        recent = statuses[:3]
+        if len(recent) >= 3 and all(s in ("error", "failed") for s in recent):
+            failing.append(store)
+    if failing:
+        raise ValueError(f"Scrapers com 3+ falhas consecutivas: {', '.join(failing)}")
+
+
 if __name__ == "__main__":
     print("=" * 55)
     print("  CustoDoce — Deploy Health Check")
@@ -133,6 +159,7 @@ if __name__ == "__main__":
         _check(f"ENV: {var}", lambda v=var: _check_env(v))
     _check("Telegram envio", test_telegram)
     _check("SMTP envio", test_smtp)
+    _check("Scraper health (3+ falhas consecutivas)", test_scraper_health)
 
     print(f"\n{'=' * 55}")
     print(f"  Resultado: {PASS} passed, {FAIL} failed")

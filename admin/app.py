@@ -28,6 +28,7 @@ from services.auth import (
 from services.config import get as get_config, reload as reload_config
 from services.price_service import (
     approve_review_item,
+    get_all_current_prices,
     get_latest_prices,
     get_price_history,
     get_review_queue,
@@ -125,6 +126,63 @@ def load_ingredients():
     return data.get("ingredients", [])
 
 
+@st.cache_data(ttl=600)
+def _cached_load_stores_yaml():
+    with open("config/stores.yaml", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    return data.get("stores", [])
+
+
+@st.cache_data(ttl=300)
+def _cached_get_all_stores(include_inactive=False):
+    return get_all_stores(include_inactive)
+
+
+@st.cache_data(ttl=300)
+def _cached_get_all_ingredients(include_inactive=False):
+    return get_all_ingredients(include_inactive)
+
+
+@st.cache_data(ttl=300)
+def _cached_get_active_ingredients():
+    return get_active_ingredients()
+
+
+@st.cache_data(ttl=300)
+def _cached_get_all_schedules(include_disabled=False):
+    return get_all_schedules(include_disabled)
+
+
+@st.cache_data(ttl=300)
+def _cached_get_all_recipients(include_inactive=False):
+    return get_all_recipients(include_inactive)
+
+
+@st.cache_data(ttl=300)
+def _cached_get_all_alert_rules(include_disabled=False):
+    return get_all_alert_rules(include_disabled)
+
+
+@st.cache_data(ttl=300)
+def _cached_get_scrape_frequency(store_id=None, tier=None):
+    return get_scrape_frequency(store_id, tier)
+
+
+@st.cache_data(ttl=300)
+def _cached_get_latest_prices(valid_only=True):
+    return get_latest_prices(valid_only)
+
+
+@st.cache_data(ttl=60)
+def _cached_get_review_queue():
+    return get_review_queue()
+
+
+@st.cache_data(ttl=60)
+def _cached_get_price_history(ingredient: str, days: int = 30, valid_only: bool = False):
+    return get_price_history(ingredient, days, valid_only)
+
+
 def require_auth():
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
@@ -168,7 +226,7 @@ def _render_kpi_prices(df):
     total = len(df)
     lojas = df["store_name"].nunique() if "store_name" in df.columns else 0
     matched = len(df[df.get("confidence", 1) >= 0.8])
-    review = len(get_review_queue())
+    review = len(_cached_get_review_queue())
     col_a, col_b = st.columns(2)
     with col_a:
         st.markdown(f'<div class="cd-metric"><div class="label">Total Precos</div><div class="value">{total}</div></div>', unsafe_allow_html=True)
@@ -332,7 +390,7 @@ def _valid_only_toggle():
 def tab_visao_geral():
     section_title("Visao Geral", "Resumo do estado atual dos precos")
     valid_only = _valid_only_toggle()
-    prices = get_latest_prices(valid_only=valid_only)
+    prices = _cached_get_latest_prices(valid_only=valid_only)
     if not prices:
         info_box("Nenhum preco coletado ainda. Aguarde a primeira execucao do scraper.", "info")
         return
@@ -529,7 +587,7 @@ def tab_historico():
     load = st.button("Carregar", type="primary")
 
     if load:
-        history = get_price_history(selected, days=days, valid_only=valid_only)
+        history = _cached_get_price_history(selected, days=days, valid_only=valid_only)
         if not history:
             info_box(f"Nenhum historico disponivel para '{selected}' no periodo.", "info")
             return
@@ -747,7 +805,7 @@ def tab_revisao():
         "Fila de Revisao",
         "Itens com confidence < 80% aguardando classificacao",
     )
-    review_items = get_review_queue()
+    review_items = _cached_get_review_queue()
 
     if review_items:
         st.markdown(f"**{len(review_items)} itens** aguardando revisao")
@@ -834,10 +892,10 @@ def tab_revisao():
 def tab_lojas():
     section_title("Lojas", "Gerenciamento de lojas e categorias")
 
+    stores = _cached_get_all_stores(include_inactive=True)
     tab_list, tab_form = st.tabs(["Lista", "Cadastrar/Editar"])
 
     with tab_list:
-        stores = get_all_stores(include_inactive=True)
         if stores:
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Total Lojas", len(stores))
@@ -872,7 +930,6 @@ def tab_lojas():
             info_box("Nenhuma loja cadastrada.", "info")
 
     with tab_form:
-        stores = get_all_stores(include_inactive=True)
         store_options = {f"{s['name']} ({'ativo' if s.get('is_active') else 'inativo'})": s for s in stores}
         sel = st.selectbox("Editar existente", ["— Nova —"] + list(store_options.keys()))
 
@@ -1001,10 +1058,10 @@ def _test_matcher():
 def tab_ingredientes():
     section_title("Ingredientes", "Ingredientes monitorados e seus aliases")
 
+    ingredients = _cached_get_all_ingredients(include_inactive=True)
     tab_list, tab_form, tab_tester = st.tabs(["Lista", "Cadastrar/Editar", "Testadores"])
 
     with tab_list:
-        ingredients = get_all_ingredients(include_inactive=True)
         if ingredients:
             df = pd.DataFrame(ingredients)
             df["active"] = df["active"].map({True: "✅", False: "⏸️"})
@@ -1018,7 +1075,6 @@ def tab_ingredientes():
             st.info("Nenhum ingrediente cadastrado.")
 
     with tab_form:
-        ingredients = get_all_ingredients(include_inactive=True)
         ing_options = {f"{i['canonical_name']} ({'ativo' if i['active'] else 'inativo'})": i for i in ingredients}
         sel = st.selectbox("Editar existente", ["— Novo —"] + list(ing_options.keys()))
 
@@ -1191,15 +1247,7 @@ def _render_scraper_health_dashboard(df: pd.DataFrame, stores_config: list):
 def _render_scraper_maintenance(_client_unused=None):
     st.markdown("### Scraper Health Console")
 
-    # Carregar configurações de lojas
-    stores_config = []
-    config_path = Path(__file__).parent.parent / "config" / "stores.yaml"
-    try:
-        with open(config_path, encoding="utf-8") as f:
-            stores_config = yaml.safe_load(f).get("stores", [])
-    except Exception as e:
-        logger.warning("Falha ao carregar stores.yaml: %s", e)
-        st.caption("Nao foi possivel carregar lojas do arquivo.")
+    stores_config = _cached_load_stores_yaml()
 
     try:
         from services.supabase_client import get_service_client
@@ -1216,10 +1264,9 @@ def _render_scraper_maintenance(_client_unused=None):
         if not logs.data:
             st.info("Nenhum log de scraping encontrado.")
 
-            #，即使没有日志也显示编辑器
             st.markdown("---")
             st.markdown("### Editor de Seletores (YAML)")
-            _render_selector_editor(stores_config, config_path)
+            _render_selector_editor(stores_config)
             return
 
         df = pd.DataFrame(logs.data)
@@ -1371,19 +1418,13 @@ def _render_scraper_maintenance(_client_unused=None):
     # Editor de seletores
     st.markdown("---")
     st.markdown("### Editor de Seletores (YAML)")
-    _render_selector_editor(stores_config, config_path)
+    _render_selector_editor(stores_config)
 
 
-def _render_selector_editor(stores_config: list, config_path: Path):
+def _render_selector_editor(stores_config: list):
     """Renderiza o editor de seletores."""
-    stores = []
-    try:
-        with open(config_path, encoding="utf-8") as f:
-            stores = yaml.safe_load(f).get("stores", [])
-    except Exception as e:
-        info_box(f"Erro ao carregar stores.yaml: {e}", "warning")
-        return
-
+    stores = stores_config or _cached_load_stores_yaml()
+    config_path = Path(__file__).resolve().parent.parent / "config" / "stores.yaml"
     if not stores:
         st.warning("Nenhuma loja configurada.")
         return
@@ -1670,7 +1711,7 @@ def tab_relatorios():
             pass  # reservado
 
         if st.button("Gerar Preview", type="primary", use_container_width=True):
-            prices = get_price_history(selected, days=days)
+            prices = _cached_get_price_history(selected, days=days)
             if prices:
                 html = _build_report_html(selected, days, prices[:limit])
                 st.markdown("### Preview do Relatorio")
@@ -2235,7 +2276,7 @@ def tab_agendamentos():
     st.caption("Gerencie agendamentos de coleta e relatórios. Substitui GitHub Actions cron.")
 
     # List schedules
-    schedules = get_all_schedules(include_disabled=True)
+    schedules = _cached_get_all_schedules(include_disabled=True)
     if schedules:
         df = pd.DataFrame(schedules)
         df["enabled"] = df["enabled"].map({True: "✅ Ativo", False: "⏸️ Inativo"})
@@ -2343,7 +2384,7 @@ def tab_frequencias():
     st.caption("Configure frequência, retry, timeout e rate-limit por loja ou tier.")
 
     # List frequencies
-    freqs = get_scrape_frequency()
+    freqs = _cached_get_scrape_frequency()
     if freqs:
         df = pd.DataFrame(freqs)
         df["enabled"] = df["enabled"].map({True: "✅", False: "⏸️"})
@@ -2362,7 +2403,7 @@ def tab_frequencias():
         with st.form("form_freq"):
             col1, col2, col3 = st.columns(3)
             with col1:
-                _all_stores = get_all_stores()
+                _all_stores = _cached_get_all_stores()
                 _store_options = {s["name"]: s["id"] for s in _all_stores if "id" in s and "name" in s}
                 selected_store = st.selectbox("Loja (opcional)", options=[""] + list(_store_options.keys()))
                 store_id = _store_options[selected_store] if selected_store else ""
@@ -2395,7 +2436,7 @@ def tab_alertas():
     tab_dest, tab_rules = st.tabs(["📬 Destinatários", "⚙️ Regras"])
 
     with tab_dest:
-        recipients = get_all_recipients(include_inactive=True)
+        recipients = _cached_get_all_recipients(include_inactive=True)
         if recipients:
             df = pd.DataFrame(recipients)
             df["active"] = df["active"].map({True: "✅", False: "⏸️"})
@@ -2451,7 +2492,7 @@ def tab_alertas():
                                 st.rerun()
 
     with tab_rules:
-        rules = get_all_alert_rules(include_disabled=True)
+        rules = _cached_get_all_alert_rules(include_disabled=True)
         if rules:
             df = pd.DataFrame(rules)
             df["enabled"] = df["enabled"].map({True: "✅", False: "⏸️"})
@@ -2550,15 +2591,17 @@ def tab_fontes():
     with tab_promos:
         st.markdown("### Ofertas e Promocoes")
         tier_p = st.multiselect("Tier", [1, 2, 3, 4], default=[1, 2, 3], key="promos_tier")
-        limit_p = st.number_input("Limite", min_value=10, max_value=200, value=50, key="promos_limit")
         if st.button("Buscar Promocoes", type="primary", key="btn_promos"):
             with st.spinner("Buscando precos..."):
+                all_prices = get_all_current_prices(valid_only=valid_only, limit=2000)
+                if not all_prices:
+                    info_box("Nenhum preco disponivel", "info")
+                    return
                 all_promo = []
-                for ing in ing_options:
-                    prices = search_prices(ing, valid_only=valid_only, limit=limit_p)
-                    for p in prices:
-                        if p.get("is_promotion") and p.get("tier") in tier_p:
-                            all_promo.append({**p, "_ingredient": ing})
+                for p in all_prices:
+                    if p.get("is_promotion") and p.get("tier") in tier_p:
+                        ing = p.get("ingredient_id", "?")
+                        all_promo.append({**p, "_ingredient": ing})
                 if not all_promo:
                     info_box("Nenhuma promocao ativa encontrada", "info")
                     return
@@ -2576,15 +2619,15 @@ def tab_fontes():
         tier_r = st.multiselect("Tier", [1, 2, 3, 4], default=[1, 2, 3], key="ranking_tier")
         if st.button("Calcular", type="primary", key="btn_ranking"):
             with st.spinner("Buscando precos..."):
+                all_prices = get_all_current_prices(valid_only=valid_only, limit=2000)
                 store_coverage = {}
-                for ing in ing_options:
-                    pp = search_prices(ing, valid_only=valid_only, limit=50)
-                    for p in pp:
-                        if p.get("tier") in tier_r:
-                            s_name = p.get("store_name", "?")
-                            if s_name not in store_coverage:
-                                store_coverage[s_name] = set()
-                            store_coverage[s_name].add(ing)
+                for p in all_prices:
+                    if p.get("tier") in tier_r:
+                        s_name = p.get("store_name", "?")
+                        ing = p.get("ingredient_id", "?")
+                        if s_name not in store_coverage:
+                            store_coverage[s_name] = set()
+                        store_coverage[s_name].add(ing)
                 if not store_coverage:
                     info_box("Nenhum dado disponivel", "info")
                     return
@@ -2623,7 +2666,7 @@ def tab_ranking():
 
     if st.button("Gerar Ranking", type="primary"):
         with st.spinner("Buscando precos..."):
-            history = get_price_history(selected, days=days, valid_only=valid_only)
+            history = _cached_get_price_history(selected, days=days, valid_only=valid_only)
             if not history:
                 info_box(f"Sem historico para '{selected}' no periodo", "info")
                 return
@@ -2712,14 +2755,17 @@ def tab_insights():
         limit_ing = st.number_input("Max ingredientes", min_value=3, max_value=20, value=10, key="heatmap_lim")
         if st.button("Gerar Heatmap", type="primary", key="btn_heatmap"):
             with st.spinner("Buscando precos..."):
+                all_prices = get_all_current_prices(valid_only=valid_only, limit=2000)
+                target_ings = set(ing_options[:limit_ing])
                 rows = []
-                for ing in ing_options[:limit_ing]:
-                    pp = search_prices(ing, valid_only=valid_only, limit=20)
-                    for p in pp:
-                        if p.get("tier") in tier_h:
-                            n = p.get("normalized") or {}
-                            rows.append({"ingrediente": ing, "loja": p.get("store_name", "?"),
-                                         "price_per_kg": n.get("price_per_kg", 0) or 0})
+                for p in all_prices:
+                    ing = p.get("ingredient_id", "")
+                    if ing not in target_ings:
+                        continue
+                    if p.get("tier") in tier_h:
+                        n = p.get("normalized") or {}
+                        rows.append({"ingrediente": ing, "loja": p.get("store_name", "?"),
+                                     "price_per_kg": n.get("price_per_kg", 0) or 0})
                 if not rows:
                     info_box("Sem dados para o heatmap", "info")
                     return
@@ -2743,16 +2789,21 @@ def tab_insights():
         threshold = st.slider("Desvio padrao", 1.0, 3.0, 2.0, 0.25, key="outlier_threshold")
         if st.button("Detectar Outliers", type="primary", key="btn_outliers"):
             with st.spinner("Buscando precos..."):
+                all_prices = get_all_current_prices(valid_only=valid_only, limit=2000)
                 out_rows = []
-                for ing in ing_options:
-                    pp = search_prices(ing, valid_only=valid_only, limit=50)
-                    vals = []
-                    for p in pp:
-                        if p.get("tier") in tier_o:
-                            n = p.get("normalized") or {}
-                            vals.append({"store": p.get("store_name", "?"), "product": p.get("raw_product", ""),
-                                         "price": n.get("price_per_kg", 0) or 0,
-                                         "raw_price": p.get("raw_price", 0), "raw_unit": p.get("raw_unit", "")})
+                from collections import defaultdict
+                by_ing = defaultdict(list)
+                for p in all_prices:
+                    if p.get("tier") in tier_o:
+                        n = p.get("normalized") or {}
+                        by_ing[p.get("ingredient_id", "?")].append({
+                            "store": p.get("store_name", "?"),
+                            "product": p.get("raw_product", ""),
+                            "price": n.get("price_per_kg", 0) or 0,
+                            "raw_price": p.get("raw_price", 0),
+                            "raw_unit": p.get("raw_unit", ""),
+                        })
+                for ing, vals in by_ing.items():
                     if len(vals) >= 3:
                         valid_vals = [v for v in vals if v["price"] > 0]
                         if not valid_vals:
@@ -2782,17 +2833,18 @@ def tab_insights():
         top_m = st.number_input("Top por ingrediente", min_value=1, max_value=10, value=3, key="melhores_top")
         if st.button("Encontrar Melhores", type="primary", key="btn_melhores"):
             with st.spinner("Buscando precos..."):
-                best_rows = []
-                for ing in ing_options:
-                    pp = search_prices(ing, valid_only=valid_only, limit=30)
-                    valid_pp = [p for p in pp if p.get("tier") in tier_m]
-                    if not valid_pp:
-                        continue
-                    for p in valid_pp:
+                all_prices = get_all_current_prices(valid_only=valid_only, limit=2000)
+                from collections import defaultdict
+                by_ing = defaultdict(list)
+                for p in all_prices:
+                    if p.get("tier") in tier_m:
                         n = p.get("normalized") or {}
                         p["_price_kg"] = n.get("price_per_kg", 0) or 0
-                    valid_pp.sort(key=lambda x: x["_price_kg"])
-                    for p in valid_pp[:top_m]:
+                        by_ing[p.get("ingredient_id", "?")].append(p)
+                best_rows = []
+                for ing, pp in by_ing.items():
+                    pp.sort(key=lambda x: x["_price_kg"])
+                    for p in pp[:top_m]:
                         brand = p.get("brand", "")
                         best_rows.append({
                             "ingrediente": ing,
@@ -2899,7 +2951,7 @@ def tab_insights():
 
 def tab_calculadora():
     section_title("Calculadora de Receita", "Calcule o custo e valor de venda dos seus doces")
-    ingredients = get_active_ingredients() if callable(getattr(get_active_ingredients, '__call__', None)) else load_ingredients()
+    ingredients = _cached_get_active_ingredients()
     ing_options = {}
     if ingredients and isinstance(ingredients, list):
         for i in ingredients:
