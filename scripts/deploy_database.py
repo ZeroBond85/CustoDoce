@@ -246,6 +246,13 @@ CREATE POLICY "service_role_all" ON scrape_frequencies FOR ALL USING (auth.role(
 CREATE POLICY "anon_read" ON scrape_frequencies FOR SELECT USING (true);
 """)
 
+    gen.append("""
+-- ============================================================
+-- PHASE 9: Add match_type column to review_queue
+-- ============================================================
+ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS match_type TEXT DEFAULT '';
+""")
+
     gen.append("\n-- ============================================================")
     gen.append("-- Migration complete. Verify with:")
     gen.append("--   SELECT table_name FROM information_schema.tables")

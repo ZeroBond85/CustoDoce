@@ -905,52 +905,92 @@ def tab_revisao():
             image_url = item.get("image_url", "")
             source_url = item.get("source_url", "")
             match_reason = item.get("match_reason", "")
+            match_type = item.get("match_type", "")
+            brand = item.get("brand", "")
 
             with st.container(border=True):
-                cols = st.columns([3, 2, 1, 1])
-                with cols[0]:
-                    st.markdown(f"**{raw_product}**")
-                    brand = item.get("brand", "")
-                    extra = f"Marca: {brand} | " if brand else ""
-                    st.caption(
-                        f"{extra}Loja: {store_name} | Confianca: {confidence * 100:.0f}%"
-                    )
-                    if match_reason:
-                        st.caption(f"⚠️ Motivo: {match_reason}")
-                    elif confidence < 0.8:
-                        st.caption(
-                            "ℹ️ Revisão necessária: a confiança é inferior a 80%."
-                        )
+                # ── Row 1: Image (right) + Product info (left) ──
+                img_col, info_col = st.columns([1, 2])
 
-                    # Show flyer image if available
+                with img_col:
                     if image_url:
-                        with st.expander("🖼️ Ver Panfleto de Origem", expanded=False):
-                            st.image(image_url, use_container_width=True)
-                            st.caption("Clique com botão direito → Salvar imagem para download")
+                        st.image(image_url, use_container_width=True)
+                        st.caption("🖼️ Panfleto de origem")
+                    elif source_url:
+                        st.link_button("🔗 Ver página do produto", source_url, use_container_width=True)
+                    else:
+                        st.caption("Sem evidência visual disponível")
 
-                    # Show source link if available
-                    if source_url:
-                        st.link_button("🔗 Abrir Página do Produto", source_url, use_container_width=True)
-                with cols[1]:
-                    st.markdown(f"R$ {float(raw_price):.2f} {raw_unit}")
-                options = suggestions + ["Outro..."]
-                selected = st.selectbox(
-                    "Ingrediente",
-                    options,
-                    key=f"ingredient_{item_id}",
-                    index=0 if suggestions else len(options) - 1,
-                    label_visibility="collapsed",
-                )
-                if selected == "Outro..." or not suggestions:
-                    st.text_input(
-                        "Digite o nome do ingrediente",
-                        key=f"custom_ingredient_{item_id}",
-                        placeholder="Ex: Leite Condensado Integral",
-                        label_visibility="collapsed",
+                with info_col:
+                    # Product name + brand
+                    st.markdown(f"**{raw_product}**")
+                    if brand:
+                        st.caption(f"Marca: {brand}")
+
+                    # Store + price + confidence
+                    conf_pct = confidence * 100
+                    st.markdown(
+                        f"🏪 {store_name} &nbsp;&nbsp;|&nbsp;&nbsp; "
+                        f"💰 R$ {float(raw_price):.2f} {raw_unit} &nbsp;&nbsp;|&nbsp;&nbsp; "
+                        f"📊 Confiança: **{conf_pct:.0f}%**"
                     )
-                with cols[2]:
+
+                    # Confidence bar
+                    st.progress(confidence)
+
+                    # Match type badge
+                    if match_type:
+                        badge_colors = {
+                            "exact": ("green", "✅ Exato"),
+                            "fuzzy_canonical": ("orange", "🔍 Fuzzy (canônico)"),
+                            "fuzzy_alias": ("orange", "🔍 Fuzzy (alias)"),
+                            "word_subset": ("blue", "📝 Subconjunto de palavras"),
+                        }
+                        color, label = badge_colors.get(match_type, ("gray", match_type))
+                        st.markdown(f":{color}[**{label}**]")
+
+                    # Match reason
+                    if match_reason:
+                        st.info(f"📋 **Diagnóstico:** {match_reason}")
+                    elif confidence < 0.8:
+                        st.info("ℹ️ Revisão necessária: confiança inferior a 80%.")
+
+                # ── Row 2: Top 3 Candidates ──
+                top3 = item.get("top3", [])
+                if top3:
+                    with st.expander(f"🎯 Top 3 Candidatos ({len(top3)})", expanded=False):
+                        for i, c in enumerate(top3, 1):
+                            c_score = c.get("score", 0)
+                            c_type = c.get("match_type", "")
+                            c_term = c.get("matched_term", "")
+                            medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(i, "")
+                            st.markdown(
+                                f"{medal} **{c.get('canonical', '?')}** — "
+                                f"{c_score:.0f}% ({c_type}) via '{c_term}'"
+                            )
+                            st.progress(c_score / 100.0)
+
+                # ── Row 3: Actions ──
+                st.divider()
+                act_cols = st.columns([3, 1, 1])
+                with act_cols[0]:
+                    options = suggestions + ["Outro..."]
+                    selected = st.selectbox(
+                        "Classificar como ingrediente:",
+                        options,
+                        key=f"ingredient_{item_id}",
+                        index=0 if suggestions else len(options) - 1,
+                    )
+                    if selected == "Outro..." or not suggestions:
+                        st.text_input(
+                            "Digite o nome do ingrediente",
+                            key=f"custom_ingredient_{item_id}",
+                            placeholder="Ex: Leite Condensado Integral",
+                            label_visibility="collapsed",
+                        )
+                with act_cols[1]:
                     if st.button(
-                        "Aprovar", key=f"app_{item_id}", use_container_width=True
+                        "✅ Aprovar", key=f"app_{item_id}", use_container_width=True
                     ):
                         chosen = st.session_state.get(f"ingredient_{item_id}", "")
                         if chosen == "Outro...":
@@ -964,11 +1004,8 @@ def tab_revisao():
                             except Exception as e:
                                 err_msg = str(e)
                                 st.error(f"Erro ao aprovar: {err_msg}")
-
-                                # Se for erro de constraint (42P10), mostrar instrucao
                                 if "42P10" in err_msg:
                                     st.caption(
-                                        "A constraint UNIQUE esta faltando no banco. "
                                         "Execute no SQL Editor do Supabase:"
                                     )
                                     st.code(
@@ -979,9 +1016,9 @@ def tab_revisao():
                                     )
                         else:
                             st.warning("Selecione um ingrediente antes de aprovar.")
-                with cols[3]:
+                with act_cols[2]:
                     if st.button(
-                        "Rejeitar", key=f"rej_{item_id}", use_container_width=True
+                        "❌ Rejeitar", key=f"rej_{item_id}", use_container_width=True
                     ):
                         reject_review_item(item_id)
                         st.rerun()

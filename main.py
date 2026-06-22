@@ -21,7 +21,7 @@ from scrapers.max_api_scraper import MaxApiScraper
 from scrapers.aggregator_scraper import TiendeoScraper
 from scrapers.playwright_price_scraper import PlaywrightPriceScraper
 from parsers.normalizer import normalize_price
-from parsers.matcher import match_ingredient, rank_ingredients
+from parsers.matcher import match_ingredient, rank_ingredients, clean_text
 from parsers.brand_extractor import extract_brand
 from services.price_service import upsert_price, insert_review_item, log_scraper_run, cleanup_old_prices, cleanup_old_logs, _detect_promotion, _weekday_pt
 from services.flyer_service import cleanup_old_flyers
@@ -126,13 +126,48 @@ def process_price_match(
         suggestions = [c[0]["canonical"] for c in candidates if c[1] >= 55.0]
         validity = validity_raw or _extract_validity_from_product(product_text)
 
-        # Build match reason explanation
+        # Build detailed match reason
+        match_type = ""
         match_reason = ""
         if candidates:
             top = candidates[0]
-            match_reason = f"Fuzzy match de {top[1]:.0f}% com '{top[0]['canonical']}' (match via '{top[3]}')"
+            top_ing, top_score, top_type, top_term = top
+            match_type = top_type
+
+            # Type label in PT
+            type_labels = {
+                "fuzzy_canonical": "fuzzy (canônico)",
+                "fuzzy_alias": "fuzzy (alias)",
+                "exact": "exato",
+                "word_subset": "subconjunto de palavras",
+            }
+            type_label = type_labels.get(top_type, top_type)
+
+            # Product text analysis
+            product_words = set(clean_text(product_text).split())
+            canonical_words = set(clean_text(top_ing["canonical"]).split())
+            unmatched_words = product_words - canonical_words
+
+            match_reason = (
+                f"Tipo: {type_label} | "
+                f"Score: {top_score:.0f}% | "
+                f"Candidato: '{top_ing['canonical']}' | "
+                f"Termo match: '{top_term}'"
+            )
+            if unmatched_words:
+                match_reason += f" | Palavras não matcheadas: {', '.join(sorted(unmatched_words))}"
         else:
-            match_reason = f"Score {score:.0f}% - nenhum match forte encontrado"
+            match_reason = f"Score {score:.0f}% - nenhum candidato acima de 55%"
+
+        # Build top 3 summary for UI
+        top3_summary = []
+        for c in candidates:
+            top3_summary.append({
+                "canonical": c[0]["canonical"],
+                "score": c[1],
+                "match_type": c[2],
+                "matched_term": c[3],
+            })
 
         review_item = {
             "raw_product": product_text,
@@ -147,6 +182,8 @@ def process_price_match(
             "image_url": image_url,
             "source_url": source_url,
             "match_reason": match_reason,
+            "match_type": match_type,
+            "top3": top3_summary,
         }
         try:
             insert_review_item(review_item)
@@ -389,6 +426,7 @@ def process_ocr_queue() -> int:
                     ingredients=ingredients,
                     validity_raw=prod.get("validity_raw", ""),
                     image_url=flyer.get("image_url", ""),
+                    source_url=prod.get("source_url", flyer.get("source_url", "")),
                 )
                 if entry:
                     matched += 1

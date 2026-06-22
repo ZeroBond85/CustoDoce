@@ -434,6 +434,23 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 | `datetime.now()` sem timezone — corrigido em **5 arquivos** (main.py, price_service.py, flyer_service.py, aggregator_scraper.py, seed_prices.py) | ✅ |
 | 230 testes, ruff (0 new), bandit (0), pip-audit (0) | ✅ Todos limpos |
 
+## Fase 15 — Review Queue Enhanced (concluida)
+
+| O que foi feito | Resultado |
+|----------------|-----------|
+| Schema: coluna `match_type TEXT DEFAULT ''` em `review_queue` (PHASE 9 migration) | ✅ |
+| `main.py`: `match_reason` detalhado com tipo de match, score, candidato, termo match, palavras não matcheadas | ✅ |
+| `main.py`: review item inclui `match_type`, `top3` (top 3 candidatos com scores) | ✅ |
+| `main.py`: flyers passam `source_url` do prod ou flyer dict | ✅ |
+| `services/price_service.py`: `insert_review_item()` inclui `match_type` | ✅ |
+| `admin/app.py`: layout 2 colunas — imagem/dados lado a lado (não mais expander) | ✅ |
+| `admin/app.py`: barra de confiança visual (`st.progress`) | ✅ |
+| `admin/app.py`: badge de match_type colorido (verde=exato, amarelo=fuzzy, azul=word_subset) | ✅ |
+| `admin/app.py`: seção "Top 3 Candidatos" com scores individuais + progress bars | ✅ |
+| `admin/app.py`: diagnóstico detalhado com tipo, score, candidato, termo, palavras não matcheadas | ✅ |
+| `scripts/deploy_database.py`: PHASE 9 adicionada | ✅ |
+| 230 testes, ruff 0, bandit 0 | ✅ Todos limpos |
+
 ## Status das Fases
 
 - **Fase 1** ✅ Estrutura base (pastas, parsers, services, schema, base_flyer)
@@ -457,3 +474,4 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 - **Fase 14d** ✅ Pão de Açúcar Fresh Scraper — `pao_flyer_scraper.py` herda de `ExtraFlyerScraper` com `BRAND=pao`, `CAMPAIGN_TYPE=fresh`; ExtraFlyerScraper refatorado: class-level attrs `BRAND` e `CAMPAIGN_TYPE`; store `"Pão de Açúcar Fresh"` (Tier 1, type `pao_flyer`); 101 produtos/roda em teste manual; 230 testes
 - **Fase 14e** ✅ Tab Consolidation — `tab_agendamentos()` → subtab de `tab_scrapers()`; `tab_frequencias()` → campos no form `tab_lojas()`; testadores SMTP/Telegram removidos de `tab_relatorios()`; sidebar 18→16 abas; 230 testes
 - **Fase 14f** ✅ Regression Bugfixes — `open()` encoding utf-8 (9 arquivos), price regex `\s*` (4 scrapers), `datetime.now(timezone.utc)` (5 arquivos); 230 testes; ruff/bandit/pip-audit limpos
+- **Fase 15** ✅ Review Queue Enhanced — coluna `match_type`, `match_reason` detalhado (tipo, score, candidato, termo, palavras não matcheadas), top 3 com scores, UI 2 colunas com imagem sempre visível, badge de match type colorido, progress bar de confiança; 230 testes
