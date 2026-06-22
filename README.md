@@ -5,7 +5,7 @@ Sistema automatizado de busca e comparação de preços de ingredientes para con
 ## Funcionalidades
 
 - 🔍 **Busca automática 2x/dia** - Coleta preços de PDFs de atacados, APIs VTEX e sites
-- 🏪 **18 abas no dashboard** - Visão geral, preços, histórico, flyers, revisão, fontes, ranking, insights, lojas, ingredientes, calculadora, scrapers, relatórios, config, diagnóstico
+- 🏪 **16 abas no dashboard** - Visão geral, preços, histórico, flyers, revisão, fontes, ranking, insights, lojas, ingredientes, calculadora, scrapers, relatórios, config, diagnóstico
 - 🤖 **Telegram Bot** - `/preco <ingrediente>` → lista ordenada por R$/kg
 - ⚙️ **Config declarativa** - Edite `config/features.yaml` para ligar/desligar funções sem alterar código
 - 📊 **Export CSV** - Download de preços e histórico em CSV

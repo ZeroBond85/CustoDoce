@@ -14,7 +14,7 @@ INGREDIENTS_FILE = "config/ingredients.yaml"
 
 
 def load_ingredients() -> list[dict]:
-    with open(INGREDIENTS_FILE) as f:
+    with open(INGREDIENTS_FILE, encoding="utf-8") as f:
         data = yaml.safe_load(f)
     return data.get("ingredients", [])
 

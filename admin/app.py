@@ -122,7 +122,7 @@ def _pt_cols(df):
 
 @st.cache_data(ttl=600)
 def load_ingredients():
-    with open(INGREDIENTS_FILE) as f:
+    with open(INGREDIENTS_FILE, encoding="utf-8") as f:
         data = yaml.safe_load(f)
     return data.get("ingredients", [])
 
@@ -1728,7 +1728,7 @@ def tab_scrapers():
                 logs = (
                     client.table("scraping_logs")
                     .select("*")
-                    .order("created_at", desc=True)
+                    .order("started_at", desc=True)
                     .limit(50)
                     .execute()
                 )
@@ -2249,7 +2249,7 @@ def tab_config():
     with tab_stores:
         st.markdown("**Lojas (stores.yaml)**")
         try:
-            with open("config/stores.yaml") as f:
+            with open("config/stores.yaml", encoding="utf-8") as f:
                 stores_data = yaml.safe_load(f)
             st.code(yaml.dump(stores_data), language="yaml")
         except FileNotFoundError:
@@ -2302,7 +2302,7 @@ def _test_supabase():
 
 
 def _test_yaml(path):
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         yaml.safe_load(f)
     return f"{path} valido"
 

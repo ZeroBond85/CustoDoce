@@ -159,7 +159,7 @@ def get_price_history(ingredient_canonical: str, days: int = 30, valid_only: boo
         today = date.today().isoformat()
         query = query.lte("valid_from", today).gte("valid_until", today)
 
-    cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     result = query.gte("collected_at", cutoff).order("collected_at", desc=True).execute()
     return result.data if result.data else []
 

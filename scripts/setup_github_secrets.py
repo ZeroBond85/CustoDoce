@@ -33,7 +33,7 @@ def load_env(path=".env"):
     if not os.path.exists(path):
         print(f"ERRO: Arquivo {path} não encontrado")
         sys.exit(1)
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("#"):

@@ -8,7 +8,7 @@ _CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config", "features
 @lru_cache(maxsize=1)
 def _load_config():
     if os.path.exists(_CONFIG_PATH):
-        with open(_CONFIG_PATH) as f:
+        with open(_CONFIG_PATH, encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
     return {}
 

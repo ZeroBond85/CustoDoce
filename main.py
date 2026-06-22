@@ -4,7 +4,7 @@ import logging
 import re
 import sys
 from contextlib import suppress
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -164,7 +164,7 @@ def _auto_disable_if_needed(store_name: str, threshold: int = 3):
             client.table("scraping_logs")
             .select("status")
             .eq("store_name", store_name)
-            .order("created_at", desc=True)
+            .order("started_at", desc=True)
             .limit(threshold)
             .execute()
         )
@@ -457,12 +457,12 @@ def main():
 
     all_products = tier1_products + extra_products + pao_products + tier2_products + tier3_products + carrefour_products + js_products
     snapshot = {
-        "collected_at": datetime.now().isoformat(),
+        "collected_at": datetime.now(timezone.utc).isoformat(),
         "total_prices": len(all_products),
         "ingredients_found": len(set(p["ingredient_id"] for p in all_products)),
     }
     snapshot_path = DATA_DIR / "prices_latest.json"
-    with open(snapshot_path, "w") as f:
+    with open(snapshot_path, "w", encoding="utf-8") as f:
         json.dump(snapshot, f, indent=2, ensure_ascii=False)
 
     if all_products:

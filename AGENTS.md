@@ -425,6 +425,15 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 | Sidebar reduzida de 18 para 16 abas | ✅ |
 | 230 testes, ruff, bandit, pip-audit | ✅ Todos limpos |
 
+## Fase 14f — Regression Bugfixes (concluida)
+
+| O que foi feito | Resultado |
+|----------------|-----------|
+| `open()` sem `encoding='utf-8'` — corrigido em **9 arquivos** (main.py, admin/app.py x3, deploy_check.py, send_daily_report.py, setup_github_secrets.py, config.py, handlers.py) | ✅ |
+| Price regex sem `\s*` antes de vírgula — corrigido em **4 scrapers** (carrefour_scraper.py, flyer_parser.py, website_scraper.py, playwright_price_scraper.py) | ✅ |
+| `datetime.now()` sem timezone — corrigido em **5 arquivos** (main.py, price_service.py, flyer_service.py, aggregator_scraper.py, seed_prices.py) | ✅ |
+| 230 testes, ruff (0 new), bandit (0), pip-audit (0) | ✅ Todos limpos |
+
 ## Status das Fases
 
 - **Fase 1** ✅ Estrutura base (pastas, parsers, services, schema, base_flyer)
@@ -447,3 +456,4 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 - **Fase 14c** ✅ Review Queue Overhaul — threshold 30%→55% (elimina ~95% falsos positivos); colunas `image_url`, `source_url`, `match_reason`, `brand` na `review_queue`; `matcher.py` retorna `(ingredient, score, match_type, matched_term)`; `tab_revisao` exibe: motivo do match, expander com imagem do panfleto, botão link para página do produto; 227 testes
 - **Fase 14d** ✅ Pão de Açúcar Fresh Scraper — `pao_flyer_scraper.py` herda de `ExtraFlyerScraper` com `BRAND=pao`, `CAMPAIGN_TYPE=fresh`; ExtraFlyerScraper refatorado: class-level attrs `BRAND` e `CAMPAIGN_TYPE`; store `"Pão de Açúcar Fresh"` (Tier 1, type `pao_flyer`); 101 produtos/roda em teste manual; 230 testes
 - **Fase 14e** ✅ Tab Consolidation — `tab_agendamentos()` → subtab de `tab_scrapers()`; `tab_frequencias()` → campos no form `tab_lojas()`; testadores SMTP/Telegram removidos de `tab_relatorios()`; sidebar 18→16 abas; 230 testes
+- **Fase 14f** ✅ Regression Bugfixes — `open()` encoding utf-8 (9 arquivos), price regex `\s*` (4 scrapers), `datetime.now(timezone.utc)` (5 arquivos); 230 testes; ruff/bandit/pip-audit limpos

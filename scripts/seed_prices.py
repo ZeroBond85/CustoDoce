@@ -19,7 +19,7 @@ import hashlib
 import json
 import random
 import sys
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from pathlib import Path
 
 
@@ -317,7 +317,7 @@ def main():
             "prices": prices,
             "flyers": flyers,
             "review_queue": review_items,
-            "generated_at": datetime.now().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
         path = Path(args.json)
         with open(path, "w", encoding="utf-8") as f:

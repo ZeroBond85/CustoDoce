@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 import httpx
 from selectolax.parser import HTMLParser
@@ -119,7 +119,7 @@ class TiendeoScraper:
 
     @staticmethod
     def _resolve_year(month: int) -> int:
-        today = datetime.now()
+        today = datetime.now(timezone.utc)
         return today.year + 1 if month < today.month else today.year
 
     async def _fetch_city_async(self, client: httpx.AsyncClient, url: str) -> str | None:

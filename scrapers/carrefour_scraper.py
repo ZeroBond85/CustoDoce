@@ -15,7 +15,7 @@ class CarrefourScraper(BaseWebScraper):
     def __init__(self, store_config: dict):
         super().__init__(store_config)
         self.search_url = store_config.get("search_url") or f"{self.base_url}/busca?q={{query}}"
-        self._price_re = re.compile(r"R\$\s*(\d+(?:[.,]\d{2}))")
+        self._price_re = re.compile(r"R\$\s*(\d+(?:\s*[.,]\s*\d{2})?)")
 
     def fetch_search(self, query: str) -> str | None:
         url = self.search_url.format(query=quote(query))

@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 # Carrega .env se existir (para ambiente local)
 _dotenv = os.path.join(os.path.dirname(__file__), "..", ".env")
 if os.path.exists(_dotenv):
-    with open(_dotenv) as _f:
+    with open(_dotenv, encoding="utf-8") as _f:
         for _line in _f:
             _line = _line.strip()
             if _line and "=" in _line and not _line.startswith("#"):
@@ -116,7 +116,7 @@ def test_scraper_health():
     logs = (
         client.table("scraping_logs")
         .select("store_name, status")
-        .order("created_at", desc=True)
+        .order("started_at", desc=True)
         .limit(200)
         .execute()
     )

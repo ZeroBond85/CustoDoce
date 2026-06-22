@@ -104,7 +104,7 @@ class WebsiteScraper(BaseWebScraper):
 
     @staticmethod
     def _parse_price(text: str) -> float | None:
-        m = re.search(r"[\d.,]+", text.replace(".", "").replace(",", "."))
+        m = re.search(r"[\d.,]+", text.replace(" ", "").replace(".", "").replace(",", "."))
         if m:
             try:
                 return float(m.group())

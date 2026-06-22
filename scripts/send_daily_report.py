@@ -11,7 +11,7 @@ from services.config import get as get_config
 
 def load_ingredients():
     import yaml
-    with open("config/ingredients.yaml") as f:
+    with open("config/ingredients.yaml", encoding="utf-8") as f:
         data = yaml.safe_load(f)
     return data.get("ingredients", [])
 
