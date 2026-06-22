@@ -34,7 +34,7 @@ expected_columns['prices'] = ['id','ingredient_id','store_id','source','store_na
 # price_history
 expected_columns['price_history'] = ['id','price_id','ingredient_id','store_id','store_name','raw_product','raw_price','raw_unit','normalized','valid_from','valid_until','validity_raw','collected_weekday','is_promotion','collected_at','brand']
 # review_queue
-expected_columns['review_queue'] = ['id','raw_product','raw_price','raw_unit','store_name','source','confidence','suggestions','validity_raw','status','resolved_ingredient','collected_at','reviewed_at','brand']
+expected_columns['review_queue'] = ['id','raw_product','raw_price','raw_unit','store_name','source','confidence','suggestions','validity_raw','status','resolved_ingredient','collected_at','reviewed_at','brand','image_url','source_url','match_reason','match_type']
 # flyers
 expected_columns['flyers'] = ['id','store_name','region','city','flyer_title','flyer_date_start','flyer_date_end','image_url','image_hash','image_type','image_width','image_height','ocr_status','ocr_text','ocr_confidence','products_extracted','source','valid_from','valid_until','collected_at','processed_at']
 # stores

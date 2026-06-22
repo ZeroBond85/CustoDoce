@@ -248,8 +248,11 @@ CREATE POLICY "anon_read" ON scrape_frequencies FOR SELECT USING (true);
 
     gen.append("""
 -- ============================================================
--- PHASE 9: Add match_type column to review_queue
+-- PHASE 9: Add review_queue columns (image_url, source_url, match_reason, match_type)
 -- ============================================================
+ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS image_url TEXT DEFAULT '';
+ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS source_url TEXT DEFAULT '';
+ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS match_reason TEXT DEFAULT '';
 ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS match_type TEXT DEFAULT '';
 """)
 
