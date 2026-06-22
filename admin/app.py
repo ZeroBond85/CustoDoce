@@ -1044,6 +1044,15 @@ def tab_lojas():
                 "visit_frequency": "", "scraper": "", "contact": "", "coverage": "", "priority": 99, "is_active": True
             }
 
+        freqs = _cached_get_scrape_frequency()
+        freq_by_store = {}
+        if freqs:
+            for f in freqs:
+                if f.get("store_id"):
+                    freq_by_store[f["store_id"]] = f
+
+        store_freq = freq_by_store.get(default.get("id"), {})
+
         with st.form("form_store"):
             col1, col2 = st.columns(2)
             with col1:
@@ -1068,6 +1077,15 @@ def tab_lojas():
                 priority = st.number_input("Prioridade", min_value=1, max_value=999, value=default.get("priority", 99))
                 active = st.checkbox("Ativo", value=default.get("is_active", True))
 
+            st.markdown("### Configurações de Coleta")
+            col_f1, col_f2 = st.columns(2)
+            with col_f1:
+                freq_min = st.number_input("Frequência (minutos)", min_value=60, value=store_freq.get("frequency_minutes", 1440), step=60)
+                max_retries = st.number_input("Max Retries", min_value=0, max_value=5, value=store_freq.get("max_retries", 2))
+            with col_f2:
+                timeout = st.number_input("Timeout (segundos)", min_value=10, max_value=300, value=store_freq.get("timeout_seconds", 30), step=10)
+                rate_limit = st.number_input("Rate Limit (req/min)", min_value=1, max_value=60, value=store_freq.get("rate_limit_per_minute", 10))
+
             if st.form_submit_button("Salvar", use_container_width=True):
                 if not name or not name.strip():
                     st.error("Nome da loja e obrigatorio.")
@@ -1078,7 +1096,7 @@ def tab_lojas():
                 except Exception:
                     selectors_json = {}
                 try:
-                    upsert_store({
+                    result = upsert_store({
                         "name": name,
                         "tier": tier,
                         "type": type_,
@@ -1099,6 +1117,16 @@ def tab_lojas():
                         "priority": priority,
                         "is_active": active,
                     })
+                    store_id = result.get("id") if result else None
+                    if store_id:
+                        upsert_scrape_frequency({
+                            "store_id": store_id,
+                            "frequency_minutes": freq_min,
+                            "max_retries": max_retries,
+                            "timeout_seconds": timeout,
+                            "rate_limit_per_minute": rate_limit,
+                            "enabled": True,
+                        })
                     st.toast(f"Loja '{name}' salva!")
                     st.rerun()
                 except Exception as e:
@@ -1653,7 +1681,7 @@ def tab_scrapers():
     _render_schedule_info()
     st.markdown("---")
 
-    tab_logs, tab_manutencao = st.tabs(["Logs Recentes", "Manutencao de Scrapers"])
+    tab_logs, tab_agenda, tab_manutencao = st.tabs(["Logs Recentes", "Agendamentos", "Manutencao de Scrapers"])
 
     with tab_logs:
         col1, col2 = st.columns(2)
@@ -1691,6 +1719,7 @@ def tab_scrapers():
         with col2:
             st.info("Clique para acionar a coleta manual via GitHub Actions.")
 
+        client = None
         try:
             from services.supabase_client import get_service_client
 
@@ -1723,8 +1752,107 @@ def tab_scrapers():
         except Exception as e:
             info_box(f"Erro ao carregar logs: {e}", "warning")
 
+    with tab_agenda:
+        st.caption("Gerencie agendamentos de coleta e relatórios.")
+        schedules = _cached_get_all_schedules(include_disabled=True)
+        if schedules:
+            df = pd.DataFrame(schedules)
+            df["enabled"] = df["enabled"].map({True: "✅ Ativo", False: "⏸️ Inativo"})
+            st.dataframe(
+                _pt_cols(df[["name", "cron_expression", "timezone", "enabled", "last_run", "next_run"]]),
+                use_container_width=True,
+                hide_index=True,
+            )
+        else:
+            info_box("Nenhum agendamento encontrado.", "info")
+
+        st.divider()
+
+        with st.expander("➕  Novo Agendamento", expanded=False), st.form("form_schedule"):
+            col1, col2 = st.columns(2)
+            with col1:
+                name = st.text_input("Nome único", placeholder="ex: coleta_diaria_tier1")
+                cron = st.text_input("Expressão Cron", placeholder="0 12 * * 1,3,5")
+                tz = st.text_input("Timezone", value="America/Sao_Paulo")
+            with col2:
+                enabled = st.checkbox("Ativo", value=True)
+                payload = st.text_area("Payload JSON", value='{"force_full": false, "run_playwright": false}', height=100)
+            if st.form_submit_button("Salvar", use_container_width=True):
+                try:
+                    upsert_schedule({
+                        "name": name,
+                        "cron_expression": cron,
+                        "timezone": tz,
+                        "enabled": enabled,
+                        "payload": json.loads(payload),
+                    })
+                    st.toast(f"Agendamento '{name}' salvo!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro: {e}")
+
+        if schedules:
+            with st.expander("✏️  Editar / Executar / Excluir", expanded=False):
+                for s in schedules:
+                    cols = st.columns([3, 2, 2, 1, 1, 1])
+                    cols[0].write(s["name"])
+                    cols[1].write(s["cron_expression"])
+                    cols[2].write("✅" if s["enabled"] else "⏸️")
+                    if cols[3].button("Editar", key=f"edit_sched_{s['id']}", use_container_width=True):
+                        st.session_state[f"editing_sched_{s['id']}"] = True
+                        st.rerun()
+                    if cols[4].button("Executar", key=f"run_sched_{s['id']}", use_container_width=True, type="primary") and not st.session_state.get(f"confirm_exec_{s['id']}"):
+                            st.session_state[f"confirm_exec_{s['id']}"] = True
+                            st.rerun()
+                    if st.session_state.get(f"confirm_exec_{s['id']}"):
+                        st.warning("Confirma execucao?")
+                        col_y, col_n = st.columns(2)
+                        with col_y:
+                            if st.button("Sim", key=f"exec_yes_{s['id']}"):
+                                try:
+                                    gh_token = os.environ.get("GH_PAT", "")
+                                    repo = _get_repo_from_git()
+                                    payload = s.get("payload") or {}
+                                    resp = httpx.post(
+                                        f"https://api.github.com/repos/{repo}/actions/workflows/scrape.yml/dispatches",
+                                        json={"ref": "master", "inputs": payload},
+                                        headers={"Authorization": f"Bearer {gh_token}", "Accept": "application/vnd.github+json"},
+                                        timeout=30,
+                                    )
+                                    if resp.status_code in (200, 204):
+                                        st.success(f"Workflow disparado para '{s['name']}'!")
+                                    else:
+                                        st.error(f"Erro GitHub API: {resp.status_code} — {resp.text[:200]}")
+                                except Exception as e:
+                                    st.error(f"Erro ao executar: {e}")
+                                st.session_state.pop(f"confirm_exec_{s['id']}", None)
+                                st.rerun()
+                        with col_n:
+                            if st.button("Cancelar", key=f"exec_no_{s['id']}"):
+                                st.session_state.pop(f"confirm_exec_{s['id']}", None)
+                                st.rerun()
+                    delete_key = f"confirm_del_sched_{s['id']}"
+                    if cols[5].button("🗑️ Excluir", key=f"del_btn_{s['id']}", use_container_width=True):
+                        st.session_state[delete_key] = True
+                    if st.session_state.get(delete_key):
+                        st.warning("Confirmar exclusao?")
+                        col_y, col_n = st.columns(2)
+                        with col_y:
+                            if st.button("Sim, excluir", key=f"del_yes_{s['id']}"):
+                                try:
+                                    delete_schedule(s["id"])
+                                    st.toast(f"Agendamento '{s['name']}' excluído!")
+                                    st.session_state.pop(delete_key, None)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro ao excluir: {e}")
+                        with col_n:
+                            if st.button("Cancelar", key=f"del_no_{s['id']}"):
+                                st.session_state.pop(delete_key, None)
+                                st.rerun()
+
     with tab_manutencao:
-        _render_scraper_maintenance(client if 'client' in dir() else None)
+        _render_scraper_maintenance(client)
 
 
 def _build_report_html(ingredient: str, days: int, prices: list) -> str:
@@ -1791,95 +1919,57 @@ def _test_telegram(token: str, chat_id: str):
 
 def tab_relatorios():
     section_title("Relatorios", "Geracao e envio de relatorios de precos")
-    tab_builder, tab_smtp, tab_telegram = st.tabs(["Relatorio", "Testar SMTP", "Testar Telegram"])
+    st.markdown("### Montar Relatorio de Precos")
+    ingredients = load_ingredients()
+    options = [i["canonical"] for i in ingredients]
+    selected = st.selectbox("Ingrediente", options)
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        days = st.selectbox("Periodo", [7, 15, 30, 60], index=1)
+    with col2:
+        limit = st.number_input("Produtos", 5, 50, 20)
+    with col3:
+        pass  # reservado
 
-    with tab_builder:
-        st.markdown("### Montar Relatorio de Precos")
-        ingredients = load_ingredients()
-        options = [i["canonical"] for i in ingredients]
-        selected = st.selectbox("Ingrediente", options)
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            days = st.selectbox("Periodo", [7, 15, 30, 60], index=1)
-        with col2:
-            limit = st.number_input("Produtos", 5, 50, 20)
-        with col3:
-            pass  # reservado
-
-        if st.button("Gerar Preview", type="primary", use_container_width=True):
-            prices = _cached_get_price_history(selected, days=days)
-            if prices:
-                html = _build_report_html(selected, days, prices[:limit])
-                st.markdown("### Preview do Relatorio")
-                st.components.v1.html(html, height=500, scrolling=True)
-                st.markdown("### Enviar por Email")
-                smtp_from = os.environ.get("SMTP_FROM") or os.environ.get("SMTP_USER") or os.environ.get("GMAIL_USER", "")
-                to_email = os.environ.get("ALERT_EMAIL_TO", "")
-                send_disabled = not (smtp_from and to_email)
-                if st.button(
-                    "Enviar Relatorio Agora",
-                    key="send_report",
-                    use_container_width=True,
-                    disabled=send_disabled,
-                    help="Configure SMTP nas secrets primeiro" if send_disabled else "Enviar relatorio por email",
-                ) and not st.session_state.get("confirm_send_report"):
-                    st.session_state.confirm_send_report = True
-                    st.rerun()
-                if st.session_state.get("confirm_send_report"):
-                    st.warning(f"Confirma envio para {to_email}?")
-                    col_y, col_n = st.columns(2)
-                    with col_y:
-                        if st.button("Sim, enviar", key="send_yes"):
-                            try:
-                                from services.email_service import send_daily_report
-                                send_daily_report(report_html=html, to_email=to_email,
-                                                  subject=f"📊 Relatorio {selected} - {days}d")
-                                st.success("Relatorio enviado com sucesso!")
-                            except Exception as e:
-                                st.error(f"Erro ao enviar: {e}")
-                            st.session_state.pop("confirm_send_report", None)
-                            st.rerun()
-                    with col_n:
-                        if st.button("Cancelar", key="send_no"):
-                            st.session_state.pop("confirm_send_report", None)
-                            st.rerun()
-            else:
-                info_box(f"Nenhum dado para '{selected}' no periodo.", "info")
-
-    with tab_smtp:
-        if not get_config("features.email.enabled", True):
-            info_box("Email desabilitado em config/features.yaml", "warning")
+    if st.button("Gerar Preview", type="primary", use_container_width=True):
+        prices = _cached_get_price_history(selected, days=days)
+        if prices:
+            html = _build_report_html(selected, days, prices[:limit])
+            st.markdown("### Preview do Relatorio")
+            st.components.v1.html(html, height=500, scrolling=True)
+            st.markdown("### Enviar por Email")
+            smtp_from = os.environ.get("SMTP_FROM") or os.environ.get("SMTP_USER") or os.environ.get("GMAIL_USER", "")
+            to_email = os.environ.get("ALERT_EMAIL_TO", "")
+            send_disabled = not (smtp_from and to_email)
+            if st.button(
+                "Enviar Relatorio Agora",
+                key="send_report",
+                use_container_width=True,
+                disabled=send_disabled,
+                help="Configure SMTP nas secrets primeiro" if send_disabled else "Enviar relatorio por email",
+            ) and not st.session_state.get("confirm_send_report"):
+                st.session_state.confirm_send_report = True
+                st.rerun()
+            if st.session_state.get("confirm_send_report"):
+                st.warning(f"Confirma envio para {to_email}?")
+                col_y, col_n = st.columns(2)
+                with col_y:
+                    if st.button("Sim, enviar", key="send_yes"):
+                        try:
+                            from services.email_service import send_daily_report
+                            send_daily_report(report_html=html, to_email=to_email,
+                                              subject=f"📊 Relatorio {selected} - {days}d")
+                            st.success("Relatorio enviado com sucesso!")
+                        except Exception as e:
+                            st.error(f"Erro ao enviar: {e}")
+                        st.session_state.pop("confirm_send_report", None)
+                        st.rerun()
+                with col_n:
+                    if st.button("Cancelar", key="send_no"):
+                        st.session_state.pop("confirm_send_report", None)
+                        st.rerun()
         else:
-            st.markdown("### Testar Conexao SMTP")
-            c1, c2 = st.columns(2)
-            with c1:
-                smtp_host = st.text_input("SMTP_HOST", value=os.environ.get("SMTP_HOST", "smtp.gmail.com"), key="smtp_host")
-                smtp_port = st.number_input("SMTP_PORT", value=int(os.environ.get("SMTP_PORT", "587")), key="smtp_port")
-                smtp_user = st.text_input("SMTP_USER", value=os.environ.get("SMTP_USER", ""), key="smtp_user")
-            with c2:
-                smtp_pass = st.text_input("SMTP_PASSWORD", type="password", value=os.environ.get("SMTP_PASSWORD", ""), key="smtp_pass")
-                smtp_from = st.text_input("SMTP_FROM", value=os.environ.get("SMTP_FROM", ""), key="smtp_from")
-                to_email = st.text_input("Email de teste", value=os.environ.get("ALERT_EMAIL_TO", ""), key="smtp_to")
-            if st.button("Testar SMTP", type="primary", use_container_width=True):
-                ok, msg = _test_smtp(smtp_host, smtp_port, smtp_user, smtp_pass, to_email, smtp_from)
-                if ok:
-                    st.success(msg)
-                else:
-                    st.error(msg)
-
-    with tab_telegram:
-        if not get_config("features.telegram.enabled", True):
-            info_box("Telegram desabilitado em config/features.yaml", "warning")
-        else:
-            st.markdown("### Testar Conexao Telegram")
-            token = st.text_input("TELEGRAM_TOKEN", type="password", value=os.environ.get("TELEGRAM_TOKEN", ""), key="tg_token")
-            chat_id = st.text_input("TELEGRAM_CHAT_ID", value=os.environ.get("TELEGRAM_CHAT_ID", ""), key="tg_chat")
-            if st.button("Testar Telegram", type="primary", use_container_width=True):
-                ok, msg = _test_telegram(token, chat_id)
-                if ok:
-                    st.success(msg)
-                else:
-                    st.error(msg)
+            info_box(f"Nenhum dado para '{selected}' no periodo.", "info")
 
 
 SECRET_GROUPS = {
@@ -2364,159 +2454,8 @@ def tab_diagnostico():
 # ============================================================
 # NOVAS TABS: AGENDAMENTOS, FREQUENCIAS, ALERTAS
 # ============================================================
-def tab_agendamentos():
-    section_title("Agendamentos (Cron Jobs)")
-    st.caption("Gerencie agendamentos de coleta e relatórios. Substitui GitHub Actions cron.")
-
-    # List schedules
-    schedules = _cached_get_all_schedules(include_disabled=True)
-    if schedules:
-        df = pd.DataFrame(schedules)
-        df["enabled"] = df["enabled"].map({True: "✅ Ativo", False: "⏸️ Inativo"})
-        st.dataframe(
-            _pt_cols(df[["name", "cron_expression", "timezone", "enabled", "last_run", "next_run"]]),
-            use_container_width=True,
-            hide_index=True,
-        )
-    else:
-        info_box("Nenhum agendamento encontrado.", "info")
-
-    st.divider()
-
-    # Form to add/edit
-    with st.expander("➕  Novo Agendamento", expanded=False), st.form("form_schedule"):
-        col1, col2 = st.columns(2)
-        with col1:
-            name = st.text_input("Nome único", placeholder="ex: coleta_diaria_tier1")
-            cron = st.text_input("Expressão Cron", placeholder="0 12 * * 1,3,5")
-            tz = st.text_input("Timezone", value="America/Sao_Paulo")
-        with col2:
-            enabled = st.checkbox("Ativo", value=True)
-            payload = st.text_area("Payload JSON", value='{"force_full": false, "run_playwright": false}', height=100)
-        if st.form_submit_button("Salvar", use_container_width=True):
-            try:
-                upsert_schedule({
-
-                    "name": name,
-                    "cron_expression": cron,
-                    "timezone": tz,
-                    "enabled": enabled,
-                    "payload": json.loads(payload),
-                })
-                st.toast(f"Agendamento '{name}' salvo!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Erro: {e}")
-
-    # Edit/Delete/Execute existing
-    if schedules:
-        with st.expander("✏️  Editar / Executar / Excluir", expanded=False):
-            for s in schedules:
-                cols = st.columns([3, 2, 2, 1, 1, 1])
-                cols[0].write(s["name"])
-                cols[1].write(s["cron_expression"])
-                cols[2].write("✅" if s["enabled"] else "⏸️")
-                if cols[3].button("Editar", key=f"edit_sched_{s['id']}", use_container_width=True):
-                    st.session_state[f"editing_sched_{s['id']}"] = True
-                    st.rerun()
-                if cols[4].button("Executar", key=f"run_sched_{s['id']}", use_container_width=True, type="primary") and not st.session_state.get(f"confirm_exec_{s['id']}"):
-                        st.session_state[f"confirm_exec_{s['id']}"] = True
-                        st.rerun()
-                if st.session_state.get(f"confirm_exec_{s['id']}"):
-                    st.warning("Confirma execucao?")
-                    col_y, col_n = st.columns(2)
-                    with col_y:
-                        if st.button("Sim", key=f"exec_yes_{s['id']}"):
-                            try:
-                                gh_token = os.environ.get("GH_PAT", "")
-                                repo = _get_repo_from_git()
-                                payload = s.get("payload") or {}
-                                resp = httpx.post(
-                                    f"https://api.github.com/repos/{repo}/actions/workflows/scrape.yml/dispatches",
-                                    json={"ref": "master", "inputs": payload},
-                                    headers={"Authorization": f"Bearer {gh_token}", "Accept": "application/vnd.github+json"},
-                                    timeout=30,
-                                )
-                                if resp.status_code in (200, 204):
-                                    st.success(f"Workflow disparado para '{s['name']}'!")
-                                else:
-                                    st.error(f"Erro GitHub API: {resp.status_code} — {resp.text[:200]}")
-                            except Exception as e:
-                                st.error(f"Erro ao executar: {e}")
-                            st.session_state.pop(f"confirm_exec_{s['id']}", None)
-                            st.rerun()
-                    with col_n:
-                        if st.button("Cancelar", key=f"exec_no_{s['id']}"):
-                            st.session_state.pop(f"confirm_exec_{s['id']}", None)
-                            st.rerun()
-                delete_key = f"confirm_del_sched_{s['id']}"
-                if cols[5].button("🗑️ Excluir", key=f"del_btn_{s['id']}", use_container_width=True):
-                    st.session_state[delete_key] = True
-                if st.session_state.get(delete_key):
-                    st.warning("Confirmar exclusao?")
-                    col_y, col_n = st.columns(2)
-                    with col_y:
-                        if st.button("Sim, excluir", key=f"del_yes_{s['id']}"):
-                            try:
-                                delete_schedule(s["id"])
-                                st.toast(f"Agendamento '{s['name']}' excluído!")
-                                st.session_state.pop(delete_key, None)
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Erro ao excluir: {e}")
-                    with col_n:
-                        if st.button("Cancelar", key=f"del_no_{s['id']}"):
-                            st.session_state.pop(delete_key, None)
-                            st.rerun()
 
 
-def tab_frequencias():
-    section_title("Frequências de Coleta")
-    st.caption("Configure frequência, retry, timeout e rate-limit por loja ou tier.")
-
-    # List frequencies
-    freqs = _cached_get_scrape_frequency()
-    if freqs:
-        df = pd.DataFrame(freqs)
-        df["enabled"] = df["enabled"].map({True: "✅", False: "⏸️"})
-        st.dataframe(
-            _pt_cols(df[["store_id", "tier", "frequency_minutes", "max_retries", "timeout_seconds", "rate_limit_per_minute", "enabled"]]),
-            use_container_width=True,
-            hide_index=True,
-        )
-    else:
-        info_box("Nenhum resultado encontrado.", "info")
-
-    st.divider()
-
-    # Form to add/edit
-    with st.expander("➕  Nova Frequência", expanded=False), st.form("form_freq"):
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            _all_stores = _cached_get_all_stores()
-            _store_options = {s["name"]: s["id"] for s in _all_stores if "id" in s and "name" in s}
-            selected_store = st.selectbox("Loja (opcional)", options=[""] + list(_store_options.keys()))
-            store_id = _store_options[selected_store] if selected_store else ""
-            tier = st.number_input("Tier (opcional)", min_value=1, max_value=4, step=1, value=None)
-        with col2:
-            freq_min = st.number_input("Frequência (minutos)", min_value=60, value=1440, step=60)
-            max_retries = st.number_input("Max Retries", min_value=0, max_value=5, value=2)
-        with col3:
-            timeout = st.number_input("Timeout (segundos)", min_value=10, max_value=300, value=30, step=10)
-            rate_limit = st.number_input("Rate Limit (req/min)", min_value=1, max_value=60, value=10)
-        enabled = st.checkbox("Ativo", value=True)
-        if st.form_submit_button("Salvar", use_container_width=True):
-            data = {"frequency_minutes": freq_min, "max_retries": max_retries, "timeout_seconds": timeout, "rate_limit_per_minute": rate_limit, "enabled": enabled}
-            if store_id:
-                data["store_id"] = store_id
-            if tier:
-                data["tier"] = tier
-            try:
-                upsert_scrape_frequency(data)
-                st.toast("Frequência salva!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Erro ao salvar frequência: {e}")
 
 
 def tab_alertas():
@@ -3336,8 +3275,6 @@ PAGE_HANDLERS = {
     "insights": tab_insights,
     "lojas": tab_lojas,
     "ingredientes": tab_ingredientes,
-    "agendamentos": tab_agendamentos,
-    "frequencias": tab_frequencias,
     "alertas": tab_alertas,
     "scrapers": tab_scrapers,
     "relatorios": tab_relatorios,

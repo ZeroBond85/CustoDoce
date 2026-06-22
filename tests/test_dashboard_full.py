@@ -158,7 +158,7 @@ def test_all_imports():
         PAGE_HANDLERS,
     )
 
-    assert len(PAGES) == 18  # + fontes, ranking, insights, calculadora
+    assert len(PAGES) == 16  # agendamentos + frequencias removidos (mergidos em scrapers e lojas)
     for page_id, icon, label in PAGES:
         assert page_id in PAGE_HANDLERS, f"Faltando handler para {page_id}"
 
@@ -824,8 +824,6 @@ def test_tab_relatorios_features():
     assert "_build_report_html" in content
     assert "_test_smtp" in content
     assert "_test_telegram" in content
-    assert "Testar SMTP" in content
-    assert "Testar Telegram" in content
     assert "Montar Relatorio" in content
 
 
@@ -1212,7 +1210,7 @@ tests = [
     (test_test_smtp, "reports: _test_smtp callable"),
     (test_test_telegram, "reports: _test_telegram callable"),
     (test_render_schedule_info, "reports: _render_schedule_info callable"),
-    (test_tab_relatorios_features, "reports: tab_relatorios com 3 abas"),
+    (test_tab_relatorios_features, "reports: tab_relatorios com builder (testers removidos)"),
     (test_tab_scrapers_schedule, "scrapers: schedule info presente"),
 
     # Phase 6 — System Config & Diagnostics

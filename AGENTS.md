@@ -410,8 +410,20 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 | Telegram inline: envio do resumo da receita via bot | ✅ |
 | `supabase/consolidated_migration.sql` — PHASE 9 adicionada | ✅ |
 | `dashboard/components/ui.py` — CSS do calculator (result cards, scenarios, ingredient rows) | ✅ |
-| 18 páginas no dashboard sidebar | ✅ |
+| 16 páginas no dashboard sidebar | ✅ |
 | 168 testes (85 dashboard + 80 services + 3 novos), ruff, bandit, pip-audit | ✅ Todos limpos |
+
+## Fase 14e — Tab Consolidation (concluida)
+
+| O que foi feito | Resultado |
+|----------------|-----------|
+| `tab_agendamentos()` movido para subtab dentro de `tab_scrapers()` | ✅ |
+| `tab_frequencias()` movido para campos dentro do formulário de `tab_lojas()` | ✅ |
+| Testadores SMTP/Telegram removidos de `tab_relatorios()` (mantidos em `tab_config` + `tab_diagnostico`) | ✅ |
+| Bug `client if 'client' in dir()` corrigido (inicialização explícita) | ✅ |
+| Bug `st.number_input(value=None)` eliminado (merge evitou o código quebrado) | ✅ |
+| Sidebar reduzida de 18 para 16 abas | ✅ |
+| 230 testes, ruff, bandit, pip-audit | ✅ Todos limpos |
 
 ## Status das Fases
 
@@ -434,3 +446,4 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 - **Fase 14b** ✅ Playwright Price Scraper + Health Check — `playwright_price_scraper.py` (SPA e-commerce); `_auto_disable_if_needed()` (3 falhas → desativa); `test_scraper_health()` no deploy_check; 7 novos ingredientes (18 total); 225 testes
 - **Fase 14c** ✅ Review Queue Overhaul — threshold 30%→55% (elimina ~95% falsos positivos); colunas `image_url`, `source_url`, `match_reason`, `brand` na `review_queue`; `matcher.py` retorna `(ingredient, score, match_type, matched_term)`; `tab_revisao` exibe: motivo do match, expander com imagem do panfleto, botão link para página do produto; 227 testes
 - **Fase 14d** ✅ Pão de Açúcar Fresh Scraper — `pao_flyer_scraper.py` herda de `ExtraFlyerScraper` com `BRAND=pao`, `CAMPAIGN_TYPE=fresh`; ExtraFlyerScraper refatorado: class-level attrs `BRAND` e `CAMPAIGN_TYPE`; store `"Pão de Açúcar Fresh"` (Tier 1, type `pao_flyer`); 101 produtos/roda em teste manual; 230 testes
+- **Fase 14e** ✅ Tab Consolidation — `tab_agendamentos()` → subtab de `tab_scrapers()`; `tab_frequencias()` → campos no form `tab_lojas()`; testadores SMTP/Telegram removidos de `tab_relatorios()`; sidebar 18→16 abas; 230 testes

@@ -12,8 +12,6 @@ PAGES = [
     ("insights", "💡", "Insights"),
     ("lojas", "🏪", "Lojas"),
     ("ingredientes", "🛒", "Ingredientes"),
-    ("agendamentos", "⏰", "Agendamentos"),
-    ("frequencias", "🔄", "Frequencias"),
     ("alertas", "🔔", "Alertas"),
     ("scrapers", "🤖", "Scrapers & Logs"),
     ("relatorios", "📬", "Relatorios"),
