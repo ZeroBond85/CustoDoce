@@ -190,7 +190,7 @@ CustoDoce/
 │   └── ci.yml                       # CI: ruff + bandit + pytest + pip-audit
 ├── config/
 │   ├── ingredients.yaml             # 11 ingredientes + aliases + search_terms
-│   ├── stores.yaml                  # 49 lojas (Tier 1-4)
+│   ├── stores.yaml                  # 50 lojas (Tier 1-4)
 │   ├── features.yaml                # Flags declarativas liga/desliga
 │   └── schema_prices.json           # Validação dos dados
 ├── scrapers/
@@ -206,8 +206,11 @@ CustoDoce/
 │   ├── max_api_scraper.py           # API Max (herda BaseWebScraper)
 │   ├── aggregator_scraper.py        # Agregadores SSR (Tiendeo, Guiato)
 │   ├── playwright_scraper.py        # Agregadores JS (Playwright)
+│   ├── playwright_price_scraper.py  # Scraper e-commerce SPA (Playwright)
 │   ├── ocr.py                       # OCR fallback (Tesseract)
-│   └── unit_extractor.py            # Extrator centralizado de unidade
+│   ├── unit_extractor.py            # Extrator centralizado de unidade
+│   ├── extra_flyer_scraper.py       # Extra Folheteria (HTTP, OCR pre-extraido)
+│   └── pao_flyer_scraper.py         # Pão de Açúcar Fresh (herda de ExtraFlyerScraper)
 ├── parsers/
 │   ├── normalizer.py                # Extrai unidade → R$/kg + R$/un
 │   ├── matcher.py                   # token_set_ratio ≥80% (RapidFuzz)

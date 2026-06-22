@@ -32,7 +32,7 @@ CustoDoce/
 │   └── ci.yml                       # CI: ruff + bandit + pytest + pip-audit
 ├── config/
 │   ├── ingredients.yaml             # 18 ingredientes canônicos + aliases + search_terms
-│   ├── stores.yaml                  # 49 lojas (Tier 1-4)
+│   ├── stores.yaml                  # 50 lojas (Tier 1-4)
 │   ├── features.yaml                # Flags declarativas liga/desliga
 │   └── schema_prices.json           # Contrato de dados
 ├── scrapers/
@@ -50,7 +50,9 @@ CustoDoce/
 │   ├── playwright_scraper.py        # Agregadores JS (Playwright)
 │   ├── playwright_price_scraper.py  # Scraper e-commerce SPA (Playwright)
 │   ├── ocr.py                       # OCR fallback (Tesseract)
-│   └── unit_extractor.py            # Extrator centralizado de unidade
+│   ├── unit_extractor.py            # Extrator centralizado de unidade
+│   ├── extra_flyer_scraper.py       # Extra Folheteria (HTTP, OCR pre-extraido)
+│   └── pao_flyer_scraper.py         # Pão de Açúcar Fresh (herda de ExtraFlyerScraper)
 ├── parsers/
 │   ├── normalizer.py                # Extrai unidade → R$/kg + R$/un
 │   ├── matcher.py                   # token_set_ratio ≥80% (RapidFuzz)
@@ -254,7 +256,7 @@ python -c "import json, jsonschema; s=json.load(open('config/schema_prices.json'
 - `bandit` — segurança (zero issues)
 - `pip-audit` — CVEs (zero vulnerabilidades)
 - `radon` — complexidade (média B)
-- `pytest` — 225 testes (dashboard: 85, services: 80, playwright+health: 60)
+- `pytest` — 230 testes (dashboard: 85, services: 145)
 - `flake8` / `vulture` — código morto (opcional)
 
 ### Checklist por Fase
@@ -431,3 +433,4 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 - **Fase 14a** ✅ Performance Optimization — `get_all_current_prices()` elimina 55+ N+1; 12 cached wrappers `@st.cache_data`; hoisting de queries duplicadas; `get_latest_prices()` limit 500→2000; `get_telegram_report()` 1 query em vez de 11
 - **Fase 14b** ✅ Playwright Price Scraper + Health Check — `playwright_price_scraper.py` (SPA e-commerce); `_auto_disable_if_needed()` (3 falhas → desativa); `test_scraper_health()` no deploy_check; 7 novos ingredientes (18 total); 225 testes
 - **Fase 14c** ✅ Review Queue Overhaul — threshold 30%→55% (elimina ~95% falsos positivos); colunas `image_url`, `source_url`, `match_reason`, `brand` na `review_queue`; `matcher.py` retorna `(ingredient, score, match_type, matched_term)`; `tab_revisao` exibe: motivo do match, expander com imagem do panfleto, botão link para página do produto; 227 testes
+- **Fase 14d** ✅ Pão de Açúcar Fresh Scraper — `pao_flyer_scraper.py` herda de `ExtraFlyerScraper` com `BRAND=pao`, `CAMPAIGN_TYPE=fresh`; ExtraFlyerScraper refatorado: class-level attrs `BRAND` e `CAMPAIGN_TYPE`; store `"Pão de Açúcar Fresh"` (Tier 1, type `pao_flyer`); 101 produtos/roda em teste manual; 230 testes

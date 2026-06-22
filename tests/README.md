@@ -8,7 +8,7 @@ A cada fase, rodar este checklist completo antes de avançar:
 [ ] ruff check .                    — lint (zero erros, config pyproject.toml)
 [ ] bandit -r admin/ dashboard/ services/ -x tests/ — segurança
 [ ] pip-audit                       — CVEs conhecidas
-[ ] python -m pytest tests/ -v      — 225 testes, 100% pass
+[ ] python -m pytest tests/ -v      — 230 testes, 100% pass
 [ ] Responsivo 320/768/1024         — CSS media queries
 [ ] XSS review                      — unsafe_allow_html=True
 [ ] Secrets vazados                 — git diff + grep credenciais
@@ -134,7 +134,12 @@ auth, rate_limiter, imports, UI components, login, YAML, estrutura, CSS, navega�
 - `test_insert_review_item` — dedup por (store_name, raw_product) independente de status
 - `test_process_price_match_review_has_validity` — threshold 55%, validity_raw, confidence
 - `test_coverage_heatmap_tz_aware` — regressão datetime tz-aware
-- 227 testes passando
+- 230 testes passando
+
+### Fase 14d — Pão de Açúcar Fresh Scraper (3 testes)
+- `test_brand_and_campaign_type_overridden` — PaoFlyerScraper.BRAND=="pao", PaoFlyerScraper.CAMPAIGN_TYPE=="fresh"
+- `test_extra_flyer_scraper_defaults` — ExtraFlyerScraper mantém BRAND=="extra", CAMPAIGN_TYPE=="mercado"
+- `test_clean_product_text_rejects_stop_words` — herda métodos de limpeza do ExtraFlyerScraper
 
 ## Regras
 
