@@ -23,7 +23,7 @@ TARGET_CITIES = [
     "Peruíbe",
 ]
 
-PRICE_RE = re.compile(r"(?:R\$\s*)?([1-9]\d{0,2}(?:\.\d{3})*,\d{2})\b")
+PRICE_RE = re.compile(r"(?:R\$\s*)?([1-9]\d{0,2}(?:\.\d{3})*\s*,\d{2})\b")
 STOP_WORDS = {
     "exclusivo", "cliente", "clientes", "clube", "extra", "economize",
     "apenas", "confira", "pagamento", "parcele", "cartão", "cartao",
