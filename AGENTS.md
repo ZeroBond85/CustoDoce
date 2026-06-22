@@ -448,7 +448,10 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 | `admin/app.py`: badge de match_type colorido (verde=exato, amarelo=fuzzy, azul=word_subset) | ✅ |
 | `admin/app.py`: seção "Top 3 Candidatos" com scores individuais + progress bars | ✅ |
 | `admin/app.py`: diagnóstico detalhado com tipo, score, candidato, termo, palavras não matcheadas | ✅ |
-| `scripts/deploy_database.py`: PHASE 9 adicionada | ✅ |
+| `scripts/deploy_database.py`: PHASE 9 adicionada (match_type + image_url + source_url + match_reason) | ✅ |
+| `scripts/deploy_database.py`: PHASE 9 — colunas `image_url`, `source_url`, `match_reason` (faltavam desde Fase 14c) | ✅ |
+| `scripts/check_schema_diff.py`: review_queue schema atualizado | ✅ |
+| Migration executada no Supabase: PHASE 7 (UNIQUE constraint) + PHASE 9 (4 colunas) | ✅ |
 | 230 testes, ruff 0, bandit 0 | ✅ Todos limpos |
 
 ## Status das Fases
