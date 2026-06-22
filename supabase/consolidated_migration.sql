@@ -757,6 +757,15 @@ CREATE TRIGGER trg_recipes_updated_at
 ALTER TABLE stores ADD CONSTRAINT IF NOT EXISTS stores_name_key UNIQUE (name);
 
 -- ============================================================
+-- PHASE 11: Review Queue context columns (image_url, source_url, match_reason)
+-- Added as part of Fase 14c — Review Queue Overhaul
+-- ============================================================
+
+ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS image_url TEXT DEFAULT '';
+ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS source_url TEXT DEFAULT '';
+ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS match_reason TEXT DEFAULT '';
+
+-- ============================================================
 -- Migration complete. Verify with:
 --   SELECT table_name FROM information_schema.tables
 --   WHERE table_schema = 'public' ORDER BY table_name;
