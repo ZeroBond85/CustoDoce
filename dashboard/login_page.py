@@ -178,10 +178,7 @@ def render_login():
             pw_plain = _os.environ.get("ADMIN_PASSWORD", "")
             stored_hash = config.admin_password_hash
 
-            if pw_plain:
-                valid = _hmac.compare_digest(password, pw_plain)
-            else:
-                valid = verify_password(password, stored_hash)
+            valid = _hmac.compare_digest(password, pw_plain) if pw_plain else verify_password(password, stored_hash)
 
             if not valid:
                 _limiter.record_attempt(ip)
@@ -194,8 +191,7 @@ def render_login():
                 )
                 return False
 
-            if totp_needed:
-                if not totp_code or not verify_totp(config.totp_secret, totp_code):
+            if totp_needed and (not totp_code or not verify_totp(config.totp_secret, totp_code)):
                     _limiter.record_attempt(ip)
                     st.markdown(
                         '<div class="cd-login-error">'

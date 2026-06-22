@@ -125,7 +125,7 @@ def process_price_match(
         candidates = rank_ingredients(product_text, ingredients, top_n=3)
         suggestions = [c[0]["canonical"] for c in candidates if c[1] >= 55.0]
         validity = validity_raw or _extract_validity_from_product(product_text)
-        
+
         # Build match reason explanation
         match_reason = ""
         if candidates:
@@ -133,7 +133,7 @@ def process_price_match(
             match_reason = f"Fuzzy match de {top[1]:.0f}% com '{top[0]['canonical']}' (match via '{top[3]}')"
         else:
             match_reason = f"Score {score:.0f}% - nenhum match forte encontrado"
-        
+
         review_item = {
             "raw_product": product_text,
             "raw_price": raw_price,
@@ -225,10 +225,8 @@ def _collect_prices(
         except Exception as e:
             logger.error("[%s] %s: %s", label, store_name, e)
             log_scraper_run(store_name, "error", 0, 0, str(e))
-            try:
+            with suppress(Exception):
                 send_scraper_error(store_name, str(e))
-            except Exception:
-                pass
             _auto_disable_if_needed(store_name)
 
     return all_products
@@ -459,7 +457,7 @@ def main():
     snapshot = {
         "collected_at": datetime.now(timezone.utc).isoformat(),
         "total_prices": len(all_products),
-        "ingredients_found": len(set(p["ingredient_id"] for p in all_products)),
+        "ingredients_found": len({p["ingredient_id"] for p in all_products}),
     }
     snapshot_path = DATA_DIR / "prices_latest.json"
     with open(snapshot_path, "w", encoding="utf-8") as f:
@@ -500,7 +498,7 @@ def generate_report_html(products: list[dict], ingredients: list[dict]) -> str:
         best = min(prices, key=lambda x: (x.get("normalized") or {}).get("price_per_kg", 999999))
         norm = best.get("normalized") or {}
         price_kg = norm.get("price_per_kg", 0)
-        unique_stores = len(set(p.get("store_id", "") for p in prices))
+        unique_stores = len({p.get("store_id", "") for p in prices})
 
         safe_ing = _html.escape(ing_name)
         safe_store = _html.escape(best['store_name'])

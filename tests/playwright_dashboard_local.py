@@ -83,7 +83,7 @@ def test_streamlit():
                     txt = safe_str(el.inner_text())[:50]
                     if txt and len(txt) > 1:
                         clickable.append({"tag": tag, "text": txt, "el": el})
-            except Exception:  # nosec
+            except Exception:  # nosec  # noqa: S110
                 pass
         print(f"   Found {len(clickable)} clickable elements in sidebar")
         for c in clickable[:20]:

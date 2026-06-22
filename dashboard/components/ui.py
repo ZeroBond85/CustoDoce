@@ -463,17 +463,17 @@ def plotly_theme():
 
     pio.templates["custodoce"] = go.layout.Template(
         layout=go.Layout(
-            font=dict(family="Nunito, sans-serif", color="#3D2C1E"),
+            font={"family": "Nunito, sans-serif", "color": "#3D2C1E"},
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
             colorway=["#F59E42", "#E8739A", "#3B7DD8", "#FBBF5E", "#60A5FA", "#C94D78"],
-            xaxis=dict(gridcolor="#F0E6DB", zerolinecolor="#F0E6DB"),
-            yaxis=dict(gridcolor="#F0E6DB", zerolinecolor="#F0E6DB"),
-            hoverlabel=dict(
-                bgcolor="#FFFFFF",
-                font=dict(family="Nunito, sans-serif", color="#3D2C1E"),
-            ),
-            margin=dict(l=50, r=20, t=40, b=50),
+            xaxis={"gridcolor": "#F0E6DB", "zerolinecolor": "#F0E6DB"},
+            yaxis={"gridcolor": "#F0E6DB", "zerolinecolor": "#F0E6DB"},
+            hoverlabel={
+                "bgcolor": "#FFFFFF",
+                "font": {"family": "Nunito, sans-serif", "color": "#3D2C1E"},
+            },
+            margin={"l": 50, "r": 20, "t": 40, "b": 50},
         )
     )
     pio.templates.default = "custodoce"

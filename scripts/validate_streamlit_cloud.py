@@ -17,7 +17,7 @@ except ImportError:
 APP_URL = os.environ.get("STREAMLIT_APP_URL", "https://custodoce.streamlit.app")
 LOGIN_USER = os.environ.get("STREAMLIT_TEST_USER", "admin")
 LOGIN_PASS = os.environ.get("STREAMLIT_TEST_PASS", "custodoce2907")
-WRONG_PASS = "senhaerrada123"
+WRONG_PASS = "senhaerrada123"  # noqa: S105
 SCREENSHOTS_DIR = Path(__file__).parent.parent / "tests" / "screenshots_cloud"
 
 PT_COLUMN_NAMES = {
@@ -137,10 +137,10 @@ def check_english_columns(page) -> list[str]:
         try:
             headers = [th.inner_text().strip() for th in table.locator("thead th").all()]
             for h in headers:
-                if h and h[0].isupper() and len(h) > 1:
-                    if h not in known_pt and h.lower() not in known_en_values:
-                        if not any(pt in h for pt in known_pt):
-                            issues.append(h)
+                if (h and h[0].isupper() and len(h) > 1
+                    and h not in known_pt and h.lower() not in known_en_values
+                    and not any(pt in h for pt in known_pt)):
+                    issues.append(h)
         except Exception:
             pass
     return issues

@@ -107,7 +107,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ingredients = load_ingredients()
 
     total = len(prices)
-    stores = set(p.get("store_name") for p in prices)
+    stores = {p.get("store_name") for p in prices}
     matched = len([p for p in prices if p.get("confidence", 0) >= 0.8])
 
     msg = (

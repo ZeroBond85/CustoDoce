@@ -207,7 +207,7 @@ def _get_repo_from_git() -> str:
         git_path = shutil.which("git")
         if not git_path:
             return "CustoDoce/CustoDoce"
-        origin = subprocess.run(  # nosec B603
+        origin = subprocess.run(  # nosec B603  # noqa: S603
             [git_path, "remote", "get-url", "origin"],
             capture_output=True, text=True, timeout=5
         ).stdout.strip()

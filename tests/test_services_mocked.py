@@ -1810,7 +1810,7 @@ class TestCoverageHeatmapTzAware:
 
         # This is the ORIGINAL buggy code - would raise TypeError
         try:
-            days_ago = (datetime.now(timezone.utc) - dt).days
+            _days_ago = (datetime.now(timezone.utc) - dt).days
             # If we get here without error, the test environment might handle it differently
             # But the key is that the fix uses naive datetime.now()
         except TypeError as e:

@@ -1,7 +1,7 @@
 import base64
 import subprocess
 
-result = subprocess.run(['gh', 'api', 'repos/ZeroBond85/CustoDoce/contents/.github/workflows/scrape.yml', '--jq', '.content'], capture_output=True, text=True)
+result = subprocess.run(['gh', 'api', 'repos/ZeroBond85/CustoDoce/contents/.github/workflows/scrape.yml', '--jq', '.content'], capture_output=True, text=True)  # noqa: S607
 content = result.stdout.strip().strip('"')
 decoded = base64.b64decode(content).decode('utf-8')
 print('workflow_dispatch in decoded:', 'workflow_dispatch' in decoded)

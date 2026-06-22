@@ -36,10 +36,7 @@ def match_exact(product_text: str, ingredient: dict) -> bool:
     # Check all words from canonical in product text
     canonical_words = set(canonical_upper.split())
     product_words = set(product_upper.split())
-    if len(canonical_words) > 1 and canonical_words.issubset(product_words):
-        return True
-
-    return False
+    return len(canonical_words) > 1 and canonical_words.issubset(product_words)
 
 
 def match_ingredient(

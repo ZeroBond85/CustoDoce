@@ -69,9 +69,7 @@ def parse_unit(raw_unit: str) -> Optional[NormalizedPrice]:
 
             if weight_unit and weight_unit.lower() in ("kg", "kilo", "kilograma"):
                 unit_kg = weight
-            elif weight_unit and weight_unit.lower() in ("g", "gr", "grama"):
-                unit_kg = weight / 1000
-            elif weight_unit and weight_unit.lower() in ("ml", "mililitro"):
+            elif weight_unit and weight_unit.lower() in ("g", "gr", "grama") or weight_unit and weight_unit.lower() in ("ml", "mililitro"):
                 unit_kg = weight / 1000
             else:
                 unit_kg = weight / 1000
