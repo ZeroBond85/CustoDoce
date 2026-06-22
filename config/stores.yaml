@@ -163,6 +163,18 @@ stores:
     priority: 52
 
   # ============================================================================
+  # TIER 1 EXTRA - Folheteria digital Extra (folheteria.clubeextra.com.br)
+  # ============================================================================
+  - name: "Extra Folheteria"
+    tier: 1
+    type: "extra_flyer"
+    logistics: "pickup_sp"
+    cities: ["São Paulo", "Grande São Paulo", "Santos", "São Vicente", "Praia Grande", "Mongaguá", "Itanhaém", "Peruíbe"]
+    collection_method: "automated"
+    scraper: "extra_flyer_scraper"
+    priority: 10
+
+  # ============================================================================
   # TIER 2 - E-COMMERCE SP CAPITAL (API VTEX / Site Próprio - Entregam na Baixada)
   # ============================================================================
   - name: "Loja Santo Antônio"

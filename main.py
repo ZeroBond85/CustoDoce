@@ -10,6 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from scrapers.flyer_scraper import FlyerScraper
+from scrapers.extra_flyer_scraper import ExtraFlyerScraper
 from scrapers.vtex_scraper import VtexScraper
 from scrapers.website_scraper import WebsiteScraper
 from scrapers.carrefour_scraper import CarrefourScraper
@@ -280,6 +281,11 @@ def collect_tier1_pdfs(ingredients: list[dict]) -> list[dict]:
     return _collect_prices(stores, FlyerScraper, ingredients, "PDF")
 
 
+def collect_extra_flyers(ingredients: list[dict]) -> list[dict]:
+    stores = [s for s in load_stores() if s.get("scraper") == "extra_flyer_scraper" and s.get("type") == "extra_flyer"]
+    return _collect_prices(stores, ExtraFlyerScraper, ingredients, "ExtraFlyer")
+
+
 def collect_tier1_api_flyers(ingredients: list[dict]) -> list[dict]:
     stores = [s for s in load_stores() if s.get("tier") == 1 and s.get("type") == "api_flyer"]
     return _collect_flyers(stores, None, "API-Flyer", run_fn=_run_api_flyer_scraper)
@@ -407,6 +413,10 @@ def main():
     tier1_products = collect_tier1_pdfs(ingredients)
     logger.info("-> %d precos coletados", len(tier1_products))
 
+    logger.info("Coletando Extra Folheteria...")
+    extra_products = collect_extra_flyers(ingredients)
+    logger.info("-> %d precos coletados", len(extra_products))
+
     logger.info("Coletando Tier 1 (API Flyers)...")
     tier1_flyers = collect_tier1_api_flyers(ingredients)
     logger.info("-> %d folhetos coletados", len(tier1_flyers))
@@ -435,7 +445,7 @@ def main():
     ssr_flyers = collect_aggregators_ssr()
     logger.info("-> %d folhetos coletados", len(ssr_flyers))
 
-    all_products = tier1_products + tier2_products + tier3_products + carrefour_products + js_products
+    all_products = tier1_products + extra_products + tier2_products + tier3_products + carrefour_products + js_products
     snapshot = {
         "collected_at": datetime.now().isoformat(),
         "total_prices": len(all_products),
