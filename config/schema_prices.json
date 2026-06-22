@@ -19,7 +19,7 @@
     },
     "source": {
       "type": "string",
-      "enum": ["pdf_flyer", "vtex_api", "website_catalog", "aggregator", "manual_visit", "manual_input"],
+      "enum": ["pdf_flyer", "vtex_api", "website_catalog", "aggregator", "manual_visit", "manual_input", "extra_flyer", "pao_flyer"],
       "description": "How this price was collected"
     },
     "raw_product": {

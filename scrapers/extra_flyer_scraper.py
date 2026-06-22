@@ -65,6 +65,9 @@ class ExtraFlyerScraper:
     Nao precisa de Playwright nem OCR — apenas HTTP puro.
     """
 
+    BRAND = "extra"
+    CAMPAIGN_TYPE = "mercado"
+
     def __init__(self, store: dict):
         self.store = store
         self.store_name = store.get("name", "Extra Folheteria")
@@ -97,9 +100,9 @@ class ExtraFlyerScraper:
 
     def _get_campaign_links(self, data: dict) -> list[dict]:
         today = self._get_today_str()
-        extra = data.get("extra", {})
-        if today not in extra:
-            available = sorted(extra.keys(), reverse=True)
+        brand_data = data.get(self.BRAND, {}) or data.get("extra", {})
+        if today not in brand_data:
+            available = sorted(brand_data.keys(), reverse=True)
             for d in available:
                 if d <= today:
                     today = d
@@ -108,12 +111,12 @@ class ExtraFlyerScraper:
                 logger.warning("No campaign data for %s", today)
                 return []
 
-        day_data = extra[today]
-        mercado = day_data.get("mercado", {})
+        day_data = brand_data[today]
+        campaign_type = day_data.get(self.CAMPAIGN_TYPE, {}) or day_data.get("mercado", {})
         campaigns = []
         seen = set()
         for city in TARGET_CITIES:
-            camps = mercado.get(city, [])
+            camps = campaign_type.get(city, [])
             for c in camps:
                 link = c.get("link", "")
                 if link and link not in seen:
