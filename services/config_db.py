@@ -28,14 +28,20 @@ def get_all_ingredients(include_inactive: bool = False) -> list[dict]:
 
 def get_ingredient_by_id(ingredient_id: str) -> Optional[dict]:
     client = get_supabase()
-    result = client.table("ingredients").select("*").eq("id", ingredient_id).single().execute()
-    return result.data if result.data else None
+    try:
+        result = client.table("ingredients").select("*").eq("id", ingredient_id).single().execute()
+        return result.data if result.data else None
+    except Exception:
+        return None
 
 
 def get_ingredient_by_name(canonical_name: str) -> Optional[dict]:
     client = get_supabase()
-    result = client.table("ingredients").select("*").eq("canonical_name", canonical_name).single().execute()
-    return result.data if result.data else None
+    try:
+        result = client.table("ingredients").select("*").eq("canonical_name", canonical_name).single().execute()
+        return result.data if result.data else None
+    except Exception:
+        return None
 
 
 def upsert_ingredient(data: dict) -> dict:
@@ -52,12 +58,9 @@ def delete_ingredient(ingredient_id: str) -> bool:
 
 
 def add_alias_to_ingredient(canonical_name_or_id: str, new_alias: str) -> Optional[dict]:
-    ingredient = get_ingredient_by_id(canonical_name_or_id) if len(canonical_name_or_id) == 36 and "-" in canonical_name_or_id else None
+    ingredient = get_ingredient_by_id(canonical_name_or_id)
     if not ingredient:
-        try:
-            ingredient = get_ingredient_by_name(canonical_name_or_id)
-        except Exception:
-            ingredient = get_ingredient_by_id(canonical_name_or_id) if not ingredient else None
+        ingredient = get_ingredient_by_name(canonical_name_or_id)
     if not ingredient:
         return None
 
@@ -94,14 +97,20 @@ def get_all_stores(include_inactive: bool = False) -> list[dict]:
 
 def get_store_by_id(store_id: str) -> Optional[dict]:
     client = get_supabase()
-    result = client.table("stores").select("*").eq("id", store_id).single().execute()
-    return result.data if result.data else None
+    try:
+        result = client.table("stores").select("*").eq("id", store_id).single().execute()
+        return result.data if result.data else None
+    except Exception:
+        return None
 
 
 def get_store_by_name(name: str) -> Optional[dict]:
     client = get_supabase()
-    result = client.table("stores").select("*").eq("name", name).single().execute()
-    return result.data if result.data else None
+    try:
+        result = client.table("stores").select("*").eq("name", name).single().execute()
+        return result.data if result.data else None
+    except Exception:
+        return None
 
 
 def upsert_store(data: dict) -> dict:
@@ -257,8 +266,11 @@ def delete_alert_rule(rule_id: str) -> bool:
 # ============================================================
 def get_feature_flag(key: str, default: bool = False) -> bool:
     client = get_supabase()
-    result = client.table("feature_flags").select("enabled").eq("key", key).single().execute()
-    return result.data["enabled"] if result.data else default
+    try:
+        result = client.table("feature_flags").select("enabled").eq("key", key).single().execute()
+        return result.data["enabled"] if result.data else default
+    except Exception:
+        return default
 
 
 def get_all_feature_flags() -> list[dict]:
