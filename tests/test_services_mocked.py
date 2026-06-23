@@ -474,7 +474,9 @@ class TestPriceService:
     @patch("services.price_service.get_service_client")
     @patch("services.price_service.get_store_by_name", return_value={"id": "test_store", "name": "Test"})
     @patch("services.price_service.add_alias_to_ingredient", return_value=True)
-    def test_approve_review_item_updates_and_upserts(self, mock_alias, mock_store, mock_get_client):
+    @patch("services.config_db.get_ingredient_by_id", return_value=None)
+    @patch("services.config_db.get_ingredient_by_name", return_value={"id": "ing-uuid-123", "canonical_name": "Leite Ninho Integral"})
+    def test_approve_review_item_updates_and_upserts(self, mock_ing_name, mock_ing_id, mock_alias, mock_store, mock_get_client):
         """Aprova: update status + upsert price."""
         from services.price_service import approve_review_item
 
@@ -488,7 +490,7 @@ class TestPriceService:
         assert qb._captured_update.get("status") == "approved"
         fn_name, rpc_params = mock_client._captured_rpc
         assert fn_name == "upsert_price_rpc", "upsert should use RPC"
-        assert rpc_params["p_ingredient_id"] == "Leite Ninho Integral"
+        assert rpc_params["p_ingredient_id"] == "ing-uuid-123"
 
     # ── reject_review_item ─────────────────────────────────────
 

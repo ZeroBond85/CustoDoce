@@ -102,9 +102,9 @@ ingredients:
       - "Granulado Mix Meio Amargo Melken"
     category: "confeitos"
 
-  - canonical: "Nutella"
+  - canonical: "Creme de Avelã"
     brands: ["Nutella"]
-    search_terms: ["nutella"]
+    search_terms: ["creme de avelã", "nutella", "pasta de avelã"]
     aliases:
       - "Nutella 3kg"
       - "Nutella 3kg Food Service"
@@ -114,6 +114,9 @@ ingredients:
       - "Nutella Avelã 3kg"
       - "Creme Avelã Nutella 3kg"
       - "Nutella Pote 3kg"
+      - "Creme de Avelã 3kg"
+      - "Creme Avelã 350g"
+      - "Creme Avelã 750g"
     category: "pastas"
 
   - canonical: "Coloretti Granulado Colorido"
