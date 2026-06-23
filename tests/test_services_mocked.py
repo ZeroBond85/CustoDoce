@@ -78,6 +78,9 @@ class MockQueryBuilder:
         if self._single_mode and isinstance(self._return_data, list) and len(self._return_data) > 0:
             self._single_mode = False
             return MockQueryResult(self._return_data[0])
+        if self._single_mode:
+            self._single_mode = False
+            return None
         self._single_mode = False
         return MockQueryResult(self._return_data)
 

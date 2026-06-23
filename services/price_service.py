@@ -237,7 +237,7 @@ def approve_review_item(item_id: str, ingredient_id: str) -> dict:
         .maybe_single()
         .execute()
     )
-    if not item.data:
+    if item is None or not item.data:
         return {}
 
     result = (

@@ -29,12 +29,16 @@ def get_all_ingredients(include_inactive: bool = False) -> list[dict]:
 def get_ingredient_by_id(ingredient_id: str) -> Optional[dict]:
     client = get_supabase()
     result = client.table("ingredients").select("*").eq("id", ingredient_id).maybe_single().execute()
+    if result is None:
+        return None
     return result.data if result.data else None
 
 
 def get_ingredient_by_name(canonical_name: str) -> Optional[dict]:
     client = get_supabase()
     result = client.table("ingredients").select("*").eq("canonical_name", canonical_name).maybe_single().execute()
+    if result is None:
+        return None
     return result.data if result.data else None
 
 
@@ -92,12 +96,16 @@ def get_all_stores(include_inactive: bool = False) -> list[dict]:
 def get_store_by_id(store_id: str) -> Optional[dict]:
     client = get_supabase()
     result = client.table("stores").select("*").eq("id", store_id).maybe_single().execute()
+    if result is None:
+        return None
     return result.data if result.data else None
 
 
 def get_store_by_name(name: str) -> Optional[dict]:
     client = get_supabase()
     result = client.table("stores").select("*").eq("name", name).maybe_single().execute()
+    if result is None:
+        return None
     return result.data if result.data else None
 
 
@@ -255,6 +263,8 @@ def delete_alert_rule(rule_id: str) -> bool:
 def get_feature_flag(key: str, default: bool = False) -> bool:
     client = get_supabase()
     result = client.table("feature_flags").select("enabled").eq("key", key).maybe_single().execute()
+    if result is None:
+        return default
     return result.data["enabled"] if result.data else default
 
 
