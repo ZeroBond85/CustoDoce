@@ -246,7 +246,8 @@ CustoDoce/
 │   └── deploy_check.py              # Health check pré-deploy
 ├── tests/
 │   ├── test_dashboard_full.py       # 85 testes unitários
-│   ├── test_services_mocked.py      # 75 testes com mocks
+│   ├── test_services_mocked.py      # 145 testes com mocks
+│   ├── test_db_integration.py       # 6 testes integração (banco real)
 │   └── README.md                    # Plano de testes
 ├── main.py                          # Orquestrador: collect + cleanup loop
 ├── pyproject.toml                   # Ruff config (line-length=120, ignore E501)

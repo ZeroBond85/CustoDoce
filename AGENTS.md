@@ -484,6 +484,18 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 | Testes atualizados: mocks verificam RPC params em vez de table upsert | ✅ |
 | 230 testes, ruff 0, bandit 0 | ✅ |
 
+## Fase 15e — Integration Tests + E2E Bugfixes (concluida)
+
+| O que foi feito | Resultado |
+|----------------|-----------|
+| `test_db_integration.py` — 6 testes contra banco real Supabase (RPC upsert, constraints, functions, indexes, approve E2E) | ✅ |
+| Bugfix: `upsert_price()` — handle dict/list do return do Supabase client | ✅ |
+| Bugfix: `add_alias_to_ingredient()` — aceita UUID ou canonical_name (antes só aceitava nome) | ✅ |
+| Fixture `db_conn` com psycopg2 para queries diretas (cleanup price_history do trigger) | ✅ |
+| Fixture `supabase_client` reseta cache global de clientes Supabase | ✅ |
+| Auto-skip quando SUPABASE_URL/DB_PASSWORD não configurados (len > 10) | ✅ |
+| 230 testes unitários + 6 integração, ruff 0, bandit 0 | ✅ |
+
 ## Status das Fases
 
 - **Fase 1** ✅ Estrutura base (pastas, parsers, services, schema, base_flyer)
@@ -511,3 +523,4 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 - **Fase 15b** ✅ DB Gaps & Refactor — `reject_review_item()` retorna `{}`, dead code removido, `get_review_queue()` com `.limit(500)`, `_export_csv_button()` helper (**-96 linhas**), `_cached_get_all_current_prices()` substitui 6 chamadas, `store_id` real em vez de fabricado, 5 índices PHASE 10; 230 testes
 - **Fase 15c** ✅ Brand Propagation & Alias UX — `extract_brand` chamado também no caminho de revisão; VTEX scraper prioriza brands conhecidas sobre API; `brand` adicionado a todos os scrapers (website com `product_brand` selector); form de ingredientes redesenhado com campos `brands`+`search_terms`; sugestão automática de aliases com 5 padrões; PHASE 11 migration (`brands`+`search_terms` na tabela `ingredients`); 19 ingredientes (adicionado Manteiga); 230 testes
 - **Fase 15d** ✅ RPC Upsert + DB Validation — erro 42P10 corrigido: `upsert_price_rpc()` PL/pgSQL server-side bypassa `on_conflict` do client; PHASE 12 (constraints UNIQUE) + PHASE 13 (RPC function); `validate_db_schema.py` (72 checks: tabelas, colunas, constraints, índices, funções); CI pipeline atualizado com DB schema validation; st.image() com try/except para thumbnails quebradas; logo 220px + tagline 0.9rem; 230 testes
+- **Fase 15e** ✅ Integration Tests + E2E Bugfixes — `test_db_integration.py` (6 testes contra banco real: RPC upsert, constraints, functions, indexes, approve E2E); bugfix: `upsert_price()` handle dict/list do Supabase client; bugfix: `add_alias_to_ingredient()` aceita UUID ou canonical_name; 230 testes + 6 integração
