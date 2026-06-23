@@ -8,10 +8,10 @@ Sistema automatizado de busca e comparação de preços de ingredientes para con
 - 🏪 **16 abas no dashboard** - Visão geral, preços, histórico, flyers, revisão, fontes, ranking, insights, lojas, ingredientes, calculadora, scrapers, relatórios, config, diagnóstico
 - 🤖 **Telegram Bot** - `/preco <ingrediente>` → lista ordenada por R$/kg
 - ⚙️ **Config declarativa** - Edite `config/features.yaml` para ligar/desligar funções sem alterar código
-- 📊 **Export CSV** - Download de preços e histórico em CSV
+- 📊 **Export CSV** com helper unificado — feature flag + fallback automático em 8 locais
 - 📧 **Email + Telegram Testers** - Teste de conexão SMTP e Telegram inline no dashboard
 - 🔬 **Diagnóstico automático** - Health check individual por componente com timing
-- 📦 **Histórico em GitHub Releases** - Sem bloat no git
+- 📦 **5 índices de performance** no Supabase — consultas otimizadas
 
 ## Tech Stack
 

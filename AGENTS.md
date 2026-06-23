@@ -454,6 +454,20 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 | Migration executada no Supabase: PHASE 7 (UNIQUE constraint) + PHASE 9 (4 colunas) | ✅ |
 | 230 testes, ruff 0, bandit 0 | ✅ Todos limpos |
 
+## Fase 15b — DB Gaps & Refactor (concluida)
+
+| O que foi feito | Resultado |
+|----------------|-----------|
+| `reject_review_item()` — corrigido retorno `[]`→`{}` (quebrava `dict.get()`) | ✅ |
+| `upsert_price()` — removido dead code `valid_until` (linha 26 sobrescrita na 28) | ✅ |
+| `get_review_queue()` — adicionado `.limit(500)` (travamento com 10k+ itens) | ✅ |
+| Export CSV — criado `_export_csv_button()` helper, refatorado 8 locais (**-96 linhas**) | ✅ |
+| `_cached_get_all_current_prices()` — criado com ttl=60s, substitui 6 chamadas diretas | ✅ |
+| `approve_review_item()` — `store_id` agora busca real via `get_store_by_name()` (não mais fabricado) | ✅ |
+| 5 índices de performance — PHASE 10: `idx_prices_ing_collected`, `idx_history_ing_collected`, `idx_review_collected`, `idx_stores_name`, `idx_logs_store_started` | ✅ |
+| Migration no Supabase: PHASE 10 executada + `consolidated_migration.sql` atualizado | ✅ |
+| 230 testes, ruff 0, bandit 0 | ✅ |
+
 ## Status das Fases
 
 - **Fase 1** ✅ Estrutura base (pastas, parsers, services, schema, base_flyer)
@@ -478,3 +492,4 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 - **Fase 14e** ✅ Tab Consolidation — `tab_agendamentos()` → subtab de `tab_scrapers()`; `tab_frequencias()` → campos no form `tab_lojas()`; testadores SMTP/Telegram removidos de `tab_relatorios()`; sidebar 18→16 abas; 230 testes
 - **Fase 14f** ✅ Regression Bugfixes — `open()` encoding utf-8 (9 arquivos), price regex `\s*` (4 scrapers), `datetime.now(timezone.utc)` (5 arquivos); 230 testes; ruff/bandit/pip-audit limpos
 - **Fase 15** ✅ Review Queue Enhanced — coluna `match_type`, `match_reason` detalhado (tipo, score, candidato, termo, palavras não matcheadas), top 3 com scores, UI 2 colunas com imagem sempre visível, badge de match type colorido, progress bar de confiança; 230 testes
+- **Fase 15b** ✅ DB Gaps & Refactor — `reject_review_item()` retorna `{}`, dead code removido, `get_review_queue()` com `.limit(500)`, `_export_csv_button()` helper (**-96 linhas**), `_cached_get_all_current_prices()` substitui 6 chamadas, `store_id` real em vez de fabricado, 5 índices PHASE 10; 230 testes
