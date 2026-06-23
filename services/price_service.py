@@ -187,6 +187,7 @@ def insert_review_item(item: dict) -> dict:
         "source_url": item.get("source_url", ""),
         "match_reason": item.get("match_reason", ""),
         "match_type": item.get("match_type", ""),
+        "top3": item.get("top3", []),
     }
     result = client.table("review_queue").insert(data).execute()
     return result.data[0] if result.data else {}
