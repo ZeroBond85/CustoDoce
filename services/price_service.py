@@ -3,7 +3,26 @@ from datetime import datetime, date, timedelta, timezone
 from typing import Optional
 
 from services.supabase_client import get_supabase, get_service_client
-from services.config_db import add_alias_to_ingredient, get_store_by_name
+from services.config_db import add_alias_to_ingredient, get_store_by_name, get_all_stores
+
+
+def _normalize_text(text: str) -> str:
+    import unicodedata
+    text = text.lower().strip()
+    nfkd = unicodedata.normalize("NFKD", text)
+    return "".join(c for c in nfkd if not unicodedata.combining(c))
+
+
+def _fuzzy_find_store(store_name: str):
+    stores = get_all_stores(include_inactive=True)
+    norm_name = _normalize_text(store_name)
+    for s in stores:
+        if _normalize_text(s.get("name", "")) == norm_name:
+            return s
+    for s in stores:
+        if norm_name in _normalize_text(s.get("name", "")) or _normalize_text(s.get("name", "")) in norm_name:
+            return s
+    return None
 
 
 def _weekday_pt(dt: datetime) -> str:
@@ -253,7 +272,15 @@ def approve_review_item(item_id: str, ingredient_id: str) -> dict:
 
     store_name = item.data.get("store_name", "")
     store_lookup = get_store_by_name(store_name) if store_name else None
-    store_id = store_lookup.get("id", store_name.lower().replace(" ", "_")) if store_lookup else store_name.lower().replace(" ", "_")
+    if not store_lookup and store_name:
+        store_lookup = _fuzzy_find_store(store_name)
+    store_id = store_lookup.get("id", "") if store_lookup else ""
+
+    if not store_id:
+        logging.getLogger(__name__).warning(
+            "approve_review_item: store '%s' not found in DB, skipping price insert", store_name
+        )
+        return result.data[0] if result.data else {}
 
     price_entry = {
         "ingredient_id": ingredient_id,
