@@ -184,6 +184,22 @@ def _cached_get_price_history(ingredient: str, days: int = 30, valid_only: bool 
     return get_price_history(ingredient, days, valid_only)
 
 
+@st.cache_data(ttl=60)
+def _cached_get_all_current_prices(valid_only: bool = True):
+    return get_all_current_prices(valid_only=valid_only, limit=2000)
+
+
+def _export_csv_button(df, filename: str, label: str = "Exportar CSV", key: str = "csv_export", use_container_width: bool = True):
+    """Botao de export CSV com feature flag."""
+    if get_config("features.export.csv_enabled", True):
+        csv_data = df.to_csv(index=False).encode("utf-8")
+        st.download_button(label, csv_data, filename, "text/csv", key=key, use_container_width=use_container_width)
+    else:
+        st.download_button(label, data="", disabled=True,
+            help="Exportacao desabilitada em config/features.yaml",
+            key=f"{key}_disabled", use_container_width=use_container_width)
+
+
 def require_auth():
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
@@ -593,26 +609,11 @@ def tab_precos():
             else:
                 st.dataframe(_pt_cols(df_display), use_container_width=True, hide_index=True)
 
-            export_ok = get_config("features.export.csv_enabled", True)
-            if export_ok:
-                csv = df_display.to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    "Exportar CSV",
-                    csv,
-                    f"precos_{selected}_{datetime.utcnow().strftime('%Y%m%d')}.csv",
-                    "text/csv",
-                    key=f"csv_precos_{selected}",
-                    use_container_width=True,
-                )
-            else:
-                st.download_button(
-                    "Exportar CSV",
-                    data="",
-                    disabled=True,
-                    help="Exportacao desabilitada em config/features.yaml",
-                    key=f"csv_precos_{selected}_disabled",
-                    use_container_width=True,
-                )
+            _export_csv_button(
+                df_display,
+                f"precos_{selected}_{datetime.utcnow().strftime('%Y%m%d')}.csv",
+                key=f"csv_precos_{selected}",
+            )
         else:
             info_box(f"Nenhum preco encontrado para '{selected}'", "warning")
 
@@ -712,43 +713,18 @@ def tab_historico():
             display_cols.append("R$/kg")
         st.dataframe(_pt_cols(df[display_cols].tail(100)), use_container_width=True, hide_index=True)
 
-        export_ok = get_config("features.export.csv_enabled", True)
-        if export_ok:
-            csv_data = store_stats.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                "Exportar Cobertura CSV",
-                csv_data,
-                f"cobertura_{selected}_{datetime.utcnow().strftime('%Y%m%d')}.csv",
-                "text/csv",
-                key="csv_cobertura",
-                use_container_width=True,
-            )
-            csv_full = df[display_cols].to_csv(index=False).encode("utf-8")
-            st.download_button(
-                "Exportar Dados Brutos CSV",
-                csv_full,
-                f"historico_{selected}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.csv",
-                "text/csv",
-                key="csv_historico",
-                use_container_width=True,
-            )
-        else:
-            st.download_button(
-                "Exportar Cobertura CSV",
-                data="",
-                disabled=True,
-                help="Exportacao desabilitada em config/features.yaml",
-                key="csv_cobertura_disabled",
-                use_container_width=True,
-            )
-            st.download_button(
-                "Exportar Dados Brutos CSV",
-                data="",
-                disabled=True,
-                help="Exportacao desabilitada em config/features.yaml",
-                key="csv_historico_disabled",
-                use_container_width=True,
-            )
+        _export_csv_button(
+            store_stats,
+            f"cobertura_{selected}_{datetime.utcnow().strftime('%Y%m%d')}.csv",
+            "Exportar Cobertura CSV",
+            key="csv_cobertura",
+        )
+        _export_csv_button(
+            df[display_cols],
+            f"historico_{selected}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.csv",
+            "Exportar Dados Brutos CSV",
+            key="csv_historico",
+        )
 
 
 def _flyer_status_color(status):
@@ -2648,16 +2624,14 @@ def tab_fontes():
                 src["Promocoes"] = src["Promocoes"].astype(int)
                 st.dataframe(src.head(100), use_container_width=True, hide_index=True)
 
-                if get_config("features.export.csv_enabled", True):
-                    csv_src = src.to_csv(index=False).encode("utf-8")
-                    st.download_button("Exportar CSV", csv_src, f"fontes_{selected}.csv", "text/csv", key="csv_fontes", use_container_width=True)
+                _export_csv_button(src, f"fontes_{selected}.csv", key="csv_fontes")
 
     with tab_promos:
         st.markdown("### Ofertas e Promocoes")
         tier_p = st.multiselect("Tier", [1, 2, 3, 4], default=[1, 2, 3], key="promos_tier")
         if st.button("Buscar Promocoes", type="primary", key="btn_promos"):
             with st.spinner("Buscando precos..."):
-                all_prices = get_all_current_prices(valid_only=valid_only, limit=2000)
+                all_prices = _cached_get_all_current_prices(valid_only=valid_only)
                 if not all_prices:
                     info_box("Nenhum preco disponivel", "info")
                     return
@@ -2683,7 +2657,7 @@ def tab_fontes():
         tier_r = st.multiselect("Tier", [1, 2, 3, 4], default=[1, 2, 3], key="ranking_tier")
         if st.button("Calcular", type="primary", key="btn_ranking"):
             with st.spinner("Buscando precos..."):
-                all_prices = get_all_current_prices(valid_only=valid_only, limit=2000)
+                all_prices = _cached_get_all_current_prices(valid_only=valid_only)
                 store_coverage = {}
                 for p in all_prices:
                     if p.get("tier") in tier_r:
@@ -2791,11 +2765,12 @@ def tab_ranking():
             stats.columns = ["Loja", "Media", "Minimo", "Maximo", "Coletas"]
             st.dataframe(stats, use_container_width=True, hide_index=True)
 
-            if get_config("features.export.csv_enabled", True):
-                csv_stats = stats.to_csv(index=False).encode("utf-8")
-                st.download_button("Exportar Estatisticas CSV", csv_stats,
-                                   f"ranking_{selected}_{pd.Timestamp.utcnow().strftime('%Y%m%d')}.csv",
-                                   "text/csv", key="csv_ranking", use_container_width=True)
+            _export_csv_button(
+                stats,
+                f"ranking_{selected}_{pd.Timestamp.utcnow().strftime('%Y%m%d')}.csv",
+                "Exportar Estatisticas CSV",
+                key="csv_ranking",
+            )
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -2819,7 +2794,7 @@ def tab_insights():
         limit_ing = st.number_input("Max ingredientes", min_value=3, max_value=20, value=10, key="heatmap_lim")
         if st.button("Gerar Heatmap", type="primary", key="btn_heatmap"):
             with st.spinner("Buscando precos..."):
-                all_prices = get_all_current_prices(valid_only=valid_only, limit=2000)
+                all_prices = _cached_get_all_current_prices(valid_only=valid_only)
                 target_ings = set(ing_options[:limit_ing])
                 rows = []
                 for p in all_prices:
@@ -2853,7 +2828,7 @@ def tab_insights():
         threshold = st.slider("Desvio padrao", 1.0, 3.0, 2.0, 0.25, key="outlier_threshold")
         if st.button("Detectar Outliers", type="primary", key="btn_outliers"):
             with st.spinner("Buscando precos..."):
-                all_prices = get_all_current_prices(valid_only=valid_only, limit=2000)
+                all_prices = _cached_get_all_current_prices(valid_only=valid_only)
                 out_rows = []
                 from collections import defaultdict
                 by_ing = defaultdict(list)
@@ -2897,7 +2872,7 @@ def tab_insights():
         top_m = st.number_input("Top por ingrediente", min_value=1, max_value=10, value=3, key="melhores_top")
         if st.button("Encontrar Melhores", type="primary", key="btn_melhores"):
             with st.spinner("Buscando precos..."):
-                all_prices = get_all_current_prices(valid_only=valid_only, limit=2000)
+                all_prices = _cached_get_all_current_prices(valid_only=valid_only)
                 from collections import defaultdict
                 by_ing = defaultdict(list)
                 for p in all_prices:
@@ -2933,11 +2908,9 @@ def tab_insights():
                 display_b.columns = ["Ingrediente", "Loja", "Marca", "Produto", "Preco", "R$/kg", "Promocao", "Validade"]
                 st.dataframe(display_b.head(100), use_container_width=True, hide_index=True)
 
-                if get_config("features.export.csv_enabled", True):
-                    csv_best = display_b.to_csv(index=False).encode("utf-8")
-                    st.download_button("Exportar Ofertas CSV", csv_best,
-                                       f"melhores_ofertas_{pd.Timestamp.utcnow().strftime('%Y%m%d')}.csv",
-                                       "text/csv", key="csv_melhores", use_container_width=True)
+                _export_csv_button(display_b,
+                    f"melhores_ofertas_{pd.Timestamp.utcnow().strftime('%Y%m%d')}.csv",
+                    "Exportar Ofertas CSV", key="csv_melhores")
 
     with tab_vencedores:
         st.markdown("### Lojas que mais vezes foram a mais barata")
@@ -2957,9 +2930,7 @@ def tab_insights():
                     fig_w.update_layout(showlegend=True)
                     st.plotly_chart(fig_w, use_container_width=True)
                     st.dataframe(_pt_cols(df_w.head(50)), use_container_width=True, hide_index=True)
-                    if get_config("features.export.csv_enabled", True):
-                        csv_w = df_w.to_csv(index=False).encode("utf-8")
-                        st.download_button("Exportar CSV", csv_w, "vencedores.csv", "text/csv", key="csv_vencedores")
+                    _export_csv_button(df_w, "vencedores.csv", key="csv_vencedores")
 
     with tab_tendencias:
         st.markdown("### Evolucao de precos por ingrediente")
@@ -2981,9 +2952,7 @@ def tab_insights():
                     fig_t.update_layout(legend={"orientation": "h", "y": -0.3})
                     st.plotly_chart(fig_t, use_container_width=True)
                     st.dataframe(_pt_cols(df_t.tail(30)), use_container_width=True, hide_index=True)
-                    if get_config("features.export.csv_enabled", True):
-                        csv_t = df_t.to_csv(index=False).encode("utf-8")
-                        st.download_button("Exportar CSV", csv_t, f"tendencias_{ing_t}.csv", "text/csv", key="csv_tendencias")
+                    _export_csv_button(df_t, f"tendencias_{ing_t}.csv", key="csv_tendencias")
 
     with tab_cross:
         st.markdown("### Lojas com melhor ranking entre ingredientes")
@@ -3006,9 +2975,7 @@ def tab_insights():
                     df_r_display = df_r.copy()
                     df_r_display.columns = ["Loja", "Top 1", "Top 3", "Total Ingredientes"]
                     st.dataframe(df_r_display.head(100), use_container_width=True, hide_index=True)
-                    if get_config("features.export.csv_enabled", True):
-                        csv_r = df_r.to_csv(index=False).encode("utf-8")
-                        st.download_button("Exportar CSV", csv_r, "cross_ranking.csv", "text/csv", key="csv_cross")
+                    _export_csv_button(df_r, "cross_ranking.csv", key="csv_cross")
 
 
 # ═══════════════════════════════════════════════════════════════

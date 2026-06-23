@@ -3,7 +3,7 @@ from datetime import datetime, date, timedelta, timezone
 from typing import Optional
 
 from services.supabase_client import get_supabase, get_service_client
-from services.config_db import add_alias_to_ingredient
+from services.config_db import add_alias_to_ingredient, get_store_by_name
 
 
 def _weekday_pt(dt: datetime) -> str:
@@ -22,14 +22,7 @@ def upsert_price(price_entry: dict) -> dict:
     client = get_service_client()
     now = datetime.now(timezone.utc)
     valid_until = price_entry.get("valid_until")
-    if valid_until is None:
-        valid_until = date.today().isoformat()
-        from datetime import timedelta
-        valid_until = (date.today() + timedelta(days=7)).isoformat()
-    elif isinstance(valid_until, str):
-        pass
-    else:
-        from datetime import timedelta
+    if valid_until is None or not isinstance(valid_until, str):
         valid_until = (date.today() + timedelta(days=7)).isoformat()
 
     is_promo = price_entry.get("is_promotion")
@@ -193,12 +186,13 @@ def insert_review_item(item: dict) -> dict:
     return result.data[0] if result.data else {}
 
 
-def get_review_queue() -> list[dict]:
+def get_review_queue(limit: int = 500) -> list[dict]:
     client = get_supabase()
     result = (
         client.table("review_queue")
         .select("*")
         .order("collected_at", desc=True)
+        .limit(limit)
         .execute()
     )
     return result.data if result.data else []
@@ -227,9 +221,13 @@ def approve_review_item(item_id: str, ingredient_id: str) -> dict:
         .execute()
     )
 
+    store_name = item.data.get("store_name", "")
+    store_lookup = get_store_by_name(store_name) if store_name else None
+    store_id = store_lookup.get("id", store_name.lower().replace(" ", "_")) if store_lookup else store_name.lower().replace(" ", "_")
+
     price_entry = {
         "ingredient_id": ingredient_id,
-        "store_id": item.data.get("store_name", "unknown").lower().replace(" ", "_"),
+        "store_id": store_id,
         "source": item.data.get("source", "automated"),
         "store_name": item.data.get("store_name", ""),
         "raw_product": item.data.get("raw_product", ""),
@@ -261,7 +259,7 @@ def reject_review_item(item_id: str) -> dict:
         .eq("id", item_id)
         .execute()
     )
-    return result.data[0] if result.data else []
+    return result.data[0] if result.data else {}
 
 
 def get_telegram_report(ingredients: list[dict], top_n: int = 5) -> list[dict]:

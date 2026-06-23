@@ -764,6 +764,16 @@ ALTER TABLE stores ADD CONSTRAINT IF NOT EXISTS stores_name_key UNIQUE (name);
 ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS image_url TEXT DEFAULT '';
 ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS source_url TEXT DEFAULT '';
 ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS match_reason TEXT DEFAULT '';
+ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS top3 JSONB DEFAULT '[]';
+
+-- ============================================================
+-- PHASE 10: Performance indexes
+-- ============================================================
+CREATE INDEX IF NOT EXISTS idx_prices_ing_collected ON prices(ingredient_id, collected_at DESC);
+CREATE INDEX IF NOT EXISTS idx_history_ing_collected ON price_history(ingredient_id, collected_at DESC);
+CREATE INDEX IF NOT EXISTS idx_review_collected ON review_queue(collected_at DESC);
+CREATE INDEX IF NOT EXISTS idx_stores_name ON stores(name);
+CREATE INDEX IF NOT EXISTS idx_logs_store_started ON scraping_logs(store_name, started_at DESC);
 
 -- ============================================================
 -- Migration complete. Verify with:
