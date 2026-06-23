@@ -81,16 +81,19 @@ def upsert_price(price_entry: dict) -> dict:
             return data[0]
         return {}
     except Exception:
+        today = date.today().isoformat()
+        ingredient_id = price_entry["ingredient_id"]
+        store_id = price_entry["store_id"]
         data = {
-            "ingredient_id": price_entry["ingredient_id"],
-            "store_id": price_entry["store_id"],
+            "ingredient_id": ingredient_id,
+            "store_id": store_id,
             "source": price_entry.get("source", "automated"),
             "store_name": price_entry.get("store_name", ""),
             "raw_product": price_entry["raw_product"],
             "raw_price": price_entry["raw_price"],
             "raw_unit": price_entry.get("raw_unit", ""),
-            "collected_at": date.today().isoformat(),
-            "valid_from": price_entry.get("valid_from", date.today().isoformat()),
+            "collected_at": today,
+            "valid_from": price_entry.get("valid_from", today),
             "valid_until": valid_until,
             "validity_raw": price_entry.get("validity_raw", ""),
             "collected_weekday": _weekday_pt(now),
@@ -102,11 +105,11 @@ def upsert_price(price_entry: dict) -> dict:
             "logistics": price_entry.get("logistics"),
             "brand": price_entry.get("brand", "Desconhecido"),
         }
-        result = client.table("prices").upsert(
-            data,
-            on_conflict=["ingredient_id", "store_id", "collected_at"],
-            returning="representation",
-        ).execute()
+        existing = client.table("prices").select("id").eq("ingredient_id", ingredient_id).eq("store_id", store_id).eq("collected_at", today).maybe_single().execute()
+        if existing and existing.data:
+            result = client.table("prices").update(data).eq("id", existing.data["id"]).execute()
+        else:
+            result = client.table("prices").insert(data).execute()
         return result.data[0] if result.data else {}
 
 
@@ -208,12 +211,15 @@ def get_price_history(ingredient_canonical: str, days: int = 30, valid_only: boo
 
 def insert_review_item(item: dict) -> dict:
     client = get_service_client()
-    existing = client.table("review_queue").select("id")\
-        .eq("store_name", item.get("store_name", ""))\
-        .eq("raw_product", item["raw_product"])\
-        .execute()
-    if existing.data:
-        return existing.data[0]
+    try:
+        existing = client.table("review_queue").select("id")\
+            .eq("store_name", item.get("store_name", ""))\
+            .eq("raw_product", item["raw_product"])\
+            .execute()
+        if existing.data:
+            return existing.data[0]
+    except Exception:
+        logging.getLogger(__name__).debug("insert_review_item dedup check failed", exc_info=True)
     data = {
         "raw_product": item["raw_product"],
         "raw_price": item.get("raw_price"),
@@ -231,8 +237,11 @@ def insert_review_item(item: dict) -> dict:
         "match_type": item.get("match_type", ""),
         "top3": item.get("top3", []),
     }
-    result = client.table("review_queue").insert(data).execute()
-    return result.data[0] if result.data else {}
+    try:
+        result = client.table("review_queue").insert(data).execute()
+        return result.data[0] if result.data else {}
+    except Exception:
+        return {}
 
 
 def get_review_queue(limit: int = 500) -> list[dict]:
@@ -275,16 +284,19 @@ def approve_review_item(item_id: str, ingredient_id: str) -> dict:
     if item is None or not item.data:
         return {}
 
-    result = (
-        client.table("review_queue")
-        .update({
-            "status": "approved",
-            "resolved_ingredient": resolved_ingredient_id,
-            "reviewed_at": datetime.now(timezone.utc).isoformat(),
-        })
-        .eq("id", item_id)
-        .execute()
-    )
+    try:
+        result = (
+            client.table("review_queue")
+            .update({
+                "status": "approved",
+                "resolved_ingredient": resolved_ingredient_id,
+                "reviewed_at": datetime.now(timezone.utc).isoformat(),
+            })
+            .eq("id", item_id)
+            .execute()
+        )
+    except Exception:
+        return {}
 
     store_name = item.data.get("store_name", "")
     store_lookup = get_store_by_name(store_name) if store_name else None
@@ -325,13 +337,16 @@ def approve_review_item(item_id: str, ingredient_id: str) -> dict:
 
 def reject_review_item(item_id: str) -> dict:
     client = get_service_client()
-    result = (
-        client.table("review_queue")
-        .update({"status": "rejected"})
-        .eq("id", item_id)
-        .execute()
-    )
-    return result.data[0] if result.data else {}
+    try:
+        result = (
+            client.table("review_queue")
+            .update({"status": "rejected"})
+            .eq("id", item_id)
+            .execute()
+        )
+        return result.data[0] if result.data else {}
+    except Exception:
+        return {}
 
 
 def get_telegram_report(ingredients: list[dict], top_n: int = 5) -> list[dict]:
@@ -360,15 +375,21 @@ def get_telegram_report(ingredients: list[dict], top_n: int = 5) -> list[dict]:
 def cleanup_old_prices(retention_days: int = 90) -> dict:
     """Deleta preços mais antigos que retention_days (Supabase function)."""
     client = get_service_client()
-    result = client.rpc("cleanup_old_prices", {"retention_days": retention_days}).execute()
-    return {"deleted": result.data} if result.data else {"deleted": 0}
+    try:
+        result = client.rpc("cleanup_old_prices", {"retention_days": retention_days}).execute()
+        return {"deleted": result.data} if result.data else {"deleted": 0}
+    except Exception:
+        return {"deleted": 0}
 
 
 def cleanup_old_logs(retention_days: int = 30) -> dict:
     """Deleta scraping_logs mais antigos que retention_days."""
     client = get_service_client()
-    result = client.rpc("cleanup_old_logs", {"retention_days": retention_days}).execute()
-    return {"deleted": result.data} if result.data else {"deleted": 0}
+    try:
+        result = client.rpc("cleanup_old_logs", {"retention_days": retention_days}).execute()
+        return {"deleted": result.data} if result.data else {"deleted": 0}
+    except Exception:
+        return {"deleted": 0}
 
 
 def log_scraper_run(
@@ -390,8 +411,11 @@ def log_scraper_run(
         "items_matched": items_matched,
         "errors": errors or [],
     }
-    result = client.table("scraping_logs").insert(data).execute()
-    return result.data[0] if result.data else {}
+    try:
+        result = client.table("scraping_logs").insert(data).execute()
+        return result.data[0] if result.data else {}
+    except Exception:
+        return {}
 
 
 def get_longitudinal_winners(days: int = 90) -> list[dict]:

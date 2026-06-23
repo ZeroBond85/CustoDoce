@@ -45,14 +45,20 @@ def get_ingredient_by_name(canonical_name: str) -> Optional[dict]:
 def upsert_ingredient(data: dict) -> dict:
     client = get_service_client()
     data["updated_at"] = datetime.now(timezone.utc).isoformat()
-    result = client.table("ingredients").upsert(data, on_conflict="canonical_name", returning="representation").execute()
-    return result.data[0] if result.data else {}
+    try:
+        result = client.table("ingredients").upsert(data, on_conflict="canonical_name", returning="representation").execute()
+        return result.data[0] if result.data else {}
+    except Exception:
+        return {}
 
 
 def delete_ingredient(ingredient_id: str) -> bool:
     client = get_service_client()
-    result = client.table("ingredients").delete().eq("id", ingredient_id).execute()
-    return bool(result.data)
+    try:
+        result = client.table("ingredients").delete().eq("id", ingredient_id).execute()
+        return bool(result.data)
+    except Exception:
+        return False
 
 
 def add_alias_to_ingredient(canonical_name_or_id: str, new_alias: str) -> Optional[dict]:
@@ -114,14 +120,20 @@ def get_store_by_name(name: str) -> Optional[dict]:
 def upsert_store(data: dict) -> dict:
     client = get_service_client()
     data["updated_at"] = datetime.now(timezone.utc).isoformat()
-    result = client.table("stores").upsert(data, on_conflict="id", returning="representation").execute()
-    return result.data[0] if result.data else {}
+    try:
+        result = client.table("stores").upsert(data, on_conflict="id", returning="representation").execute()
+        return result.data[0] if result.data else {}
+    except Exception:
+        return {}
 
 
 def delete_store(store_id: str) -> bool:
     client = get_service_client()
-    result = client.table("stores").delete().eq("id", store_id).execute()
-    return bool(result.data)
+    try:
+        result = client.table("stores").delete().eq("id", store_id).execute()
+        return bool(result.data)
+    except Exception:
+        return False
 
 
 # ============================================================
@@ -145,14 +157,20 @@ def get_all_schedules(include_disabled: bool = False) -> list[dict]:
 def upsert_schedule(data: dict) -> dict:
     client = get_service_client()
     data["updated_at"] = datetime.now(timezone.utc).isoformat()
-    result = client.table("schedules").upsert(data, on_conflict="name", returning="representation").execute()
-    return result.data[0] if result.data else {}
+    try:
+        result = client.table("schedules").upsert(data, on_conflict="name", returning="representation").execute()
+        return result.data[0] if result.data else {}
+    except Exception:
+        return {}
 
 
 def delete_schedule(schedule_id: str) -> bool:
     client = get_service_client()
-    result = client.table("schedules").delete().eq("id", schedule_id).execute()
-    return bool(result.data)
+    try:
+        result = client.table("schedules").delete().eq("id", schedule_id).execute()
+        return bool(result.data)
+    except Exception:
+        return False
 
 
 def update_schedule_run(schedule_id: str, last_run: datetime, next_run: Optional[datetime] = None) -> dict:
@@ -160,8 +178,11 @@ def update_schedule_run(schedule_id: str, last_run: datetime, next_run: Optional
     data = {"last_run": last_run.isoformat(), "updated_at": datetime.now(timezone.utc).isoformat()}
     if next_run:
         data["next_run"] = next_run.isoformat()
-    result = client.table("schedules").update(data).eq("id", schedule_id).execute()
-    return result.data[0] if result.data else {}
+    try:
+        result = client.table("schedules").update(data).eq("id", schedule_id).execute()
+        return result.data[0] if result.data else {}
+    except Exception:
+        return {}
 
 
 # ============================================================
@@ -181,14 +202,20 @@ def get_scrape_frequency(store_id: Optional[str] = None, tier: Optional[int] = N
 def upsert_scrape_frequency(data: dict) -> dict:
     client = get_service_client()
     data["updated_at"] = datetime.now(timezone.utc).isoformat()
-    result = client.table("scrape_frequencies").upsert(data, returning="representation").execute()
-    return result.data[0] if result.data else {}
+    try:
+        result = client.table("scrape_frequencies").upsert(data, returning="representation").execute()
+        return result.data[0] if result.data else {}
+    except Exception:
+        return {}
 
 
 def delete_scrape_frequency(freq_id: str) -> bool:
     client = get_service_client()
-    result = client.table("scrape_frequencies").delete().eq("id", freq_id).execute()
-    return bool(result.data)
+    try:
+        result = client.table("scrape_frequencies").delete().eq("id", freq_id).execute()
+        return bool(result.data)
+    except Exception:
+        return False
 
 
 # ============================================================
@@ -215,14 +242,20 @@ def get_all_recipients(include_inactive: bool = False) -> list[dict]:
 def upsert_recipient(data: dict) -> dict:
     client = get_service_client()
     data["updated_at"] = datetime.now(timezone.utc).isoformat()
-    result = client.table("alert_recipients").upsert(data, returning="representation").execute()
-    return result.data[0] if result.data else {}
+    try:
+        result = client.table("alert_recipients").upsert(data, returning="representation").execute()
+        return result.data[0] if result.data else {}
+    except Exception:
+        return {}
 
 
 def delete_recipient(recipient_id: str) -> bool:
     client = get_service_client()
-    result = client.table("alert_recipients").delete().eq("id", recipient_id).execute()
-    return bool(result.data)
+    try:
+        result = client.table("alert_recipients").delete().eq("id", recipient_id).execute()
+        return bool(result.data)
+    except Exception:
+        return False
 
 
 # ============================================================
@@ -249,14 +282,20 @@ def get_all_alert_rules(include_disabled: bool = False) -> list[dict]:
 def upsert_alert_rule(data: dict) -> dict:
     client = get_service_client()
     data["updated_at"] = datetime.now(timezone.utc).isoformat()
-    result = client.table("alert_rules").upsert(data, returning="representation").execute()
-    return result.data[0] if result.data else {}
+    try:
+        result = client.table("alert_rules").upsert(data, returning="representation").execute()
+        return result.data[0] if result.data else {}
+    except Exception:
+        return {}
 
 
 def delete_alert_rule(rule_id: str) -> bool:
     client = get_service_client()
-    result = client.table("alert_rules").delete().eq("id", rule_id).execute()
-    return bool(result.data)
+    try:
+        result = client.table("alert_rules").delete().eq("id", rule_id).execute()
+        return bool(result.data)
+    except Exception:
+        return False
 
 
 # ============================================================
@@ -279,5 +318,8 @@ def get_all_feature_flags() -> list[dict]:
 def upsert_feature_flag(key: str, enabled: bool, description: str = "") -> dict:
     client = get_service_client()
     data = {"key": key, "enabled": enabled, "description": description, "updated_at": datetime.now(timezone.utc).isoformat()}
-    result = client.table("feature_flags").upsert(data, on_conflict="key", returning="representation").execute()
-    return result.data[0] if result.data else {}
+    try:
+        result = client.table("feature_flags").upsert(data, on_conflict="key", returning="representation").execute()
+        return result.data[0] if result.data else {}
+    except Exception:
+        return {}
