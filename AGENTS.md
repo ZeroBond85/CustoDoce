@@ -535,3 +535,22 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 - **Fase 15h** ✅ PDF Thumbnails + scrape_frequencies seeding — `scrapers/base_flyer.py`: método `_render_first_page()` usa `pdfplumber.to_image(resolution=150)` para renderizar primeira página como PNG; `_thumbnail` salvo como atributo de instância durante `run()`; `main.py`: `_upload_flyer_thumbnail()` faz upload para Supabase Storage (bucket `thumbnails`, pasta `flyers/`) e retorna URL pública; `_collect_prices()` salva flyer record com thumbnail URL após processar PDF; fallback gracioso em todas as etapas (falha = sem thumbnail, não bloqueia pipeline); `scrape_frequencies` populada: 60 lojas com frequências por tier (Tier 1=semanal, Tier 2=diário, Tier 3=quinzenal, Tier 4=desabilitado); auditoria: 14 tabelas OK, 0 erros críticos; 230 testes + 6 integração, ruff 0
 - **Fase 15i** ✅ Ingredient Normalization & DB Cleanup — 26.476 linhas com `ingredient_id` inválido removidas de `prices` e `price_history`; 11 ingredientes renomeados removendo marca do nome canônico (Ninho→Leite em Pó, Melken removido, Coloretti removido, Blend Harald removido); 2 duplicatas deletadas (Chocolate Nobre, Granulado ao Leite); 12 novos ingredientes inseridos no DB (Açúcar Mascavo, Açúcar Confeiteiro, Chocolate 70%, Farinha, Micro Ball, Top Confete, Gotas Branco, Manteiga, Gotas Meio Amargo, Chocolate Barra, Fermento, Baunilha); total 23 ingredientes no DB; `brands` e `search_terms` populados em todos; 230 testes + 6 integração, ruff 0
 - **Fase 15j** ✅ UUID Resolution Fix — `approve_review_item()` e `add_alias_to_ingredient()` chamavam `get_ingredient_by_id()` com nome de ingrediente (texto) em coluna UUID, causando erro 22P02; fix: valida formato UUID antes de chamar `get_ingredient_by_id()`, senão vai direto pra `get_ingredient_by_name()`; auditoria completa de todos os 5 pontos de `get_ingredient_by_id()` no código; 230 testes + 6 integração, ruff 0
+- **Fase 16** ✅ 42P10 definitivo + Cache Clear + Brand+XSS — Manual SELECT+UPDATE/INSERT substitui `on_conflict`; proteção try/except em 23 operações de escrita; Cache Clear com CACHE_VERSION + botão sidebar + URL param; XSS sanitization em `build_product_entry()`; 230 testes
+- **Fase 17** ✅ Store Expansion: Cacau Center — WooCommerce reativado (SP São Vicente); Ingredientes Santa Vita diagnosticado (Loja Integrada, login wall); Shopping do Confeiteiro removido (DF); 51 lojas; 230 testes
+- **Fase 16** ✅ 42P10 definitivo + Cache Clear + Brand+XSS — Erro 42P10 resolvido na raiz: manual SELECT+UPDATE/INSERT substitui `.upsert(on_conflict=...)` em `upsert_price()`, bypassando schema cache stale do PostgREST; proteção try/except em TODAS as 23 operações de escrita do DB; `CACHE_VERSION = 2` + botão "Limpar Cache" na sidebar + URL param `?clear_cache=1`; `build_product_entry()` sanitiza XSS em raw_product e raw_unit; 230 testes + 6 integração, ruff 0
+
+## Fase 17 — Store Expansion: Cacau Center Reactivation + Deep Analysis (concluida)
+
+| O que foi feito | Resultado |
+|----------------|-----------|
+| **Cacau Center** reativado — WooCommerce funcional! | ✅ |
+| Selectors WooCommerce: `.product`, `.woocommerce-loop-product__title`, `.price` | ✅ |
+| search_url: `/?s={query}&post_type=product` | ✅ |
+| Categorias testadas: confeitaria (16), chocolate (7), recheio (5), panificação (5), variedades (3), guloseimas (2) — todas com preços | ✅ |
+| Produto individual `/produto/chant-norcau-1lt/` — R$ 18,99 visível | ✅ |
+| Ingredientes Santa Vita diagnosticado — Loja Integrada com login wall + JS templates (`--PRODUTO_NOME--`) | ✅ |
+| Ingredientes Santa Vita adicionado como Tier 4 (manual, inativo) | ✅ |
+| Shopping do Confeiteiro removido (Brasília/DF, fora da região) | ✅ |
+| Deep analysis: 7 lojas investigadas (3 aproveitadas, 4 descartadas) | ✅ |
+| 51 lojas no stores.yaml (50 + 1 Santa Vita) | ✅ |
+| 230 testes, ruff 0, bandit 0 | ✅ Todos limpos |

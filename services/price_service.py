@@ -105,12 +105,15 @@ def upsert_price(price_entry: dict) -> dict:
             "logistics": price_entry.get("logistics"),
             "brand": price_entry.get("brand", "Desconhecido"),
         }
-        existing = client.table("prices").select("id").eq("ingredient_id", ingredient_id).eq("store_id", store_id).eq("collected_at", today).maybe_single().execute()
-        if existing and existing.data:
-            result = client.table("prices").update(data).eq("id", existing.data["id"]).execute()
-        else:
-            result = client.table("prices").insert(data).execute()
-        return result.data[0] if result.data else {}
+        try:
+            existing = client.table("prices").select("id").eq("ingredient_id", ingredient_id).eq("store_id", store_id).eq("collected_at", today).maybe_single().execute()
+            if existing and existing.data:
+                result = client.table("prices").update(data).eq("id", existing.data["id"]).execute()
+            else:
+                result = client.table("prices").insert(data).execute()
+            return result.data[0] if result.data else {}
+        except Exception:
+            return {}
 
 
 def search_prices(
@@ -260,12 +263,28 @@ def approve_review_item(item_id: str, ingredient_id: str) -> dict:
     client = get_service_client()
 
     # Resolve ingredient name or UUID to actual UUID FIRST (before any DB write)
-    from services.config_db import get_ingredient_by_name, get_ingredient_by_id
+    from services.config_db import get_ingredient_by_name, get_ingredient_by_id, get_all_ingredients
     import re
     is_uuid = re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', ingredient_id, re.I)
     ingredient_obj = get_ingredient_by_id(ingredient_id) if is_uuid else None
     if not ingredient_obj:
         ingredient_obj = get_ingredient_by_name(ingredient_id)
+    if not ingredient_obj:
+        from rapidfuzz import fuzz
+        all_ing = get_all_ingredients()
+        best_score = 0
+        best_ing = None
+        norm_input = _normalize_text(ingredient_id)
+        for ing in all_ing:
+            names = [ing.get("canonical", ""), ing.get("name", "")] + ing.get("aliases", [])
+            for name in names:
+                norm_name = _normalize_text(name)
+                score = fuzz.token_set_ratio(norm_input, norm_name)
+                if score > best_score:
+                    best_score = score
+                    best_ing = ing
+        if best_score >= 70 and best_ing:
+            ingredient_obj = best_ing
     resolved_ingredient_id = ingredient_obj.get("id", "") if ingredient_obj else ""
 
     if not resolved_ingredient_id:

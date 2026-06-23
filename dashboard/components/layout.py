@@ -56,7 +56,7 @@ def render_sidebar():
             btn = st.button(
                 f"{icon}  {label}",
                 key=f"nav_{page_id}",
-                use_container_width=True,
+                width='stretch',
                 type="primary" if selected else "secondary",
                 help=f"Ir para {label}",
             )
@@ -76,11 +76,11 @@ def render_sidebar():
             )
             col1, col2 = st.columns([1, 1])
             with col1:
-                if st.button("Limpar Cache", key="clear_cache_btn", use_container_width=True):
+                if st.button("Limpar Cache", key="clear_cache_btn", width='stretch'):
                     st.cache_data.clear()
                     st.rerun()
             with col2:
-                if st.button("Sair", key="logout_btn", use_container_width=True):
+                if st.button("Sair", key="logout_btn", width='stretch'):
                     st.session_state.authenticated = False
                     st.session_state.pop("token", None)
                     st.session_state.pop("user", None)

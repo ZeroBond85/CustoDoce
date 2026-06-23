@@ -189,15 +189,16 @@ def _cached_get_all_current_prices(valid_only: bool = True):
     return get_all_current_prices(valid_only=valid_only, limit=2000)
 
 
-def _export_csv_button(df, filename: str, label: str = "Exportar CSV", key: str = "csv_export", use_container_width: bool = True):
+def _export_csv_button(df, filename: str, label: str = "Exportar CSV", key: str = "csv_export", full_width: bool = True):
     """Botao de export CSV com feature flag."""
+    w = 'stretch' if full_width else 'content'
     if get_config("features.export.csv_enabled", True):
         csv_data = df.to_csv(index=False).encode("utf-8")
-        st.download_button(label, csv_data, filename, "text/csv", key=key, use_container_width=use_container_width)
+        st.download_button(label, csv_data, filename, "text/csv", key=key, width=w)
     else:
         st.download_button(label, data="", disabled=True,
             help="Exportacao desabilitada em config/features.yaml",
-            key=f"{key}_disabled", use_container_width=use_container_width)
+            key=f"{key}_disabled", width=w)
 
 
 def require_auth():
@@ -304,7 +305,7 @@ def _render_latest_prices(df):
         return
     cols = ["store_name", "ingredient_id", "raw_product", "raw_price", "raw_unit", "tier", "is_promotion", "valid_until", "confidence", "collected_at"]
     cols = [c for c in cols if c in df.columns]
-    st.dataframe(_pt_cols(df[cols].sort_values("collected_at", ascending=False).head(100)), use_container_width=True, hide_index=True)
+    st.dataframe(_pt_cols(df[cols].sort_values("collected_at", ascending=False).head(100)), width='stretch', hide_index=True)
 
 
 def _render_boxplot(df):
@@ -321,7 +322,7 @@ def _render_boxplot(df):
     fig = px.box(df_norm, x="ingredient_id", y="price_per_kg", title="Preco por kg por Ingrediente",
                  labels={"ingredient_id": "Ingrediente", "price_per_kg": "R$/kg"},
                  color_discrete_sequence=[CD_ORANGE])
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 
 def _render_coverage_heatmap(df):
@@ -391,7 +392,7 @@ def _render_coverage_heatmap(df):
             unsafe_allow_html=True,
         )
 
-        st.dataframe(df_heat.style.map(color_cell), use_container_width=True, hide_index=True)
+        st.dataframe(df_heat.style.map(color_cell), width='stretch', hide_index=True)
     except Exception as e:
         st.caption(f"Grade indisponivel: {e}")
 
@@ -550,7 +551,7 @@ def tab_precos():
                         ],
                     )
                     fig.update_layout(showlegend=False)
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
 
             display_cols = [
                 "store_name",
@@ -615,9 +616,9 @@ def tab_precos():
                         else [""] * len(s)
                     )
                 styled = df_display.style.apply(highlight_row, axis=1)
-                st.dataframe(_pt_cols(styled.data), use_container_width=True, hide_index=True)
+                st.dataframe(_pt_cols(styled.data), width='stretch', hide_index=True)
             else:
-                st.dataframe(_pt_cols(df_display), use_container_width=True, hide_index=True)
+                st.dataframe(_pt_cols(df_display), width='stretch', hide_index=True)
 
             _export_csv_button(
                 df_display,
@@ -684,7 +685,7 @@ def tab_historico():
                 color_discrete_sequence=[CD_ORANGE, CD_PINK, CD_BLUE, "#FBBF5E", "#60A5FA", "#C94D78"],
             )
             fig.update_traces(mode="lines+markers")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
         col_a, col_b, col_c, col_d = st.columns(4)
         valid = df[df[y_col] > 0] if y_col == "price_per_kg" else df
@@ -702,7 +703,7 @@ def tab_historico():
         ).reset_index()
         store_stats.columns = ["Loja", "Coletas", "Preco Medio (R$)", "Ultima Coleta"]
         store_stats = store_stats.sort_values("Ultima Coleta", ascending=False)
-        st.dataframe(_pt_cols(store_stats), use_container_width=True, hide_index=True)
+        st.dataframe(_pt_cols(store_stats), width='stretch', hide_index=True)
 
         st.markdown("### Dados Brutos")
         # Legenda das colunas
@@ -721,7 +722,7 @@ def tab_historico():
         if "price_per_kg" in df.columns:
             df["R$/kg"] = df["price_per_kg"].apply(lambda x: f"R$ {x:.2f}" if x > 0 else "—")
             display_cols.append("R$/kg")
-        st.dataframe(_pt_cols(df[display_cols].tail(100)), use_container_width=True, hide_index=True)
+        st.dataframe(_pt_cols(df[display_cols].tail(100)), width='stretch', hide_index=True)
 
         _export_csv_button(
             store_stats,
@@ -848,7 +849,7 @@ def tab_flyers():
                             f"</div>",
                             unsafe_allow_html=True,
                         )
-                        if st.button("🔍 Ver detalhes", key=f"flyer_btn_{flyer_id}", use_container_width=True):
+                        if st.button("🔍 Ver detalhes", key=f"flyer_btn_{flyer_id}", width='stretch'):
                             st.session_state.selected_flyer_id = flyer_id
                             st.rerun()
 
@@ -908,7 +909,7 @@ def tab_flyers():
                                 data=resp.content,
                                 file_name=f"flyer_{selected.get('id', 'unknown')}{ext}",
                                 mime=resp.headers.get("content-type", "image/jpeg"),
-                                use_container_width=True,
+                                width='stretch',
                             )
                     except Exception as e:
                         st.caption(f"Erro ao baixar: {e}")
@@ -970,7 +971,7 @@ def tab_revisao():
                     st.link_button(
                         "🔗 Abrir página do produto para conferir",
                         source_url,
-                        use_container_width=True,
+                        width='stretch',
                         type="primary",
                     )
                     if image_url:
@@ -1102,7 +1103,7 @@ def tab_revisao():
                         )
                 with act_cols[1]:
                     if st.button(
-                        "✅ Aprovar", key=f"app_{item_id}", use_container_width=True
+                        "✅ Aprovar", key=f"app_{item_id}", width='stretch'
                     ):
                         chosen = st.session_state.get(f"ingredient_{item_id}", "")
                         if chosen == "Outro...":
@@ -1130,7 +1131,7 @@ def tab_revisao():
                             st.warning("Selecione um ingrediente antes de aprovar.")
                 with act_cols[2]:
                     if st.button(
-                        "❌ Rejeitar", key=f"rej_{item_id}", use_container_width=True
+                        "❌ Rejeitar", key=f"rej_{item_id}", width='stretch'
                     ):
                         reject_review_item(item_id)
                         st.rerun()
@@ -1172,7 +1173,7 @@ def tab_lojas():
                 df["city_str"] = df["city"].apply(lambda x: ", ".join(x) if x else "—")
                 cols = ["name", "tier", "type", "logistics", "city_str", "zone", "is_active"]
                 cols = [c for c in cols if c in df.columns]
-                st.dataframe(_pt_cols(df[cols].head(100)), use_container_width=True, hide_index=True)
+                st.dataframe(_pt_cols(df[cols].head(100)), width='stretch', hide_index=True)
             else:
                 info_box("Nenhuma loja encontrada com esse filtro.", "info")
         else:
@@ -1235,7 +1236,7 @@ def tab_lojas():
                 timeout = st.number_input("Timeout (segundos)", min_value=10, max_value=300, value=store_freq.get("timeout_seconds", 30), step=10)
                 rate_limit = st.number_input("Rate Limit (req/min)", min_value=1, max_value=60, value=store_freq.get("rate_limit_per_minute", 10))
 
-            if st.form_submit_button("Salvar", use_container_width=True):
+            if st.form_submit_button("Salvar", width='stretch'):
                 if not name or not name.strip():
                     st.error("Nome da loja e obrigatorio.")
                     st.stop()
@@ -1282,7 +1283,7 @@ def tab_lojas():
                     st.error(f"Erro ao salvar loja: {e}")
 
         if sel != "— Nova —":
-            with st.popover("Excluir", use_container_width=True):
+            with st.popover("Excluir", width='stretch'):
                 st.warning("Tem certeza que deseja excluir esta loja?")
                 if st.button("Sim, excluir", type="primary", key="confirm_del_store"):
                     try:
@@ -1345,7 +1346,7 @@ def tab_ingredientes():
             df["aliases_str"] = df["aliases"].apply(lambda x: ", ".join(x[:5]) if x else "—")
             st.dataframe(
                 _pt_cols(df[["canonical_name", "category", "aliases_str", "unit_target", "active"]]),
-                use_container_width=True,
+                width='stretch',
                 hide_index=True,
             )
         else:
@@ -1408,7 +1409,7 @@ def tab_ingredientes():
             with st.expander("✨ Sugerir aliases automaticamente", expanded=False):
                 _render_alias_suggestions(default, ingredients)
 
-            if st.form_submit_button("Salvar", use_container_width=True):
+            if st.form_submit_button("Salvar", width='stretch'):
                 if not canonical or not canonical.strip():
                     st.error("Nome canonico e obrigatorio.")
                     st.stop()
@@ -1431,7 +1432,7 @@ def tab_ingredientes():
                     st.error(f"Erro ao salvar ingrediente: {e}")
 
         if sel != "— Novo —":
-            with st.popover("Excluir", use_container_width=True):
+            with st.popover("Excluir", width='stretch'):
                 st.warning("Tem certeza que deseja excluir este ingrediente?")
                 if st.button("Sim, excluir", type="primary", key="confirm_del_ing"):
                     try:
@@ -1531,7 +1532,7 @@ def _render_schedule_info():
                     help="Formato: minuto hora dia mes dia-da-semana",
                 )
                 new_crons.append(new_c)
-            if st.button("Salvar Agendamento", type="primary", use_container_width=True):
+            if st.button("Salvar Agendamento", type="primary", width='stretch'):
                 valid = True
                 for c in new_crons:
                     if not re.match(r"^(\d+|\*)([-\/,*]\d*)*(\s+(\d+|\*)([-\/,*]\d*)*){4}$", c.strip()):
@@ -1775,7 +1776,7 @@ def _render_scraper_maintenance(_client_unused=None):
                             color_discrete_map={"failed": "red", "completed": "green"},
                             title=f"Últimas {len(store_history)} execuções"
                         )
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width='stretch')
 
     except Exception as e:
         info_box(f"Erro ao carregar scrapers com falhas: {e}", "danger")
@@ -1927,7 +1928,7 @@ def tab_scrapers():
         col1, col2 = st.columns(2)
         with col1:
             if st.button(
-                "Forcar Coleta Agora", type="primary", use_container_width=True
+                "Forcar Coleta Agora", type="primary", width='stretch'
             ) and not st.session_state.get("confirm_force_scrape"):
                 st.session_state.confirm_force_scrape = True
                 st.rerun()
@@ -1986,7 +1987,7 @@ def tab_scrapers():
                     ])
                     if "store_name" in df_logs.columns
                     else _pt_cols(df_logs),
-                    use_container_width=True,
+                    width='stretch',
                     hide_index=True,
                 )
         except Exception as e:
@@ -2000,7 +2001,7 @@ def tab_scrapers():
             df["enabled"] = df["enabled"].map({True: "✅ Ativo", False: "⏸️ Inativo"})
             st.dataframe(
                 _pt_cols(df[["name", "cron_expression", "timezone", "enabled", "last_run", "next_run"]]),
-                use_container_width=True,
+                width='stretch',
                 hide_index=True,
             )
         else:
@@ -2017,7 +2018,7 @@ def tab_scrapers():
             with col2:
                 enabled = st.checkbox("Ativo", value=True)
                 payload = st.text_area("Payload JSON", value='{"force_full": false, "run_playwright": false}', height=100)
-            if st.form_submit_button("Salvar", use_container_width=True):
+            if st.form_submit_button("Salvar", width='stretch'):
                 try:
                     upsert_schedule({
                         "name": name,
@@ -2038,10 +2039,10 @@ def tab_scrapers():
                     cols[0].write(s["name"])
                     cols[1].write(s["cron_expression"])
                     cols[2].write("✅" if s["enabled"] else "⏸️")
-                    if cols[3].button("Editar", key=f"edit_sched_{s['id']}", use_container_width=True):
+                    if cols[3].button("Editar", key=f"edit_sched_{s['id']}", width='stretch'):
                         st.session_state[f"editing_sched_{s['id']}"] = True
                         st.rerun()
-                    if cols[4].button("Executar", key=f"run_sched_{s['id']}", use_container_width=True, type="primary") and not st.session_state.get(f"confirm_exec_{s['id']}"):
+                    if cols[4].button("Executar", key=f"run_sched_{s['id']}", width='stretch', type="primary") and not st.session_state.get(f"confirm_exec_{s['id']}"):
                             st.session_state[f"confirm_exec_{s['id']}"] = True
                             st.rerun()
                     if st.session_state.get(f"confirm_exec_{s['id']}"):
@@ -2072,7 +2073,7 @@ def tab_scrapers():
                                 st.session_state.pop(f"confirm_exec_{s['id']}", None)
                                 st.rerun()
                     delete_key = f"confirm_del_sched_{s['id']}"
-                    if cols[5].button("🗑️ Excluir", key=f"del_btn_{s['id']}", use_container_width=True):
+                    if cols[5].button("🗑️ Excluir", key=f"del_btn_{s['id']}", width='stretch'):
                         st.session_state[delete_key] = True
                     if st.session_state.get(delete_key):
                         st.warning("Confirmar exclusao?")
@@ -2171,7 +2172,7 @@ def tab_relatorios():
     with col3:
         pass  # reservado
 
-    if st.button("Gerar Preview", type="primary", use_container_width=True):
+    if st.button("Gerar Preview", type="primary", width='stretch'):
         prices = _cached_get_price_history(selected, days=days)
         if prices:
             html = _build_report_html(selected, days, prices[:limit])
@@ -2184,7 +2185,7 @@ def tab_relatorios():
             if st.button(
                 "Enviar Relatorio Agora",
                 key="send_report",
-                use_container_width=True,
+                width='stretch',
                 disabled=send_disabled,
                 help="Configure SMTP nas secrets primeiro" if send_disabled else "Enviar relatorio por email",
             ) and not st.session_state.get("confirm_send_report"):
@@ -2267,7 +2268,7 @@ def _render_admin_account():
             key="adm_confirm_pass",
             label_visibility="collapsed",
         )
-        if st.button("Gerar Hash", type="primary", use_container_width=True):
+        if st.button("Gerar Hash", type="primary", width='stretch'):
             if not nova or len(nova) < 8:
                 st.error("Minimo 8 caracteres.")
             elif nova != confirm:
@@ -2285,7 +2286,7 @@ def _render_admin_account():
         st.markdown(
             "Use Google Authenticator, Authy ou similar para escanear o codigo."
         )
-        if st.button("Gerar Nova Chave 2FA", use_container_width=True):
+        if st.button("Gerar Nova Chave 2FA", width='stretch'):
             secret = _gen_totp()
             uri = _get_totp_uri(secret)
             st.session_state["_setup_totp_secret"] = secret
@@ -2375,7 +2376,7 @@ def tab_config():
                 key="env_smtp_to",
                 help="Para qual email os relatorios serao enviados",
             )
-        if env_user and env_pass and env_to and st.button("Testar Envio de Email", key="test_email_cfg", use_container_width=True):
+        if env_user and env_pass and env_to and st.button("Testar Envio de Email", key="test_email_cfg", width='stretch'):
                 ok, msg = _test_smtp(env_host, int(env_port or "587"), env_user, env_pass, env_to, env_from)
                 if ok:
                     st.success(msg)
@@ -2400,7 +2401,7 @@ def tab_config():
                 key="env_tg_chat",
                 help="Seu ID numerico do Telegram - obtenha com @userinfobot",
             )
-        if env_tg_token and env_tg_chat and st.button("Testar Envio Telegram", key="test_tg_cfg", use_container_width=True):
+        if env_tg_token and env_tg_chat and st.button("Testar Envio Telegram", key="test_tg_cfg", width='stretch'):
                 ok, msg = _test_telegram(env_tg_token, env_tg_chat)
                 if ok:
                     st.success(msg)
@@ -2421,7 +2422,7 @@ def tab_config():
         col1, col2 = st.columns([1, 5])
         with col1:
             toggle_label = "Desativar Edicao" if st.session_state.edit_mode else "Ativar Edicao"
-            if st.button(toggle_label, use_container_width=True):
+            if st.button(toggle_label, width='stretch'):
                 st.session_state.edit_mode = not st.session_state.edit_mode
                 st.rerun()
 
@@ -2448,7 +2449,7 @@ def tab_config():
 
         if st.session_state.edit_mode:
             st.markdown("---")
-            if st.button("Salvar todas as alteracoes", type="primary", use_container_width=True):
+            if st.button("Salvar todas as alteracoes", type="primary", width='stretch'):
                 all_keys = [k for ks in SECRET_GROUPS.values() for k in ks]
                 lines = []
                 env_path = ".env"
@@ -2507,7 +2508,7 @@ def tab_config():
             with open(feat_path, encoding="utf-8") as f:
                 feat_data = yaml.safe_load(f)
             st.code(yaml.dump(feat_data), language="yaml")
-            if st.button("Recarregar Configuracoes", use_container_width=True):
+            if st.button("Recarregar Configuracoes", width='stretch'):
                 reload_config()
                 st.success("Configuracoes recarregadas do arquivo!")
         except FileNotFoundError:
@@ -2590,13 +2591,13 @@ def tab_diagnostico():
 
     col1, col2 = st.columns([1, 1])
     with col1:
-        if st.button("Executar Todos os Testes", type="primary", use_container_width=True):
+        if st.button("Executar Todos os Testes", type="primary", width='stretch'):
             for label, fn in tests:
                 key = f"diag_{label.replace(' ','_').replace('(','').replace(')','').replace(':','')}"
                 st.session_state[key] = _run_service_test(label, fn)
             st.rerun()
     with col2:
-        clear = st.button("Limpar Resultados", use_container_width=True)
+        clear = st.button("Limpar Resultados", width='stretch')
         if clear:
             for k in list(st.session_state.keys()):
                 if k.startswith("diag_"):
@@ -2610,7 +2611,7 @@ def tab_diagnostico():
         result = st.session_state.get(key)
         with st.expander(f"{label} {'✅' if result and result[0]=='OK' else '❌' if result else '⏳'}", expanded=False):
             status_placeholder = st.empty()
-            if st.button("Testar", key=f"btn_{key}", use_container_width=True):
+            if st.button("Testar", key=f"btn_{key}", width='stretch'):
                 st.session_state[key] = _run_service_test(label, fn)
                 st.rerun()
             if result:
@@ -2647,7 +2648,7 @@ def tab_diagnostico():
                 st.text_input("SMTP_PASSWORD", value=smtp_pass, type="password", key="diag_smtp_pass")
                 st.text_input("SMTP_FROM", value=smtp_from, key="diag_smtp_from")
                 st.text_input("ALERT_EMAIL_TO", value=email_to, key="diag_smtp_to")
-            if st.button("Enviar Email de Teste", key="diag_btn_smtp", use_container_width=True):
+            if st.button("Enviar Email de Teste", key="diag_btn_smtp", width='stretch'):
                 try:
                     import smtplib
                     from email.message import EmailMessage
@@ -2676,7 +2677,7 @@ def tab_diagnostico():
                 tg_token_inp = st.text_input("TELEGRAM_TOKEN", value=tg_token, type="password", key="diag_tg_token")
             with col2:
                 tg_chat_inp = st.text_input("TELEGRAM_CHAT_ID", value=tg_chat, key="diag_tg_chat")
-            if st.button("Enviar Mensagem de Teste", key="diag_btn_telegram", use_container_width=True):
+            if st.button("Enviar Mensagem de Teste", key="diag_btn_telegram", width='stretch'):
                 try:
                     resp = httpx.post(
                         f"https://api.telegram.org/bot{tg_token_inp}/sendMessage",
@@ -2709,7 +2710,7 @@ def tab_alertas():
         if recipients:
             df = pd.DataFrame(recipients)
             df["active"] = df["active"].map({True: "✅", False: "⏸️"})
-            st.dataframe(_pt_cols(df[["channel", "target", "name", "active"]]), use_container_width=True, hide_index=True)
+            st.dataframe(_pt_cols(df[["channel", "target", "name", "active"]]), width='stretch', hide_index=True)
         else:
             info_box("Nenhum destinatario cadastrado.", "info")
 
@@ -2721,7 +2722,7 @@ def tab_alertas():
             with col2:
                 name = st.text_input("Nome (opcional)", placeholder="Financeiro, Gestor, etc")
                 active = st.checkbox("Ativo", value=True)
-            if st.form_submit_button("Salvar", use_container_width=True):
+            if st.form_submit_button("Salvar", width='stretch'):
                 try:
                     upsert_recipient({"channel": channel, "target": target, "name": name, "active": active})
                     st.toast("Destinatário salvo!")
@@ -2736,11 +2737,11 @@ def tab_alertas():
                     cols[0].write(r["channel"])
                     cols[1].write(r["target"])
                     cols[2].write(r["name"] or "—")
-                    if cols[3].button("Editar", key=f"edit_rec_{r['id']}", use_container_width=True):
+                    if cols[3].button("Editar", key=f"edit_rec_{r['id']}", width='stretch'):
                         st.session_state[f"editing_rec_{r['id']}"] = True
                         st.rerun()
                     delete_key = f"confirm_del_rec_{r['id']}"
-                    if cols[4].button("🗑️ Excluir", key=f"del_btn_rec_{r['id']}", use_container_width=True):
+                    if cols[4].button("🗑️ Excluir", key=f"del_btn_rec_{r['id']}", width='stretch'):
                         st.session_state[delete_key] = True
                     if st.session_state.get(delete_key):
                         st.warning("Confirmar exclusao?")
@@ -2764,7 +2765,7 @@ def tab_alertas():
         if rules:
             df = pd.DataFrame(rules)
             df["enabled"] = df["enabled"].map({True: "✅", False: "⏸️"})
-            st.dataframe(_pt_cols(df[["name", "channel", "trigger", "frequency_minutes", "enabled"]]), use_container_width=True, hide_index=True)
+            st.dataframe(_pt_cols(df[["name", "channel", "trigger", "frequency_minutes", "enabled"]]), width='stretch', hide_index=True)
         else:
             info_box("Nenhuma regra de alerta configurada.", "info")
 
@@ -2787,7 +2788,7 @@ def tab_alertas():
                     except json.JSONDecodeError as e:
                         st.caption(f"JSON invalido: {e}")
                 template = st.text_area("Template Jinja2 (opcional)", placeholder="{{ ingredient }} caiu para {{ price }}", height=80)
-                if st.form_submit_button("Salvar", use_container_width=True):
+                if st.form_submit_button("Salvar", width='stretch'):
                     try:
                         upsert_alert_rule({
 
@@ -2849,7 +2850,7 @@ def tab_fontes():
                 src["Menor_kg"] = src["Menor_kg"].apply(lambda x: f"R$ {x:.2f}")
                 src["Medio_kg"] = src["Medio_kg"].apply(lambda x: f"R$ {x:.2f}")
                 src["Promocoes"] = src["Promocoes"].astype(int)
-                st.dataframe(src.head(100), use_container_width=True, hide_index=True)
+                st.dataframe(src.head(100), width='stretch', hide_index=True)
 
                 _export_csv_button(src, f"fontes_{selected}.csv", key="csv_fontes")
 
@@ -2877,7 +2878,7 @@ def tab_fontes():
                 display_p = dfp[["_ingredient", "store_name", "brand", "raw_product", "raw_price", "raw_unit", "price_per_kg", "valid_until"]].copy()
                 display_p["price_per_kg"] = display_p["price_per_kg"].apply(lambda x: f"R$ {x:.2f}" if x > 0 else "—")
                 display_p.columns = ["Ingrediente", "Loja", "Marca", "Produto", "Preco", "Unidade", "R$/kg", "Valido ate"]
-                st.dataframe(display_p.head(100), use_container_width=True, hide_index=True)
+                st.dataframe(display_p.head(100), width='stretch', hide_index=True)
 
     with tab_ranking_fontes:
         st.markdown("### Lojas com maior cobertura de ingredientes")
@@ -2900,14 +2901,14 @@ def tab_fontes():
                     {"Loja": s, "Ingredientes": len(ings), "Cobertura": f"{len(ings)}/{len(ing_options)}"}
                     for s, ings in sorted(store_coverage.items(), key=lambda x: -len(x[1]))
                 ])
-                st.dataframe(rank_df.head(100), use_container_width=True, hide_index=True)
+                st.dataframe(rank_df.head(100), width='stretch', hide_index=True)
                 fig_r = px.bar(rank_df.head(15), x="Loja", y="Ingredientes",
                                title="Top 15 lojas por cobertura",
                                color="Ingredientes",
                                color_continuous_scale="Oranges",
                                labels={"Ingredientes": "Ingredientes disponiveis"})
                 fig_r.update_layout(showlegend=False)
-                st.plotly_chart(fig_r, use_container_width=True)
+                st.plotly_chart(fig_r, width='stretch')
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -2966,7 +2967,7 @@ def tab_ranking():
                              labels={"collected_at": "Data", "price_per_kg": "R$/kg", "store_name": "Loja"},
                              barmode="group",
                              color_discrete_sequence=[CD_ORANGE, CD_PINK, CD_BLUE, "#FBBF5E", "#60A5FA", "#C94D78"])
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
             st.markdown("### Ranking atual (ultima coleta por loja)")
             latest = df_top.sort_values("collected_at").groupby("store_name").last().reset_index()
@@ -2977,7 +2978,7 @@ def tab_ranking():
             latest["Marca"] = latest.get("brand", "")
             rank_display = latest[["store_name", "Marca", "Produto", "R$/kg", "Ultima coleta"]]
             rank_display.columns = ["Loja", "Marca", "Produto", "R$/kg", "Ultima coleta"]
-            st.dataframe(rank_display, use_container_width=True, hide_index=True)
+            st.dataframe(rank_display, width='stretch', hide_index=True)
 
             st.markdown("### Estatisticas do periodo")
             stats = df_top.groupby("store_name").agg(
@@ -2990,7 +2991,7 @@ def tab_ranking():
             stats["Minimo"] = stats["Minimo"].apply(lambda x: f"R$ {x:.2f}")
             stats["Maximo"] = stats["Maximo"].apply(lambda x: f"R$ {x:.2f}")
             stats.columns = ["Loja", "Media", "Minimo", "Maximo", "Coletas"]
-            st.dataframe(stats, use_container_width=True, hide_index=True)
+            st.dataframe(stats, width='stretch', hide_index=True)
 
             _export_csv_button(
                 stats,
@@ -3047,7 +3048,7 @@ def tab_insights():
                                 color_continuous_scale="YlOrRd",
                                 labels={"x": "Loja", "y": "Ingrediente", "color": "R$/kg"})
                 fig.update_layout(height=max(400, len(pivot) * 40))
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
 
     with tab_outliers:
         st.markdown("### Precos destoantes (acima ou abaixo da media)")
@@ -3091,7 +3092,7 @@ def tab_insights():
                 dfo["media"] = dfo["media"].apply(lambda x: f"R$ {x:.2f}")
                 display_o = dfo[["ingrediente", "store", "product", "price", "media", "z_score"]].copy()
                 display_o.columns = ["Ingrediente", "Loja", "Produto", "Preco", "Media", "Z-Score"]
-                st.dataframe(display_o.head(100), use_container_width=True, hide_index=True)
+                st.dataframe(display_o.head(100), width='stretch', hide_index=True)
 
     with tab_melhores:
         st.markdown("### Melhores ofertas do momento")
@@ -3133,7 +3134,7 @@ def tab_insights():
                 dfb["preco"] = dfb.apply(lambda r: f"R$ {r['preco']:.2f} {r['unidade']}", axis=1)
                 display_b = dfb[["ingrediente", "loja", "marca", "produto", "preco", "R$/kg", "promocao", "validade"]].copy()
                 display_b.columns = ["Ingrediente", "Loja", "Marca", "Produto", "Preco", "R$/kg", "Promocao", "Validade"]
-                st.dataframe(display_b.head(100), use_container_width=True, hide_index=True)
+                st.dataframe(display_b.head(100), width='stretch', hide_index=True)
 
                 _export_csv_button(display_b,
                     f"melhores_ofertas_{pd.Timestamp.utcnow().strftime('%Y%m%d')}.csv",
@@ -3155,8 +3156,8 @@ def tab_insights():
                                    labels={"store_name": "Loja", "wins": "Dias como mais barata", "ingredient_id": "Ingrediente"},
                                    color_discrete_sequence=[CD_ORANGE, CD_PINK, CD_BLUE, "#FBBF5E", "#60A5FA"])
                     fig_w.update_layout(showlegend=True)
-                    st.plotly_chart(fig_w, use_container_width=True)
-                    st.dataframe(_pt_cols(df_w.head(50)), use_container_width=True, hide_index=True)
+                    st.plotly_chart(fig_w, width='stretch')
+                    st.dataframe(_pt_cols(df_w.head(50)), width='stretch', hide_index=True)
                     _export_csv_button(df_w, "vencedores.csv", key="csv_vencedores")
 
     with tab_tendencias:
@@ -3177,8 +3178,8 @@ def tab_insights():
                                     labels={"date": "Data", "value": "R$/kg", "variable": "Metrica"},
                                     color_discrete_map={"avg_ppk": CD_ORANGE, "min_ppk": "#10B981", "max_ppk": "#EF4444"})
                     fig_t.update_layout(legend={"orientation": "h", "y": -0.3})
-                    st.plotly_chart(fig_t, use_container_width=True)
-                    st.dataframe(_pt_cols(df_t.tail(30)), use_container_width=True, hide_index=True)
+                    st.plotly_chart(fig_t, width='stretch')
+                    st.dataframe(_pt_cols(df_t.tail(30)), width='stretch', hide_index=True)
                     _export_csv_button(df_t, f"tendencias_{ing_t}.csv", key="csv_tendencias")
 
     with tab_cross:
@@ -3198,10 +3199,10 @@ def tab_insights():
                                    barmode="group",
                                    color_discrete_map={"top1_count": CD_ORANGE, "top3_count": CD_PINK})
                     fig_r.update_layout(legend={"orientation": "h", "y": -0.3})
-                    st.plotly_chart(fig_r, use_container_width=True)
+                    st.plotly_chart(fig_r, width='stretch')
                     df_r_display = df_r.copy()
                     df_r_display.columns = ["Loja", "Top 1", "Top 3", "Total Ingredientes"]
-                    st.dataframe(df_r_display.head(100), use_container_width=True, hide_index=True)
+                    st.dataframe(df_r_display.head(100), width='stretch', hide_index=True)
                     _export_csv_button(df_r, "cross_ranking.csv", key="csv_cross")
 
 
@@ -3294,13 +3295,13 @@ def tab_calculadora():
                     st.session_state.calc_rows = [r for r in st.session_state.calc_rows if r["id"] != rid]
                     st.rerun()
 
-    if st.button("+ Adicionar Ingrediente", use_container_width=True):
+    if st.button("+ Adicionar Ingrediente", width='stretch'):
         st.session_state.calc_rows.append({"id": row_id_counter})
         st.rerun()
 
     st.markdown("---")
 
-    if st.button("Calcular", type="primary", use_container_width=True, key="calc_btn"):
+    if st.button("Calcular", type="primary", width='stretch', key="calc_btn"):
         if not recipe_name or not recipe_name.strip():
             st.error("Informe o nome da receita.")
             st.stop()
@@ -3413,11 +3414,11 @@ def tab_calculadora():
 
         col_share, col_save, col_tg = st.columns(3)
         with col_share:
-            if st.button("Copiar Resumo", use_container_width=True, key="calc_copy"):
+            if st.button("Copiar Resumo", width='stretch', key="calc_copy"):
                 st.code(summary, language="")
                 st.toast("Resumo copiado! Cole onde quiser.", icon="✅")
         with col_save:
-            if st.button("Salvar Receita", type="primary", use_container_width=True, key="calc_save"):
+            if st.button("Salvar Receita", type="primary", width='stretch', key="calc_save"):
                 try:
                     client = get_service_client()
                     recipe_data = {
@@ -3445,7 +3446,7 @@ def tab_calculadora():
             tg_token = os.environ.get("TELEGRAM_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN", "")
             tg_chat = os.environ.get("TELEGRAM_CHAT_ID", "")
             if tg_token and tg_chat:
-                if st.button("Enviar via Telegram", use_container_width=True, key="calc_tg"):
+                if st.button("Enviar via Telegram", width='stretch', key="calc_tg"):
                     try:
                         resp = httpx.post(
                             f"https://api.telegram.org/bot{tg_token}/sendMessage",
@@ -3459,7 +3460,7 @@ def tab_calculadora():
                     except Exception as e:
                         st.error(f"Falha no Telegram: {e}")
             else:
-                st.button("Telegram (sem config)", disabled=True, help="Configure TELEGRAM_TOKEN e TELEGRAM_CHAT_ID", use_container_width=True, key="calc_tg_disabled")
+                st.button("Telegram (sem config)", disabled=True, help="Configure TELEGRAM_TOKEN e TELEGRAM_CHAT_ID", width='stretch', key="calc_tg_disabled")
 
     st.markdown("---")
     if is_complete:

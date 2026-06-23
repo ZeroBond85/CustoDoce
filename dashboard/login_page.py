@@ -154,10 +154,10 @@ def render_login():
         c1, c2 = st.columns(2)
         with c1:
             submitted = st.button(
-                "Entrar", type="primary", use_container_width=True
+                "Entrar", type="primary", width='stretch'
             )
         with c2:
-            if st.button("Limpar", use_container_width=True):
+            if st.button("Limpar", width='stretch'):
                 for k in ["login_user", "login_pass", "login_totp"]:
                     st.session_state.pop(k, None)
                 st.rerun()
@@ -280,7 +280,7 @@ def render_setup_first_user():
                     st.error("Codigo invalido. Verifique o app autenticador.")
 
         if st.button(
-            "Salvar Configuracao", type="primary", use_container_width=True
+            "Salvar Configuracao", type="primary", width='stretch'
         ):
             if not new_pass or len(new_pass) < 8:
                 st.error("A senha deve ter no minimo 8 caracteres.")

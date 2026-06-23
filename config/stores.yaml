@@ -232,16 +232,20 @@ stores:
 
   - name: "Amendolate"
     tier: 2
-    type: "vtex_api"
-    is_active: false
-    inactive_reason: "VTEX API retorna 500 — site pode ter migrado de plataforma."
+    type: "website_catalog"
+    is_active: true
     logistics: "pickup_sp"
     base_url: "https://www.amendolate.com.br"
+    search_url: "https://www.amendolate.com.br/confeitaria/{query}"
+    selectors:
+      product_card: ["li", ".product-item", ".item", ".produto"]
+      product_name: ["a", ".product-name", ".nome-produto", "h3 a"]
+      product_price: [".price", ".preco", ".preco-promocional"]
     address: "Rua Schilling, 577 - Vila Leopoldina, SP"
     zone: "oeste"
-    coverage: "Chocolates, corantes, pasta americana, formas, utensílios"
+    coverage: "4.210 SKUs - chocolates, leite condensado, corantes, pasta americana, formas, utensílios - Loja Própria (ex-VTEX)"
     collection_method: "automated"
-    scraper: "vtex_scraper"
+    scraper: "website_scraper"
     priority: 10
 
   - name: "Central Flavor"
@@ -713,15 +717,39 @@ stores:
     scraper: "website_scraper"
     priority: 54
 
+  - name: "Dona Dani Ingredientes"
+    tier: 2
+    type: "website_catalog"
+    logistics: "delivery"
+    base_url: "https://donadaniingredientes.com.br"
+    search_url: "https://donadaniingredientes.com.br/search/?q={query}"
+    selectors:
+      product_card: [".js-item-product", ".item-product", ".col-grid"]
+      product_name: [".js-item-name", ".item-name"]
+      product_price: [".js-price-display", ".item-price"]
+    address: "Online - envio nacional"
+    coverage: "95 SKUs - insumos para panificação, confeitaria e chocolateria - TiendaNube/Toluca"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 51
+
   - name: "Cacau Center"
     tier: 2
     type: "website_catalog"
-    is_active: false
+    is_active: true
     logistics: "pickup_local"
     base_url: "https://cacaucenter.com.br"
+    search_url: "https://cacaucenter.com.br/?s={query}&post_type=product"
+    selectors:
+      product_card: [".product", "li.product", ".type-product", ".product-item"]
+      product_name: [".woocommerce-loop-product__title", "h2 a", ".product-title"]
+      product_price: [".price", ".amount", ".woocommerce-Price-amount", ".preco"]
     address: "Av. Prefeito José Monteiro, 744 - Vila Valença, São Vicente"
     city: "São Vicente"
-    coverage: "Chocolates, coberturas, granulados, formas BWB, utensílios (inativo - WordPress sem catálogo de produtos)"
+    units:
+      - name: "Matriz"
+        address: "Av. Prefeito José Monteiro, 744 - Vila Valença, São Vicente"
+    coverage: "Chocolates, coberturas, granulados, recheios, formas, utensílios, panificação, sorveteria - WooCommerce - entrega Baixada Santista e Brasil"
     collection_method: "automated"
     scraper: "website_scraper"
     priority: 33
@@ -921,3 +949,21 @@ stores:
     collection_method: "manual"
     contact: ""
     priority: 49
+
+  - name: "Ingredientes Santa Vita"
+    tier: 4
+    type: "manual"
+    is_active: false
+    logistics: "pickup_local"
+    base_url: "https://www.ingredientessantavita.com.br"
+    platform: "loja_integrada"
+    address: "Rua Santa Ifigênia - Centro, São Paulo"
+    city: "São Paulo"
+    units:
+      - name: "Matriz"
+        address: "Zona Cerealista, São Paulo"
+    coverage: "Insumos para panificação e confeitaria - Loja Integrada com login wall e conteudo JS - requer autenticacao para precos"
+    collection_method: "manual"
+    scraper: "website_scraper"
+    contact: ""
+    priority: 52
