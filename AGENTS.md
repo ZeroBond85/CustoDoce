@@ -31,7 +31,7 @@ CustoDoce/
 │   ├── scrape.yml                   # Coleta automática (cron + deploy)
 │   └── ci.yml                       # CI: ruff + bandit + pytest + pip-audit
 ├── config/
-│   ├── ingredients.yaml             # 18 ingredientes canônicos + aliases + search_terms
+│   ├── ingredients.yaml             # 23 ingredientes canônicos + aliases + search_terms
 │   ├── stores.yaml                  # 50 lojas (Tier 1-4)
 │   ├── features.yaml                # Flags declarativas liga/desliga
 │   └── schema_prices.json           # Contrato de dados
@@ -70,12 +70,12 @@ CustoDoce/
 ├── telegram_bot/
 │   └── handlers.py                  # /preco, /lista, /status
 ├── admin/
-│   └── app.py                       # Streamlit dashboard (18 abas)
+│   └── app.py                       # Streamlit dashboard (16 abas)
 ├── dashboard/
 │   ├── login_page.py                # Auth + 2FA
 │   └── components/
 │       ├── ui.py                    # CSS + componentes reutilizáveis
-│       └── layout.py                # Sidebar com navegação (18 páginas)
+│       └── layout.py                # Sidebar com navegação (16 páginas)
 ├── supabase/
 │   ├── seed.sql                     # Tabelas + índices + RLS + triggers
 │   ├── consolidated_migration.sql   # Migração consolidada (574 linhas)
@@ -84,7 +84,9 @@ CustoDoce/
 │   ├── seed_prices.py               # Gera dados sintéticos (--dry-run/--execute/--json)
 │   ├── deploy_database.py           # Migração SQL (--dry-run/--execute/--output)
 │   ├── send_daily_report.py         # Relatório diário por email
-│   └── deploy_check.py              # Health check pré-deploy
+│   ├── deploy_check.py              # Health check pré-deploy
+│   ├── db_audit.py                  # Auditoria completa do DB (83 queries)
+│   └── validate_db_schema.py        # 87 checks de schema (tabelas, colunas, constraints)
 ├── tests/
 │   ├── test_dashboard_full.py       # 85 testes unitários
 │   ├── test_services_mocked.py      # 75 testes com mocks
@@ -108,26 +110,30 @@ CustoDoce/
 | 3 | Agregadores (Tiendeo, Guiato) | Fallback | Automatizado - if tier 1/2 fail |
 | 4 | Manual (WhatsApp, visita local) | Sob demanda | Planilha .xlsx |
 
-## Ingredientes Monitorados (19)
-1. Leite Condensado Integral (lacteos)
-2. Creme de Leite 20% Gordura (lacteos)
-3. Chocolate em Pó 50% Cacau (chocolates)
-4. Leite Ninho Integral (lacteos)
-5. Granulado Melken Ao Leite (confeitos)
-6. Granulado Melken Branco (confeitos)
-7. Granulado Melken Meio Amargo (confeitos)
-8. Nutella (pastas)
-9. Coloretti Granulado Colorido (confeitos)
-10. Coco Ralado Grosso sem Açúcar (secos)
-11. Chocolate Nobre Blend Harald (chocolates)
-12. Açúcar Mascavo (acucares)
-13. Açúcar de Confeiteiro (acucares)
-14. Chocolate em Pó 70% Cacau (chocolates)
-15. Farinha de Trigo (farinhas)
-16. Micro Ball (confeitos)
-17. Top Confete Morango (confeitos)
-18. Gotas de Chocolate Branco (chocolates)
-19. Manteiga (lacteos)
+## Ingredientes Monitorados (23)
+1. Leite Condensado Integral (lacteos) — brands: Moça, Piracanjuba, Italac, Itambé
+2. Creme de Leite 20% Gordura (lacteos) — brands: Nestlé, Piracanjuba
+3. Chocolate em Pó 50% Cacau (chocolates) — brands: Melken, Sicao
+4. Leite em Pó Integral (lacteos) — brands: Ninho
+5. Granulado Ao Leite (confeitos) — brands: Melken
+6. Granulado Branco (confeitos) — brands: Melken
+7. Granulado Meio Amargo (confeitos) — brands: Melken
+8. Creme de Avelã (pastas) — brands: Nutella
+9. Granulado Colorido (confeitos) — brands: Coloretti
+10. Coco Ralado Grosso sem Açúcar (secos) — brands: Socôco, Ducoco
+11. Chocolate Nobre Blend (chocolates) — brands: Harald
+12. Açúcar Mascavo (acucares) — brands: JR
+13. Açúcar de Confeiteiro (acucares) — brands: Mavalerio
+14. Chocolate em Pó 70% Cacau (chocolates) — brands: Sicao
+15. Farinha de Trigo (farinhas) — brands: Dona Benta
+16. Micro Ball (confeitos) — brands: Mavalerio
+17. Top Confete Morango (confeitos) — brands: Harald
+18. Gotas de Chocolate Branco (chocolates) — brands: Melken
+19. Manteiga (lacteos) — brands: Aviação, Delícia, Itambé, Piracanjuba, Batavo, Vigor, Presidente, Tirolez
+20. Gotas de Chocolate Meio Amargo (chocolates) — brands: Harald, Melken
+21. Chocolate Meio Amargo em Barra (chocolates) — brands: Harald, Callebaut, Garoto
+22. Fermento Químico em Pó (farinhas) — brands: Royal, Dona Benta
+23. Essência de Baunilha (essencias) — brands: Mavalerio, Coza, Dr.Oetker
 
 ## Fluxo de Coleta (GitHub Actions)
 
@@ -257,7 +263,7 @@ python -c "import json, jsonschema; s=json.load(open('config/schema_prices.json'
 - `bandit` — segurança (zero issues)
 - `pip-audit` — CVEs (zero vulnerabilidades)
 - `radon` — complexidade (média B)
-- `pytest` — 230 testes (dashboard: 85, services: 145)
+- `pytest` — 230 testes + 6 integração (dashboard: 85, services: 145)
 - `flake8` / `vulture` — código morto (opcional)
 
 ### Checklist por Fase
@@ -527,3 +533,4 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 - **Fase 15f** ✅ .single() → .maybe_single() sistêmico + Thumbs quebradas + Filtro Tiendeo — `services/config_db.py` + `price_service.py`: todos os 6 `.single()` substituídos por `.maybe_single()`, eliminando PGRST116 na raiz sem try/except; `admin/app.py`: fallback visual nas 3 seções de imagem (flyer grid, flyer detail, review queue) — URL inválida vira link clicável em vez de thumbnail quebrada; `aggregator_scraper.py`: `_is_food_store()` com 15+ keywords alimentícias e 50+ de blocklist (Boticário, farmácias, magazines etc.) + `_fix_image_url()` que prefixa `https:` em URLs `//`; `flyer_service.py`: `cleanup_non_food_flyers()` deleta flyers existentes de lojas não-alimentícias; `main.py`: incluído no loop de cleanup; 230 testes + 6 integração, ruff 0
 - **Fase 15g** ✅ DB Audit + Tabelas recipes/recipe_items — Auditoria completa (`scripts/db_audit.py`) revelou 3 problemas: (1) tabelas `recipes`+`recipe_items` não existiam (crítico — calculadora não salvava); (2) 51/75 flyers sem image_url (PDF scrapers); (3) `scrape_frequencies` vazia. Correção: PHASE 14 criou `recipes` (id, name, yield_qty, overhead_pct, profit_pct, created_at) + `recipe_items` (id, recipe_id→recipes(id), ingredient_id, quantity_g, selected_store, price_per_kg) com RLS + índice; `validate_db_schema.py` atualizado (87/87 checks); `deploy_database.py` + `consolidated_migration.sql` atualizados; 230 testes + 6 integração, ruff 0
 - **Fase 15h** ✅ PDF Thumbnails + scrape_frequencies seeding — `scrapers/base_flyer.py`: método `_render_first_page()` usa `pdfplumber.to_image(resolution=150)` para renderizar primeira página como PNG; `_thumbnail` salvo como atributo de instância durante `run()`; `main.py`: `_upload_flyer_thumbnail()` faz upload para Supabase Storage (bucket `thumbnails`, pasta `flyers/`) e retorna URL pública; `_collect_prices()` salva flyer record com thumbnail URL após processar PDF; fallback gracioso em todas as etapas (falha = sem thumbnail, não bloqueia pipeline); `scrape_frequencies` populada: 60 lojas com frequências por tier (Tier 1=semanal, Tier 2=diário, Tier 3=quinzenal, Tier 4=desabilitado); auditoria: 14 tabelas OK, 0 erros críticos; 230 testes + 6 integração, ruff 0
+- **Fase 15i** ✅ Ingredient Normalization & DB Cleanup — 26.476 linhas com `ingredient_id` inválido removidas de `prices` e `price_history`; 11 ingredientes renomeados removendo marca do nome canônico (Ninho→Leite em Pó, Melken removido, Coloretti removido, Blend Harald removido); 2 duplicatas deletadas (Chocolate Nobre, Granulado ao Leite); 12 novos ingredientes inseridos no DB (Açúcar Mascavo, Açúcar Confeiteiro, Chocolate 70%, Farinha, Micro Ball, Top Confete, Gotas Branco, Manteiga, Gotas Meio Amargo, Chocolate Barra, Fermento, Baunilha); total 23 ingredientes no DB; `brands` e `search_terms` populados em todos; 230 testes + 6 integração, ruff 0
