@@ -51,7 +51,9 @@ def _is_food_store(store_name: str) -> bool:
 def _fix_image_url(url: str) -> str:
     url = url.strip()
     if url.startswith("//"):
-        return "https:" + url
+        url = "https:" + url
+    if "example.com" in url or "placeholder" in url:
+        return ""
     return url
 
 

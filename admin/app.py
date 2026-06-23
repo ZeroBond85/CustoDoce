@@ -817,26 +817,23 @@ def tab_flyers():
                 img_url = _safe_image_url(img)
                 with cols[col_idx], st.container(border=True):
                         img_html = html.escape(img_url)
-                        fallback_text = html.escape(img if img else "Sem imagem")
                         if img_url:
                             st.markdown(
-                                f'<div style="position:relative;width:100%;min-height:120px;'
+                                f'<div style="width:100%;min-height:100px;'
                                 f'background:#F3F4F6;border-radius:8px;overflow:hidden;">'
                                 f'<img src="{img_html}" '
-                                f'style="width:100%;height:auto;display:block;" '
-                                f'onerror="this.style.display=\'none\';'
-                                f'this.nextElementSibling.style.display=\'flex\';" />'
-                                f'<div style="display:none;position:absolute;inset:0;'
-                                f'align-items:center;justify-content:center;padding:0.5rem;'
-                                f'font-size:0.7rem;color:#9CA3AF;word-break:break-all;text-align:center;">'
-                                f'{fallback_text}</div></div>',
+                                f'style="width:100%;height:auto;display:block;" /></div>'
+                                f'<a href="{img_html}" target="_blank" '
+                                f'style="font-size:0.65rem;color:#6B7280;word-break:break-all;'
+                                f'display:block;margin-top:0.25rem;">'
+                                f'{img_html[:60]}...</a>',
                                 unsafe_allow_html=True,
                             )
                         else:
                             if img:
                                 st.markdown(
                                     f'<p style="font-size:0.7rem;color:#9CA3AF;word-break:break-all;">'
-                                    f'{fallback_text}</p>',
+                                    f'{html.escape(img)}</p>',
                                     unsafe_allow_html=True,
                                 )
                             else:
@@ -894,10 +891,10 @@ def tab_flyers():
                     img_escaped = html.escape(img_url)
                     st.markdown(
                         f'<img src="{img_escaped}" '
-                        f'style="width:100%;max-height:500px;object-fit:contain;border-radius:8px;" '
-                        f'onerror="this.style.display=\'none\';'
-                        f'this.parentElement.innerHTML+=\'<p style=color:#9CA3AF;word-break:break-all;>'
-                        f'URL: <a href={img_escaped} target=_blank>{img_escaped}</a></p>\';" />',
+                        f'style="width:100%;max-height:500px;object-fit:contain;border-radius:8px;" />'
+                        f'<a href="{img_escaped}" target="_blank" '
+                        f'style="font-size:0.7rem;color:#6B7280;word-break:break-all;display:block;margin-top:0.25rem;">'
+                        f'Abrir imagem em nova aba</a>',
                         unsafe_allow_html=True,
                     )
                 with col_dl:
@@ -963,10 +960,10 @@ def tab_revisao():
                     st.markdown(
                         f'<img src="{img_escaped}" '
                         f'style="width:100%;max-height:300px;object-fit:contain;'
-                        f'border-radius:8px;border:1px solid #E5E7EB;" '
-                        f'onerror="this.style.display=\'none\';'
-                        f'this.parentElement.innerHTML+=\'<p style=color:#9CA3AF;padding:1rem;word-break:break-all;>'
-                        f'URL: <a href={img_escaped} target=_blank>{img_escaped}</a></p>\';" />',
+                        f'border-radius:8px;border:1px solid #E5E7EB;" />'
+                        f'<a href="{img_escaped}" target="_blank" '
+                        f'style="font-size:0.65rem;color:#6B7280;word-break:break-all;display:block;margin-top:0.25rem;">'
+                        f'Abrir imagem em nova aba</a>',
                         unsafe_allow_html=True,
                     )
                 elif source_url:
