@@ -8,6 +8,53 @@ from selectolax.parser import HTMLParser
 
 logger = logging.getLogger(__name__)
 
+FOOD_KEYWORDS = {
+    "supermercado", "mercado", "mercad", "atacad", "hiper",
+    "padaria", "pao", "confeitaria", "confeiteiro", "doce", "doces",
+    "empório", "emporio", "distribuidora", "distribuidor",
+    "farinha", "frios", "açougue", "acougue", "hortifruti",
+    "bebidas", "acucar", "alimentos", "guloseimas",
+    "festas", "embalagens", "descartaveis", "descartáveis",
+}
+NON_FOOD_KEYWORDS = {
+    "boticário", "boticario", "magazine", "casas bahia",
+    "renner", "riachuelo", "marisa", "c&a", "cea",
+    "drogaria", "farmacia", "farmácia", "drogasil", "drogão", "drogao",
+    "polishop", "fast shop", "shop", "lojas", "melissa",
+    "electrolux", "lg", "samsung", "sony", "apple",
+    "posto", "gasolina", "combustivel",
+    "pet", "petshop", "animal",
+    "papelaria", "livraria",
+    "academia", "ginastica",
+    "ótica", "otica", "oculos",
+    "seguros", "banco", "financiamento",
+    "imobiliária", "imobiliaria", "imovel",
+    "automoveis", "carro", "moto", "bicicleta",
+    "cama", "mesa", "banho", "cama mesa banho",
+    "material de construcao", "construcao", "construção",
+    "presentes", "souvenir",
+    "brinquedos", "jogos",
+    "perfumaria", "cosmeticos", "cosméticos",
+    "lavanderia", "limpeza",
+}
+
+
+def _is_food_store(store_name: str) -> bool:
+    name_lower = store_name.lower().strip()
+    if any(kw in name_lower for kw in NON_FOOD_KEYWORDS):
+        return False
+    if any(kw in name_lower for kw in FOOD_KEYWORDS):
+        return True
+    return True
+
+
+def _fix_image_url(url: str) -> str:
+    url = url.strip()
+    if url.startswith("//"):
+        return "https:" + url
+    return url
+
+
 CITY_SLUGS = {
     "santos": "Santos",
     "sao-vicente": "São Vicente",
@@ -83,8 +130,13 @@ class TiendeoScraper:
                 if not store_name or not title_el:
                     continue
 
+                store_name_text = store_name.text().strip()
+                if not _is_food_store(store_name_text):
+                    logger.debug("Skipping non-food store: %s", store_name_text)
+                    continue
+
                 flyer = {
-                    "store_name": store_name.text().strip(),
+                    "store_name": store_name_text,
                     "region": region,
                     "flyer_title": title_el.text().strip(),
                     "image_url": "",
@@ -93,9 +145,9 @@ class TiendeoScraper:
                 }
 
                 if img_big:
-                    flyer["image_url"] = img_big.attributes.get("src", "")
+                    flyer["image_url"] = _fix_image_url(img_big.attributes.get("src", ""))
                 elif img_small:
-                    flyer["image_url"] = img_small.attributes.get("src", "")
+                    flyer["image_url"] = _fix_image_url(img_small.attributes.get("src", ""))
 
                 date_text = date_el.text().strip() if date_el else ""
                 flyer["flyer_date_end"] = self._parse_date(date_text)

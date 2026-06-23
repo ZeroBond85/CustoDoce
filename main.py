@@ -24,7 +24,7 @@ from parsers.normalizer import normalize_price
 from parsers.matcher import match_ingredient, rank_ingredients, clean_text
 from parsers.brand_extractor import extract_brand
 from services.price_service import upsert_price, insert_review_item, log_scraper_run, cleanup_old_prices, cleanup_old_logs, _detect_promotion, _weekday_pt
-from services.flyer_service import cleanup_old_flyers
+from services.flyer_service import cleanup_old_flyers, cleanup_non_food_flyers
 from services.flyer_service import upsert_flyer
 from services.email_service import send_daily_report, send_scraper_error
 from services.config_db import get_active_ingredients, get_active_stores
@@ -522,6 +522,12 @@ def main():
             logger.info("Cleanup %s: %s", name, result)
         except Exception as e:
             logger.warning("Erro cleanup %s: %s", name, e)
+
+    try:
+        result = cleanup_non_food_flyers()
+        logger.info("Cleanup non-food flyers: %s", result)
+    except Exception as e:
+        logger.warning("Erro cleanup non-food flyers: %s", e)
 
     logger.info("Coleta concluida: %s", datetime.now().isoformat())
 

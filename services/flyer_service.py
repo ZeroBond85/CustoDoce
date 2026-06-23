@@ -65,6 +65,46 @@ def cleanup_old_flyers(retention_days: int = 60) -> dict:
     return {"deleted": result.data} if result.data else {"deleted": 0}
 
 
+_NON_FOOD_KEYWORDS = frozenset({
+    "boticário", "boticario", "magazine", "casas bahia",
+    "renner", "riachuelo", "marisa", "c&a", "cea",
+    "drogaria", "farmacia", "farmácia", "drogasil", "drogão", "drogao",
+    "polishop", "fast shop",
+    "electrolux", "lg", "samsung", "sony",
+    "posto", "gasolina", "combustivel",
+    "pet", "petshop",
+    "papelaria", "livraria",
+    "academia",
+    "ótica", "otica", "oculos",
+    "seguros", "banco",
+    "imobiliária", "imobiliaria", "imovel",
+    "automoveis", "carro", "moto",
+    "cama mesa banho",
+    "construcao", "construção",
+    "presentes", "souvenir",
+    "brinquedos",
+    "perfumaria", "cosmeticos", "cosméticos",
+    "lavanderia",
+})
+
+
+def cleanup_non_food_flyers() -> dict:
+    """Deleta flyers de lojas nao-alimenticias (ex: Boticario, Magazine)."""
+    client = get_service_client()
+    result = client.table("flyers").select("id, store_name").execute()
+    if not result.data:
+        return {"deleted": 0}
+    to_delete = []
+    for f in result.data:
+        name = (f.get("store_name") or "").lower().strip()
+        if any(kw in name for kw in _NON_FOOD_KEYWORDS):
+            to_delete.append(f["id"])
+    if not to_delete:
+        return {"deleted": 0}
+    del_result = client.table("flyers").delete().in_("id", to_delete).execute()
+    return {"deleted": len(del_result.data) if del_result.data else 0}
+
+
 def get_recent_flyers(days: int = 7, source: Optional[str] = None) -> list[dict]:
     client = get_supabase()
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
