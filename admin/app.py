@@ -784,37 +784,59 @@ def tab_flyers():
         if source_filter != "todos":
             filtered = filtered[filtered["source"] == source_filter]
 
-        cards_html = '<div class="cd-flyer-grid">'
-        for _, f in filtered.head(50).iterrows():
-            status = f.get("ocr_status", "pending")
-            color = _flyer_status_color(status)
-            label = _flyer_status_label(status)
-            store = _sanitize(f.get("store_name", "?"))
-            title = _sanitize(f.get("flyer_title", f.get("title", ""))[:60])
-            products = int(f.get("products_extracted", 0))
-            collected = f["collected_at"].strftime("%d/%m/%Y") if pd.notna(f["collected_at"]) else "?"
-            cards_html += (
-                f'<div class="cd-flyer-card" id="flyer_{f["id"]}">'
-                f'<div class="store">{store}</div>'
-                f'<div class="title">{title}</div>'
-                f'<div class="meta">'
-                f'<span class="meta-item" style="color:{color};font-weight:700;">{label}</span>'
-                f'<span class="products">{products} produtos</span>'
-                f'<span class="date">{collected}</span>'
-                f'</div></div>'
-            )
-        cards_html += "</div>"
-        st.markdown(cards_html, unsafe_allow_html=True)
+        # ── Grid interativo de flyers ──
+        cols_per_row = 4
+        rows_data = list(filtered.head(50).iterrows())
+        for row_idx in range(0, len(rows_data), cols_per_row):
+            cols = st.columns(cols_per_row)
+            for col_idx in range(cols_per_row):
+                idx = row_idx + col_idx
+                if idx >= len(rows_data):
+                    cols[col_idx].empty()
+                    continue
+                _, f = rows_data[idx]
+                status = f.get("ocr_status", "pending")
+                color = _flyer_status_color(status)
+                label = _flyer_status_label(status)
+                store = _sanitize(f.get("store_name", "?"))
+                title = _sanitize(f.get("flyer_title", f.get("title", ""))[:60])
+                products = int(f.get("products_extracted", 0))
+                collected = f["collected_at"].strftime("%d/%m") if pd.notna(f["collected_at"]) else "?"
+                flyer_id = f.get("id", f"f_{idx}")
+                img = f.get("image_url", "")
+                with cols[col_idx], st.container(border=True):
+                        if img:
+                            st.image(img, use_container_width=True)
+                        else:
+                            st.caption("Sem imagem")
+                        st.markdown(
+                            f'<div style="font-size:0.85rem;font-weight:700;">{store}</div>'
+                            f'<div style="font-size:0.75rem;color:#6B7280;">{title}</div>'
+                            f'<div style="display:flex;gap:0.5rem;font-size:0.7rem;margin-top:0.25rem;">'
+                            f'<span style="color:{color};font-weight:700;">{label}</span>'
+                            f'<span style="color:var(--cd-blue);font-weight:700;">{products} prod.</span>'
+                            f'<span style="color:#9CA3AF;">{collected}</span>'
+                            f"</div>",
+                            unsafe_allow_html=True,
+                        )
+                        if st.button("🔍 Ver detalhes", key=f"flyer_btn_{flyer_id}", use_container_width=True):
+                            st.session_state.selected_flyer_id = flyer_id
+                            st.rerun()
+
         st.caption(f"Exibindo {min(len(filtered), 50)} de {len(filtered)} flyers")
 
-        st.markdown("### Detalhe do Flyer")
-        flyer_options = {}
-        for _, f in filtered.iterrows():
-            label = f"{f.get('store_name', '?')} — {f.get('flyer_title', f.get('title', ''))[:50]}"
-            flyer_options[label] = f
-        if flyer_options:
-            selected_label = st.selectbox("Selecione um flyer para ver detalhes", list(flyer_options.keys()))
-            selected = flyer_options[selected_label]
+        # ── Detalhe do flyer selecionado ──
+        sel_id = st.session_state.get("selected_flyer_id")
+        selected = None
+        if sel_id:
+            matches = filtered[filtered["id"] == sel_id]
+            if not matches.empty:
+                selected = matches.iloc[0]
+        if selected is None and not filtered.empty:
+            selected = filtered.iloc[0]
+
+        if selected is not None:
+            st.markdown("### Detalhe do Flyer")
             f_store = _sanitize(selected.get("store_name", "?"))
             f_region = _sanitize(selected.get("region", "?"))
             f_city = _sanitize(selected.get("city", "?"))
@@ -828,8 +850,8 @@ def tab_flyers():
                 f'<div><strong>Status OCR:</strong> <span style="color:{_flyer_status_color(f_ocr_status)};font-weight:700;">{_flyer_status_label(f_ocr_status)}</span></div>'
                 f'<div><strong>Produtos:</strong> {int(selected.get("products_extracted", 0))}</div>'
                 f'<div><strong>Coleta:</strong> {pd.to_datetime(selected["collected_at"]).strftime("%d/%m/%Y %H:%M") if "collected_at" in selected else "?"}</div>'
-                f'</div>'
-                f'</div>',
+                f"</div>"
+                f"</div>",
                 unsafe_allow_html=True,
             )
             img_url = selected.get("image_url", "")
