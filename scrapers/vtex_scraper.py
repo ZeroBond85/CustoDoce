@@ -74,7 +74,8 @@ class VtexScraper(BaseWebScraper):
                 or item.get("name")
                 or product_name
             )
-            brand = brand_api or extract_brand(item_name, ing)
+            extracted = extract_brand(item_name, ing)
+            brand = extracted if extracted != "Desconhecido" else brand_api
             sellers = item.get("sellers", [])
             for seller in sellers:
                 offer = seller.get("commertialOffer", {})

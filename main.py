@@ -169,6 +169,9 @@ def process_price_match(
                 "matched_term": c[3],
             })
 
+        if not brand and candidates:
+            brand = extract_brand(product_text, candidates[0][0])
+
         review_item = {
             "raw_product": product_text,
             "raw_price": raw_price,
