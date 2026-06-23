@@ -469,6 +469,21 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 | Migration no Supabase: PHASE 10 executada + `consolidated_migration.sql` atualizado | ✅ |
 | 230 testes, ruff 0, bandit 0 | ✅ |
 
+## Fase 15d — RPC Upsert + DB Validation (concluida)
+
+| O que foi feito | Resultado |
+|----------------|-----------|
+| Erro 42P10 corrigido: constraint UNIQUE faltava na tabela `prices` | ✅ |
+| PHASE 12: constraints UNIQUE (ingredient_id, store_id, collected_at) em prices + price_history | ✅ |
+| PHASE 13: `upsert_price_rpc()` PL/pgSQL — server-side upsert, bypassa on_conflict do client | ✅ |
+| `upsert_price()` tenta RPC primeiro, fallback para on_conflict client-side | ✅ |
+| `validate_db_schema.py` — 72 checks (tabelas, colunas, constraints, índices, funções) | ✅ |
+| CI pipeline: DB schema validation adicionado ao ci.yml | ✅ |
+| `st.image()` com try/except — thumbnails quebradas mostram fallback | ✅ |
+| Logo sidebar: 180px → 220px; tagline: 0.7rem → 0.9rem | ✅ |
+| Testes atualizados: mocks verificam RPC params em vez de table upsert | ✅ |
+| 230 testes, ruff 0, bandit 0 | ✅ |
+
 ## Status das Fases
 
 - **Fase 1** ✅ Estrutura base (pastas, parsers, services, schema, base_flyer)
@@ -495,3 +510,4 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 - **Fase 15** ✅ Review Queue Enhanced — coluna `match_type`, `match_reason` detalhado (tipo, score, candidato, termo, palavras não matcheadas), top 3 com scores, UI 2 colunas com imagem sempre visível, badge de match type colorido, progress bar de confiança; 230 testes
 - **Fase 15b** ✅ DB Gaps & Refactor — `reject_review_item()` retorna `{}`, dead code removido, `get_review_queue()` com `.limit(500)`, `_export_csv_button()` helper (**-96 linhas**), `_cached_get_all_current_prices()` substitui 6 chamadas, `store_id` real em vez de fabricado, 5 índices PHASE 10; 230 testes
 - **Fase 15c** ✅ Brand Propagation & Alias UX — `extract_brand` chamado também no caminho de revisão; VTEX scraper prioriza brands conhecidas sobre API; `brand` adicionado a todos os scrapers (website com `product_brand` selector); form de ingredientes redesenhado com campos `brands`+`search_terms`; sugestão automática de aliases com 5 padrões; PHASE 11 migration (`brands`+`search_terms` na tabela `ingredients`); 19 ingredientes (adicionado Manteiga); 230 testes
+- **Fase 15d** ✅ RPC Upsert + DB Validation — erro 42P10 corrigido: `upsert_price_rpc()` PL/pgSQL server-side bypassa `on_conflict` do client; PHASE 12 (constraints UNIQUE) + PHASE 13 (RPC function); `validate_db_schema.py` (72 checks: tabelas, colunas, constraints, índices, funções); CI pipeline atualizado com DB schema validation; st.image() com try/except para thumbnails quebradas; logo 220px + tagline 0.9rem; 230 testes

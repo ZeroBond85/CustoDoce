@@ -242,6 +242,7 @@ CustoDoce/
 │   ├── seed_prices.py               # Gera dados sintéticos (--dry-run/--execute/--json)
 │   ├── deploy_database.py           # Migração SQL (--dry-run/--execute/--output)
 │   ├── send_daily_report.py         # Relatório diário por email
+│   ├── validate_db_schema.py        # Valida schema do DB (72 checks)
 │   └── deploy_check.py              # Health check pré-deploy
 ├── tests/
 │   ├── test_dashboard_full.py       # 85 testes unitários

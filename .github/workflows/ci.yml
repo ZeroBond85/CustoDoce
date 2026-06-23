@@ -55,6 +55,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
+      - name: DB schema validation (72 checks)
+        run: python scripts/validate_db_schema.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
   streamlit-validate:
     runs-on: ubuntu-latest
     timeout-minutes: 15
