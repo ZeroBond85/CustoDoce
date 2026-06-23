@@ -947,11 +947,58 @@ def tab_revisao():
                         color, label = badge_colors.get(match_type, ("gray", match_type))
                         st.markdown(f":{color}[**{label}**]")
 
-                    # Match reason
-                    if match_reason:
-                        st.info(f"📋 **Diagnóstico:** {match_reason}")
-                    elif confidence < 0.8:
-                        st.info("ℹ️ Revisão necessária: confiança inferior a 80%.")
+                    # ── Diagnóstico visual ──
+                    with st.expander("📋 Diagnóstico completo", expanded=True):
+                        diag_cols = st.columns([1, 1])
+                        with diag_cols[0]:
+                            st.markdown("**Texto do produto**")
+                            st.code(raw_product, language="text")
+                            if brand:
+                                st.caption(f"Marca detectada: {brand}")
+                        with diag_cols[1]:
+                            st.markdown("**Evidência visual**")
+                            if image_url:
+                                st.markdown("✅ Imagem disponível")
+                            elif source_url:
+                                st.markdown("🔗 Link da página disponível")
+                            else:
+                                st.markdown("❌ **Sem evidência visual** — a imagem não foi capturada, dificulta a conferência")
+                            st.caption(f"Confiança: {confidence*100:.0f}%")
+                            st.progress(confidence)
+
+                        if match_reason:
+                            st.markdown("**Motivo detalhado**")
+                            parts = match_reason.split(" | ")
+                            for p in parts:
+                                if ":" in p:
+                                    k, _, v = p.partition(":")
+                                    st.markdown(f"- **{k.strip()}:** {v.strip()}")
+                                else:
+                                    st.markdown(f"- {p}")
+
+                            # Extrair palavras não matcheadas para destaque
+                            unmatched = ""
+                            for p in parts:
+                                if "não matcheadas" in p:
+                                    unmatched = p.split(":", 1)[-1].strip()
+                            if unmatched:
+                                st.markdown("**Palavras que impediram o match exato:**")
+                                st.markdown(
+                                    f'<div style="background:#FEF2F2;border:1px solid #FCA5A5;'
+                                    f'border-radius:8px;padding:0.5rem 1rem;color:#991B1B;'
+                                    f'font-size:0.85rem;">{unmatched}</div>',
+                                    unsafe_allow_html=True,
+                                )
+                        elif confidence < 0.8:
+                            st.markdown(
+                                f'<div style="background:#FEF3C7;border:1px solid #FCD34D;'
+                                f'border-radius:8px;padding:0.5rem 1rem;color:#92400E;'
+                                f'font-size:0.85rem;">'
+                                f"Confiança {confidence*100:.0f}% abaixo do limiar de 80% — "
+                                f"nenhum ingrediente canônico ou alias teve match suficiente."
+                                f"</div>",
+                                unsafe_allow_html=True,
+                            )
 
                 # ── Row 2: Top 3 Candidates ──
                 top3 = item.get("top3", [])
