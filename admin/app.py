@@ -816,22 +816,31 @@ def tab_flyers():
                 img = f.get("image_url", "")
                 img_url = _safe_image_url(img)
                 with cols[col_idx], st.container(border=True):
+                        img_html = html.escape(img_url)
+                        fallback_text = html.escape(img if img else "Sem imagem")
                         if img_url:
                             st.markdown(
                                 f'<div style="position:relative;width:100%;min-height:120px;'
                                 f'background:#F3F4F6;border-radius:8px;overflow:hidden;">'
-                                f'<img src="{html.escape(img_url)}" '
+                                f'<img src="{img_html}" '
                                 f'style="width:100%;height:auto;display:block;" '
                                 f'onerror="this.style.display=\'none\';'
                                 f'this.nextElementSibling.style.display=\'flex\';" />'
                                 f'<div style="display:none;position:absolute;inset:0;'
-                                f'align-items:center;justify-content:center;'
-                                f'font-size:0.75rem;color:#9CA3AF;">'
-                                f"Sem imagem</div></div>",
+                                f'align-items:center;justify-content:center;padding:0.5rem;'
+                                f'font-size:0.7rem;color:#9CA3AF;word-break:break-all;text-align:center;">'
+                                f'{fallback_text}</div></div>',
                                 unsafe_allow_html=True,
                             )
                         else:
-                            st.caption("Sem imagem")
+                            if img:
+                                st.markdown(
+                                    f'<p style="font-size:0.7rem;color:#9CA3AF;word-break:break-all;">'
+                                    f'{fallback_text}</p>',
+                                    unsafe_allow_html=True,
+                                )
+                            else:
+                                st.caption("Sem imagem")
                         st.markdown(
                             f'<div style="font-size:0.85rem;font-weight:700;">{store}</div>'
                             f'<div style="font-size:0.75rem;color:#6B7280;">{title}</div>'
@@ -877,15 +886,18 @@ def tab_flyers():
                 f"</div>",
                 unsafe_allow_html=True,
             )
-            img_url = _safe_image_url(selected.get("image_url", ""))
+            raw_img = selected.get("image_url", "")
+            img_url = _safe_image_url(raw_img)
             if img_url:
                 col_img, col_dl = st.columns([3, 1])
                 with col_img:
+                    img_escaped = html.escape(img_url)
                     st.markdown(
-                        f'<img src="{html.escape(img_url)}" '
+                        f'<img src="{img_escaped}" '
                         f'style="width:100%;max-height:500px;object-fit:contain;border-radius:8px;" '
                         f'onerror="this.style.display=\'none\';'
-                        f'this.parentElement.innerHTML+=\'<p style=color:#9CA3AF;>Imagem indisponivel</p>\';" />',
+                        f'this.parentElement.innerHTML+=\'<p style=color:#9CA3AF;word-break:break-all;>'
+                        f'URL: <a href={img_escaped} target=_blank>{img_escaped}</a></p>\';" />',
                         unsafe_allow_html=True,
                     )
                 with col_dl:
@@ -903,6 +915,12 @@ def tab_flyers():
                             )
                     except Exception as e:
                         st.caption(f"Erro ao baixar: {e}")
+            elif raw_img:
+                st.markdown(
+                    f'<p style="font-size:0.75rem;color:#9CA3AF;word-break:break-all;">'
+                    f'URL: <code>{html.escape(raw_img)}</code></p>',
+                    unsafe_allow_html=True,
+                )
             ocr_text = selected.get("ocr_text", "")
             if ocr_text:
                 with st.expander("Texto OCR"):
@@ -941,13 +959,14 @@ def tab_revisao():
                 # ── Row 1: Evidência visual (full width) ──
                 img_url = _safe_image_url(image_url)
                 if img_url:
+                    img_escaped = html.escape(img_url)
                     st.markdown(
-                        f'<img src="{html.escape(img_url)}" '
+                        f'<img src="{img_escaped}" '
                         f'style="width:100%;max-height:300px;object-fit:contain;'
                         f'border-radius:8px;border:1px solid #E5E7EB;" '
                         f'onerror="this.style.display=\'none\';'
-                        f'this.parentElement.innerHTML+=\'<p style=color:#9CA3AF;padding:1rem;>'
-                        f'Imagem indisponivel</p>\';" />',
+                        f'this.parentElement.innerHTML+=\'<p style=color:#9CA3AF;padding:1rem;word-break:break-all;>'
+                        f'URL: <a href={img_escaped} target=_blank>{img_escaped}</a></p>\';" />',
                         unsafe_allow_html=True,
                     )
                 elif source_url:
@@ -957,6 +976,12 @@ def tab_revisao():
                         use_container_width=True,
                         type="primary",
                     )
+                    if image_url:
+                        st.markdown(
+                            f'<p style="font-size:0.7rem;color:#9CA3AF;word-break:break-all;margin-top:0.25rem;">'
+                            f'URL imagem: <code>{html.escape(image_url)}</code></p>',
+                            unsafe_allow_html=True,
+                        )
                 else:
                     st.markdown(
                         '<div style="background:#FEF2F2;border:2px dashed #FCA5A5;'
@@ -966,6 +991,12 @@ def tab_revisao():
                         'Classifique com base apenas no texto do produto.</div>',
                         unsafe_allow_html=True,
                     )
+                    if image_url:
+                        st.markdown(
+                            f'<p style="font-size:0.7rem;color:#9CA3AF;word-break:break-all;margin-top:0.25rem;">'
+                            f'URL imagem: <code>{html.escape(image_url)}</code></p>',
+                            unsafe_allow_html=True,
+                        )
 
                 # ── Row 2: Info columns ──
                 info_col, diag_col = st.columns([1, 1])
