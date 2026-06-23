@@ -232,19 +232,24 @@ ingredients:
       - "Gotas de Chocolate Branco 1kg"
     category: "chocolates"
 
-  - canonical: "Manteiga Extra"
+  - canonical: "Manteiga"
     brands: ["Aviação", "Delícia", "Itambé", "Piracanjuba", "Batavo", "Vigor", "Presidente", "Tirolez"]
-    search_terms: ["manteiga extra", "manteiga", "manteiga extra 200g", "manteiga extra sem sal"]
+    search_terms: ["manteiga", "manteiga extra", "manteiga em tablete", "manteiga 200g"]
     aliases:
+      - "Manteiga 200g"
+      - "Manteiga 500g"
+      - "Manteiga 1kg"
+      - "Manteiga em Tablete"
+      - "Manteiga em Tablete 200g"
+      - "Manteiga em Tablete 500g"
+      - "Manteiga Extra"
       - "Manteiga Extra 200g"
       - "Manteiga Extra 500g"
       - "Manteiga Extra 1kg"
       - "Manteiga Extra sem Sal 200g"
-      - "Manteiga Extra sem Sal 500g"
       - "Manteiga Extra Aviação 200g"
       - "Manteiga Delícia Extra 200g"
-      - "Manteiga 200g"
-      - "Manteiga 500g"
+      - "MANTEIGA 200G"
       - "MANTEIGA EXTRA 200G"
-      - "Manteiga Extra cx 200g"
+      - "Manteiga cx 200g"
     category: "lacteos"
