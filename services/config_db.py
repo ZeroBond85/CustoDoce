@@ -51,8 +51,13 @@ def delete_ingredient(ingredient_id: str) -> bool:
     return bool(result.data)
 
 
-def add_alias_to_ingredient(canonical_name: str, new_alias: str) -> Optional[dict]:
-    ingredient = get_ingredient_by_name(canonical_name)
+def add_alias_to_ingredient(canonical_name_or_id: str, new_alias: str) -> Optional[dict]:
+    ingredient = get_ingredient_by_id(canonical_name_or_id) if len(canonical_name_or_id) == 36 and "-" in canonical_name_or_id else None
+    if not ingredient:
+        try:
+            ingredient = get_ingredient_by_name(canonical_name_or_id)
+        except Exception:
+            ingredient = get_ingredient_by_id(canonical_name_or_id) if not ingredient else None
     if not ingredient:
         return None
 

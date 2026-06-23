@@ -55,7 +55,12 @@ def upsert_price(price_entry: dict) -> dict:
     }
     try:
         result = client.rpc("upsert_price_rpc", params).execute()
-        return result.data[0] if result.data else {}
+        data = result.data
+        if isinstance(data, dict):
+            return data
+        if isinstance(data, list) and data:
+            return data[0]
+        return {}
     except Exception:
         data = {
             "ingredient_id": price_entry["ingredient_id"],
