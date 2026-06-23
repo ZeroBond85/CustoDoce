@@ -32,33 +32,58 @@ def upsert_price(price_entry: dict) -> dict:
             price_entry.get("raw_unit", ""),
         )
 
-    data = {
-        "ingredient_id": price_entry["ingredient_id"],
-        "store_id": price_entry["store_id"],
-        "source": price_entry.get("source", "automated"),
-        "store_name": price_entry.get("store_name", ""),
-        "raw_product": price_entry["raw_product"],
-        "raw_price": price_entry["raw_price"],
-        "raw_unit": price_entry.get("raw_unit", ""),
-        "collected_at": date.today().isoformat(),
-        "valid_from": price_entry.get("valid_from", date.today().isoformat()),
-        "valid_until": valid_until,
-        "validity_raw": price_entry.get("validity_raw", ""),
-        "collected_weekday": _weekday_pt(now),
-        "is_promotion": is_promo,
-        "tier": price_entry.get("tier"),
-        "confidence": price_entry.get("confidence", 1.0),
-        "normalized": price_entry.get("normalized"),
-        "city": price_entry.get("city"),
-        "logistics": price_entry.get("logistics"),
-        "brand": price_entry.get("brand", "Desconhecido"),
+    params = {
+        "p_ingredient_id": price_entry["ingredient_id"],
+        "p_store_id": price_entry["store_id"],
+        "p_source": price_entry.get("source", "automated"),
+        "p_store_name": price_entry.get("store_name", ""),
+        "p_raw_product": price_entry["raw_product"],
+        "p_raw_price": float(price_entry["raw_price"]),
+        "p_raw_unit": price_entry.get("raw_unit", ""),
+        "p_collected_at": date.today().isoformat(),
+        "p_valid_from": price_entry.get("valid_from", date.today().isoformat()),
+        "p_valid_until": valid_until,
+        "p_validity_raw": price_entry.get("validity_raw", ""),
+        "p_collected_weekday": _weekday_pt(now),
+        "p_is_promotion": is_promo,
+        "p_tier": price_entry.get("tier"),
+        "p_confidence": float(price_entry.get("confidence", 1.0)),
+        "p_normalized": price_entry.get("normalized"),
+        "p_city": price_entry.get("city"),
+        "p_logistics": price_entry.get("logistics"),
+        "p_brand": price_entry.get("brand", "Desconhecido"),
     }
-    result = client.table("prices").upsert(
-        data,
-        on_conflict=["ingredient_id", "store_id", "collected_at"],
-        returning="representation",
-    ).execute()
-    return result.data[0] if result.data else {}
+    try:
+        result = client.rpc("upsert_price_rpc", params).execute()
+        return result.data[0] if result.data else {}
+    except Exception:
+        data = {
+            "ingredient_id": price_entry["ingredient_id"],
+            "store_id": price_entry["store_id"],
+            "source": price_entry.get("source", "automated"),
+            "store_name": price_entry.get("store_name", ""),
+            "raw_product": price_entry["raw_product"],
+            "raw_price": price_entry["raw_price"],
+            "raw_unit": price_entry.get("raw_unit", ""),
+            "collected_at": date.today().isoformat(),
+            "valid_from": price_entry.get("valid_from", date.today().isoformat()),
+            "valid_until": valid_until,
+            "validity_raw": price_entry.get("validity_raw", ""),
+            "collected_weekday": _weekday_pt(now),
+            "is_promotion": is_promo,
+            "tier": price_entry.get("tier"),
+            "confidence": price_entry.get("confidence", 1.0),
+            "normalized": price_entry.get("normalized"),
+            "city": price_entry.get("city"),
+            "logistics": price_entry.get("logistics"),
+            "brand": price_entry.get("brand", "Desconhecido"),
+        }
+        result = client.table("prices").upsert(
+            data,
+            on_conflict=["ingredient_id", "store_id", "collected_at"],
+            returning="representation",
+        ).execute()
+        return result.data[0] if result.data else {}
 
 
 def search_prices(

@@ -782,6 +782,95 @@ ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS brands TEXT[] DEFAULT '{}';
 ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS search_terms TEXT[] DEFAULT '{}';
 
 -- ============================================================
+-- PHASE 12: Ensure UNIQUE constraint on prices + price_history
+-- ============================================================
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'prices'::regclass
+        AND conname = 'prices_ingredient_id_store_id_collected_at_key'
+    ) THEN
+        ALTER TABLE prices
+        ADD CONSTRAINT prices_ingredient_id_store_id_collected_at_key
+        UNIQUE (ingredient_id, store_id, collected_at);
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'price_history'::regclass
+        AND conname = 'price_history_ingredient_id_store_id_collected_at_key'
+    ) THEN
+        ALTER TABLE price_history
+        ADD CONSTRAINT price_history_ingredient_id_store_id_collected_at_key
+        UNIQUE (ingredient_id, store_id, collected_at);
+    END IF;
+END $$;
+
+-- ============================================================
+-- PHASE 13: RPC upsert_price — server-side upsert (bypasses on_conflict issues)
+-- ============================================================
+CREATE OR REPLACE FUNCTION upsert_price_rpc(
+    p_ingredient_id TEXT,
+    p_store_id TEXT,
+    p_source TEXT,
+    p_store_name TEXT,
+    p_raw_product TEXT,
+    p_raw_price NUMERIC,
+    p_raw_unit TEXT,
+    p_collected_at DATE,
+    p_valid_from DATE,
+    p_valid_until DATE,
+    p_validity_raw TEXT,
+    p_collected_weekday TEXT,
+    p_is_promotion BOOLEAN,
+    p_tier INT,
+    p_confidence NUMERIC,
+    p_normalized JSONB,
+    p_city TEXT,
+    p_logistics TEXT,
+    p_brand TEXT
+)
+RETURNS JSONB AS $$
+DECLARE
+    result JSONB;
+BEGIN
+    INSERT INTO prices (
+        ingredient_id, store_id, source, store_name, raw_product,
+        raw_price, raw_unit, collected_at, valid_from, valid_until,
+        validity_raw, collected_weekday, is_promotion, tier, confidence,
+        normalized, city, logistics, brand
+    ) VALUES (
+        p_ingredient_id, p_store_id, p_source, p_store_name, p_raw_product,
+        p_raw_price, p_raw_unit, p_collected_at, p_valid_from, p_valid_until,
+        p_validity_raw, p_collected_weekday, p_is_promotion, p_tier, p_confidence,
+        p_normalized, p_city, p_logistics, p_brand
+    )
+    ON CONFLICT (ingredient_id, store_id, collected_at)
+    DO UPDATE SET
+        source = EXCLUDED.source,
+        store_name = EXCLUDED.store_name,
+        raw_product = EXCLUDED.raw_product,
+        raw_price = EXCLUDED.raw_price,
+        raw_unit = EXCLUDED.raw_unit,
+        valid_from = EXCLUDED.valid_from,
+        valid_until = EXCLUDED.valid_until,
+        validity_raw = EXCLUDED.validity_raw,
+        collected_weekday = EXCLUDED.collected_weekday,
+        is_promotion = EXCLUDED.is_promotion,
+        tier = EXCLUDED.tier,
+        confidence = EXCLUDED.confidence,
+        normalized = EXCLUDED.normalized,
+        city = EXCLUDED.city,
+        logistics = EXCLUDED.logistics,
+        brand = EXCLUDED.brand
+    RETURNING to_jsonb(prices.*) INTO result;
+    RETURN result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================
 -- Migration complete. Verify with:
 --   SELECT table_name FROM information_schema.tables
 --   WHERE table_schema = 'public' ORDER BY table_name;

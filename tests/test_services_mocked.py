@@ -221,17 +221,17 @@ class TestPriceService:
 
         upsert_price(entry)
 
-        payload = qb._captured_upsert
-        assert payload is not None, "upsert() nao foi chamado"
-        assert payload["ingredient_id"] == "Leite Condensado Integral"
-        assert payload["store_id"] == "test_store"
-        assert payload["raw_price"] == 42.90
-        assert payload["validity_raw"] == "Promocao valida ate 30/06"
-        assert payload["collected_weekday"] in ("Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom")
-        assert "valid_from" in payload
-        assert "valid_until" in payload
-        assert "is_promotion" in payload
-        assert "collected_at" in payload
+        fn_name, rpc_params = mock_client._captured_rpc
+        assert fn_name == "upsert_price_rpc", "rpc() should call upsert_price_rpc"
+        assert rpc_params["p_ingredient_id"] == "Leite Condensado Integral"
+        assert rpc_params["p_store_id"] == "test_store"
+        assert rpc_params["p_raw_price"] == 42.90
+        assert rpc_params["p_validity_raw"] == "Promocao valida ate 30/06"
+        assert rpc_params["p_collected_weekday"] in ("Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom")
+        assert rpc_params["p_valid_from"]
+        assert rpc_params["p_valid_until"]
+        assert rpc_params["p_is_promotion"] is not None
+        assert rpc_params["p_collected_at"]
 
     @patch("services.price_service.get_service_client")
     def test_upsert_price_detects_promotion(self, mock_get_client):
@@ -244,8 +244,8 @@ class TestPriceService:
         upsert_price({"ingredient_id": "Teste", "store_id": "t", "store_name": "T",
                        "raw_product": "Moca PROMO 50% OFF", "raw_price": 10.0, "raw_unit": "un"})
 
-        assert qb._captured_upsert is not None
-        assert qb._captured_upsert["is_promotion"] is True
+        _, rpc_params = mock_client._captured_rpc
+        assert rpc_params["p_is_promotion"] is True
 
     @patch("services.price_service.get_service_client")
     def test_upsert_price_no_promotion(self, mock_get_client):
@@ -258,7 +258,8 @@ class TestPriceService:
         upsert_price({"ingredient_id": "Teste", "store_id": "t", "store_name": "T",
                        "raw_product": "Farinha de Trigo", "raw_price": 5.0, "raw_unit": "1kg"})
 
-        assert qb._captured_upsert["is_promotion"] is False
+        _, rpc_params = mock_client._captured_rpc
+        assert rpc_params["p_is_promotion"] is False
 
     @patch("services.price_service.get_service_client")
     def test_upsert_price_default_valid_until(self, mock_get_client):
@@ -272,8 +273,9 @@ class TestPriceService:
                        "raw_product": "Teste", "raw_price": 10.0, "raw_unit": "un"})
 
         expected = (date.today() + timedelta(days=7)).isoformat()
-        assert qb._captured_upsert["valid_until"] == expected, \
-            f"Esperado {expected}, obtido {qb._captured_upsert['valid_until']}"
+        _, rpc_params = mock_client._captured_rpc
+        assert rpc_params["p_valid_until"] == expected, \
+            f"Esperado {expected}, obtido {rpc_params['p_valid_until']}"
 
     # ── search_prices ──────────────────────────────────────────
 
@@ -463,7 +465,9 @@ class TestPriceService:
     # ── approve_review_item ────────────────────────────────────
 
     @patch("services.price_service.get_service_client")
-    def test_approve_review_item_updates_and_upserts(self, mock_get_client):
+    @patch("services.price_service.get_store_by_name", return_value={"id": "test_store", "name": "Test"})
+    @patch("services.price_service.add_alias_to_ingredient", return_value=True)
+    def test_approve_review_item_updates_and_upserts(self, mock_alias, mock_store, mock_get_client):
         """Aprova: update status + upsert price."""
         from services.price_service import approve_review_item
 
@@ -474,8 +478,10 @@ class TestPriceService:
         approve_review_item("r1", "Leite Ninho Integral")
 
         assert qb._captured_update is not None, "update() deveria ser chamado"
-        assert qb._captured_upsert is not None, "upsert() deveria ser chamado"
         assert qb._captured_update.get("status") == "approved"
+        fn_name, rpc_params = mock_client._captured_rpc
+        assert fn_name == "upsert_price_rpc", "upsert should use RPC"
+        assert rpc_params["p_ingredient_id"] == "Leite Ninho Integral"
 
     # ── reject_review_item ─────────────────────────────────────
 
