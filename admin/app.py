@@ -1293,27 +1293,69 @@ def tab_ingredientes():
             ing = ing_options[sel]
             default = ing
         else:
-            default = {"canonical_name": "", "category": "", "aliases": [], "unit_target": "kg", "active": True}
+            default = {
+                "canonical_name": "", "category": "", "aliases": [],
+                "brands": [], "search_terms": [], "unit_target": "kg", "active": True,
+            }
 
         with st.form("form_ingredient"):
-            col1, col2 = st.columns(2)
+            st.markdown("##### Identificação")
+            col1, col2 = st.columns([1, 1])
             with col1:
-                canonical = st.text_input("Nome Canônico *", value=default["canonical_name"])
-                category = st.text_input("Categoria", value=default["category"])
-                unit_target = st.selectbox("Unidade Alvo", ["kg", "un", "g", "ml", "l"], index=["kg", "un", "g", "ml", "l"].index(default.get("unit_target", "kg")))
+                canonical = st.text_input("Nome Canônico *", value=default["canonical_name"], key="ing_canonical")
+                category = st.text_input("Categoria", value=default["category"], key="ing_category", placeholder="ex: lacteos, chocolates")
             with col2:
-                aliases_str = st.text_area("Aliases (um por linha)", value="\n".join(default.get("aliases", [])))
+                unit_target = st.selectbox("Unidade Alvo", ["kg", "un", "g", "ml", "l"], index=["kg", "un", "g", "ml", "l"].index(default.get("unit_target", "kg")))
                 active = st.checkbox("Ativo", value=default.get("active", True))
+
+            st.markdown("##### Marcas e Busca")
+            col_b1, col_b2 = st.columns([1, 1])
+            with col_b1:
+                brands_str = st.text_area(
+                    "Marcas (uma por linha)",
+                    value="\n".join(default.get("brands", [])),
+                    help="Nomes de marca que este ingrediente pode ter. Ex: Moça, Nestlé, Melken",
+                    placeholder="Moça\nNestlé\nMelken",
+                )
+            with col_b2:
+                search_terms_str = st.text_area(
+                    "Termos de Busca (um por linha)",
+                    value="\n".join(default.get("search_terms", [])),
+                    help="Palavras-chave para scrapers encontrarem este produto nos sites.",
+                    placeholder="leite condensado\nleite cond\nleite condensado moça",
+                )
+
+            st.markdown("##### Aliases (variações do nome para match exato)")
+            aliases_str = st.text_area(
+                "Aliases (um por linha)",
+                value="\n".join(default.get("aliases", [])),
+                help="Cada alias é uma variação que o matcher reconhece como match exato (confiança 100%).",
+                placeholder="Leite Condensado Integral 1kg\nLC Integral 395g\nLeite Cond. Moça cx 12",
+            )
+
+            st.caption(
+                "💡 Dica: inclua variações com peso (`1kg`, `395g`), abreviatura (`LC`), "
+                "nome invertido (`Moça Leite Cond`), e versão uppercase (`LEITE CONDENSADO`)."
+            )
+
+            # ── Suggest expander ──
+            with st.expander("✨ Sugerir aliases automaticamente", expanded=False):
+                _render_alias_suggestions(default, ingredients)
+
             if st.form_submit_button("Salvar", use_container_width=True):
                 if not canonical or not canonical.strip():
                     st.error("Nome canonico e obrigatorio.")
                     st.stop()
                 aliases = [a.strip() for a in aliases_str.split("\n") if a.strip()]
+                brands = [b.strip() for b in brands_str.split("\n") if b.strip()]
+                search_terms = [s.strip() for s in search_terms_str.split("\n") if s.strip()]
                 try:
                     upsert_ingredient({
                         "canonical_name": canonical,
                         "category": category or None,
                         "aliases": aliases,
+                        "brands": brands,
+                        "search_terms": search_terms,
                         "unit_target": unit_target,
                         "active": active,
                     })
@@ -1337,6 +1379,55 @@ def tab_ingredientes():
         _test_normalizer()
         st.markdown("---")
         _test_matcher()
+
+def _render_alias_suggestions(default: dict, all_ingredients: list[dict]):
+    canon = st.session_state.get("ing_canonical", "").strip()
+    if not canon:
+        st.info("Digite o nome canônico acima para gerar sugestões.")
+        return
+
+    words = canon.split()
+    abbr = "".join(w[0] for w in words if w[0].isalpha()).upper()
+    qualifiers = {"integral", "grosso", "branco", "colorido", "morango", "sem", "açúcar", "acucar"}
+
+    suggestions = set()
+    for suffix in ["1kg", "500g", "395g", "200g", "800g", "12un", "cx 12"]:
+        suggestions.add(f"{canon} {suffix}")
+    for suffix in ["1kg", "500g", "395g"]:
+        suggestions.add(f"{abbr} {suffix}")
+    short = " ".join(w for w in words if w.lower() not in qualifiers)
+    if short != canon and len(short) > 1:
+        for s in ["1kg", "500g"]:
+            suggestions.add(f"{short} {s}")
+    if len(words) > 2:
+        for s in ["1kg", "500g"]:
+            suggestions.add(f"{' '.join(words[1:])} {s}")
+    suggestions.add(canon.upper())
+
+    existing = set(default.get("aliases", []))
+    suggestions = sorted(s for s in suggestions if s not in existing)
+
+    col_sug, col_ref = st.columns([2, 1])
+    with col_sug:
+        if suggestions:
+            st.markdown("**Geradas a partir do nome canônico** — copie as linhas desejadas:")
+            st.code("\n".join(suggestions[:12]), language="text")
+        else:
+            st.info("Todas as variações já estão na lista de aliases.")
+    with col_ref:
+        cat = default.get("category") or st.session_state.get("ing_category", "")
+        if cat:
+            same_cat = [
+                i for i in all_ingredients
+                if i.get("category") == cat and i.get("canonical_name") != canon
+            ]
+            refs = []
+            for i in same_cat:
+                refs.extend(i.get("aliases", [])[:3])
+            if refs:
+                st.markdown(f"**Aliases de `{cat}`:**")
+                for a in refs[:8]:
+                    st.code(a, language="text")
 
 
 def _render_schedule_info():

@@ -268,6 +268,14 @@ CREATE INDEX IF NOT EXISTS idx_stores_name ON stores(name);
 CREATE INDEX IF NOT EXISTS idx_logs_store_started ON scraping_logs(store_name, started_at DESC);
 """)
 
+    gen.append("""
+-- ============================================================
+-- PHASE 11: Add brands + search_terms to ingredients
+-- ============================================================
+ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS brands TEXT[] DEFAULT '{}';
+ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS search_terms TEXT[] DEFAULT '{}';
+""")
+
     gen.append("\n-- ============================================================")
     gen.append("-- Migration complete. Verify with:")
     gen.append("--   SELECT table_name FROM information_schema.tables")

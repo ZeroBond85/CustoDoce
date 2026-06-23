@@ -108,7 +108,7 @@ CustoDoce/
 | 3 | Agregadores (Tiendeo, Guiato) | Fallback | Automatizado - if tier 1/2 fail |
 | 4 | Manual (WhatsApp, visita local) | Sob demanda | Planilha .xlsx |
 
-## Ingredientes Monitorados (18)
+## Ingredientes Monitorados (19)
 1. Leite Condensado Integral (lacteos)
 2. Creme de Leite 20% Gordura (lacteos)
 3. Chocolate em Pó 50% Cacau (chocolates)
@@ -127,6 +127,7 @@ CustoDoce/
 16. Micro Ball (confeitos)
 17. Top Confete Morango (confeitos)
 18. Gotas de Chocolate Branco (chocolates)
+19. Manteiga Extra (lacteos)
 
 ## Fluxo de Coleta (GitHub Actions)
 
@@ -493,3 +494,4 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 - **Fase 14f** ✅ Regression Bugfixes — `open()` encoding utf-8 (9 arquivos), price regex `\s*` (4 scrapers), `datetime.now(timezone.utc)` (5 arquivos); 230 testes; ruff/bandit/pip-audit limpos
 - **Fase 15** ✅ Review Queue Enhanced — coluna `match_type`, `match_reason` detalhado (tipo, score, candidato, termo, palavras não matcheadas), top 3 com scores, UI 2 colunas com imagem sempre visível, badge de match type colorido, progress bar de confiança; 230 testes
 - **Fase 15b** ✅ DB Gaps & Refactor — `reject_review_item()` retorna `{}`, dead code removido, `get_review_queue()` com `.limit(500)`, `_export_csv_button()` helper (**-96 linhas**), `_cached_get_all_current_prices()` substitui 6 chamadas, `store_id` real em vez de fabricado, 5 índices PHASE 10; 230 testes
+- **Fase 15c** ✅ Brand Propagation & Alias UX — `extract_brand` chamado também no caminho de revisão; VTEX scraper prioriza brands conhecidas sobre API; `brand` adicionado a todos os scrapers (website com `product_brand` selector); form de ingredientes redesenhado com campos `brands`+`search_terms`; sugestão automática de aliases com 5 padrões; PHASE 11 migration (`brands`+`search_terms` na tabela `ingredients`); 19 ingredientes (adicionado Manteiga sem Sal); 230 testes
