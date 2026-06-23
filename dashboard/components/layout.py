@@ -28,7 +28,7 @@ def render_sidebar():
             st.markdown(
                 f'<div style="text-align:center;padding:0.75rem 0 0.5rem;">'
                 f'<img src="data:image/png;base64,{logo_b64}" '
-                f'style="width:140px;max-width:100%;height:auto;" />'
+                f'style="width:180px;max-width:100%;height:auto;" />'
                 f"</div>",
                 unsafe_allow_html=True,
             )
