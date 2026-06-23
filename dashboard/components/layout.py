@@ -74,11 +74,17 @@ def render_sidebar():
                 f"<strong>{user}</strong></div>",
                 unsafe_allow_html=True,
             )
-            if st.button("Sair", key="logout_btn", use_container_width=True):
-                st.session_state.authenticated = False
-                st.session_state.pop("token", None)
-                st.session_state.pop("user", None)
-                st.rerun()
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                if st.button("Limpar Cache", key="clear_cache_btn", use_container_width=True):
+                    st.cache_data.clear()
+                    st.rerun()
+            with col2:
+                if st.button("Sair", key="logout_btn", use_container_width=True):
+                    st.session_state.authenticated = False
+                    st.session_state.pop("token", None)
+                    st.session_state.pop("user", None)
+                    st.rerun()
 
 
 def page_container(content_fn):

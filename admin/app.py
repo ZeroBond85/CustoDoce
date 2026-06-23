@@ -3515,7 +3515,26 @@ PAGE_HANDLERS = {
 }
 
 
+# Cache version — increment to force full invalidation on next deploy
+CACHE_VERSION = 2
+
+
+def _check_clear_cache():
+    """Handle cache clear triggers: version mismatch or query param."""
+    qp = st.query_params
+    if qp.get("clear_cache") == "1":
+        st.cache_data.clear()
+        st.session_state.cache_version = CACHE_VERSION
+        qp.clear()
+        st.rerun()
+    if st.session_state.get("cache_version", 0) != CACHE_VERSION:
+        st.cache_data.clear()
+        st.session_state.cache_version = CACHE_VERSION
+
+
 def main():
+    _check_clear_cache()
+
     if not require_auth():
         return
 
