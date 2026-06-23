@@ -56,7 +56,9 @@ def delete_ingredient(ingredient_id: str) -> bool:
 
 
 def add_alias_to_ingredient(canonical_name_or_id: str, new_alias: str) -> Optional[dict]:
-    ingredient = get_ingredient_by_id(canonical_name_or_id)
+    import re
+    is_uuid = re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', canonical_name_or_id, re.I)
+    ingredient = get_ingredient_by_id(canonical_name_or_id) if is_uuid else None
     if not ingredient:
         ingredient = get_ingredient_by_name(canonical_name_or_id)
     if not ingredient:

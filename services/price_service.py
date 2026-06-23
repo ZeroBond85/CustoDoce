@@ -249,6 +249,22 @@ def get_review_queue(limit: int = 500) -> list[dict]:
 
 def approve_review_item(item_id: str, ingredient_id: str) -> dict:
     client = get_service_client()
+
+    # Resolve ingredient name or UUID to actual UUID FIRST (before any DB write)
+    from services.config_db import get_ingredient_by_name, get_ingredient_by_id
+    import re
+    is_uuid = re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', ingredient_id, re.I)
+    ingredient_obj = get_ingredient_by_id(ingredient_id) if is_uuid else None
+    if not ingredient_obj:
+        ingredient_obj = get_ingredient_by_name(ingredient_id)
+    resolved_ingredient_id = ingredient_obj.get("id", "") if ingredient_obj else ""
+
+    if not resolved_ingredient_id:
+        logging.getLogger(__name__).warning(
+            "approve_review_item: ingredient '%s' not found in DB", ingredient_id
+        )
+        return {}
+
     item = (
         client.table("review_queue")
         .select("*")
@@ -263,7 +279,7 @@ def approve_review_item(item_id: str, ingredient_id: str) -> dict:
         client.table("review_queue")
         .update({
             "status": "approved",
-            "resolved_ingredient": ingredient_id,
+            "resolved_ingredient": resolved_ingredient_id,
             "reviewed_at": datetime.now(timezone.utc).isoformat(),
         })
         .eq("id", item_id)
@@ -282,13 +298,6 @@ def approve_review_item(item_id: str, ingredient_id: str) -> dict:
         )
         return result.data[0] if result.data else {}
 
-    # Resolve ingredient name to UUID
-    from services.config_db import get_ingredient_by_name, get_ingredient_by_id
-    ingredient_obj = get_ingredient_by_id(ingredient_id)
-    if not ingredient_obj:
-        ingredient_obj = get_ingredient_by_name(ingredient_id)
-    resolved_ingredient_id = ingredient_obj.get("id", ingredient_id) if ingredient_obj else ingredient_id
-
     price_entry = {
         "ingredient_id": resolved_ingredient_id,
         "store_id": store_id,
@@ -306,7 +315,6 @@ def approve_review_item(item_id: str, ingredient_id: str) -> dict:
     }
     try:
         upsert_price(price_entry)
-        # Add the raw_product as an alias to the ingredient for future exact matches
         if resolved_ingredient_id and price_entry.get('raw_product'):
             add_alias_to_ingredient(resolved_ingredient_id, price_entry['raw_product'])
     except Exception as e:
