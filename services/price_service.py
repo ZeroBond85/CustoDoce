@@ -234,7 +234,7 @@ def approve_review_item(item_id: str, ingredient_id: str) -> dict:
         client.table("review_queue")
         .select("*")
         .eq("id", item_id)
-        .single()
+        .maybe_single()
         .execute()
     )
     if not item.data:

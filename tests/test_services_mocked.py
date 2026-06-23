@@ -67,6 +67,10 @@ class MockQueryBuilder:
         self._single_mode = True
         return self
 
+    def maybe_single(self):
+        self._single_mode = True
+        return self
+
     def execute(self):
         if self._single_mode and isinstance(self._return_data, list) and len(self._return_data) == 1:
             self._single_mode = False

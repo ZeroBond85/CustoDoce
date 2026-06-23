@@ -28,20 +28,14 @@ def get_all_ingredients(include_inactive: bool = False) -> list[dict]:
 
 def get_ingredient_by_id(ingredient_id: str) -> Optional[dict]:
     client = get_supabase()
-    try:
-        result = client.table("ingredients").select("*").eq("id", ingredient_id).single().execute()
-        return result.data if result.data else None
-    except Exception:
-        return None
+    result = client.table("ingredients").select("*").eq("id", ingredient_id).maybe_single().execute()
+    return result.data if result.data else None
 
 
 def get_ingredient_by_name(canonical_name: str) -> Optional[dict]:
     client = get_supabase()
-    try:
-        result = client.table("ingredients").select("*").eq("canonical_name", canonical_name).single().execute()
-        return result.data if result.data else None
-    except Exception:
-        return None
+    result = client.table("ingredients").select("*").eq("canonical_name", canonical_name).maybe_single().execute()
+    return result.data if result.data else None
 
 
 def upsert_ingredient(data: dict) -> dict:
@@ -97,20 +91,14 @@ def get_all_stores(include_inactive: bool = False) -> list[dict]:
 
 def get_store_by_id(store_id: str) -> Optional[dict]:
     client = get_supabase()
-    try:
-        result = client.table("stores").select("*").eq("id", store_id).single().execute()
-        return result.data if result.data else None
-    except Exception:
-        return None
+    result = client.table("stores").select("*").eq("id", store_id).maybe_single().execute()
+    return result.data if result.data else None
 
 
 def get_store_by_name(name: str) -> Optional[dict]:
     client = get_supabase()
-    try:
-        result = client.table("stores").select("*").eq("name", name).single().execute()
-        return result.data if result.data else None
-    except Exception:
-        return None
+    result = client.table("stores").select("*").eq("name", name).maybe_single().execute()
+    return result.data if result.data else None
 
 
 def upsert_store(data: dict) -> dict:
@@ -266,11 +254,8 @@ def delete_alert_rule(rule_id: str) -> bool:
 # ============================================================
 def get_feature_flag(key: str, default: bool = False) -> bool:
     client = get_supabase()
-    try:
-        result = client.table("feature_flags").select("enabled").eq("key", key).single().execute()
-        return result.data["enabled"] if result.data else default
-    except Exception:
-        return default
+    result = client.table("feature_flags").select("enabled").eq("key", key).maybe_single().execute()
+    return result.data["enabled"] if result.data else default
 
 
 def get_all_feature_flags() -> list[dict]:
