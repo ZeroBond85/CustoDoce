@@ -897,6 +897,7 @@ def tab_revisao():
             raw_product = item.get("raw_product", "?")
             confidence = item.get("confidence", 0)
             store_name = item.get("store_name", "?")
+            source_type = item.get("source", "")
             raw_price = item.get("raw_price", 0)
             raw_unit = item.get("raw_unit", "")
             suggestions = item.get("suggestions", [])
@@ -905,100 +906,100 @@ def tab_revisao():
             match_reason = item.get("match_reason", "")
             match_type = item.get("match_type", "")
             brand = item.get("brand", "")
+            collected_at = item.get("collected_at", "")
 
             with st.container(border=True):
-                # ── Row 1: Image (right) + Product info (left) ──
-                img_col, info_col = st.columns([1, 2])
-
-                with img_col:
-                    if image_url:
-                        st.image(image_url, use_container_width=True)
-                        st.caption("🖼️ Panfleto de origem")
-                    elif source_url:
-                        st.link_button("🔗 Ver página do produto", source_url, use_container_width=True)
-                    else:
-                        st.caption("Sem evidência visual disponível")
-
-                with info_col:
-                    # Product name + brand
-                    st.markdown(f"**{raw_product}**")
-                    if brand:
-                        st.caption(f"Marca: {brand}")
-
-                    # Store + price + confidence
-                    conf_pct = confidence * 100
+                # ── Row 1: Evidência visual (full width) ──
+                if image_url:
+                    st.image(image_url, use_container_width=True)
+                elif source_url:
+                    st.link_button(
+                        "🔗 Abrir página do produto para conferir",
+                        source_url,
+                        use_container_width=True,
+                        type="primary",
+                    )
+                else:
                     st.markdown(
-                        f"🏪 {store_name} &nbsp;&nbsp;|&nbsp;&nbsp; "
-                        f"💰 R$ {float(raw_price):.2f} {raw_unit} &nbsp;&nbsp;|&nbsp;&nbsp; "
-                        f"📊 Confiança: **{conf_pct:.0f}%**"
+                        '<div style="background:#FEF2F2;border:2px dashed #FCA5A5;'
+                        'border-radius:8px;padding:1rem;text-align:center;color:#991B1B;">'
+                        '❌ <strong>Sem imagem ou link de origem</strong><br/>'
+                        'O scraper não capturou evidência visual deste item. '
+                        'Classifique com base apenas no texto do produto.</div>',
+                        unsafe_allow_html=True,
                     )
 
-                    # Confidence bar
-                    st.progress(confidence)
+                # ── Row 2: Info columns ──
+                info_col, diag_col = st.columns([1, 1])
 
-                    # Match type badge
+                with info_col:
+                    st.markdown(f"**{raw_product}**")
+                    st.markdown(
+                        f"🏪 {store_name}"
+                        f"{' · ' + source_type if source_type else ''}"
+                        f" | 💰 R$ {float(raw_price):.2f} {raw_unit}"
+                    )
+
+                    origem_parts = []
+                    if collected_at:
+                        try:
+                            dt = collected_at[:10] if "T" in str(collected_at) else str(collected_at)[:10]
+                            origem_parts.append(f"📅 Coleta: {dt}")
+                        except (TypeError, IndexError):
+                            pass
+                    if brand:
+                        origem_parts.append(f"🏷️ Marca: {brand}")
+                    if origem_parts:
+                        st.caption(" | ".join(origem_parts))
+
+                    # Confidence + match type
+                    conf_pct = confidence * 100
+                    st.progress(confidence)
                     if match_type:
                         badge_colors = {
-                            "exact": ("green", "✅ Exato"),
+                            "exact": ("green", "✅ Match exato"),
                             "fuzzy_canonical": ("orange", "🔍 Fuzzy (canônico)"),
                             "fuzzy_alias": ("orange", "🔍 Fuzzy (alias)"),
                             "word_subset": ("blue", "📝 Subconjunto de palavras"),
                         }
                         color, label = badge_colors.get(match_type, ("gray", match_type))
-                        st.markdown(f":{color}[**{label}**]")
+                        match_label = f":{color}[**{label}**]"
+                    else:
+                        match_label = f"Confiança: **{conf_pct:.0f}%**"
+                    st.markdown(match_label)
 
-                    # ── Diagnóstico visual ──
-                    with st.expander("📋 Diagnóstico completo", expanded=True):
-                        diag_cols = st.columns([1, 1])
-                        with diag_cols[0]:
-                            st.markdown("**Texto do produto**")
-                            st.code(raw_product, language="text")
-                            if brand:
-                                st.caption(f"Marca detectada: {brand}")
-                        with diag_cols[1]:
-                            st.markdown("**Evidência visual**")
-                            if image_url:
-                                st.markdown("✅ Imagem disponível")
-                            elif source_url:
-                                st.markdown("🔗 Link da página disponível")
+                with diag_col:
+                    st.markdown("**Diagnóstico**")
+                    if match_reason:
+                        parts = match_reason.split(" | ")
+                        for p in parts:
+                            if ":" in p:
+                                k, _, v = p.partition(":")
+                                st.markdown(f"- **{k.strip()}:** {v.strip()}")
                             else:
-                                st.markdown("❌ **Sem evidência visual** — a imagem não foi capturada, dificulta a conferência")
-                            st.caption(f"Confiança: {confidence*100:.0f}%")
-                            st.progress(confidence)
+                                st.markdown(f"- {p}")
 
-                        if match_reason:
-                            st.markdown("**Motivo detalhado**")
-                            parts = match_reason.split(" | ")
-                            for p in parts:
-                                if ":" in p:
-                                    k, _, v = p.partition(":")
-                                    st.markdown(f"- **{k.strip()}:** {v.strip()}")
-                                else:
-                                    st.markdown(f"- {p}")
-
-                            # Extrair palavras não matcheadas para destaque
-                            unmatched = ""
-                            for p in parts:
-                                if "não matcheadas" in p:
-                                    unmatched = p.split(":", 1)[-1].strip()
-                            if unmatched:
-                                st.markdown("**Palavras que impediram o match exato:**")
-                                st.markdown(
-                                    f'<div style="background:#FEF2F2;border:1px solid #FCA5A5;'
-                                    f'border-radius:8px;padding:0.5rem 1rem;color:#991B1B;'
-                                    f'font-size:0.85rem;">{unmatched}</div>',
-                                    unsafe_allow_html=True,
-                                )
-                        elif confidence < 0.8:
+                        unmatched = ""
+                        for p in parts:
+                            if "não matcheadas" in p:
+                                unmatched = p.split(":", 1)[-1].strip()
+                        if unmatched:
+                            st.markdown("**Palavras não matcheadas:**")
                             st.markdown(
-                                f'<div style="background:#FEF3C7;border:1px solid #FCD34D;'
-                                f'border-radius:8px;padding:0.5rem 1rem;color:#92400E;'
-                                f'font-size:0.85rem;">'
-                                f"Confiança {confidence*100:.0f}% abaixo do limiar de 80% — "
-                                f"nenhum ingrediente canônico ou alias teve match suficiente."
-                                f"</div>",
+                                f'<div style="background:#FEF2F2;border:1px solid #FCA5A5;'
+                                f'border-radius:8px;padding:0.3rem 0.8rem;color:#991B1B;'
+                                f'font-size:0.85rem;">{unmatched}</div>',
                                 unsafe_allow_html=True,
                             )
+                    else:
+                        st.markdown(
+                            f'<div style="background:#FEF3C7;border:1px solid #FCD34D;'
+                            f'border-radius:8px;padding:0.3rem 0.8rem;color:#92400E;'
+                            f'font-size:0.85rem;">'
+                            f"Confiança {conf_pct:.0f}% abaixo do limiar de 80%"
+                            f"</div>",
+                            unsafe_allow_html=True,
+                        )
 
                 # ── Row 2: Top 3 Candidates ──
                 top3 = item.get("top3", [])
