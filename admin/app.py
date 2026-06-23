@@ -210,6 +210,16 @@ def require_auth():
     return True
 
 
+def _safe_image_url(url: str) -> str:
+    """Returns a valid image URL or empty string (shows placeholder)."""
+    if not url or not isinstance(url, str):
+        return ""
+    url = url.strip()
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
+    return ""
+
+
 def _sanitize(value) -> str:
     if value is None:
         return ""
@@ -804,12 +814,22 @@ def tab_flyers():
                 collected = f["collected_at"].strftime("%d/%m") if pd.notna(f["collected_at"]) else "?"
                 flyer_id = f.get("id", f"f_{idx}")
                 img = f.get("image_url", "")
+                img_url = _safe_image_url(img)
                 with cols[col_idx], st.container(border=True):
-                        if img:
-                            try:
-                                st.image(img, use_container_width=True)
-                            except Exception:
-                                st.caption("🖼️ Imagem indisponivel")
+                        if img_url:
+                            st.markdown(
+                                f'<div style="position:relative;width:100%;min-height:120px;'
+                                f'background:#F3F4F6;border-radius:8px;overflow:hidden;">'
+                                f'<img src="{html.escape(img_url)}" '
+                                f'style="width:100%;height:auto;display:block;" '
+                                f'onerror="this.style.display=\'none\';'
+                                f'this.nextElementSibling.style.display=\'flex\';" />'
+                                f'<div style="display:none;position:absolute;inset:0;'
+                                f'align-items:center;justify-content:center;'
+                                f'font-size:0.75rem;color:#9CA3AF;">'
+                                f"Sem imagem</div></div>",
+                                unsafe_allow_html=True,
+                            )
                         else:
                             st.caption("Sem imagem")
                         st.markdown(
@@ -857,14 +877,17 @@ def tab_flyers():
                 f"</div>",
                 unsafe_allow_html=True,
             )
-            img_url = selected.get("image_url", "")
+            img_url = _safe_image_url(selected.get("image_url", ""))
             if img_url:
                 col_img, col_dl = st.columns([3, 1])
                 with col_img:
-                    try:
-                        st.image(img_url, use_container_width=True)
-                    except Exception:
-                        st.caption("🖼️ Imagem indisponivel")
+                    st.markdown(
+                        f'<img src="{html.escape(img_url)}" '
+                        f'style="width:100%;max-height:500px;object-fit:contain;border-radius:8px;" '
+                        f'onerror="this.style.display=\'none\';'
+                        f'this.parentElement.innerHTML+=\'<p style=color:#9CA3AF;>Imagem indisponivel</p>\';" />',
+                        unsafe_allow_html=True,
+                    )
                 with col_dl:
                     try:
                         import httpx
@@ -916,11 +939,17 @@ def tab_revisao():
 
             with st.container(border=True):
                 # ── Row 1: Evidência visual (full width) ──
-                if image_url:
-                    try:
-                        st.image(image_url, use_container_width=True)
-                    except Exception:
-                        st.caption("🖼️ Imagem indisponivel")
+                img_url = _safe_image_url(image_url)
+                if img_url:
+                    st.markdown(
+                        f'<img src="{html.escape(img_url)}" '
+                        f'style="width:100%;max-height:300px;object-fit:contain;'
+                        f'border-radius:8px;border:1px solid #E5E7EB;" '
+                        f'onerror="this.style.display=\'none\';'
+                        f'this.parentElement.innerHTML+=\'<p style=color:#9CA3AF;padding:1rem;>'
+                        f'Imagem indisponivel</p>\';" />',
+                        unsafe_allow_html=True,
+                    )
                 elif source_url:
                     st.link_button(
                         "🔗 Abrir página do produto para conferir",
