@@ -104,6 +104,7 @@ def parse_flyer_lines(lines: list[str]) -> list[dict]:
                     "price": price,
                     "unit": unit,
                     "validity_raw": validity,
+                    "brand": "",
                 })
             buffer = []
         else:

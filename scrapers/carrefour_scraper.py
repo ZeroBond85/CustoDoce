@@ -71,6 +71,8 @@ class CarrefourScraper(BaseWebScraper):
                 "product": product_name,
                 "price": price,
                 "unit": extract_unit(product_name + " " + link.attributes.get("href", "")),
+                "validity_raw": "",
+                "brand": "",
             })
 
         return products

@@ -203,6 +203,7 @@ class ExtraFlyerScraper:
                     "price": price,
                     "unit": unit,
                     "validity_raw": validity,
+                    "brand": "",
                 })
                 last_valid_name = cleaned
 

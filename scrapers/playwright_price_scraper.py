@@ -117,6 +117,7 @@ class PlaywrightPriceScraper(BaseWebScraper):
                 "price": price,
                 "unit": unit,
                 "validity_raw": validity,
+                "brand": "",
             })
         return products
 

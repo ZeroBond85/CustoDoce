@@ -29,6 +29,7 @@ DEFAULT_SELECTORS = {
         ".sale-price", ".offer-price", ".box-price",
     ],
     "product_validity": [],
+    "product_brand": [],
 }
 
 
@@ -66,11 +67,13 @@ class WebsiteScraper(BaseWebScraper):
                 continue
             unit = extract_unit(name)
             validity = self._extract_validity(card)
+            brand = self._extract_brand(card)
             products.append({
                 "product": name.strip(),
                 "price": price,
                 "unit": unit,
                 "validity_raw": validity,
+                "brand": brand,
             })
 
         return products
@@ -111,6 +114,15 @@ class WebsiteScraper(BaseWebScraper):
             except ValueError:
                 pass
         return None
+
+    def _extract_brand(self, node) -> str:
+        for selector in self.selectors.get("product_brand", []):
+            found = node.css(selector)
+            if found:
+                text = found[0].text().strip()
+                if text:
+                    return text
+        return ""
 
     def _extract_validity(self, node) -> str:
         for selector in self.selectors.get("product_validity", []):
