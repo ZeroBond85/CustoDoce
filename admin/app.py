@@ -806,7 +806,10 @@ def tab_flyers():
                 img = f.get("image_url", "")
                 with cols[col_idx], st.container(border=True):
                         if img:
-                            st.image(img, use_container_width=True)
+                            try:
+                                st.image(img, use_container_width=True)
+                            except Exception:
+                                st.caption("🖼️ Imagem indisponivel")
                         else:
                             st.caption("Sem imagem")
                         st.markdown(
@@ -858,7 +861,10 @@ def tab_flyers():
             if img_url:
                 col_img, col_dl = st.columns([3, 1])
                 with col_img:
-                    st.image(img_url, use_container_width=True)
+                    try:
+                        st.image(img_url, use_container_width=True)
+                    except Exception:
+                        st.caption("🖼️ Imagem indisponivel")
                 with col_dl:
                     try:
                         import httpx
@@ -911,7 +917,10 @@ def tab_revisao():
             with st.container(border=True):
                 # ── Row 1: Evidência visual (full width) ──
                 if image_url:
-                    st.image(image_url, use_container_width=True)
+                    try:
+                        st.image(image_url, use_container_width=True)
+                    except Exception:
+                        st.caption("🖼️ Imagem indisponivel")
                 elif source_url:
                     st.link_button(
                         "🔗 Abrir página do produto para conferir",
