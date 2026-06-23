@@ -41,6 +41,25 @@ logger = logging.getLogger(__name__)
 DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
 
+
+def _upload_flyer_thumbnail(store_name: str, thumbnail_bytes: bytes) -> str:
+    """Upload a PNG thumbnail to Supabase Storage and return the public URL."""
+    try:
+        client = get_service_client()
+        safe_name = store_name.lower().replace(" ", "_").replace("/", "_")
+        path = f"flyers/{safe_name}_{date.today().isoformat()}.png"
+        client.storage.from_("thumbnails").upload(
+            path=path,
+            file=thumbnail_bytes,
+            file_options={"content_type": "image/png", "upsert": "true"},
+        )
+        url = client.storage.from_("thumbnails").get_public_url(path)
+        logger.info("[%s] Thumbnail uploaded: %s", store_name, path)
+        return url
+    except Exception as e:
+        logger.warning("[%s] Thumbnail upload failed: %s", store_name, e)
+        return ""
+
 API_SCRAPER_MAP = {
     "tenda_api_scraper": TendaApiScraper,
     "roldao_api_scraper": RoldaoApiScraper,
@@ -237,6 +256,21 @@ def _collect_prices(
         try:
             with scraper_cls(store) as scraper:
                 raw_products = scraper.run(ingredients)
+
+            if hasattr(scraper, '_thumbnail') and scraper._thumbnail:
+                try:
+                    thumb_url = _upload_flyer_thumbnail(store_name, scraper._thumbnail)
+                    if thumb_url:
+                        upsert_flyer({
+                            "store_name": store_name,
+                            "region": store.get("region", ""),
+                            "city": store.get("city", ""),
+                            "flyer_title": f"Panfleto {date.today().strftime('%d/%m/%Y')}",
+                            "image_url": thumb_url,
+                            "source": "pdf_scrape",
+                        })
+                except Exception as e:
+                    logger.debug("[%s] Flyer record save failed: %s", store_name, e)
 
             if not raw_products:
                 logger.info("[%s] No products found", store_name)

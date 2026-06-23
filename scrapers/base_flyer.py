@@ -1,4 +1,5 @@
 import hashlib
+import io
 import logging
 from abc import ABC, abstractmethod
 from datetime import date
@@ -102,7 +103,6 @@ class BaseFlyerScraper(ABC):
 
     def extract_text(self, pdf_bytes: bytes) -> str:
         import pdfplumber
-        import io
         text_parts = []
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
             for page in pdf.pages:
@@ -115,6 +115,21 @@ class BaseFlyerScraper(ABC):
                         if row:
                             text_parts.append(" | ".join(str(c) for c in row if c))
         return "\n".join(text_parts)
+
+    def _render_first_page(self, pdf_bytes: bytes) -> Optional[bytes]:
+        """Render the first page of a PDF to a PNG thumbnail. Returns None on failure."""
+        try:
+            import pdfplumber
+            with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+                if not pdf.pages:
+                    return None
+                img = pdf.pages[0].to_image(resolution=150)
+                buf = io.BytesIO()
+                img.save(buf, format="PNG")
+                return buf.getvalue()
+        except Exception as e:
+            logger.debug("[%s] Thumbnail generation failed: %s", self.name, e)
+            return None
 
     def run(self, target_date: Optional[date] = None) -> list[dict]:
         content, is_new = self.download(target_date)
@@ -136,6 +151,7 @@ class BaseFlyerScraper(ABC):
             except Exception as e:
                 logger.warning("[%s] OCR error: %s", self.name, e)
 
+        self._thumbnail = self._render_first_page(content)
         return self.parse_products(raw_text)
 
     @abstractmethod

@@ -369,6 +369,39 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 """)
 
+    gen.append("""
+-- ============================================================
+-- PHASE 14: recipes + recipe_items tables
+-- ============================================================
+CREATE TABLE IF NOT EXISTS recipes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    yield_qty INTEGER DEFAULT 40,
+    overhead_pct DECIMAL(5,1) DEFAULT 15,
+    profit_pct DECIMAL(7,1) DEFAULT 300,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS recipe_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    recipe_id UUID REFERENCES recipes(id) ON DELETE CASCADE,
+    ingredient_id TEXT NOT NULL,
+    quantity_g DECIMAL(10,1) DEFAULT 0,
+    selected_store TEXT DEFAULT '',
+    price_per_kg DECIMAL(10,2) DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_recipe_items_recipe ON recipe_items(recipe_id);
+
+ALTER TABLE recipes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all" ON recipes FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "anon_read" ON recipes FOR SELECT USING (true);
+
+ALTER TABLE recipe_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "service_role_all" ON recipe_items FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "anon_read" ON recipe_items FOR SELECT USING (true);
+""")
+
     gen.append("\n-- ============================================================")
     gen.append("-- Migration complete. Verify with:")
     gen.append("--   SELECT table_name FROM information_schema.tables")
@@ -451,7 +484,7 @@ def main():
     args = parser.parse_args()
 
     sql = generate_consolidated()
-    total_tables = 12  # prices, price_history, review_queue, scraping_logs, stores, flyers, ingredients, schedules, scrape_frequencies, alert_recipients, alert_rules, feature_flags
+    total_tables = 14  # prices, price_history, review_queue, scraping_logs, stores, flyers, ingredients, schedules, scrape_frequencies, alert_recipients, alert_rules, feature_flags, recipes, recipe_items
 
     if args.output:
         out_path = Path(args.output)

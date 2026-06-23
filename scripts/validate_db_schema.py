@@ -1,7 +1,7 @@
 ﻿#!/usr/bin/env python3
 """
 Valida que o banco Supabase tem TODAS as tabelas, colunas, constraints,
-Ã­ndices e funÃ§Ãµes esperadas pelas migrations PHASE 1-13.
+índices e funções esperadas pelas migrations PHASE 1-14.
 
 Uso:
     python scripts/validate_db_schema.py
@@ -14,6 +14,7 @@ EXPECTED_TABLES = [
     "prices", "price_history", "review_queue", "scraping_logs",
     "stores", "flyers", "ingredients", "schedules",
     "scrape_frequencies", "alert_recipients", "alert_rules", "feature_flags",
+    "recipes", "recipe_items",
 ]
 
 EXPECTED_COLUMNS = {
@@ -34,6 +35,12 @@ EXPECTED_COLUMNS = {
         "id", "canonical_name", "category", "aliases", "unit_target",
         "active", "created_at", "updated_at", "brands", "search_terms",
     ],
+    "recipes": [
+        "id", "name", "yield_qty", "overhead_pct", "profit_pct", "created_at",
+    ],
+    "recipe_items": [
+        "id", "recipe_id", "ingredient_id", "quantity_g", "selected_store", "price_per_kg",
+    ],
 }
 
 EXPECTED_CONSTRAINTS = {
@@ -47,6 +54,7 @@ EXPECTED_INDEXES = [
     "idx_review_collected",
     "idx_stores_name",
     "idx_logs_store_started",
+    "idx_recipe_items_recipe",
 ]
 
 EXPECTED_FUNCTIONS = ["upsert_price_rpc", "cleanup_old_prices", "cleanup_old_logs", "cleanup_old_flyers"]
