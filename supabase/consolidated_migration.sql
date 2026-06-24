@@ -941,3 +941,31 @@ $$ LANGUAGE plpgsql;
 --   SELECT table_name FROM information_schema.tables
 --   WHERE table_schema = 'public' ORDER BY table_name;
 -- ============================================================
+
+
+-- ============================================================
+-- PHASE 15: Insert missing stores (Extra Folheteria, Pao de Acucar Fresh, Dona Dani)
+-- ============================================================
+INSERT INTO stores (id, name, tier, type, scraper, is_active, city, coverage, collection_method, priority)
+VALUES ('extra_folheteria', 'Extra Folheteria', 1, 'extra_flyer', 'extra_flyer_scraper', true, 'Sao Paulo, Santos, Sao Vicente, Praia Grande', 'Campanhas Extra (panificacao/confeitaria) via API HTTP', 'automated', 10)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO stores (id, name, tier, type, scraper, is_active, city, coverage, collection_method, priority)
+VALUES ('pao_de_acucar_fresh', 'Pao de Acucar Fresh', 1, 'pao_flyer', 'pao_flyer_scraper', true, 'Sao Paulo, Santos, Sao Vicente, Praia Grande', 'Panfletos PA Fresh (panificacao) via API HTTP', 'automated', 10)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO stores (id, name, tier, type, scraper, is_active, city, base_url, search_url, selectors, coverage, collection_method, priority)
+VALUES ('dona_dani_ingredientes', 'Dona Dani Ingredientes', 2, 'website_catalog', 'website_scraper', true, 'Online - envio nacional', 'https://donadaniingredientes.com.br', 'https://donadaniingredientes.com.br/search/?q={query}', '{"product_card": [".js-item-product", ".item-product", ".col-grid"], "product_name": [".js-item-name", ".item-name"], "product_price": [".js-price-display", ".item-price"]}', '95 SKUs - insumos para panificacao, confeitaria e chocolateria', 'automated', 51)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO scrape_frequencies (store_id, tier, frequency_minutes, max_retries, timeout_seconds, rate_limit_per_minute, enabled)
+VALUES ('extra_folheteria', 1, 10080, 3, 120, 10, true)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO scrape_frequencies (store_id, tier, frequency_minutes, max_retries, timeout_seconds, rate_limit_per_minute, enabled)
+VALUES ('pao_de_acucar_fresh', 1, 10080, 3, 120, 10, true)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO scrape_frequencies (store_id, tier, frequency_minutes, max_retries, timeout_seconds, rate_limit_per_minute, enabled)
+VALUES ('dona_dani_ingredientes', 2, 1440, 3, 120, 10, true)
+ON CONFLICT DO NOTHING;

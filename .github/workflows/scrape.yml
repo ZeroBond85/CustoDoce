@@ -39,6 +39,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -93,6 +95,7 @@ jobs:
           mkdir -p data/cache
           git config user.name "custodoce-bot"
           git config user.email "bot@custodoce.com.br"
+          git remote set-url origin https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git
           git add data/prices_latest.json data/cache/
           git diff --staged --quiet || git commit -m "📊 Update prices $(date +'%Y-%m-%d %H:%M')"
           git push

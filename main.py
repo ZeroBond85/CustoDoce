@@ -342,6 +342,12 @@ def _collect_flyers(
             saved = 0
             for entry in entries:
                 try:
+                    if "store_name" not in entry:
+                        entry["store_name"] = store_name
+                    if "region" not in entry:
+                        entry["region"] = store.get("city", store.get("zone", ""))
+                    if "image_url" not in entry or not entry.get("image_url"):
+                        continue
                     upsert_flyer(entry)
                     saved += 1
                 except Exception as e:
@@ -392,8 +398,18 @@ def _run_api_flyer_scraper(store: dict) -> list[dict]:
     if cls is None:
         logger.warning("[%s] No API scraper class found for '%s'", store.get("name", "unknown"), scraper_name)
         return []
+    store_name = store.get("name", "unknown")
+    region = store.get("city", store.get("zone", ""))
     with cls(store) as scraper:
-        return scraper.run([])
+        entries = scraper.run([])
+    for entry in entries:
+        if "store_name" not in entry:
+            entry["store_name"] = store_name
+        if "region" not in entry:
+            entry["region"] = region
+        if "source" not in entry:
+            entry["source"] = f"api_{scraper_name}"
+    return entries
 
 
 def collect_tier2_vtex(ingredients: list[dict]) -> list[dict]:

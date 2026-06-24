@@ -7,19 +7,18 @@ Nota: O Supabase stores table nao tem URLs populadas (campo None).
 """
 import logging
 import sys
-from contextlib import suppress
 from pathlib import Path
-from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import httpx
 import yaml
 from dotenv import load_dotenv
-load_dotenv()
 
-from services.supabase_client import get_service_client
-from services.config_db import get_all_stores
+from services.supabase_client import get_service_client  # noqa: E402
+from services.config_db import get_all_stores  # noqa: E402
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
