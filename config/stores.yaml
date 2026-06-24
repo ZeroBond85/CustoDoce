@@ -205,6 +205,10 @@ stores:
     logistics: "pickup_sp"
     base_url: "https://www.lojadedoces.com.br"
     search_url: "https://www.lojadedoces.com.br/loja/busca.php?palavra_busca={query}"
+    selectors:
+      product_card: [".product", "li.product", ".product-item", ".item"]
+      product_name: [".woocommerce-loop-product__title", "h2 a", ".product-title"]
+      product_price: [".price", ".amount", ".woocommerce-Price-amount"]
     address: "Rua Brigadeiro Tobias, 206 - Santa Ifigênia, SP"
     zone: "centro"
     coverage: "Doces, chocolates, ingredientes, embalagens"
@@ -236,7 +240,7 @@ stores:
     is_active: true
     logistics: "pickup_sp"
     base_url: "https://www.amendolate.com.br"
-    search_url: "https://www.amendolate.com.br/confeitaria/{query}"
+    search_url: "https://www.amendolate.com.br/busca?q={query}"
     selectors:
       product_card: ["li", ".product-item", ".item", ".produto"]
       product_name: ["a", ".product-name", ".nome-produto", "h3 a"]
@@ -666,6 +670,10 @@ stores:
     logistics: "pickup_sp"
     base_url: "https://www.chocoexpress.com.br"
     search_url: "https://www.chocoexpress.com.br/loja/busca.php?palavra_busca={query}"
+    selectors:
+      product_card: [".product", "li.product", ".product-item", ".item"]
+      product_name: [".woocommerce-loop-product__title", "h2 a", ".product-title"]
+      product_price: [".price", ".amount", ".woocommerce-Price-amount"]
     address: "SP Capital"
     zone: "sul"
     coverage: "Chocolates Nestlé, coberturas, leite condensado, confeitaria, sorveteria - 8.000+ itens"
@@ -679,6 +687,10 @@ stores:
     logistics: "pickup_local"
     base_url: "https://www.centraldoconfeiteiro.com.br"
     search_url: "https://www.centraldoconfeiteiro.com.br/loja/busca.php?palavra_busca={query}"
+    selectors:
+      product_card: [".product", "li.product", ".product-item", ".item"]
+      product_name: [".woocommerce-loop-product__title", "h2 a", ".product-title"]
+      product_price: [".price", ".amount", ".woocommerce-Price-amount"]
     address: "Av. Dr. Timóteo Penteado, 4228 - Vila Galvão, Guarulhos"
     city: "Guarulhos"
     zone: "norte"
@@ -693,6 +705,10 @@ stores:
     logistics: "pickup_sp"
     base_url: "https://www.bocaodoces.com.br"
     search_url: "https://www.bocaodoces.com.br/loja/busca.php?palavra_busca={query}"
+    selectors:
+      product_card: [".product", "li.product", ".product-item", ".item"]
+      product_name: [".woocommerce-loop-product__title", "h2 a", ".product-title"]
+      product_price: [".price", ".amount", ".woocommerce-Price-amount"]
     address: "SP Capital"
     zone: "sul"
     coverage: "Chocolates, granulados, leite condensado, chocolate em pó, embalagens, confeitaria - entrega Brasil"
@@ -773,6 +789,10 @@ stores:
     logistics: "pickup_local"
     base_url: "https://www.confeitosecia.com"
     search_url: "https://www.confeitosecia.com/loja/busca.php?palavra_busca={query}"
+    selectors:
+      product_card: [".product", "li.product", ".product-item", ".item"]
+      product_name: [".woocommerce-loop-product__title", "h2 a", ".product-title"]
+      product_price: [".price", ".amount", ".woocommerce-Price-amount"]
     address: "Rua Carvalho de Mendonça, 251 - Vila Belmiro, Santos"
     city: "Santos"
     coverage: "Confeitaria fina, pasta americana, corantes, bicos, moldes, descartáveis - 29+ produtos leite condensado"
