@@ -24,7 +24,7 @@ class VtexScraper(BaseWebScraper):
             if results:
                 break
         if not results:
-            results = self._fetch_products(ing["canonical"].lower())
+            results = self._fetch_products(ing["canonical_name"].lower())
         if not results:
             for alias in ing.get("aliases", []):
                 results = self._fetch_products(alias.lower())

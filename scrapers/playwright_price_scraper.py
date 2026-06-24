@@ -66,7 +66,7 @@ class PlaywrightPriceScraper(BaseWebScraper):
 
     async def _search_and_parse_async(self, context, ing: dict) -> list[dict]:
         terms = list(ing.get("search_terms", []))
-        canonical = ing.get("canonical", "")
+        canonical = ing.get("canonical_name", "")
         if canonical:
             terms.append(canonical)
         for alias in ing.get("aliases", []):

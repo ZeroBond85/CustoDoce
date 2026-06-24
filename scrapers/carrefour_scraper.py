@@ -35,7 +35,7 @@ class CarrefourScraper(BaseWebScraper):
             if html:
                 break
         if not html:
-            html = self.fetch_search(ing["canonical"].lower().replace("%", " "))
+            html = self.fetch_search(ing["canonical_name"].lower().replace("%", " "))
         if not html:
             for alias in ing.get("aliases", []):
                 html = self.fetch_search(alias.lower().replace("%", " "))

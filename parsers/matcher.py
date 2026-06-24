@@ -14,7 +14,7 @@ def clean_text(text: str) -> str:
 def build_alias_list(ingredients: list[dict]) -> list[tuple[str, str, list[str]]]:
     alias_map = []
     for ing in ingredients:
-        canonical = ing["canonical"]
+        canonical = ing["canonical_name"]
         aliases = ing.get("aliases", [])
         alias_map.append((canonical, canonical, aliases))
         for alias in aliases:
@@ -24,7 +24,7 @@ def build_alias_list(ingredients: list[dict]) -> list[tuple[str, str, list[str]]
 
 def match_exact(product_text: str, ingredient: dict) -> bool:
     product_upper = product_text.upper()
-    canonical_upper = ingredient["canonical"].upper()
+    canonical_upper = ingredient["canonical_name"].upper()
 
     if canonical_upper in product_upper:
         return True
@@ -56,7 +56,7 @@ def match_ingredient(
             return ing, 100.0, "exact"
 
         # fuzzy match on canonical
-        canonical_clean = clean_text(ing["canonical"])
+        canonical_clean = clean_text(ing["canonical_name"])
         score = fuzz.token_set_ratio(product_clean, canonical_clean)
         if score > best_score:
             best_score = score
@@ -87,10 +87,10 @@ def rank_ingredients(
     candidates = []
 
     for ing in ingredients:
-        canonical_clean = clean_text(ing["canonical"])
+        canonical_clean = clean_text(ing["canonical_name"])
         score = fuzz.token_set_ratio(product_clean, canonical_clean)
         match_type = "fuzzy_canonical"
-        matched_term = ing["canonical"]
+        matched_term = ing["canonical_name"]
 
         for alias in ing.get("aliases", []):
             alias_clean = clean_text(alias)

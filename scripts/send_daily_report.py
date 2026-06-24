@@ -44,7 +44,7 @@ def main():
             ingredients = load_ingredients()
             top5_by_ingredient = {}
             for ing in ingredients:
-                name = ing["canonical"]
+                name = ing["canonical_name"]
                 ing_prices = sorted(
                     by_ingredient.get(name, []),
                     key=lambda x: (x.get("normalized") or {}).get("price_per_kg", 999999)

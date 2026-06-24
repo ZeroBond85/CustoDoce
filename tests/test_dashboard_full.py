@@ -1008,7 +1008,7 @@ def test_get_telegram_report_structure():
     assert len(result) == 0
 
     result2 = get_telegram_report(
-        [{"canonical": "Leite Condensado", "aliases": ["Moca"]}],
+        [{"canonical_name": "Leite Condensado", "aliases": ["Moca"]}],
         top_n=3,
     )
     assert isinstance(result2, list)

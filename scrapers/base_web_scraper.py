@@ -102,7 +102,7 @@ class BaseWebScraper(ABC):
             if html:
                 break
         if not html:
-            html = self.fetch_search(ing["canonical"].lower())
+            html = self.fetch_search(ing["canonical_name"].lower())
         if not html:
             for alias in ing.get("aliases", []):
                 html = self.fetch_search(alias.lower())

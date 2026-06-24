@@ -49,7 +49,7 @@ async def precos_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ingredients = load_ingredients()
     matched = None
     for ing in ingredients:
-        if ing["canonical"].lower().startswith(query.lower()):
+        if ing["canonical_name"].lower().startswith(query.lower()):
             matched = ing
             break
 
@@ -60,15 +60,15 @@ async def precos_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    prices = get_prices_for_ingredient(matched["canonical"])
+    prices = get_prices_for_ingredient(matched["canonical_name"])
     if not prices:
         await update.message.reply_text(
-            f"Nenhum preço encontrado para '{matched['canonical']}' ainda.\n"
+            f"Nenhum preço encontrado para '{matched['canonical_name']}' ainda.\n"
             "Aguarde a próxima coleta."
         )
         return
 
-    msg = f"🔍 <b>{matched['canonical']}</b> - {len(prices)} preços encontrados\n"
+    msg = f"🔍 <b>{matched['canonical_name']}</b> - {len(prices)} preços encontrados\n"
     msg += f"{'─' * 40}\n\n"
 
     for i, price in enumerate(prices[:10]):
@@ -87,7 +87,7 @@ async def lista_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         cat = ing.get("category", "outros")
         if cat not in categories:
             categories[cat] = []
-        categories[cat].append(ing["canonical"])
+        categories[cat].append(ing["canonical_name"])
 
     msg = "📋 <b>Ingredientes Monitorados</b>\n\n"
     for cat, items in categories.items():

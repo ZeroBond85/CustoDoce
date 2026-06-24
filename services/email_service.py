@@ -334,7 +334,7 @@ def send_telegram_report(token: str, chat_id: str, ingredients: list[dict], pric
     n_with_prices = 0
 
     for ing in ingredients:
-        name = ing["canonical"]
+        name = ing["canonical_name"]
         prices = prices_by_ingredient.get(name, [])
         if not prices:
             continue

@@ -403,7 +403,7 @@ def _render_variation_alerts(df):
     try:
         alerts_found = False
         for ing in load_ingredients()[:6]:
-            ing_name = ing["canonical"]
+            ing_name = ing["canonical_name"]
             ing_prices = df[df["ingredient_id"] == ing_name]
             if ing_prices.empty:
                 continue

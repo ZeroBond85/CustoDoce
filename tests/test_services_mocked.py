@@ -525,7 +525,7 @@ class TestPriceService:
 
         mock_get.side_effect = Exception("offline")
 
-        result = get_telegram_report([{"canonical": "X", "aliases": []}], top_n=5)
+        result = get_telegram_report([{"canonical_name": "X", "aliases": []}], top_n=5)
         assert isinstance(result, list)
 
     # ── _detect_promotion ──────────────────────────────────────
@@ -617,7 +617,7 @@ class TestPriceService:
         """process_price_match() deve incluir validity_raw, is_promotion, collected_weekday."""
         from main import process_price_match
 
-        mock_match.return_value = ({"canonical": "Leite Condensado", "aliases": []}, 95.0, "exact")
+        mock_match.return_value = ({"canonical_name": "Leite Condensado", "aliases": []}, 95.0, "exact")
 
         store = {"name": "Assai", "type": "pdf", "tier": 1, "city": "Santos"}
         result = process_price_match(store, "Leite Moca PROMO 50% OFF", 39.90, "cx 12x395g", [])
@@ -633,7 +633,7 @@ class TestPriceService:
         """Sem keywords de promocao, is_promotion=False."""
         from main import process_price_match
 
-        mock_match.return_value = ({"canonical": "Farinha", "aliases": []}, 95.0, "exact")
+        mock_match.return_value = ({"canonical_name": "Farinha", "aliases": []}, 95.0, "exact")
 
         store = {"name": "Assai", "type": "pdf", "tier": 1}
         result = process_price_match(store, "Farinha de Trigo 1kg", 5.90, "1kg", [])
@@ -662,7 +662,7 @@ class TestPriceService:
         """Validity_raw fornecido externamente deve ser passado ao entry."""
         from main import process_price_match
 
-        mock_match.return_value = ({"canonical": "Leite Ninho", "aliases": []}, 90.0, "exact")
+        mock_match.return_value = ({"canonical_name": "Leite Ninho", "aliases": []}, 90.0, "exact")
 
         store = {"name": "Extra", "type": "website", "tier": 2}
         result = process_price_match(
@@ -679,7 +679,7 @@ class TestPriceService:
         """Extrai texto de validade do nome do produto quando validity_raw nao fornecido."""
         from main import process_price_match
 
-        mock_match.return_value = ({"canonical": "Teste", "aliases": []}, 95.0, "exact")
+        mock_match.return_value = ({"canonical_name": "Teste", "aliases": []}, 95.0, "exact")
 
         store = {"name": "Test", "type": "pdf", "tier": 1}
         result = process_price_match(
@@ -765,7 +765,7 @@ class TestVtexScraper:
             }],
         }
 
-        entries = scraper.parse_product(product, {"canonical": "Leite Moca", "brands": ["Moca"]})
+        entries = scraper.parse_product(product, {"canonical_name": "Leite Moca", "brands": ["Moca"]})
         assert len(entries) == 1
         assert entries[0]["validity_raw"] == "2026-07-15T23:59:59Z"
 
@@ -787,7 +787,7 @@ class TestVtexScraper:
             }],
         }
 
-        entries = scraper.parse_product(product, {"canonical": "Farinha", "brands": []})
+        entries = scraper.parse_product(product, {"canonical_name": "Farinha", "brands": []})
         assert len(entries) == 1
         assert entries[0]["validity_raw"] == ""
 
@@ -810,7 +810,7 @@ class TestVtexScraper:
             }],
         }
 
-        entries = scraper.parse_product(product, {"canonical": "Acucar", "brands": []})
+        entries = scraper.parse_product(product, {"canonical_name": "Acucar", "brands": []})
         assert len(entries) == 1
         assert entries[0]["validity_raw"] == ""
 
@@ -1138,11 +1138,11 @@ class TestMatcher:
     """Testes P0 para parsers/matcher.py — match_ingredient e auxiliares."""
 
     INGREDIENTS = [
-        {"canonical": "Leite Condensado",
+        {"canonical_name": "Leite Condensado",
          "aliases": ["Leite Condensado Moça", "Leite Cond Molico"]},
-        {"canonical": "Creme de Leite",
+        {"canonical_name": "Creme de Leite",
          "aliases": ["Creme de Leite Nestle", "Nestle Creme de Leite"]},
-        {"canonical": "Chocolate em Pó 50%",
+        {"canonical_name": "Chocolate em Pó 50%",
          "aliases": ["Chocolate em Pó 50% Cacau"]},
     ]
 
@@ -1169,7 +1169,7 @@ class TestMatcher:
         from parsers.matcher import match_ingredient
         result = match_ingredient("Leite Condensado Moça", self.INGREDIENTS)
         assert result[0] is not None
-        assert result[0]["canonical"] == "Leite Condensado"
+        assert result[0]["canonical_name"] == "Leite Condensado"
         assert result[1] == 100.0
         assert result[2] == "exact"
 
@@ -1181,7 +1181,7 @@ class TestMatcher:
             "Creme Fresco Leite Nestle", self.INGREDIENTS
         )
         assert coca is not None
-        assert coca["canonical"] == "Creme de Leite"
+        assert coca["canonical_name"] == "Creme de Leite"
         assert score >= 80.0
         assert match_type in ("fuzzy_canonical", "fuzzy_alias")
 
@@ -1202,7 +1202,7 @@ class TestMatcher:
         from parsers.matcher import rank_ingredients
         result = rank_ingredients("Chocolate em Pó 50% Cacau 200g", self.INGREDIENTS, top_n=2)
         assert len(result) == 2
-        assert result[0][0]["canonical"] == "Chocolate em Pó 50%"
+        assert result[0][0]["canonical_name"] == "Chocolate em Pó 50%"
 
     def test_build_alias_list(self):
         from parsers.matcher import build_alias_list
@@ -1746,7 +1746,7 @@ class TestBaseWebScraper:
     def test_run_iterates_ingredients(self, mock_search):
         mock_search.return_value = [{"product": "test", "price": 10.0}]
         scraper = self._make_concrete_scraper()
-        ingredients = [{"canonical": "Leite", "search_terms": ["leite"]}, {"canonical": "Chocolate", "search_terms": ["chocolate"]}]
+        ingredients = [{"canonical_name": "Leite", "search_terms": ["leite"]}, {"canonical_name": "Chocolate", "search_terms": ["chocolate"]}]
         result = scraper.run(ingredients)
         assert len(result) == 2
         assert mock_search.call_count == 2

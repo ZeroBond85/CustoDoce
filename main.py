@@ -109,7 +109,7 @@ def build_product_entry(
     validity = validity_raw or _extract_validity_from_product(raw_product)
     brand = brand or extract_brand(raw_product, ingredient)
     return {
-        "ingredient_id": ingredient["canonical"],
+        "ingredient_id": ingredient["canonical_name"],
         "store_id": store.get("id") or store["name"].lower().replace(" ", "_"),
         "source": store.get("type", "automated"),
         "store_name": store["name"],
@@ -152,7 +152,7 @@ def process_price_match(
 
     if score >= 55.0:
         candidates = rank_ingredients(product_text, ingredients, top_n=3)
-        suggestions = [c[0]["canonical"] for c in candidates if c[1] >= 55.0]
+        suggestions = [c[0]["canonical_name"] for c in candidates if c[1] >= 55.0]
         validity = validity_raw or _extract_validity_from_product(product_text)
 
         # Build detailed match reason
@@ -174,13 +174,13 @@ def process_price_match(
 
             # Product text analysis
             product_words = set(clean_text(product_text).split())
-            canonical_words = set(clean_text(top_ing["canonical"]).split())
+            canonical_words = set(clean_text(top_ing["canonical_name"]).split())
             unmatched_words = product_words - canonical_words
 
             match_reason = (
                 f"Tipo: {type_label} | "
                 f"Score: {top_score:.0f}% | "
-                f"Candidato: '{top_ing['canonical']}' | "
+                f"Candidato: '{top_ing['canonical_name']}' | "
                 f"Termo match: '{top_term}'"
             )
             if unmatched_words:
@@ -192,7 +192,7 @@ def process_price_match(
         top3_summary = []
         for c in candidates:
             top3_summary.append({
-                "canonical": c[0]["canonical"],
+                "canonical_name": c[0]["canonical_name"],
                 "score": c[1],
                 "match_type": c[2],
                 "matched_term": c[3],

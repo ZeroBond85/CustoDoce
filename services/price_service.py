@@ -276,7 +276,7 @@ def approve_review_item(item_id: str, ingredient_id: str) -> dict:
         best_ing = None
         norm_input = _normalize_text(ingredient_id)
         for ing in all_ing:
-            names = [ing.get("canonical", ""), ing.get("name", "")] + ing.get("aliases", [])
+            names = [ing.get("canonical_name", ""), ing.get("name", "")] + ing.get("aliases", [])
             for name in names:
                 norm_name = _normalize_text(name)
                 score = fuzz.token_set_ratio(norm_input, norm_name)
@@ -379,7 +379,7 @@ def get_telegram_report(ingredients: list[dict], top_n: int = 5) -> list[dict]:
     for p in all_prices:
         by_ing[p.get("ingredient_id", "")].append(p)
     for ing in ingredients:
-        name = ing["canonical"]
+        name = ing["canonical_name"]
         prices = by_ing.get(name, [])
         valid = [p for p in prices if p.get("normalized")
                  and isinstance(p["normalized"], dict)
