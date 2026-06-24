@@ -120,6 +120,7 @@ stores:
     collection_method: "automated"
     scraper: "roldao_api_scraper"
     priority: 6
+    verify_ssl: false
 
   # ============================================================================
   # TIER 1B - PDF DIRETO SP CAPITAL (Atacadistas com filial em SP)
@@ -251,6 +252,9 @@ stores:
     collection_method: "automated"
     scraper: "website_scraper"
     priority: 10
+    headers:
+      Referer: "https://www.amendolate.com.br/"
+      Origin: "https://www.amendolate.com.br"
 
   - name: "Central Flavor"
     tier: 2

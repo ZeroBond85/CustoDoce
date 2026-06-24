@@ -42,17 +42,36 @@ class BaseWebScraper(ABC):
         self.base_url = (store_config.get("base_url") or "").rstrip("/")
         self.rate_limit = rate_limit or store_config.get("rate_limit", self.DEFAULT_RATE_LIMIT)
         self.max_retries = max_retries or store_config.get("max_retries", self.DEFAULT_MAX_RETRIES)
+        
+        # Headers customizáveis por store
+        custom_headers = store_config.get("headers", {})
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/125.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+            "Cache-Control": "max-age=0",
+        }
+        headers.update(custom_headers)
+        
+        # SSL verification (pode ser desabilitado para sites com certificado problemático)
+        verify_ssl = store_config.get("verify_ssl", True)
+        
         self._http = httpx.Client(
             timeout=30.0,
             follow_redirects=True,
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/125.0.0.0 Safari/537.36"
-                ),
-                "Accept": "text/html,application/xhtml+xml,application/json",
-            },
+            headers=headers,
+            verify=verify_ssl,
         )
 
     def __enter__(self):
