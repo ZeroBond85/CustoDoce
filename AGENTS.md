@@ -32,7 +32,7 @@ CustoDoce/
 │   └── ci.yml                       # CI: ruff + bandit + pytest + pip-audit
 ├── config/
 │   ├── ingredients.yaml             # 23 ingredientes canônicos + aliases + search_terms
-│   ├── stores.yaml                  # 50 lojas (Tier 1-4)
+│   ├── stores.yaml                  # 51 lojas (Tier 1-4)
 │   ├── features.yaml                # Flags declarativas liga/desliga
 │   └── schema_prices.json           # Contrato de dados
 ├── scrapers/
@@ -79,7 +79,8 @@ CustoDoce/
 ├── supabase/
 │   ├── seed.sql                     # Tabelas + índices + RLS + triggers
 │   ├── consolidated_migration.sql   # Migração consolidada (574 linhas)
-│   └── 002_add_brand_column.sql     # Adiciona coluna brand nas tabelas
+│   ├── 002_add_brand_column.sql     # Adiciona coluna brand nas tabelas
+│   └── 003_fix_price_history_trigger.sql  # PHASE 15 trigger ON CONFLICT fix
 ├── scripts/
 │   ├── seed_prices.py               # Gera dados sintéticos (--dry-run/--execute/--json)
 │   ├── deploy_database.py           # Migração SQL (--dry-run/--execute/--output)
@@ -88,8 +89,11 @@ CustoDoce/
 │   ├── db_audit.py                  # Auditoria completa do DB (83 queries)
 │   └── validate_db_schema.py        # 87 checks de schema (tabelas, colunas, constraints)
 ├── tests/
+│   ├── conftest.py                    # dotenv loading para testes de integração
 │   ├── test_dashboard_full.py       # 85 testes unitários
-│   ├── test_services_mocked.py      # 75 testes com mocks
+│   ├── test_services_mocked.py      # 145 testes com mocks
+│   ├── test_review_queue_e2e.py     # 8 testes E2E (Supabase real)
+│   ├── test_db_integration.py       # 5 testes integração (banco real)
 │   └── README.md                    # Plano de testes
 ├── main.py                          # Orquestrador: collect + cleanup loop
 ├── pyproject.toml                   # Ruff config (line-length=120, ignore E501)
@@ -263,7 +267,7 @@ python -c "import json, jsonschema; s=json.load(open('config/schema_prices.json'
 - `bandit` — segurança (zero issues)
 - `pip-audit` — CVEs (zero vulnerabilidades)
 - `radon` — complexidade (média B)
-- `pytest` — 230 testes + 6 integração (dashboard: 85, services: 145)
+- `pytest` — 230 testes unitários + 8 testes E2E + 5 testes integração (dashboard: 85, services: 145, E2E review queue: 8, DB integration: 5)
 - `flake8` / `vulture` — código morto (opcional)
 
 ### Checklist por Fase
@@ -529,7 +533,7 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 - **Fase 15b** ✅ DB Gaps & Refactor — `reject_review_item()` retorna `{}`, dead code removido, `get_review_queue()` com `.limit(500)`, `_export_csv_button()` helper (**-96 linhas**), `_cached_get_all_current_prices()` substitui 6 chamadas, `store_id` real em vez de fabricado, 5 índices PHASE 10; 230 testes
 - **Fase 15c** ✅ Brand Propagation & Alias UX — `extract_brand` chamado também no caminho de revisão; VTEX scraper prioriza brands conhecidas sobre API; `brand` adicionado a todos os scrapers (website com `product_brand` selector); form de ingredientes redesenhado com campos `brands`+`search_terms`; sugestão automática de aliases com 5 padrões; PHASE 11 migration (`brands`+`search_terms` na tabela `ingredients`); 19 ingredientes (adicionado Manteiga); 230 testes
 - **Fase 15d** ✅ RPC Upsert + DB Validation — erro 42P10 corrigido: `upsert_price_rpc()` PL/pgSQL server-side bypassa `on_conflict` do client; PHASE 12 (constraints UNIQUE) + PHASE 13 (RPC function); `validate_db_schema.py` (72 checks: tabelas, colunas, constraints, índices, funções); CI pipeline atualizado com DB schema validation; st.image() com try/except para thumbnails quebradas; logo 220px + tagline 0.9rem; 230 testes
-- **Fase 15e** ✅ Integration Tests + E2E Bugfixes — `test_db_integration.py` (6 testes contra banco real: RPC upsert, constraints, functions, indexes, approve E2E); bugfix: `upsert_price()` handle dict/list do Supabase client; bugfix: `add_alias_to_ingredient()` aceita UUID ou canonical_name; 230 testes + 6 integração
+- **Fase 15e** ✅ Integration Tests + E2E Bugfixes — `test_db_integration.py` (5 testes contra banco real: RPC upsert, constraints, functions, indexes); bugfix: `upsert_price()` handle dict/list do Supabase client; bugfix: `add_alias_to_ingredient()` aceita UUID ou canonical_name; 230 testes + 5 integração
 - **Fase 15f** ✅ .single() → .maybe_single() sistêmico + Thumbs quebradas + Filtro Tiendeo — `services/config_db.py` + `price_service.py`: todos os 6 `.single()` substituídos por `.maybe_single()`, eliminando PGRST116 na raiz sem try/except; `admin/app.py`: fallback visual nas 3 seções de imagem (flyer grid, flyer detail, review queue) — URL inválida vira link clicável em vez de thumbnail quebrada; `aggregator_scraper.py`: `_is_food_store()` com 15+ keywords alimentícias e 50+ de blocklist (Boticário, farmácias, magazines etc.) + `_fix_image_url()` que prefixa `https:` em URLs `//`; `flyer_service.py`: `cleanup_non_food_flyers()` deleta flyers existentes de lojas não-alimentícias; `main.py`: incluído no loop de cleanup; 230 testes + 6 integração, ruff 0
 - **Fase 15g** ✅ DB Audit + Tabelas recipes/recipe_items — Auditoria completa (`scripts/db_audit.py`) revelou 3 problemas: (1) tabelas `recipes`+`recipe_items` não existiam (crítico — calculadora não salvava); (2) 51/75 flyers sem image_url (PDF scrapers); (3) `scrape_frequencies` vazia. Correção: PHASE 14 criou `recipes` (id, name, yield_qty, overhead_pct, profit_pct, created_at) + `recipe_items` (id, recipe_id→recipes(id), ingredient_id, quantity_g, selected_store, price_per_kg) com RLS + índice; `validate_db_schema.py` atualizado (87/87 checks); `deploy_database.py` + `consolidated_migration.sql` atualizados; 230 testes + 6 integração, ruff 0
 - **Fase 15h** ✅ PDF Thumbnails + scrape_frequencies seeding — `scrapers/base_flyer.py`: método `_render_first_page()` usa `pdfplumber.to_image(resolution=150)` para renderizar primeira página como PNG; `_thumbnail` salvo como atributo de instância durante `run()`; `main.py`: `_upload_flyer_thumbnail()` faz upload para Supabase Storage (bucket `thumbnails`, pasta `flyers/`) e retorna URL pública; `_collect_prices()` salva flyer record com thumbnail URL após processar PDF; fallback gracioso em todas as etapas (falha = sem thumbnail, não bloqueia pipeline); `scrape_frequencies` populada: 60 lojas com frequências por tier (Tier 1=semanal, Tier 2=diário, Tier 3=quinzenal, Tier 4=desabilitado); auditoria: 14 tabelas OK, 0 erros críticos; 230 testes + 6 integração, ruff 0
@@ -538,6 +542,7 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 - **Fase 16** ✅ 42P10 definitivo + Cache Clear + Brand+XSS — Manual SELECT+UPDATE/INSERT substitui `on_conflict`; proteção try/except em 23 operações de escrita; Cache Clear com CACHE_VERSION + botão sidebar + URL param; XSS sanitization em `build_product_entry()`; 230 testes
 - **Fase 17** ✅ Store Expansion: Cacau Center — WooCommerce reativado (SP São Vicente); Ingredientes Santa Vita diagnosticado (Loja Integrada, login wall); Shopping do Confeiteiro removido (DF); 51 lojas; 230 testes
 - **Fase 17b** ✅ Trigger Fix + Fuzzy Matching + Deprecation — PHASE 15 trigger `update_history_from_prices()` com `ON CONFLICT DO UPDATE` (fix 23505); `approve_review_item()` fuzzy matching RapidFuzz ≥70%; `upsert_price()` fallback try/except; `use_container_width` → `width='stretch'` (80 ocorrências); 230 testes
+- **Fase 17c** ✅ E2E Tests + Mock Collision Fix + Warning Suppression — `tests/test_review_queue_e2e.py` (8 testes E2E contra Supabase real: trigger ON CONFLICT, approve UUID/exact/fuzzy/duplicate, reject, add alias); `tests/conftest.py` dotenv loading; fixture reload via `importlib.util.spec_from_file_location` para resolver colisão com mock do `test_dashboard_full.py`; `pyproject.toml` `[tool.pytest.ini_options]` filtra DeprecationWarning do Supabase; 243 testes, ruff 0
 
 ## Fase 17 — Store Expansion: Cacau Center Reactivation + Deep Analysis (concluida)
 

@@ -189,8 +189,8 @@ CustoDoce/
 │   ├── scrape.yml                   # Coleta automática (cron + deploy)
 │   └── ci.yml                       # CI: ruff + bandit + pytest + pip-audit
 ├── config/
-│   ├── ingredients.yaml             # 11 ingredientes + aliases + search_terms
-│   ├── stores.yaml                  # 50 lojas (Tier 1-4)
+│   ├── ingredients.yaml             # 23 ingredientes canônicos + aliases + search_terms
+│   ├── stores.yaml                  # 51 lojas (Tier 1-4)
 │   ├── features.yaml                # Flags declarativas liga/desliga
 │   └── schema_prices.json           # Validação dos dados
 ├── scrapers/
@@ -245,9 +245,11 @@ CustoDoce/
 │   ├── validate_db_schema.py        # Valida schema do DB (72 checks)
 │   └── deploy_check.py              # Health check pré-deploy
 ├── tests/
+│   ├── conftest.py                    # dotenv loading para testes de integração
 │   ├── test_dashboard_full.py       # 85 testes unitários
 │   ├── test_services_mocked.py      # 145 testes com mocks
-│   ├── test_db_integration.py       # 6 testes integração (banco real)
+│   ├── test_review_queue_e2e.py     # 8 testes E2E (Supabase real)
+│   ├── test_db_integration.py       # 5 testes integração (banco real)
 │   └── README.md                    # Plano de testes
 ├── main.py                          # Orquestrador: collect + cleanup loop
 ├── pyproject.toml                   # Ruff config (line-length=120, ignore E501)
