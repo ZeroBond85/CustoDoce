@@ -5,6 +5,7 @@ import re
 import sys
 from contextlib import suppress
 from datetime import datetime, date, timezone
+from inspect import signature
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -264,7 +265,8 @@ def _collect_prices(
         store_name = store.get("name", "unknown")
         try:
             with scraper_cls(store) as scraper:
-                raw_products = scraper.run(ingredients)
+                sig = signature(scraper.run)
+                raw_products = scraper.run(ingredients) if 'ingredients' in sig.parameters else scraper.run()
 
             if hasattr(scraper, '_thumbnail') and scraper._thumbnail:
                 try:
@@ -382,10 +384,13 @@ def collect_tier1_api_flyers(ingredients: list[dict]) -> list[dict]:
 
 
 def _run_api_flyer_scraper(store: dict) -> list[dict]:
-    scraper_name = store.get("scraper", "")
+    scraper_name = (store.get("scraper") or "").strip().lower()
+    if not scraper_name:
+        logger.warning("[%s] No scraper configured", store.get("name", "unknown"))
+        return []
     cls = API_SCRAPER_MAP.get(scraper_name)
     if cls is None:
-        logger.warning("[%s] No API scraper class found", store.get("name", "unknown"))
+        logger.warning("[%s] No API scraper class found for '%s'", store.get("name", "unknown"), scraper_name)
         return []
     with cls(store) as scraper:
         return scraper.run([])
@@ -446,6 +451,8 @@ def process_ocr_queue() -> int:
     for flyer in pending:
         try:
             img_url = flyer["image_url"]
+            if img_url and not img_url.startswith(("http://", "https://")):
+                img_url = "https://" + img_url
             resp = httpx.get(img_url, timeout=30)
             if resp.status_code != 200:
                 mark_failed(flyer["id"])
