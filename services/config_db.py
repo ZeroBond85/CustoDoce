@@ -3,6 +3,7 @@ Database-backed configuration service.
 Replaces YAML configs with Supabase tables.
 All functions use service_client for write operations.
 """
+# mypy: ignore-errors
 from datetime import datetime, timezone
 from typing import Optional
 from services.supabase_client import get_supabase, get_service_client

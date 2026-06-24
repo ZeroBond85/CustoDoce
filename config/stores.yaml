@@ -647,6 +647,19 @@ stores:
     scraper: "playwright_scraper"
     priority: 33
 
+  - name: "Roldão Atacadista Flyer"
+    tier: 3
+    type: "aggregator_js"
+    logistics: "pickup_local"
+    base_url: "https://roldao.com.br/ofertas-do-roldao/"
+    regions:
+      - "santos"
+      - "praia-grande"
+      - "sao-paulo"
+    collection_method: "automated"
+    scraper: "roldao_flyer_scraper"
+    priority: 34
+
   # ============================================================================
   # TIER 2C - E-COMMERCE NACIONAL / REGIONAL
   # ============================================================================

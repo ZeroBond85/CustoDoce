@@ -15,14 +15,14 @@ CREATE TABLE IF NOT EXISTS prices (
     ingredient_id TEXT NOT NULL,
     store_id TEXT NOT NULL,
     source TEXT NOT NULL DEFAULT 'automated',
-    store_name TEXT NOT NULL DEFAULT '',
+    store_name TEXT NOT NULL,
     raw_product TEXT NOT NULL,
     raw_price DECIMAL(10,2) NOT NULL,
     raw_unit TEXT NOT NULL DEFAULT '',
-    collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     valid_from DATE DEFAULT CURRENT_DATE,
     valid_until DATE DEFAULT (CURRENT_DATE + INTERVAL '7 days'),
     validity_raw TEXT DEFAULT '',
+    collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     collected_weekday TEXT DEFAULT '',
     is_promotion BOOLEAN DEFAULT FALSE,
     tier INTEGER DEFAULT 3,
@@ -30,9 +30,10 @@ CREATE TABLE IF NOT EXISTS prices (
     normalized JSONB DEFAULT NULL,
     city TEXT DEFAULT '',
     logistics TEXT DEFAULT 'pickup_local',
+    brand TEXT DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    UNIQUE (ingredient_id, store_id, collected_at)
+    
+    UNIQUE (ingredient_id, store_id)
 );
 
 -- Indexes for fast search
@@ -729,17 +730,33 @@ ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS city TEXT DEFAULT '';
 CREATE OR REPLACE FUNCTION update_history_from_prices()
 RETURNS TRIGGER AS $$
 BEGIN
-    INSERT INTO price_history (
-        price_id, ingredient_id, store_id, store_name,
-        raw_product, raw_price, raw_unit, normalized,
-        valid_from, valid_until, validity_raw, collected_weekday, is_promotion,
-        collected_at, brand
-    ) VALUES (
-        NEW.id, NEW.ingredient_id, NEW.store_id, NEW.store_name,
-        NEW.raw_product, NEW.raw_price, NEW.raw_unit, NEW.normalized,
-        NEW.valid_from, NEW.valid_until, NEW.validity_raw, NEW.collected_weekday, NEW.is_promotion,
-        NEW.collected_at, NEW.brand
-    );
+    -- On INSERT: save NEW values
+    -- On UPDATE: save OLD values (to preserve history of what changed)
+    IF TG_OP = 'INSERT' THEN
+        INSERT INTO price_history (
+            price_id, ingredient_id, store_id, store_name,
+            raw_product, raw_price, raw_unit, normalized,
+            valid_from, valid_until, validity_raw, collected_weekday, is_promotion,
+            collected_at
+        ) VALUES (
+            NEW.id, NEW.ingredient_id, NEW.store_id, NEW.store_name,
+            NEW.raw_product, NEW.raw_price, NEW.raw_unit, NEW.normalized,
+            NEW.valid_from, NEW.valid_until, NEW.validity_raw, NEW.collected_weekday, NEW.is_promotion,
+            NEW.collected_at
+        );
+    ELSIF TG_OP = 'UPDATE' THEN
+        INSERT INTO price_history (
+            price_id, ingredient_id, store_id, store_name,
+            raw_product, raw_price, raw_unit, normalized,
+            valid_from, valid_until, validity_raw, collected_weekday, is_promotion,
+            collected_at
+        ) VALUES (
+            OLD.id, OLD.ingredient_id, OLD.store_id, OLD.store_name,
+            OLD.raw_product, OLD.raw_price, OLD.raw_unit, OLD.normalized,
+            OLD.valid_from, OLD.valid_until, OLD.validity_raw, OLD.collected_weekday, OLD.is_promotion,
+            OLD.collected_at
+        );
+    END IF;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -847,13 +864,14 @@ BEGIN
         p_validity_raw, p_collected_weekday, p_is_promotion, p_tier, p_confidence,
         p_normalized, p_city, p_logistics, p_brand
     )
-    ON CONFLICT (ingredient_id, store_id, collected_at)
+    ON CONFLICT (ingredient_id, store_id)
     DO UPDATE SET
         source = EXCLUDED.source,
         store_name = EXCLUDED.store_name,
         raw_product = EXCLUDED.raw_product,
         raw_price = EXCLUDED.raw_price,
         raw_unit = EXCLUDED.raw_unit,
+        collected_at = EXCLUDED.collected_at,
         valid_from = EXCLUDED.valid_from,
         valid_until = EXCLUDED.valid_until,
         validity_raw = EXCLUDED.validity_raw,

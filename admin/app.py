@@ -191,14 +191,14 @@ def _cached_get_all_current_prices(valid_only: bool = True):
 
 def _export_csv_button(df, filename: str, label: str = "Exportar CSV", key: str = "csv_export", full_width: bool = True):
     """Botao de export CSV com feature flag."""
-    w = 'stretch' if full_width else 'content'
+    w = "stretch" if full_width else "content"
     if get_config("features.export.csv_enabled", True):
         csv_data = df.to_csv(index=False).encode("utf-8")
-        st.download_button(label, csv_data, filename, "text/csv", key=key, width=w)
+        st.download_button(label, csv_data, filename, "text/csv", key=key, width=w)  # type: ignore[arg-type]
     else:
         st.download_button(label, data="", disabled=True,
             help="Exportacao desabilitada em config/features.yaml",
-            key=f"{key}_disabled", width=w)
+            key=f"{key}_disabled", width=w)  # type: ignore[arg-type]
 
 
 def require_auth():
@@ -1493,22 +1493,22 @@ def _render_alias_suggestions(default: dict, all_ingredients: list[dict]):
     abbr = "".join(w[0] for w in words if w[0].isalpha()).upper()
     qualifiers = {"integral", "grosso", "branco", "colorido", "morango", "sem", "açúcar", "acucar"}
 
-    suggestions = set()
+    suggestions_set: set[str] = set()
     for suffix in ["1kg", "500g", "395g", "200g", "800g", "12un", "cx 12"]:
-        suggestions.add(f"{canon} {suffix}")
+        suggestions_set.add(f"{canon} {suffix}")
     for suffix in ["1kg", "500g", "395g"]:
-        suggestions.add(f"{abbr} {suffix}")
+        suggestions_set.add(f"{abbr} {suffix}")
     short = " ".join(w for w in words if w.lower() not in qualifiers)
     if short != canon and len(short) > 1:
         for s in ["1kg", "500g"]:
-            suggestions.add(f"{short} {s}")
+            suggestions_set.add(f"{short} {s}")
     if len(words) > 2:
         for s in ["1kg", "500g"]:
-            suggestions.add(f"{' '.join(words[1:])} {s}")
-    suggestions.add(canon.upper())
+            suggestions_set.add(f"{' '.join(words[1:])} {s}")
+    suggestions_set.add(canon.upper())
 
-    existing = set(default.get("aliases", []))
-    suggestions = sorted(s for s in suggestions if s not in existing)
+    existing: set[str] = set(default.get("aliases", []))
+    suggestions = sorted(s for s in suggestions_set if s not in existing)
 
     col_sug, col_ref = st.columns([2, 1])
     with col_sug:

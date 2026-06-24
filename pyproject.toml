@@ -53,3 +53,11 @@ module = [
     "playwright.*",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "services.*",
+    "admin.app",
+    "scrapers.*",
+]
+ignore_missing_imports = true

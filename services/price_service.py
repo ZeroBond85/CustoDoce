@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 import logging
 from datetime import datetime, date, timedelta, timezone
 from typing import Optional

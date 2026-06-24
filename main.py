@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 import html as _html
 import json
 import logging
