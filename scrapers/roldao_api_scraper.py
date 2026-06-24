@@ -9,6 +9,8 @@ logger = logging.getLogger(__name__)
 class RoldaoApiScraper(BaseWebScraper):
 
     def __init__(self, store_config: dict):
+        # Roldão's blog has SSL certificate issues, force verify_ssl=False
+        store_config = {**store_config, "verify_ssl": False}
         super().__init__(store_config)
         self.api_base = store_config.get("api_base", "https://blog.roldao.com.br/wp-json/wp/v2")
         self.endpoints = store_config.get("api_endpoints", {})

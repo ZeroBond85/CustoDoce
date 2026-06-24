@@ -18,6 +18,7 @@ FIELDS = [
     'scraper', 'search_url', 'base_url', 'api_endpoint', 'url_pattern',
     'selectors', 'publish_day', 'collection_method', 'visit_frequency',
     'logistics', 'zone', 'coverage', 'contact', 'type', 'priority',
+    'verify_ssl', 'headers', 'api_base', 'api_endpoints', 'image_host',
 ]
 
 updated = 0
