@@ -9,7 +9,7 @@ Usa dados de teste descartáveis (prefixo _test_*) que são limpos ao final.
 import os
 import sys
 from pathlib import Path
-from datetime import date, datetime, timezone
+from datetime import date
 
 import pytest
 
@@ -58,7 +58,8 @@ def db_conn():
 @pytest.fixture(scope="module")
 def supabase_client():
     """Cliente Supabase Python (service role)."""
-    import services.supabase_client as sc
+    import importlib
+    import importlib.util
 
     # Fix linebreaks from .env — JWT keys should have no whitespace
     for key in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY"):
@@ -72,7 +73,13 @@ def supabase_client():
         if anon:
             os.environ["SUPABASE_SERVICE_ROLE_KEY"] = anon
 
-    # Reset cached clients so they pick up fixed env vars
+    # Reload real module (test_dashboard_full.py may have replaced sys.modules with MagicMock)
+    real_path = Path(__file__).resolve().parent.parent / "services" / "supabase_client.py"
+    spec = importlib.util.spec_from_file_location("services.supabase_client", str(real_path))
+    sc = importlib.util.module_from_spec(spec)
+    sys.modules["services.supabase_client"] = sc
+    spec.loader.exec_module(sc)
+
     sc._supabase_client = None
     sc._service_client = None
 
@@ -245,70 +252,6 @@ class TestIndexes:
 
 
 # ── Approve review item (end-to-end) ──────────────────────────────
-
-
-class TestApproveReviewE2E:
-    """Testa o fluxo completo: insert review item → approve → price inserted."""
-
-    TEST_INGREDIENT = "_test_e2e_approve_ingredient"
-    TEST_STORE = "_test_e2e_approve_store"
-
-    def test_approve_creates_price(self, supabase_client, db_conn):
-        from services.price_service import approve_review_item
-
-        client = supabase_client
-
-        # Cleanup ALL prices/history for test store (trigger copies prices→price_history)
-        client.table("review_queue").delete().eq(
-            "store_name", "E2E Test Store"
-        ).execute()
-        cur = db_conn.cursor()
-        cur.execute("DELETE FROM price_history WHERE store_id = %s;", (self.TEST_STORE,))
-        cur.execute("DELETE FROM prices WHERE store_id = %s;", (self.TEST_STORE,))
-        db_conn.commit()
-        cur.close()
-
-        # Ensure store exists (approve_review_item calls get_store_by_name)
-        existing = client.table("stores").select("id").eq("name", "E2E Test Store").execute()
-        if not existing.data:
-            client.table("stores").insert({
-                "id": self.TEST_STORE,
-                "name": "E2E Test Store",
-                "tier": 99,
-            }).execute()
-
-        # Insert review item
-        review = client.table("review_queue").insert({
-            "raw_product": "Test Approve Product 200g",
-            "raw_price": 8.90,
-            "raw_unit": "un",
-            "store_name": "E2E Test Store",
-            "source": "integration_test",
-            "confidence": 0.65,
-            "status": "pending",
-            "collected_at": datetime.now(timezone.utc).isoformat(),
-        }).execute()
-
-        assert review.data, "Failed to insert review item"
-        item_id = review.data[0]["id"]
-
-        # We need a real ingredient_id. Use an existing one.
-        ings = client.table("ingredients").select("id").limit(1).execute()
-        real_ingredient_id = ings.data[0]["id"]
-
-        # Approve
-        result = approve_review_item(item_id, real_ingredient_id)
-        assert result, "approve_review_item returned empty"
-
-        # Verify review status updated
-        check = client.table("review_queue").select("status").eq("id", item_id).execute()
-        assert check.data[0]["status"] == "approved"
-
-        # Cleanup
-        client.table("review_queue").delete().eq("id", item_id).execute()
-        cur = db_conn.cursor()
-        cur.execute("DELETE FROM price_history WHERE store_id = %s;", (self.TEST_STORE,))
-        cur.execute("DELETE FROM prices WHERE store_id = %s AND source = 'integration_test';", (self.TEST_STORE,))
-        db_conn.commit()
-        cur.close()
-        client.table("stores").delete().eq("id", self.TEST_STORE).execute()
+# NOTE: Full approve/reject E2E tests are in test_review_queue_e2e.py
+# (test_dashboard_full.py poisons sys.modules["services.supabase_client"] with
+# a MagicMock at import time, making module reload unreliable in this file.)

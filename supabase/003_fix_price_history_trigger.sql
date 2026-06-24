@@ -28,7 +28,6 @@ BEGIN
         validity_raw = EXCLUDED.validity_raw,
         is_promotion = EXCLUDED.is_promotion,
         collected_weekday = EXCLUDED.collected_weekday,
-        confidence = EXCLUDED.confidence,
         brand = EXCLUDED.brand;
     RETURN NEW;
 END;
