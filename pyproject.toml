@@ -2,6 +2,14 @@
 filterwarnings = [
     "ignore::DeprecationWarning:supabase",
 ]
+markers = [
+    "slow: marks tests as slow (real HTTP/Playwright/OCR)",
+]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-m 'not slow' --ignore=tests/test_real_integration.py"
 
 [tool.ruff]
 line-length = 120
