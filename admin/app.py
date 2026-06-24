@@ -1143,35 +1143,68 @@ def tab_lojas():
     section_title("Lojas", "Gerenciamento de lojas e categorias")
 
     stores = _cached_get_all_stores(include_inactive=True)
+
+    # Carrega scrape_frequencies (todas, inclusive desativadas)
+    client = get_service_client()
+    freqs = client.table("scrape_frequencies").select("store_id,enabled").execute()
+    freq_map = {}
+    if freqs and freqs.data:
+        for f in freqs.data:
+            freq_map[f["store_id"]] = f["enabled"]
+
     tab_list, tab_form = st.tabs(["Lista", "Cadastrar/Editar"])
 
     with tab_list:
         if stores:
+            # Merge stores com status real do scrape_frequencies
+            enriched = []
+            for s in stores:
+                sid = s.get("id", "")
+                enabled = freq_map.get(sid, False)  # sem entrada = desativado
+                coverage = s.get("coverage", "") or ""
+                motivo = ""
+                if not enabled:
+                    m = re.search(r'\(inativo\s*-\s*(.+?)\)', coverage)
+                    if m:
+                        motivo = m.group(1).strip().capitalize()
+                    elif coverage:
+                        motivo = coverage[:80]
+                    else:
+                        motivo = "Nao informado"
+                enriched.append({**s, "_enabled": enabled, "_motivo": motivo})
+
+            ativas = sum(1 for e in enriched if e["_enabled"])
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Total Lojas", len(stores))
             tiers = [s.get("tier", 3) for s in stores]
             col2.metric("Tiers", f"{min(tiers)}-{max(tiers)}" if tiers else "—")
-            col3.metric("Ativas", len([s for s in stores if s.get("is_active")]))
+            col3.metric("Ativas", ativas)
             col4.metric("Tipos", len({s.get("type") for s in stores if s.get("type")}))
 
-            col_s1, col_s2 = st.columns([3, 1])
+            col_s1, col_s2, col_s3 = st.columns([2, 1, 1])
+            with col_s3:
+                status_filter = st.selectbox("Status", ["todas", "ativas", "desativadas"])
             with col_s2:
                 tier_filter = st.selectbox("Filtrar Tier", ["todas", 1, 2, 3, 4])
             with col_s1:
                 search = st.text_input("Buscar loja", placeholder="Nome ou cidade...")
 
-            filtered = stores
+            filtered = enriched
+            if status_filter == "ativas":
+                filtered = [e for e in filtered if e["_enabled"]]
+            elif status_filter == "desativadas":
+                filtered = [e for e in filtered if not e["_enabled"]]
             if tier_filter != "todas":
-                filtered = [s for s in filtered if s.get("tier") == tier_filter]
+                filtered = [e for e in filtered if e.get("tier") == tier_filter]
             if search:
                 q = search.lower()
-                filtered = [s for s in filtered if q in s.get("name", "").lower() or any(q in c.lower() for c in s.get("city", []))]
+                filtered = [e for e in filtered if q in e.get("name", "").lower() or any(q in c.lower() for c in e.get("city", []))]
 
             if filtered:
                 df = pd.DataFrame(filtered)
-                df["is_active"] = df["is_active"].map({True: "✅", False: "⏸️"})
-                df["city_str"] = df["city"].apply(lambda x: ", ".join(x) if x else "—")
-                cols = ["name", "tier", "type", "logistics", "city_str", "zone", "is_active"]
+                df["_status"] = df["_enabled"].map({True: "Ativa", False: "Desativada"})
+                df["city_str"] = df["city"].apply(lambda x: ", ".join(x) if isinstance(x, list) else str(x) if x else "—")
+                cols = ["name", "tier", "type", "city_str", "_status", "_motivo"]
                 cols = [c for c in cols if c in df.columns]
                 st.dataframe(_pt_cols(df[cols].head(100)), width='stretch', hide_index=True)
             else:

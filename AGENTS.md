@@ -543,6 +543,21 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 - **Fase 17** ✅ Store Expansion: Cacau Center — WooCommerce reativado (SP São Vicente); Ingredientes Santa Vita diagnosticado (Loja Integrada, login wall); Shopping do Confeiteiro removido (DF); 51 lojas; 230 testes
 - **Fase 17b** ✅ Trigger Fix + Fuzzy Matching + Deprecation — PHASE 15 trigger `update_history_from_prices()` com `ON CONFLICT DO UPDATE` (fix 23505); `approve_review_item()` fuzzy matching RapidFuzz ≥70%; `upsert_price()` fallback try/except; `use_container_width` → `width='stretch'` (80 ocorrências); 230 testes
 - **Fase 17c** ✅ E2E Tests + Mock Collision Fix + Warning Suppression — `tests/test_review_queue_e2e.py` (8 testes E2E contra Supabase real: trigger ON CONFLICT, approve UUID/exact/fuzzy/duplicate, reject, add alias); `tests/conftest.py` dotenv loading; fixture reload via `importlib.util.spec_from_file_location` para resolver colisão com mock do `test_dashboard_full.py`; `pyproject.toml` `[tool.pytest.ini_options]` filtra DeprecationWarning do Supabase; 243 testes, ruff 0
+- **Fase 18** ✅ Store Health Check + Dashboard Status Real + Reativacao — `store_health_check.py` testa HTTP em desativadas (YAML fallback); GP Distribuidora e Padeirão reativados; 5 lojas confirmadas mortas; `tab_lojas()` usa `scrape_frequencies.enabled` + coluna "Motivo" extraída do `coverage`; 243 testes
+
+## Fase 18 — Store Health Check + Dashboard Status Real + Reativacao (concluida)
+
+| O que foi feito | Resultado |
+|----------------|-----------|
+| **`store_health_check.py`** — testa HTTP em lojas desativadas (busca URL no YAML como fallback, já que o DB não tem URLs populadas) | ✅ |
+| **GP Distribuidora** reativada — Tier 2, SP capital, website_scraper, domínio voltou ao ar | ✅ |
+| **Padeirão e ArtPão** reativado — Tier 2, Santos, website_scraper, domínio voltou ao ar; entrada criada em `scrape_frequencies` | ✅ |
+| **Casa Rio Doces** mantida desativada — site é WordPress/WhatsApp (MeChamenoZAP), sem preços scrapeáveis | ✅ |
+| **5 lojas confirmadas mortas** (DNS falhou): Central Flavor, Casa dos Confeiteiros, Empório da Confeitaria, Doce Festa, Point Baker | ✅ |
+| **4 lojas no ar mas mantidas desativadas** (categoria errada): Shopping das Embalagens, Proplastik, Bezerra Embalagens, Pejuca Festas | ✅ |
+| **Dashboard `tab_lojas()` refatorada** — agora usa `scrape_frequencies.enabled` (não mais `stores.is_active`, que era sempre True); adicionado filtro "Status" (ativas/desativadas/todas); coluna "Motivo" extraída do campo `coverage` (ex: "Domínio fora do ar", "Só embalagens") | ✅ |
+| **9 stores Tier 4 sem URL** mantidas desativadas (SAV, Bolão, Merkadoces, Canola, VOMG, Maranata, Domingos, Litosul, Ki Delícia) | ✅ |
+| 243 testes, ruff 0 | ✅ Todos limpos |
 
 ## Fase 17 — Store Expansion: Cacau Center Reactivation + Deep Analysis (concluida)
 
