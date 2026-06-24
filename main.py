@@ -347,10 +347,13 @@ def _collect_flyers(
 
 
 def collect_tier1_pdfs(ingredients: list[dict]) -> list[dict]:
-    stores = [s for s in load_stores() if s.get("tier") == 1 and s.get("type") == "pdf_flyer"]
     today = date.today()
     weekday = today.strftime("%A").lower()
-    stores = [s for s in stores if weekday in (s.get("publish_day", "wednesday") if isinstance(s.get("publish_day"), str) else s.get("publish_day", ["wednesday"])) or weekday == "thursday"]
+    stores = []
+    for s in [x for x in load_stores() if x.get("tier") == 1 and x.get("type") == "pdf_flyer"]:
+        pd = s.get("publish_day") or "wednesday"
+        if weekday in (pd if isinstance(pd, str) else [pd]) or weekday == "thursday":
+            stores.append(s)
     return _collect_prices(stores, FlyerScraper, ingredients, "PDF")
 
 
