@@ -1133,8 +1133,11 @@ def tab_revisao():
                     if st.button(
                         "❌ Rejeitar", key=f"rej_{item_id}", width='stretch'
                     ):
-                        reject_review_item(item_id)
-                        st.rerun()
+                        try:
+                            reject_review_item(item_id)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro ao rejeitar: {e}")
     else:
         info_box("Nenhum item na fila de revisao!", "success")
 

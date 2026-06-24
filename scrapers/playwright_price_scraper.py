@@ -166,3 +166,7 @@ class PlaywrightPriceScraper(BaseWebScraper):
                 if text:
                     return text
         return ""
+
+    # Implement abstract method from BaseWebScraper
+    def parse_products(self, html: str) -> list[dict]:
+        return self._extract_products(html)

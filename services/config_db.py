@@ -54,11 +54,8 @@ def upsert_ingredient(data: dict) -> dict:
 
 def delete_ingredient(ingredient_id: str) -> bool:
     client = get_service_client()
-    try:
-        result = client.table("ingredients").delete().eq("id", ingredient_id).execute()
-        return bool(result.data)
-    except Exception:
-        return False
+    result = client.table("ingredients").delete().eq("id", ingredient_id).execute()
+    return bool(result.data)
 
 
 def add_alias_to_ingredient(canonical_name_or_id: str, new_alias: str) -> Optional[dict]:
@@ -129,11 +126,8 @@ def upsert_store(data: dict) -> dict:
 
 def delete_store(store_id: str) -> bool:
     client = get_service_client()
-    try:
-        result = client.table("stores").delete().eq("id", store_id).execute()
-        return bool(result.data)
-    except Exception:
-        return False
+    result = client.table("stores").delete().eq("id", store_id).execute()
+    return bool(result.data)
 
 
 # ============================================================
@@ -166,11 +160,8 @@ def upsert_schedule(data: dict) -> dict:
 
 def delete_schedule(schedule_id: str) -> bool:
     client = get_service_client()
-    try:
-        result = client.table("schedules").delete().eq("id", schedule_id).execute()
-        return bool(result.data)
-    except Exception:
-        return False
+    result = client.table("schedules").delete().eq("id", schedule_id).execute()
+    return bool(result.data)
 
 
 def update_schedule_run(schedule_id: str, last_run: datetime, next_run: Optional[datetime] = None) -> dict:
@@ -211,11 +202,8 @@ def upsert_scrape_frequency(data: dict) -> dict:
 
 def delete_scrape_frequency(freq_id: str) -> bool:
     client = get_service_client()
-    try:
-        result = client.table("scrape_frequencies").delete().eq("id", freq_id).execute()
-        return bool(result.data)
-    except Exception:
-        return False
+    result = client.table("scrape_frequencies").delete().eq("id", freq_id).execute()
+    return bool(result.data)
 
 
 # ============================================================
@@ -251,11 +239,8 @@ def upsert_recipient(data: dict) -> dict:
 
 def delete_recipient(recipient_id: str) -> bool:
     client = get_service_client()
-    try:
-        result = client.table("alert_recipients").delete().eq("id", recipient_id).execute()
-        return bool(result.data)
-    except Exception:
-        return False
+    result = client.table("alert_recipients").delete().eq("id", recipient_id).execute()
+    return bool(result.data)
 
 
 # ============================================================
@@ -291,11 +276,8 @@ def upsert_alert_rule(data: dict) -> dict:
 
 def delete_alert_rule(rule_id: str) -> bool:
     client = get_service_client()
-    try:
-        result = client.table("alert_rules").delete().eq("id", rule_id).execute()
-        return bool(result.data)
-    except Exception:
-        return False
+    result = client.table("alert_rules").delete().eq("id", rule_id).execute()
+    return bool(result.data)
 
 
 # ============================================================

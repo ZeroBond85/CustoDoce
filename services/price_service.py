@@ -80,7 +80,8 @@ def upsert_price(price_entry: dict) -> dict:
         if isinstance(data, list) and data:
             return data[0]
         return {}
-    except Exception:
+    except Exception as e_rpc:
+        logging.getLogger(__name__).warning("upsert_price RPC failed, trying table fallback: %s", e_rpc)
         today = date.today().isoformat()
         ingredient_id = price_entry["ingredient_id"]
         store_id = price_entry["store_id"]
@@ -112,8 +113,9 @@ def upsert_price(price_entry: dict) -> dict:
             else:
                 result = client.table("prices").insert(data).execute()
             return result.data[0] if result.data else {}
-        except Exception:
-            return {}
+        except Exception as e_fallback:
+            logging.getLogger(__name__).error("upsert_price fallback failed: %s", e_fallback)
+            raise e_fallback
 
 
 def search_prices(
@@ -303,19 +305,16 @@ def approve_review_item(item_id: str, ingredient_id: str) -> dict:
     if item is None or not item.data:
         return {}
 
-    try:
-        result = (
-            client.table("review_queue")
-            .update({
-                "status": "approved",
-                "resolved_ingredient": resolved_ingredient_id,
-                "reviewed_at": datetime.now(timezone.utc).isoformat(),
-            })
-            .eq("id", item_id)
-            .execute()
-        )
-    except Exception:
-        return {}
+    result = (
+        client.table("review_queue")
+        .update({
+            "status": "approved",
+            "resolved_ingredient": resolved_ingredient_id,
+            "reviewed_at": datetime.now(timezone.utc).isoformat(),
+        })
+        .eq("id", item_id)
+        .execute()
+    )
 
     store_name = item.data.get("store_name", "")
     store_lookup = get_store_by_name(store_name) if store_name else None
@@ -356,16 +355,13 @@ def approve_review_item(item_id: str, ingredient_id: str) -> dict:
 
 def reject_review_item(item_id: str) -> dict:
     client = get_service_client()
-    try:
-        result = (
-            client.table("review_queue")
-            .update({"status": "rejected"})
-            .eq("id", item_id)
-            .execute()
-        )
-        return result.data[0] if result.data else {}
-    except Exception:
-        return {}
+    result = (
+        client.table("review_queue")
+        .update({"status": "rejected"})
+        .eq("id", item_id)
+        .execute()
+    )
+    return result.data[0] if result.data else {}
 
 
 def get_telegram_report(ingredients: list[dict], top_n: int = 5) -> list[dict]:
