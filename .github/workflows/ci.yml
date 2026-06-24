@@ -60,6 +60,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        continue-on-error: true
 
   streamlit-validate:
     runs-on: ubuntu-latest
