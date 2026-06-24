@@ -13,7 +13,12 @@ def load_ingredients():
     import yaml
     with open("config/ingredients.yaml", encoding="utf-8") as f:
         data = yaml.safe_load(f)
-    return data.get("ingredients", [])
+    # Convert YAML 'canonical' to 'canonical_name' for compatibility with email_service
+    ingredients = data.get("ingredients", [])
+    for ing in ingredients:
+        if "canonical" in ing and "canonical_name" not in ing:
+            ing["canonical_name"] = ing["canonical"]
+    return ingredients
 
 
 def main():
