@@ -28,7 +28,7 @@ from services.flyer_service import cleanup_old_flyers, cleanup_non_food_flyers
 from services.flyer_service import upsert_flyer
 from services.email_service import send_daily_report, send_scraper_error
 from services.config_db import get_active_ingredients, get_active_stores
-from services.supabase_client import get_service_client
+from services.supabase_client import get_service_client, get_supabase
 
 _auto_disable_threshold = 3
 
@@ -72,7 +72,16 @@ def load_ingredients() -> list[dict]:
 
 
 def load_stores() -> list[dict]:
-    return get_active_stores()
+    all_stores = get_active_stores()
+    if not all_stores:
+        return []
+    # Load enabled store IDs from scrape_frequencies
+    client = get_supabase()
+    freq = client.table("scrape_frequencies").select("store_id").eq("enabled", True).execute()
+    enabled_ids = {f["store_id"] for f in (freq.data or [])}
+    if not enabled_ids:
+        return all_stores  # fallback: se tabela vazia, usa todas
+    return [s for s in all_stores if s.get("id") in enabled_ids]
 
 
 def _extract_validity_from_product(product_text: str) -> str:
