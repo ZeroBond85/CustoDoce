@@ -1,20 +1,10 @@
 #!/usr/bin/env python3
 """Cleanup review_queue: remove test data and reject out-of-scope items."""
-import os
 import sys
 from pathlib import Path
+from collections import Counter
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-_dotenv = Path(__file__).parent.parent / ".env"
-if _dotenv.exists():
-    with open(_dotenv, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line and "=" in line and not line.startswith("#"):
-                k, _, v = line.partition("=")
-                v = v.strip("\"'")
-                os.environ.setdefault(k.strip(), v)
 
 from services.supabase_client import get_service_client
 
@@ -88,7 +78,7 @@ if dani_to_reject:
 # 5. Final count
 print("\n5. Contagem final de pendentes por loja:")
 remaining = client.table("review_queue").select("store_name,status").eq("status", "pending").execute()
-from collections import Counter
+counts = Counter(item["store_name"] for item in (remaining.data or []))
 counts = Counter(item["store_name"] for item in (remaining.data or []))
 for store, count in sorted(counts.items(), key=lambda x: -x[1]):
     print(f"   {store:40s} {count} pendentes")

@@ -1,11 +1,14 @@
 """Sync all config fields from stores.yaml to DB stores table."""
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from dotenv import load_dotenv; load_dotenv()
+
+from dotenv import load_dotenv
 import yaml
 from services.supabase_client import get_service_client
-import ast
+
+load_dotenv()
 
 c = get_service_client()
 with open('config/stores.yaml','r',encoding='utf-8') as f:

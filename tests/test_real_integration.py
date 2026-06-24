@@ -98,20 +98,20 @@ def test_real_website_scraper_selectors_are_dict():
     """Website scrapers with selectors in YAML should have them as dict."""
     import yaml
     from services.supabase_client import get_service_client
-    
+
     # Load YAML to know which stores should have selectors
     with open("config/stores.yaml", encoding="utf-8") as f:
         yaml_data = yaml.safe_load(f)
-    
+
     # YAML uses 'name' as key, DB uses 'id' - match by name->id mapping
     yaml_names_with_selectors = {
-        s["name"] for s in yaml_data["stores"] 
+        s["name"] for s in yaml_data["stores"]
         if s.get("type") == "website_catalog" and s.get("selectors")
     }
-    
+
     client = get_service_client()
     r = client.table("stores").select("id,name,scraper,selectors").eq("type", "website_catalog").execute()
-    
+
     for store in r.data:
         if store["name"] in yaml_names_with_selectors:
             sel = store.get("selectors")
@@ -153,21 +153,21 @@ def test_real_website_scraper_cacau_center():
     """Test real scraping of Cacau Center (known working site)."""
     from scrapers.website_scraper import WebsiteScraper
     from services.supabase_client import get_service_client
-    
+
     client = get_service_client()
     r = client.table("stores").select("*").eq("id", "cacau_center").maybe_single().execute()
     store = r.data
-    
+
     if not store:
         pytest.skip("Cacau Center not in DB")
-    
+
     scraper = WebsiteScraper(store)
     try:
         # Test search for one ingredient
         html = scraper.fetch_search("leite condensado")
         assert html is not None, "Failed to fetch search page"
         assert len(html) > 1000, "HTML too small, likely error page"
-        
+
         products = scraper.parse_products(html)
         # May have 0 products if search terms don't match - that's OK
         assert isinstance(products, list)
@@ -180,14 +180,14 @@ def test_real_vtex_scraper_casa_santa_luzia():
     """Test real VTEX API scraping for Casa Santa Luzia."""
     from scrapers.vtex_scraper import VtexScraper
     from services.supabase_client import get_service_client
-    
+
     client = get_service_client()
     r = client.table("stores").select("*").eq("id", "casa_santa_luzia").maybe_single().execute()
     store = r.data
-    
+
     if not store:
         pytest.skip("Casa Santa Luzia not in DB")
-    
+
     scraper = VtexScraper(store)
     try:
         # Test with one search term
@@ -208,14 +208,14 @@ def test_real_playwright_scraper_barradoce():
     """Test real Playwright scraping for BarraDoce."""
     from scrapers.playwright_price_scraper import PlaywrightPriceScraper
     from services.supabase_client import get_service_client
-    
+
     client = get_service_client()
     r = client.table("stores").select("*").eq("id", "barradoce").maybe_single().execute()
     store = r.data
-    
+
     if not store:
         pytest.skip("BarraDoce not in DB")
-    
+
     scraper = PlaywrightPriceScraper(store)
     try:
         ingredients = [{"canonical_name": "Leite Condensado Integral", "search_terms": ["leite condensado"]}]
@@ -234,14 +234,14 @@ def test_real_tiendeo_scraper():
     """Test real Tiendeo aggregator scraping."""
     from scrapers.aggregator_scraper import TiendeoScraper
     from services.supabase_client import get_service_client
-    
+
     client = get_service_client()
     r = client.table("stores").select("*").eq("id", "tiendeo").maybe_single().execute()
     store = r.data
-    
+
     if not store:
         pytest.skip("Tiendeo not in DB")
-    
+
     scraper = TiendeoScraper(store)
     try:
         flyers = scraper.run()
@@ -264,25 +264,25 @@ def test_real_ocr_processing():
     from services.flyer_service import get_pending_flyers
     from scrapers.ocr import ocr_image_bytes
     import httpx
-    
+
     pending = get_pending_flyers(limit=1)
     if not pending:
         pytest.skip("No pending flyers for OCR test")
-    
+
     flyer = pending[0]
     img_url = flyer["image_url"]
     if not img_url.startswith(("http://", "https://")):
         img_url = "https://" + img_url
-    
+
     try:
         resp = httpx.get(img_url, timeout=30)
         if resp.status_code != 200:
             pytest.skip(f"Failed to fetch image: {resp.status_code}")
-        
+
         img_bytes = resp.content
         if len(img_bytes) < 1000:
             pytest.skip("Image too small")
-        
+
         text = ocr_image_bytes(img_bytes)
         assert isinstance(text, str)
         assert len(text) > 0, "OCR should extract some text"
@@ -295,18 +295,18 @@ def test_real_price_service_rpc_upsert():
     """Test real RPC upsert_price_rpc with real DB."""
     from services.price_service import upsert_price
     from services.supabase_client import get_service_client
-    
+
     client = get_service_client()
     r = client.table("ingredients").select("id,canonical_name").limit(1).execute()
     ing = r.data[0]
-    
+
     # Use unique store_id to avoid conflicts with other tests
     import uuid
     store_id = f"test_rpc_upsert_{uuid.uuid4().hex[:8]}"
-    
+
     # Clean up any existing test data
     client.table("prices").delete().eq("store_id", store_id).execute()
-    
+
     entry = {
         "ingredient_id": ing["canonical_name"],
         "store_id": store_id,
@@ -325,12 +325,12 @@ def test_real_price_service_rpc_upsert():
         "logistics": "pickup_local",
         "brand": "Test Brand",
     }
-    
+
     # Should not raise
     result = upsert_price(entry)
     assert result, "upsert_price should return entry"
     assert result["ingredient_id"] == ing["canonical_name"]
-    
+
     # Clean up
     client.table("prices").delete().eq("store_id", store_id).execute()
 
@@ -340,15 +340,12 @@ def test_real_email_service_build_report():
     """Test real email report generation with real prices."""
     from services.email_service import build_full_report_html
     from services.price_service import get_latest_prices
-    from services.supabase_client import get_service_client
-    
-    client = get_service_client()
-    
+
     # Get some real prices
     prices = get_latest_prices(valid_only=True)
     if not prices:
         pytest.skip("No prices in DB")
-    
+
     # Group by ingredient
     by_ingredient = {}
     for p in prices[:50]:  # Limit for speed
@@ -356,7 +353,7 @@ def test_real_email_service_build_report():
         if ing not in by_ingredient:
             by_ingredient[ing] = []
         by_ingredient[ing].append(p)
-    
+
     html = build_full_report_html(by_ingredient)
     assert isinstance(html, str)
     assert len(html) > 1000
@@ -367,15 +364,14 @@ def test_real_email_service_build_report():
 @pytest.mark.slow
 def test_real_telegram_report_generation():
     """Test real Telegram report generation (verifies message formatting)."""
-    from services.email_service import send_telegram_report
     from services.price_service import get_latest_prices
     from services.supabase_client import get_service_client
-    
+
     client = get_service_client()
     prices = get_latest_prices(valid_only=True)
     if not prices:
         pytest.skip("No prices in DB")
-    
+
     # Group by ingredient
     by_ingredient = {}
     for p in prices[:50]:
@@ -383,14 +379,13 @@ def test_real_telegram_report_generation():
         if ing not in by_ingredient:
             by_ingredient[ing] = []
         by_ingredient[ing].append(p)
-    
+
     r = client.table("ingredients").select("id,canonical_name").limit(5).execute()
     ingredients = r.data
-    
+
     # Function sends to Telegram but returns None - verify it doesn't error
     # We can't actually send without token, so just verify message building
     # by checking the internal logic doesn't crash
-    from services.email_service import send_telegram_report
     # Just verify ingredients and prices structure is compatible
     for ing in ingredients:
         name = ing["canonical_name"]
@@ -408,36 +403,35 @@ def test_real_telegram_report_generation():
 
 def test_real_db_unique_constraints():
     """Verify UNIQUE constraints exist on prices and price_history."""
-    from services.supabase_client import get_service_client
     import psycopg2
     import os
-    
+
     # Direct psycopg2 query to check constraints
     db_url = os.getenv("SUPABASE_DB_URL") or os.getenv("DATABASE_URL")
     if not db_url:
         pytest.skip("No direct DB URL for constraint check")
-    
+
     conn = psycopg2.connect(db_url)
     cur = conn.cursor()
-    
+
     # Check prices table constraint
     cur.execute("""
-        SELECT conname FROM pg_constraint 
+        SELECT conname FROM pg_constraint
         WHERE conrelid = 'prices'::regclass AND contype = 'u'
     """)
     price_constraints = [r[0] for r in cur.fetchall()]
-    assert any("ingredient_id" in c and "store_id" in c and "collected_at" in c 
+    assert any("ingredient_id" in c and "store_id" in c and "collected_at" in c
                for c in price_constraints), f"Missing UNIQUE constraint on prices: {price_constraints}"
-    
+
     # Check price_history constraint
     cur.execute("""
-        SELECT conname FROM pg_constraint 
+        SELECT conname FROM pg_constraint
         WHERE conrelid = 'price_history'::regclass AND contype = 'u'
     """)
     history_constraints = [r[0] for r in cur.fetchall()]
-    assert any("ingredient_id" in c and "store_id" in c and "collected_at" in c 
+    assert any("ingredient_id" in c and "store_id" in c and "collected_at" in c
                for c in history_constraints), f"Missing UNIQUE constraint on price_history: {history_constraints}"
-    
+
     cur.close()
     conn.close()
 
@@ -445,14 +439,14 @@ def test_real_db_unique_constraints():
 def test_real_trigger_price_history():
     """Verify price_history trigger works on upsert with different collected_at days."""
     from services.supabase_client import get_service_client
-    
+
     client = get_service_client()
-    
+
     store_id = "test_trigger_store"
     # Clean up
     client.table("prices").delete().eq("store_id", store_id).execute()
     client.table("price_history").delete().eq("store_id", store_id).execute()
-    
+
     # First upsert via RPC (day 1)
     r = client.rpc("upsert_price_rpc", {
         "p_brand": "Test",
@@ -476,12 +470,12 @@ def test_real_trigger_price_history():
         "p_validity_raw": "",
     }).execute()
     assert r.data, "First upsert should succeed"
-    
+
     # Check price_history was created
     r = client.table("price_history").select("*").eq("store_id", "test_trigger_store").execute()
     assert r.data, "price_history should have entry after first upsert"
     assert len(r.data) == 1
-    
+
     # Second upsert with DIFFERENT price_per_kg AND different collected_at (different day)
     r2 = client.rpc("upsert_price_rpc", {
         "p_brand": "Test",
@@ -505,11 +499,11 @@ def test_real_trigger_price_history():
         "p_validity_raw": "",
     }).execute()
     assert r2.data, "Second upsert should succeed"
-    
+
     # Check price_history now has 2 entries (different collected_at = different day)
     r = client.table("price_history").select("*").eq("store_id", "test_trigger_store").order("collected_at").execute()
     assert len(r.data) == 2, f"Should have 2 history entries, got {len(r.data)}"
-    
+
     # Clean up
     client.table("prices").delete().eq("store_id", "test_trigger_store").execute()
     client.table("price_history").delete().eq("store_id", "test_trigger_store").execute()
@@ -519,9 +513,9 @@ def test_real_review_queue_constraints():
     """Verify review_queue dedup works (store_name + raw_product)."""
     from services.price_service import insert_review_item
     from services.supabase_client import get_service_client
-    
+
     client = get_service_client()
-    
+
     item = {
         "store_name": "Test Review Store",
         "raw_product": "Produto Review Teste",
@@ -535,15 +529,15 @@ def test_real_review_queue_constraints():
         "source_url": "",
         "match_type": "fuzzy",
     }
-    
+
     # First insert
     r1 = insert_review_item(item)
     assert r1, "First insert should succeed"
-    
+
     # Second insert with same store_name + raw_product should be deduped
     r2 = insert_review_item(item)
     assert r2, "Second insert should return existing (dedup)"
-    
+
     # Clean up
     client.table("review_queue").delete().eq("store_name", "Test Review Store").execute()
 
