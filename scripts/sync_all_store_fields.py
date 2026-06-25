@@ -11,11 +11,13 @@ from services.supabase_client import get_service_client
 
 load_dotenv()
 
+# Campos que existem como colunas na tabela `stores` do Supabase
+# (api_base, api_endpoints, verify_ssl, headers, image_host sao configs
+#  especificas de scraper, NAO colunas do DB)
 FIELDS = [
     'scraper', 'search_url', 'base_url', 'api_endpoint', 'url_pattern',
     'selectors', 'publish_day', 'collection_method', 'visit_frequency',
     'logistics', 'zone', 'coverage', 'contact', 'type', 'priority',
-    'verify_ssl', 'headers', 'api_base', 'api_endpoints', 'image_host',
     'is_active',
 ]
 
