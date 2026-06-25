@@ -28,7 +28,9 @@ _BRAND = {
     "promo_text": "#9D174D",    # rosa texto
 }
 
-_LOGO_PATH = Path(__file__).resolve().parent.parent / "Logocustodocepqueno.png"
+_BASE_DIR = Path(__file__).resolve().parent.parent
+_LOGO_PATH = _BASE_DIR / "Logocustodocepqueno.png"
+_STORES_YAML = _BASE_DIR / "config" / "stores.yaml"
 
 
 def _get_smtp_config():
@@ -48,12 +50,68 @@ def _logo_cid() -> str | None:
     return None
 
 
+# ── Store info cache ────────────────────────────────────────────────────
+_STORES_CACHE: dict | None = None
+
+
+def _load_stores() -> dict:
+    """Carrega stores.yaml e retorna dict name -> {address, phone, whatsapp, city}."""
+    global _STORES_CACHE
+    if _STORES_CACHE is not None:
+        return _STORES_CACHE
+    import yaml
+    if _STORES_YAML.exists():
+        with open(_STORES_YAML, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        stores = {}
+        for s in data.get("stores", []):
+            name = s.get("name", "")
+            units = s.get("units", [])
+            addr = units[0].get("address", "") if units else ""
+            phone = s.get("phone", "")
+            whatsapp = s.get("whatsapp", "")
+            city = s.get("cities", [""])[0] if s.get("cities") else ""
+            stores[name] = {
+                "address": addr,
+                "phone": phone,
+                "whatsapp": whatsapp,
+                "city": city,
+            }
+        _STORES_CACHE = stores
+        return stores
+    _STORES_CACHE = {}
+    return {}
+
+
+def _store_info_html(store_name: str) -> str:
+    """Retorna HTML com info da loja (endereço, telefone, whatsapp) se disponível."""
+    stores = _load_stores()
+    info = stores.get(store_name, {})
+    parts = []
+    if info.get("address"):
+        parts.append(f"📍 {_html.escape(info['address'])}")
+    if info.get("phone"):
+        parts.append(f"📞 {_html.escape(info['phone'])}")
+    if info.get("whatsapp"):
+        parts.append(f"💬 WhatsApp: {_html.escape(info['whatsapp'])}")
+    if info.get("city") and not info.get("address"):
+        parts.append(f"🏙️ {_html.escape(info['city'])}")
+    if not parts:
+        return ""
+    return (
+        '<div style="margin-top:8px;padding:8px 12px;background:#F9FAFB;'
+        'border-radius:6px;font-size:12px;color:#6B7280;line-height:1.6;">'
+        + "<br>".join(parts)
+        + "</div>"
+    )
+
+
 def _logo_tag() -> str:
     """Tag <img> para o logo (inline CID ou fallback texto)."""
     if _LOGO_PATH.exists():
         return (
             '<img src="cid:logo" alt="CustoDoce" class="logo-img" '
-            'style="height:56px;width:auto;display:block;margin-bottom:8px;" '
+            'style="height:112px;width:auto;display:block;margin-bottom:8px;" '
             'width="auto">'
         )
     return (
@@ -143,12 +201,24 @@ def _wrap_html(title: str, preheader: str, body_inner: str) -> str:
 
 # ── Relatório completo (email) ────────────────────────────────────────
 def build_full_report_html(prices_by_ingredient: dict) -> str:
-    """Gera relatório HTML responsivo com todos os preços, ordenados por R$/kg ASC."""
-    total = sum(len(v) for v in prices_by_ingredient.values())
-    n_stores = len({p.get("store_id") for v in prices_by_ingredient.values() for p in v})
+    """Gera relatório HTML responsivo - melhor preço por loja por ingrediente."""
+    # Deduplica: melhor preço por loja por ingrediente
+    deduped = {}
+    for ing_name, prices in prices_by_ingredient.items():
+        best_per_store = {}
+        for p in prices:
+            store_id = p.get("store_id", p.get("store_name", "?"))
+            norm = p.get("normalized") or {}
+            ppk = norm.get("price_per_kg", 999999)
+            if store_id not in best_per_store or ppk < best_per_store[store_id][0]:
+                best_per_store[store_id] = (ppk, p)
+        deduped[ing_name] = [v[1] for v in best_per_store.values()]
+
+    total = sum(len(v) for v in deduped.values())
+    n_stores = len({p.get("store_id") for v in deduped.values() for p in v})
 
     sections = ""
-    for ing_name, prices in sorted(prices_by_ingredient.items()):
+    for ing_name, prices in sorted(deduped.items()):
         safe_ing = _html.escape(ing_name)
         sorted_prices = sorted(
             prices,
@@ -173,8 +243,9 @@ def build_full_report_html(prices_by_ingredient: dict) -> str:
             valid = p.get("valid_until", "")
             valid_str = f"<br><span style='font-size:11px;color:{_BRAND['light']}'>até {valid}</span>" if valid else ""
             highlight = "background:#FFFBEB;" if p == best else ""
+            store_info = _store_info_html(p.get("store_name", ""))
             rows += f"""<tr style="{highlight}">
-              <td class="table-td" style="padding:10px 12px;border-bottom:1px solid #F3F4F6;">{store}{promo}{valid_str}</td>
+              <td class="table-td" style="padding:10px 12px;border-bottom:1px solid #F3F4F6;">{store}{promo}{valid_str}{store_info}</td>
               <td class="table-td" style="padding:10px 12px;border-bottom:1px solid #F3F4F6;font-size:13px;word-break:break-word;">{product}</td>
               <td class="table-td" style="padding:10px 12px;border-bottom:1px solid #F3F4F6;white-space:nowrap;">R$ {raw_p:.2f} {unit}</td>
               <td class="table-td" style="padding:10px 12px;border-bottom:1px solid #F3F4F6;white-space:nowrap;font-weight:600;">{ppk_str}</td>
@@ -203,13 +274,13 @@ def build_full_report_html(prices_by_ingredient: dict) -> str:
     body = f"""
     <h1 class="email-h1" style="margin:0 0 4px 0;font-size:20px;color:{_BRAND['text']};">Cotação de Preços</h1>
     <p class="email-p" style="margin:0 0 20px 0;font-size:14px;color:{_BRAND['muted']};">
-      {total} preços em {n_stores} lojas &mdash; {date.today().strftime('%d/%m/%Y')}
+      {total} ofertas em {n_stores} lojas &mdash; {date.today().strftime('%d/%m/%Y')}
     </p>
     {sections}
     <p class="email-p" style="margin:20px 0 0 0;font-size:12px;color:{_BRAND['light']};text-align:center;">
-      Preços ordenados por R$/kg (menor primeiro). Loja destaque em amarelo.
+      Melhor preço por loja. Ordenado por R$/kg (menor primeiro). Destaque em amarelo.
     </p>"""
-    return _wrap_html("Cotação CustoDoce", f"Cotação com {total} preços de {n_stores} lojas.", body)
+    return _wrap_html("Cotação CustoDoce", f"Cotação com {total} ofertas de {n_stores} lojas.", body)
 
 
 # ── Alerta de oferta (email) ──────────────────────────────────────────
@@ -325,9 +396,27 @@ def send_daily_report(
     server.send_message(msg)
 
 
+def _store_info_telegram(store_name: str) -> str:
+    """Retorna string com info da loja para Telegram se disponível."""
+    stores = _load_stores()
+    info = stores.get(store_name, {})
+    parts = []
+    if info.get("address"):
+        parts.append(f"📍 {info['address']}")
+    if info.get("phone"):
+        parts.append(f"📞 {info['phone']}")
+    if info.get("whatsapp"):
+        parts.append(f"💬 {info['whatsapp']}")
+    if info.get("city") and not info.get("address"):
+        parts.append(f"🏙️ {info['city']}")
+    if not parts:
+        return ""
+    return "   " + "  •  ".join(parts)
+
+
 # ── Telegram: 1 mensagem consolidada ──────────────────────────────────
 def send_telegram_report(token: str, chat_id: str, ingredients: list[dict], prices_by_ingredient: dict):
-    """Envia 1 única mensagem Telegram com top-5 por ingrediente + resumo."""
+    """Envia 1 única mensagem Telegram com top-5 por ingrediente (deduplicado por loja)."""
     import httpx
 
     today = date.today().strftime("%d/%m/%Y")
@@ -339,14 +428,28 @@ def send_telegram_report(token: str, chat_id: str, ingredients: list[dict], pric
         prices = prices_by_ingredient.get(name, [])
         if not prices:
             continue
+
+        # Deduplica: melhor preço por loja
+        best_per_store = {}
+        for p in prices:
+            store_id = p.get("store_id", p.get("store_name", "?"))
+            norm = p.get("normalized") or {}
+            ppk = norm.get("price_per_kg", 999999)
+            if store_id not in best_per_store or ppk < best_per_store[store_id][0]:
+                best_per_store[store_id] = (ppk, p)
+
+        deduped = sorted(best_per_store.values(), key=lambda x: x[0])
+        if not deduped:
+            continue
+
         n_with_prices += 1
-        best = prices[0]
+        best = deduped[0]
         best_ppk = (best.get("normalized") or {}).get("price_per_kg", 0)
 
         lines.append(f"🏷️ *{name}*")
-        lines.append(f"   Melhor: R\\$ {best_ppk:.2f}/kg\n")
+        lines.append(f"   Melhor: R\\$ {best_ppk:.2f}/kg")
 
-        for i, p in enumerate(prices[:5], 1):
+        for i, p in enumerate(deduped[:5], 1):
             store = p.get("store_name", "?")
             raw_p = float(p.get("raw_price", 0))
             norm = p.get("normalized") or {}
@@ -355,6 +458,9 @@ def send_telegram_report(token: str, chat_id: str, ingredients: list[dict], pric
             medal = ["🥇", "🥈", "🥉"][i - 1] if i <= 3 else f"  {i}."
             promo = " 🏷️" if p.get("is_promotion") else ""
             lines.append(f"{medal} {store}{promo}")
+            info = _store_info_telegram(store)
+            if info:
+                lines.append(info)
             lines.append(f"   R\\$ {raw_p:.2f} {unit} → R\\$ {ppk:.2f}/kg")
 
         lines.append("")  # separador entre ingredientes
