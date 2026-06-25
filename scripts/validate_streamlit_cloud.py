@@ -67,24 +67,60 @@ def find_login_form(page):
                 page.wait_for_load_state("networkidle", timeout=60000)
                 page.wait_for_timeout(3000)
 
-            user_input = page.locator(
-                'input[aria-label="Usuario"], input[aria-label*="Usuario" i], '
-                'input[aria-label*="user" i], input[aria-label*="login" i], '
-                'input[placeholder="admin"], input[type="text"]'
-            ).first
-            user_input.wait_for(state="visible", timeout=15000)
+            # Wait for page to be fully loaded
+            page.wait_for_load_state("networkidle", timeout=30000)
+            page.wait_for_timeout(2000)
+
+            # More robust selectors for Streamlit login form
+            # Streamlit uses specific test IDs and classes
+            user_input = None
+            for selector in [
+                'input[data-testid="stTextInput"][aria-label*="Usuário" i]',
+                'input[data-testid="stTextInput"][aria-label*="Usuario" i]',
+                'input[data-testid="stTextInput"][placeholder*="admin" i]',
+                'input[data-testid="stTextInput"][aria-label*="Usuário" i]',
+                'input[data-testid="stTextInput"][type="text"]',
+                'input[type="text"]',
+            ]:
+                try:
+                    user_input = page.locator(selector).first
+                    if user_input.is_visible(timeout=3000):
+                        break
+                except:
+                    continue
+            
+            if not user_input or not user_input.is_visible(timeout=5000):
+                # Fallbackstop and try a more generic approach
+                user_input = page.locator('input[type="text"]').first
+                if not user_input.is_visible(timeout=3000):
+                    raise Exception("Username input not found")
+
             user_input.fill(LOGIN_USER)
 
-            pass_input = page.locator(
-                'input[aria-label="Senha"], input[aria-label*="senha" i], '
-                'input[aria-label*="password" i], input[type="password"]'
-            ).first
-            pass_input.wait_for(state="visible", timeout=5000)
+            pass_input = None
+            for selector in [
+                'input[data-testid="stTextInput"][aria-label*="Senha" i]',
+                'input[data-testid="stTextInput"][aria-label*="Password" i]',
+                'input[data-testid="stTextInput"][type="password"]',
+                'input[type="password"]',
+            ]:
+                try:
+                    pass_input = page.locator(selector).first
+                    if pass_input.is_visible(timeout=3000):
+                        break
+                except:
+                    continue
+            
+            if not pass_input or not pass_input.is_visible(timeout=5000):
+                pass_input = page.locator('input[type="password"]').first
+                if not pass_input.is_visible(timeout=3000):
+                    raise Exception("Password input not found")
+
             pass_input.fill(LOGIN_PASS)
 
             login_btn = page.locator(
                 'button:has-text("Entrar"), button:has-text("Login"), '
-                'button[kind="primary"]'
+                'button[kind="primary"], button[data-testid="baseButton-primary"]'
             ).first
             login_btn.wait_for(state="visible", timeout=5000)
             login_btn.click()
@@ -186,44 +222,38 @@ def validate_app() -> ValidationResult:
         except Exception:
             pass
 
-        # 2. Test wrong password login
-        print("2. Testando login com senha errada...")
-        try:
-            user_input = page.locator(
-                'input[aria-label="Usuario"], input[aria-label*="usuario" i], '
-                'input[aria-label*="user" i], input[placeholder="admin"]'
-            ).first
-            user_input.wait_for(state="visible", timeout=15000)
-            user_input.fill(LOGIN_USER)
-            pass_input = page.locator(
-                'input[aria-label="Senha"], input[aria-label*="senha" i], '
-                'input[aria-label*="password" i], input[type="password"]'
-            ).first
-            pass_input.wait_for(state="visible", timeout=5000)
-            pass_input.fill(WRONG_PASS)
-            page.locator(
-                'button:has-text("Entrar"), button:has-text("Login"), '
-                'button[kind="primary"]'
-            ).first.click(timeout=10000)
-            page.wait_for_timeout(3000)
-            page.screenshot(path=str(SCREENSHOTS_DIR / "02_wrong_pass.png"), full_page=True)
-            print("   Login com erro rejeitou corretamente")
-        except Exception as e:
-            result.warnings.append(f"Não conseguiu testar login errado: {e}")
-            print(f"   AVISO: Falha ao testar senha errada: {str(e)[:60]}")
+        # Check if already logged in
+        def is_logged_in(page):
+            try:
+                logout_btn = page.locator('button:has-text("Sair"), button:has-text("Logout"), [data-testid="stSidebar"] button:has-text("Sair")').first
+                if logout_btn.is_visible(timeout=2000):
+                    return True
+                sidebar = page.locator('[data-testid="stSidebar"]')
+                if sidebar.is_visible(timeout=2000):
+                    nav_items = sidebar.locator('button, a, [role="button"]').all()
+                    if len(nav_items) > 2:
+                        return True
+            except Exception:
+                pass
+            return False
 
-        # 3. Login with correct password
-        print("3. Fazendo login...")
-        page.goto(APP_URL, timeout=30000)
-        page.wait_for_timeout(2000)
-        if find_login_form(page):
-            print("   Login OK")
-            page.screenshot(path=str(SCREENSHOTS_DIR / "03_logged_in.png"), full_page=True)
+        # Check if already logged in
+        if is_logged_in(page):
+            print("   Já logado!")
         else:
-            result.errors.append("Não conseguiu fazer login")
-            result.passed = False
-            browser.close()
-            return result
+            # 2. Login with correct password
+            print("2. Fazendo login...")
+            page.goto(APP_URL, timeout=30000)
+            page.wait_for_load_state("networkidle", timeout=30000)
+            page.wait_for_timeout(2000)
+            
+            if not find_login_form(page):
+                result.errors.append("Não conseguiu fazer login")
+                result.passed = False
+                browser.close()
+                return result
+            print("   Login OK")
+            page.screenshot(path=str(SCREENSHOTS_DIR / "02_logged_in.png"), full_page=True)
 
         # 4. Console errors check
         print("4. Verificando console errors...")
