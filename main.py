@@ -1,4 +1,3 @@
-# mypy: ignore-errors
 import html as _html
 import json
 import logging
@@ -31,6 +30,7 @@ from services.flyer_service import upsert_flyer
 from services.email_service import send_daily_report, send_scraper_error
 from services.config_db import get_active_ingredients, get_active_stores
 from services.supabase_client import get_service_client, get_supabase
+from scripts.sync_all_store_fields import sync_store_fields, sync_scrape_frequencies
 
 _auto_disable_threshold = 3
 
@@ -523,6 +523,13 @@ def main():
 
     ingredients = load_ingredients()
     logger.info("%d ingredientes carregados", len(ingredients))
+
+    try:
+        n = sync_store_fields()
+        m = sync_scrape_frequencies()
+        logger.info("Store fields synced: %d updated, %d frequencies", n, m)
+    except Exception as e:
+        logger.warning("Erro sync store fields (nao bloqueante): %s", e)
 
     logger.info("Coletando Tier 1 (PDFs)...")
     tier1_products = collect_tier1_pdfs(ingredients)

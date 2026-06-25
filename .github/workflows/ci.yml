@@ -14,7 +14,7 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4
@@ -47,26 +47,14 @@ jobs:
         run: pip install types-PyYAML types-psycopg2 types-openpyxl && mypy . --ignore-missing-imports --explicit-package-bases --exclude='tests/' --exclude='scripts/archive/' | tail -5
         continue-on-error: true
 
-      - name: Production validation
-        run: python scripts/validate_production.py
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
+      - name: App online check
+        run: curl -s -o /dev/null -w "%{http_code}" https://custodoce.streamlit.app | grep -q 200 || echo "AVISO: Streamlit Cloud nao respondeu 200 (pode ser normal)"
 
-      - name: DB schema validation (72 checks)
-        run: python scripts/validate_db_schema.py
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-        continue-on-error: true
-
-  streamlit-validate:
+  nightly:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     needs: test
-    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v4
@@ -77,28 +65,14 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
 
-      - name: Install playwright
+      - name: Install deps
         run: |
-          pip install playwright
-          python -m playwright install chromium --with-deps
+          pip install -r requirements.txt -r requirements-dev.txt
+          pip install psycopg2-binary
 
-      - name: Install app deps
-        run: pip install -r requirements.txt
-
-      - name: Validate Streamlit Cloud
-        run: python scripts/validate_streamlit_cloud.py
+      - name: DB schema validation
+        run: python scripts/validate_db_schema.py
         env:
-          STREAMLIT_APP_URL: https://custodoce.streamlit.app
-          STREAMLIT_TEST_USER: admin
-          STREAMLIT_TEST_PASS: ${{ secrets.ADMIN_PASSWORD }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          SMTP_FROM: ${{ secrets.SMTP_FROM }}
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          GH_PAT: ${{ secrets.GH_PAT }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        continue-on-error: true

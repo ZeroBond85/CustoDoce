@@ -34,7 +34,10 @@ exclude = [
     "tests/",
     "scripts/",        # utility scripts, not core
     "scrapers/",       # network-dependent, many stub issues
+    "services/",       # supabase-py JSON types cause 100+ false positives per file
     "telegram_bot/",   # python-telegram-bot stubs incomplete
+    "admin/app.py",    # Streamlit + supabase type issues
+    "main.py",         # supabase-py JSON types
 ]
 warn_unused_ignores = false
 check_untyped_defs = false

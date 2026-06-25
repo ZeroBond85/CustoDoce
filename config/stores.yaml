@@ -238,7 +238,7 @@ stores:
   - name: "Amendolate"
     tier: 2
     type: "website_catalog"
-    is_active: true
+    is_active: false
     logistics: "pickup_sp"
     base_url: "https://www.amendolate.com.br"
     search_url: "https://www.amendolate.com.br/busca?q={query}"

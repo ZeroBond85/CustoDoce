@@ -1,4 +1,4 @@
-# mypy: ignore-errors
+
 import logging
 import re
 from urllib.parse import quote

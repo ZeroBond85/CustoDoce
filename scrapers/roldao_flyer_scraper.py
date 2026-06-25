@@ -2,7 +2,7 @@
 
 Uses Playwright to render JavaScript-rendered flyer page.
 """
-# mypy: ignore-errors
+
 import asyncio
 import logging
 import re
