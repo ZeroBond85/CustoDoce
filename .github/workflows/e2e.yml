@@ -1,0 +1,136 @@
+name: E2E Dashboard - Produção Real
+
+on:
+  schedule:
+    - cron: '0 6 * * 1/2'   # Seg quinzenal (06h UTC = 03h BRT)
+  workflow_dispatch:
+    inputs:
+      update_baselines:
+        description: 'Atualizar baselines visuais'
+        type: boolean
+        default: false
+      skip_visual:
+        description: 'Pular visual regression'
+        type: boolean
+        default: false
+
+env:
+  PYTHON_VERSION: '3.11'
+  STREAMLIT_URL: https://custodoce.streamlit.app
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    concurrency:
+      group: e2e-${{ github.ref }}
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Cache Embedding Model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface/hub/
+          key: embeddings-${{ runner.os }}-paraphrase-multilingual
+          restore-keys: embeddings-${{ runner.os }}-
+
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt -r requirements-dev.txt -r requirements-e2e.txt
+          playwright install chromium --with-deps
+
+      - name: Warmup Streamlit Cloud
+        run: |
+          python -c "
+import httpx, time
+url = 'https://custodoce.streamlit.app'
+print(f'Warming up {url}...')
+for i in range(6):
+    try:
+        r = httpx.get(url, timeout=30)
+        print(f'Attempt {i+1}: HTTP {r.status_code}')
+        if r.status_code in (200, 303):
+            print('App is awake!')
+            break
+    except Exception as e:
+        print(f'Attempt {i+1}: {e}')
+    time.sleep(15)
+"
+
+      - name: Test Supabase Connection
+        run: |
+          python -c "
+from supabase import create_client; import os
+s = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
+r = s.table('prices').select('id').limit(1).execute()
+print(f'Supabase OK: {len(r.data or [])} rows')
+"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Run E2E Tests
+        run: |
+          pytest tests/e2e_dashboard.py -v \
+            --tb=short \
+            --html=report.html \
+            --self-contained-html \
+            -k "not visual"
+        env:
+          STREAMLIT_URL: ${{ env.STREAMLIT_URL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+
+      - name: Visual Regression
+        if: ${{ !inputs.skip_visual }}
+        run: |
+          pytest tests/e2e_dashboard.py::TestVisualRegression -v --tb=short
+        env:
+          STREAMLIT_URL: ${{ env.STREAMLIT_URL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+
+      - name: Update Baselines
+        if: ${{ inputs.update_baselines }}
+        run: |
+          UPDATE_BASELINES=1 pytest tests/e2e_dashboard.py::TestVisualRegression -v
+        env:
+          STREAMLIT_URL: ${{ env.STREAMLIT_URL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+
+      - name: Send E2E Report Email
+        if: always()
+        run: python scripts/send_e2e_report.py
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          ALERT_EMAIL_TO: custodoce@gmail.com
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Upload Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-report
+          path: report.html
+          retention-days: 1
+
+      - name: Upload Visual Diffs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: visual-diffs
+          path: tests/visual_diffs/
+          retention-days: 1

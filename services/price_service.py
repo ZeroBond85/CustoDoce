@@ -341,6 +341,35 @@ def approve_review_item(item_id: str, ingredient_id: str, brand_override: str = 
         except Exception as e:
             logging.getLogger(__name__).warning("approve_review_item add_alias failed: %s", e)
 
+    # Auto-learning: adiciona alias automático se confiança semântica for alta
+    try:
+        from parsers.semantic_matcher import get_matcher
+        from services.config_db import get_ingredient_by_id, upsert_ingredient
+        import json
+        sm = get_matcher()
+        ingredient_obj = get_ingredient_by_id(resolved_ingredient_id)
+        if ingredient_obj:
+            sim = sm.get_similarity(price_entry['raw_product'], ingredient_obj)
+            if sim >= 0.75:
+                existing_aliases = ingredient_obj.get("aliases", [])
+                if isinstance(existing_aliases, str):
+                    try:
+                        existing_aliases = json.loads(existing_aliases)
+                    except Exception:
+                        existing_aliases = []
+                product_upper = price_entry['raw_product'].upper().strip()
+                if not any(a.upper().strip() == product_upper for a in existing_aliases):
+                    existing_aliases.append(price_entry['raw_product'].strip())
+                    upsert_ingredient({**ingredient_obj, "aliases": existing_aliases})
+                    # Invalidate cache
+                    sm._ingredient_embeddings.pop(resolved_ingredient_id, None)
+                    sm._ingredient_embeddings.pop(ingredient_obj.get("canonical_name", ""), None)
+                    logging.getLogger(__name__).info(
+                        f"Auto-learning: novo alias '{price_entry['raw_product']}' para '{resolved_ingredient_id}'"
+                    )
+    except Exception as e:
+        logging.getLogger(__name__).warning("Auto-learning failed: %s", e)
+
     result = (
         client.table("review_queue")
         .update({
@@ -604,3 +633,23 @@ def get_cross_ingredient_ranking(days: int = 90) -> list[dict]:
         })
     rows.sort(key=lambda r: (r["top1_count"], r["top3_count"]), reverse=True)
     return rows
+
+
+def cleanup_old_flyers_all(retention_days: int = 180) -> dict:
+    """Deleta TODOS os flyers mais antigos que retention_days (não apenas OCR failed)."""
+    client = get_service_client()
+    try:
+        result = client.rpc("cleanup_old_flyers_all", {"retention_days": retention_days}).execute()
+        return {"deleted": result.data} if result.data else {"deleted": 0}
+    except Exception:
+        return {"deleted": 0}
+
+
+def cleanup_resolved_review_items(retention_days: int = 30) -> dict:
+    """Deleta itens da review_queue já resolvidos (approved/rejected) mais antigos que retention_days."""
+    client = get_service_client()
+    try:
+        result = client.rpc("cleanup_resolved_review_items", {"retention_days": retention_days}).execute()
+        return {"deleted": result.data} if result.data else {"deleted": 0}
+    except Exception:
+        return {"deleted": 0}

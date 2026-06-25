@@ -45,3 +45,12 @@ features:
   offline:
     enabled: false
     banner_message: "Modo Offline — os dados exibidos podem estar desatualizados ou indisponiveis."
+
+  ai:
+    enabled: true
+    semantic_matcher: true
+    llm_classifier: true
+    price_intelligence: true
+    auto_learning: true
+    review_auto_approve_threshold: 0.80
+    llm_confidence_threshold: 0.85

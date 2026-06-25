@@ -2,7 +2,7 @@ name: CustoDoce - Coleta de Preços
 
 on:
   schedule:
-    - cron: '0 12 * * 1,3,5'   # 09:00 BRT Seg, Qua, Sex (coleta padrão)
+    - cron: '0 12 * * 1,3,4,5'   # 09:00 BRT Seg, Qua, Qui, Sex (4×/sem)
     - cron: '0 12 * * 6'        # 09:00 BRT Sáb (coleta + Playwright + OCR)
     - cron: '0 12 1 * *'        # 09:00 BRT dia 1 (release + relatório mensal)
   workflow_dispatch:
@@ -89,6 +89,22 @@ jobs:
         if: steps.check-day.outputs.should_run == 'true'
         run: |
           python -c "from main import collect_aggregators_js, process_ocr_queue; flyers = collect_aggregators_js(); print(f'JS Aggregators: {len(flyers)} flyers'); processed = process_ocr_queue(); print(f'OCR processed: {processed} flyers')"
+
+      - name: Run AI Intelligence Layer
+        if: ${{ github.event.inputs.run_ai != 'false' }}
+        run: |
+          python -c "
+from services.price_intelligence import PriceIntelligence
+from services.price_service import get_all_current_prices
+prices = get_all_current_prices(valid_only=True, limit=2000)
+pi = PriceIntelligence()
+enriched = pi.enrich_prices(prices)
+anomalies = [p for p in enriched if p.get('ai_anomaly',{}).get('is_anomaly')]
+offers = [p for p in enriched if 'OFERTA_REAL' in p.get('ai_tags',[])]
+print(f'IA: {len(enriched)} preços analisados, {len(anomalies)} anomalias, {len(offers)} ofertas')
+"
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
 
       - name: Commit Latest Prices
         run: |

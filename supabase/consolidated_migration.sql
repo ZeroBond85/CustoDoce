@@ -230,7 +230,19 @@ BEGIN
         NEW.raw_product, NEW.raw_price, NEW.raw_unit, NEW.normalized,
         NEW.valid_from, NEW.valid_until, NEW.validity_raw, NEW.collected_weekday, NEW.is_promotion,
         NEW.collected_at
-    );
+    )
+    ON CONFLICT (ingredient_id, store_id, collected_at) DO UPDATE SET
+        price_id = EXCLUDED.price_id,
+        store_name = EXCLUDED.store_name,
+        raw_product = EXCLUDED.raw_product,
+        raw_price = EXCLUDED.raw_price,
+        raw_unit = EXCLUDED.raw_unit,
+        normalized = EXCLUDED.normalized,
+        valid_from = EXCLUDED.valid_from,
+        valid_until = EXCLUDED.valid_until,
+        validity_raw = EXCLUDED.validity_raw,
+        collected_weekday = EXCLUDED.collected_weekday,
+        is_promotion = EXCLUDED.is_promotion;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -987,3 +999,29 @@ ON CONFLICT DO NOTHING;
 INSERT INTO scrape_frequencies (store_id, tier, frequency_minutes, max_retries, timeout_seconds, rate_limit_per_minute, enabled)
 VALUES ('dona_dani_ingredientes', 2, 1440, 3, 120, 10, true)
 ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- PHASE 16: Additional cleanup functions
+-- ============================================================
+
+-- 1. Cleanup ALL flyers (not just failed OCR) older than retention_days
+CREATE OR REPLACE FUNCTION cleanup_old_flyers_all(retention_days int DEFAULT 180)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    DELETE FROM flyers WHERE collected_at < now() - (retention_days || ' days')::interval;
+END;
+$$;
+
+-- 2. Cleanup resolved review_queue items (approved/rejected) older than retention_days
+CREATE OR REPLACE FUNCTION cleanup_resolved_review_items(retention_days int DEFAULT 30)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    DELETE FROM review_queue 
+    WHERE status IN ('approved', 'rejected') 
+      AND reviewed_at < now() - (retention_days || ' days')::interval;
+END;
+$$;

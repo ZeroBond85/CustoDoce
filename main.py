@@ -1,6 +1,7 @@
 import html as _html
 import json
 import logging
+import os
 import re
 import sys
 from contextlib import suppress
@@ -24,7 +25,9 @@ from scrapers.playwright_price_scraper import PlaywrightPriceScraper
 from parsers.normalizer import normalize_price
 from parsers.matcher import match_ingredient, rank_ingredients, clean_text, extract_all_keywords, has_ingredient_keyword
 from parsers.brand_extractor import extract_brand
-from services.price_service import upsert_price, insert_review_item, log_scraper_run, cleanup_old_prices, cleanup_old_logs, auto_reject_stale_review_items, _detect_promotion, _weekday_pt
+from parsers.semantic_matcher import get_matcher
+from services.price_service import upsert_price, insert_review_item, log_scraper_run, cleanup_old_prices, cleanup_old_logs, auto_reject_stale_review_items, _detect_promotion, _weekday_pt, cleanup_old_flyers_all, cleanup_resolved_review_items
+from services.price_intelligence import PriceIntelligence
 from services.flyer_service import cleanup_old_flyers, cleanup_non_food_flyers
 from services.flyer_service import upsert_flyer
 from services.email_service import send_daily_report, send_scraper_error
@@ -157,6 +160,8 @@ def process_price_match(
         return None
 
     ingredient, score, match_type = match_ingredient(product_text, ingredients)
+
+    # If exact/fuzzy match >= 80%, auto-approve immediately (no semantic needed)
     if ingredient and score >= 80.0:
         entry = build_product_entry(
             store, ingredient, product_text,
@@ -167,7 +172,44 @@ def process_price_match(
         upsert_price(entry)
         return entry
 
-    if score >= 55.0:
+    # Semantic matching integration for scores 55-79%
+    semantic_score = 0.0
+    combined = score / 100.0
+    if ingredient and score >= 55.0:
+        sm = get_matcher()
+        semantic_score = sm.get_similarity(product_text, ingredient)
+        combined = sm.combined_score(score, semantic_score)
+    elif ingredient:
+        combined = score / 100.0
+
+    if ingredient and combined >= 0.80:
+        entry = build_product_entry(
+            store, ingredient, product_text,
+            raw_price, raw_unit, combined,
+            validity_raw=validity_raw,
+            brand=brand,
+        )
+        upsert_price(entry)
+        return entry
+
+    # LLM Classifier for ambiguous cases (65-80%)
+    if 0.65 <= combined < 0.80 and os.environ.get("GROQ_API_KEY"):
+        from parsers.llm_classifier import LLMClassifier
+        candidates = rank_ingredients(product_text, ingredients, top_n=3)
+        llm_result = LLMClassifier().classify_sync(product_text, [c[0] for c in candidates])
+        if llm_result and llm_result.get("confidence", 0) >= 0.85:
+            chosen = next((c for c in candidates if c[0]["canonical_name"] == llm_result["ingredient"]), None)
+            if chosen:
+                entry = build_product_entry(
+                    store, chosen[0], product_text,
+                    raw_price, raw_unit, llm_result["confidence"],
+                    validity_raw=validity_raw,
+                    brand=brand,
+                )
+                upsert_price(entry)
+                return entry
+
+    if combined >= 0.55:
         candidates = rank_ingredients(product_text, ingredients, top_n=3)
         suggestions = [c[0]["canonical_name"] for c in candidates if c[1] >= 55.0]
         validity = validity_raw or _extract_validity_from_product(product_text)
@@ -218,13 +260,32 @@ def process_price_match(
         if not brand and candidates:
             brand = extract_brand(product_text, candidates[0][0])
 
+        # Use combined score for confidence and match_reason
+        combined_pct = int(combined * 100)
+        match_reason = f"Tipo: {type_label} | Score combinado: {combined_pct}% (RF: {score:.0f}%, Semântico: {int(semantic_score*100)}%) | Candidato: '{top_ing['canonical_name']}' | Termo match: '{top_term}'"
+        if unmatched_words:
+            match_reason += f" | Palavras não matcheadas: {', '.join(sorted(unmatched_words))}"
+
+        # Build top 3 summary for UI
+        top3_summary = []
+        for c in candidates:
+            top3_summary.append({
+                "canonical_name": c[0]["canonical_name"],
+                "score": c[1],
+                "match_type": c[2],
+                "matched_term": c[3],
+            })
+
+        if not brand and candidates:
+            brand = extract_brand(product_text, candidates[0][0])
+
         review_item = {
             "raw_product": product_text,
             "raw_price": raw_price,
             "raw_unit": raw_unit,
             "store_name": store["name"],
             "source": store.get("type", "automated"),
-            "confidence": score / 100.0,
+            "confidence": combined,
             "suggestions": suggestions,
             "validity_raw": validity,
             "brand": brand,
@@ -588,6 +649,17 @@ def main():
     logger.info("-> %d folhetos coletados", len(ssr_flyers))
 
     all_products = tier1_products + extra_products + pao_products + tier2_products + tier3_products + carrefour_products + js_products
+
+    # Price Intelligence: enriquece com tags de anomalia/oferta
+    try:
+        pi = PriceIntelligence()
+        all_products = pi.enrich_prices(all_products)
+        anomalies = sum(1 for p in all_products if p.get("ai_anomaly", {}).get("is_anomaly"))
+        offers = sum(1 for p in all_products if "OFERTA_REAL" in p.get("ai_tags", []))
+        logger.info("Price Intelligence: %d preços analisados, %d anomalias, %d ofertas reais", len(all_products), anomalies, offers)
+    except Exception as e:
+        logger.warning("Price Intelligence falhou: %s", e)
+
     snapshot = {
         "collected_at": datetime.now(timezone.utc).isoformat(),
         "total_prices": len(all_products),
@@ -609,6 +681,8 @@ def main():
         ("prices", cleanup_old_prices, 90),
         ("logs", cleanup_old_logs, 30),
         ("flyers", cleanup_old_flyers, 60),
+        ("flyers_all", cleanup_old_flyers_all, 180),
+        ("review_resolved", cleanup_resolved_review_items, 30),
     ]:
         try:
             result = fn(retention_days=days)
@@ -623,7 +697,7 @@ def main():
         logger.warning("Erro cleanup non-food flyers: %s", e)
 
     try:
-        result = auto_reject_stale_review_items(max_age_days=7, min_confidence=0.6)
+        result = auto_reject_stale_review_items(max_age_days=14, min_confidence=0.3)
         logger.info("Cleanup review queue (stale auto-reject): %d rejeitados", result)
     except Exception as e:
         logger.warning("Erro cleanup review queue: %s", e)

@@ -16,3 +16,7 @@ pdf2image
 playwright>=1.0,<2.0
 PyJWT
 msgpack>=1.2.1
+sentence-transformers==3.0.1
+torch==2.3.0 --index-url https://download.pytorch.org/whl/cpu
+scikit-learn==1.5.0
+groq==0.9.0

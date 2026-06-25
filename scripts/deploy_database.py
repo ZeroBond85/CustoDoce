@@ -429,6 +429,35 @@ VALUES ('dona_dani_ingredientes', 2, 1440, 3, 120, 10, true)
 ON CONFLICT DO NOTHING;
 """)
 
+    # ─── PHASE 16: Additional cleanup functions ─────────────────────
+    gen.append("""
+-- ============================================================
+-- PHASE 16: Additional cleanup functions
+-- ============================================================
+
+-- 1. Cleanup ALL flyers (not just failed OCR) older than retention_days
+CREATE OR REPLACE FUNCTION cleanup_old_flyers_all(retention_days int DEFAULT 180)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    DELETE FROM flyers WHERE collected_at < now() - (retention_days || ' days')::interval;
+END;
+$$;
+
+-- 2. Cleanup resolved review_queue items (approved/rejected) older than retention_days
+CREATE OR REPLACE FUNCTION cleanup_resolved_review_items(retention_days int DEFAULT 30)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    DELETE FROM review_queue
+    WHERE status IN ('approved', 'rejected')
+      AND reviewed_at < now() - (retention_days || ' days')::interval;
+END;
+$$;
+""")
+
     gen.append("\n-- ============================================================")
     gen.append("-- Migration complete. Verify with:")
     gen.append("--   SELECT table_name FROM information_schema.tables")
