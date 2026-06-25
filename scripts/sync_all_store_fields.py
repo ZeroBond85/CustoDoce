@@ -42,8 +42,6 @@ def sync_store_fields() -> int:
         for field in FIELDS:
             val = s.get(field)
             if val is not None and val != '':
-                if isinstance(val, (list, dict)):
-                    val = str(val)
                 updates[field] = val
         if updates:
             c.table('stores').update(updates).eq('id', store_id).execute()
