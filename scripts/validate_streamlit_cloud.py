@@ -86,11 +86,11 @@ def find_login_form(page):
                     user_input = page.locator(selector).first
                     if user_input.is_visible(timeout=3000):
                         break
-                except:
+                except Exception:
                     continue
-            
+
             if not user_input or not user_input.is_visible(timeout=5000):
-                # Fallbackstop and try a more generic approach
+                # Fallback and try a more generic approach
                 user_input = page.locator('input[type="text"]').first
                 if not user_input.is_visible(timeout=3000):
                     raise Exception("Username input not found")
@@ -108,9 +108,9 @@ def find_login_form(page):
                     pass_input = page.locator(selector).first
                     if pass_input.is_visible(timeout=3000):
                         break
-                except:
+                except Exception:
                     continue
-            
+
             if not pass_input or not pass_input.is_visible(timeout=5000):
                 pass_input = page.locator('input[type="password"]').first
                 if not pass_input.is_visible(timeout=3000):
@@ -246,7 +246,7 @@ def validate_app() -> ValidationResult:
             page.goto(APP_URL, timeout=30000)
             page.wait_for_load_state("networkidle", timeout=30000)
             page.wait_for_timeout(2000)
-            
+
             if not find_login_form(page):
                 result.errors.append("Não conseguiu fazer login")
                 result.passed = False
