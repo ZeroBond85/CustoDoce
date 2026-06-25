@@ -48,4 +48,6 @@ jobs:
         continue-on-error: true
 
       - name: App online check
-        run: curl -s -o /dev/null -w "%{http_code}" https://custodoce.streamlit.app | grep -q 200 || echo "AVISO: Streamlit Cloud nao respondeu 200 (pode ser normal)"
+        run: |
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' https://custodoce.streamlit.app)
+          if [ "$STATUS" = "200" ]; then echo "OK - App online ($STATUS)"; else echo "AVISO: App respondeu $STATUS (pode ser normal)"; fi
