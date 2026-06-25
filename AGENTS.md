@@ -622,3 +622,22 @@ ruff check . && python -m pytest tests/ -q
 | Deep analysis: 7 lojas investigadas (3 aproveitadas, 4 descartadas) | ✅ |
 | 51 lojas no stores.yaml (50 + 1 Santa Vita) | ✅ |
 | 230 testes, ruff 0, bandit 0 | ✅ Todos limpos |
+
+## Fase 20 — Trigger ON CONFLICT Fix + AI Intelligence Layer + E2E Pipeline (concluida)
+
+| O que foi feito | Resultado |
+|----------------|-----------|
+| **`supabase/consolidated_migration.sql`** — Trigger `update_history_from_prices()` corrigido com `ON CONFLICT (ingredient_id, store_id, collected_at) DO UPDATE SET ...` para `price_history` (fix 23505) | ✅ |
+| **`parsers/semantic_matcher.py`** — Embeddings locais via `sentence-transformers` (`paraphrase-multilingual-MiniLM-L12-v2`), CPU-only, cache em disco, score combinado 0.6×RapidFuzz + 0.4×semantic | ✅ |
+| **`services/price_intelligence.py`** — Detecção anomalias via Z-score (threshold 2.0) + Isolation Forest; tags: `OFERTA_REAL`, `PRECO_SUSPEITO`, `PRECO_ELEVADO`, `NORMAL` | ✅ |
+| **`parsers/llm_classifier.py`** — Groq API (`llama-3.1-8b-instant`, 14k req/dia grátis) para zona cinzenta 65-80%; fallback silencioso | ✅ |
+| **`services/price_service.py`** — Auto-learning aliases ao aprovar review (sim ≥ 0.75), invalida cache embeddings | ✅ |
+| **`main.py`** — `process_price_match()` com fluxo: exact≥80% → auto; 55-79% → semantic blend; 65-80% → LLM; <55% → review queue | ✅ |
+| **`admin/app.py`** — UI review queue com seletor marca dinâmico, tags IA (`OFERTA_REAL`, `PRECO_SUSPEITO`, etc.) | ✅ |
+| **`main.py` cleanup loop** — Novas funções: `cleanup_old_flyers_all(180d)`, `cleanup_resolved_review_items(30d)` | ✅ |
+| **Auto-reject calibrado** — `max_age_days=14`, `min_confidence=0.3` (zero perda itens válidos) | ✅ |
+| **Scraper schedule** — 4×/sem (Seg,Qua,Qui,Sex) + Sáb Playwright + 1º dia release | ✅ |
+| **E2E Pipeline** — `.github/workflows/e2e.yml` (quinzenal + manual), `scripts/send_e2e_report.py` (email HTML `custodoce@gmail.com`), `tests/e2e_dashboard.py` (18 abas + Auth + Supabase D1-D10) | ✅ |
+| **DB Migration PHASE 16** — `cleanup_old_flyers_all(180d)`, `cleanup_resolved_review_items(30d)` + trigger `ON CONFLICT DO UPDATE` fixado no Supabase real | ✅ |
+| **255 testes, ruff 0, bandit 0, mypy 0, pip-audit 0** | ✅ Todos limpos |
+| **CI/CD Free Tier** — 805 min/mês (40%) → 60% folga | ✅ |
