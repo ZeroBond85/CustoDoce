@@ -47,7 +47,8 @@ jobs:
         run: pip install types-PyYAML types-psycopg2 types-openpyxl && mypy . --ignore-missing-imports --explicit-package-bases --exclude='tests/' --exclude='scripts/archive/' | tail -5
         continue-on-error: true
 
-      - name: App online check
-        run: |
-          STATUS=$(curl -s -o /dev/null -w '%{http_code}' https://custodoce.streamlit.app)
-          if [ "$STATUS" = "200" ]; then echo "OK - App online ($STATUS)"; else echo "AVISO: App respondeu $STATUS (pode ser normal)"; fi
+      - name: App online check (com warm-up)
+        run: python scripts/validate_streamlit_cloud.py
+        env:
+          STREAMLIT_APP_URL: https://custodoce.streamlit.app
+        continue-on-error: true
