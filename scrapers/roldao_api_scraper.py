@@ -2,6 +2,7 @@
 import hashlib
 import logging
 
+import httpx
 from scrapers.base_web_scraper import BaseWebScraper
 
 logger = logging.getLogger(__name__)
@@ -24,8 +25,16 @@ class RoldaoApiScraper(BaseWebScraper):
     def get_media(self, media_id: int) -> dict | None:
         url = f"{self.api_base}{self.endpoints.get('media', '/media/{media_id}')}"
         url = url.replace("{media_id}", str(media_id))
-        data = self.fetch_json(url)
-        return data if isinstance(data, dict) else None
+        try:
+            resp = self._http.get(url, timeout=10.0)
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.HTTPStatusError as e:
+            logger.warning("[%s] Media %d: HTTP %s (pulando)", self.name, media_id, e.response.status_code)
+            return None
+        except Exception as e:
+            logger.warning("[%s] Media %d: %s (pulando)", self.name, media_id, e)
+            return None
 
     def parse_post(self, post: dict) -> list[dict]:
         entries = []
