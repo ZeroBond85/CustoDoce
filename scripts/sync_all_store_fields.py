@@ -16,6 +16,7 @@ FIELDS = [
     'selectors', 'publish_day', 'collection_method', 'visit_frequency',
     'logistics', 'zone', 'coverage', 'contact', 'type', 'priority',
     'verify_ssl', 'headers', 'api_base', 'api_endpoints', 'image_host',
+    'is_active',
 ]
 
 logger = logging.getLogger(__name__)
