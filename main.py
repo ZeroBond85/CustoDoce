@@ -22,9 +22,9 @@ from scrapers.max_api_scraper import MaxApiScraper
 from scrapers.aggregator_scraper import TiendeoScraper
 from scrapers.playwright_price_scraper import PlaywrightPriceScraper
 from parsers.normalizer import normalize_price
-from parsers.matcher import match_ingredient, rank_ingredients, clean_text
+from parsers.matcher import match_ingredient, rank_ingredients, clean_text, extract_all_keywords, has_ingredient_keyword
 from parsers.brand_extractor import extract_brand
-from services.price_service import upsert_price, insert_review_item, log_scraper_run, cleanup_old_prices, cleanup_old_logs, _detect_promotion, _weekday_pt
+from services.price_service import upsert_price, insert_review_item, log_scraper_run, cleanup_old_prices, cleanup_old_logs, auto_reject_stale_review_items, _detect_promotion, _weekday_pt
 from services.flyer_service import cleanup_old_flyers, cleanup_non_food_flyers
 from services.flyer_service import upsert_flyer
 from services.email_service import send_daily_report, send_scraper_error
@@ -129,6 +129,18 @@ def build_product_entry(
     }
 
 
+_keyword_cache: tuple[int, set] | None = None
+
+def _get_ingredient_keywords(ingredients: list[dict]) -> set:
+    global _keyword_cache
+    ing_id = id(ingredients)
+    if _keyword_cache is not None and _keyword_cache[0] == ing_id:
+        return _keyword_cache[1]
+    keywords = extract_all_keywords(ingredients)
+    _keyword_cache = (ing_id, keywords)
+    return keywords
+
+
 def process_price_match(
     store: dict,
     product_text: str,
@@ -140,6 +152,10 @@ def process_price_match(
     image_url: str = "",
     source_url: str = "",
 ) -> dict | None:
+    keywords = _get_ingredient_keywords(ingredients)
+    if not has_ingredient_keyword(product_text, keywords):
+        return None
+
     ingredient, score, match_type = match_ingredient(product_text, ingredients)
     if ingredient and score >= 80.0:
         entry = build_product_entry(
@@ -166,10 +182,10 @@ def process_price_match(
 
             # Type label in PT
             type_labels = {
-                "fuzzy_canonical": "fuzzy (canônico)",
-                "fuzzy_alias": "fuzzy (alias)",
-                "exact": "exato",
-                "word_subset": "subconjunto de palavras",
+                "proximo_nome": "semelhante ao nome do ingrediente",
+                "proximo_apelido": "semelhante a um apelido do ingrediente",
+                "exato": "exato",
+                "contido": "nome do ingrediente contido no produto",
             }
             type_label = type_labels.get(top_type, top_type)
 
@@ -605,6 +621,12 @@ def main():
         logger.info("Cleanup non-food flyers: %s", result)
     except Exception as e:
         logger.warning("Erro cleanup non-food flyers: %s", e)
+
+    try:
+        result = auto_reject_stale_review_items(max_age_days=7, min_confidence=0.6)
+        logger.info("Cleanup review queue (stale auto-reject): %d rejeitados", result)
+    except Exception as e:
+        logger.warning("Erro cleanup review queue: %s", e)
 
     logger.info("Coleta concluida: %s", datetime.now().isoformat())
 

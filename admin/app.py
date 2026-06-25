@@ -59,6 +59,7 @@ from services.config_db import (
     delete_recipient,
     get_all_alert_rules,
     upsert_alert_rule,
+    delete_alert_rule,
 )
 from dashboard.components.layout import render_sidebar
 from dashboard.components.ui import (
@@ -934,6 +935,17 @@ def tab_revisao():
     )
     review_items = _cached_get_review_queue()
 
+    all_ingredients = _cached_get_all_ingredients(include_inactive=True)
+    brand_map = {}
+    for ing in all_ingredients:
+        brands = ing.get("brands", [])
+        if isinstance(brands, str):
+            try:
+                brands = json.loads(brands)
+            except (json.JSONDecodeError, TypeError):
+                brands = [b.strip() for b in brands.split(",") if b.strip()]
+        brand_map[ing.get("canonical", ing.get("name", ""))] = brands
+
     if review_items:
         st.markdown(f"**{len(review_items)} itens** aguardando revisao")
 
@@ -1024,9 +1036,14 @@ def tab_revisao():
                     st.progress(confidence)
                     if match_type:
                         badge_colors = {
+                            "exato": ("green", "✅ Match exato"),
+                            "proximo_nome": ("orange", "🔍 Semelhante ao nome do ingrediente"),
+                            "proximo_apelido": ("orange", "🔍 Semelhante a um apelido"),
+                            "contido": ("blue", "📝 Nome contido no produto"),
+                            # Fallback para registros antigos
                             "exact": ("green", "✅ Match exato"),
-                            "fuzzy_canonical": ("orange", "🔍 Fuzzy (canônico)"),
-                            "fuzzy_alias": ("orange", "🔍 Fuzzy (alias)"),
+                            "fuzzy_canonical": ("orange", "🔍 Semelhante (canônico)"),
+                            "fuzzy_alias": ("orange", "🔍 Semelhante (apelido)"),
                             "word_subset": ("blue", "📝 Subconjunto de palavras"),
                         }
                         color, label = badge_colors.get(match_type, ("gray", match_type))
@@ -1101,43 +1118,73 @@ def tab_revisao():
                             placeholder="Ex: Leite Condensado Integral",
                             label_visibility="collapsed",
                         )
+
+                    # Brand selector
+                    ing_name = selected if selected != "Outro..." else st.session_state.get(f"custom_ingredient_{item_id}", "")
+                    ing_brands = brand_map.get(ing_name, [])
+                    detected_brand = brand or ""
+                    brand_options = ["Manter detecção automática"] + (ing_brands if ing_brands else [])
+                    if detected_brand and detected_brand not in ing_brands:
+                        brand_options.append(f"Salvar como: {detected_brand}")
+                    default_brand = 0
+                    if detected_brand in ing_brands:
+                        default_brand = brand_options.index(detected_brand)
+                    elif ing_brands:
+                        default_brand = 0
+                    st.selectbox(
+                        "Marca:",
+                        brand_options,
+                        key=f"brand_{item_id}",
+                        index=default_brand,
+                    )
                 with act_cols[1]:
-                    if st.button(
-                        "✅ Aprovar", key=f"app_{item_id}", width='stretch'
-                    ):
-                        chosen = st.session_state.get(f"ingredient_{item_id}", "")
-                        if chosen == "Outro...":
-                            chosen = st.session_state.get(
-                                f"custom_ingredient_{item_id}", ""
-                            )
-                        if chosen:
+                    app_key = f"confirm_app_{item_id}"
+                    if st.session_state.get(app_key):
+                        if st.button("Sim, aprovar", key=f"app_yes_{item_id}", width='stretch'):
+                            chosen = st.session_state.get(f"ingredient_{item_id}", "")
+                            if chosen == "Outro...":
+                                chosen = st.session_state.get(f"custom_ingredient_{item_id}", "")
+                            if chosen:
+                                brand_sel = st.session_state.get(f"brand_{item_id}", "")
+                                brand_override = brand_sel if brand_sel and brand_sel != "Manter detecção automática" else ""
+                                try:
+                                    approve_review_item(item_id, chosen, brand_override=brand_override)
+                                    st.session_state.pop(app_key, None)
+                                    st.rerun()
+                                except Exception as e:
+                                    err_msg = str(e)
+                                    st.error(f"Erro ao aprovar: {err_msg}")
+                                    st.session_state.pop(app_key, None)
+                                    if "42P10" in err_msg:
+                                        st.caption("Execute no SQL Editor do Supabase:")
+                                        st.code("ALTER TABLE prices ADD CONSTRAINT prices_ingredient_id_store_id_collected_at_key UNIQUE (ingredient_id, store_id, collected_at);", language="sql")
+                            else:
+                                st.warning("Selecione um ingrediente antes de aprovar.")
+                        if st.button("Cancelar", key=f"app_no_{item_id}", width='stretch'):
+                            st.session_state.pop(app_key, None)
+                            st.rerun()
+                    else:
+                        if st.button("✅ Aprovar", key=f"app_{item_id}", width='stretch'):
+                            st.session_state[app_key] = True
+                            st.rerun()
+                with act_cols[2]:
+                    rej_key = f"confirm_rej_{item_id}"
+                    if st.session_state.get(rej_key):
+                        if st.button("Sim, rejeitar", key=f"rej_yes_{item_id}", width='stretch'):
                             try:
-                                approve_review_item(item_id, chosen)
+                                reject_review_item(item_id)
+                                st.session_state.pop(rej_key, None)
                                 st.rerun()
                             except Exception as e:
-                                err_msg = str(e)
-                                st.error(f"Erro ao aprovar: {err_msg}")
-                                if "42P10" in err_msg:
-                                    st.caption(
-                                        "Execute no SQL Editor do Supabase:"
-                                    )
-                                    st.code(
-                                        "ALTER TABLE prices "
-                                        "ADD CONSTRAINT prices_ingredient_id_store_id_collected_at_key "
-                                        "UNIQUE (ingredient_id, store_id, collected_at);",
-                                        language="sql",
-                                    )
-                        else:
-                            st.warning("Selecione um ingrediente antes de aprovar.")
-                with act_cols[2]:
-                    if st.button(
-                        "❌ Rejeitar", key=f"rej_{item_id}", width='stretch'
-                    ):
-                        try:
-                            reject_review_item(item_id)
+                                st.error(f"Erro ao rejeitar: {e}")
+                                st.session_state.pop(rej_key, None)
+                        if st.button("Cancelar", key=f"rej_no_{item_id}", width='stretch'):
+                            st.session_state.pop(rej_key, None)
                             st.rerun()
-                        except Exception as e:
-                            st.error(f"Erro ao rejeitar: {e}")
+                    else:
+                        if st.button("❌ Rejeitar", key=f"rej_{item_id}", width='stretch'):
+                            st.session_state[rej_key] = True
+                            st.rerun()
     else:
         info_box("Nenhum item na fila de revisao!", "success")
 
@@ -2799,9 +2846,27 @@ def tab_alertas():
     with tab_rules:
         rules = _cached_get_all_alert_rules(include_disabled=True)
         if rules:
-            df = pd.DataFrame(rules)
-            df["enabled"] = df["enabled"].map({True: "✅", False: "⏸️"})
-            st.dataframe(_pt_cols(df[["name", "channel", "trigger", "frequency_minutes", "enabled"]]), width='stretch', hide_index=True)
+            for r in rules:
+                cols = st.columns([3, 1, 1, 1, 1, 1])
+                cols[0].write(f"**{r['name']}**")
+                cols[1].write(r['channel'])
+                cols[2].write({"price_drop": "Queda Preço", "new_low_price": "Menor Preço", "daily_report": "Relatório", "scrape_failure": "Falha", "review_queue_threshold": "Revisão"}.get(r.get('trigger', ''), r.get('trigger', '')))
+                cols[3].write(f"{'✅' if r.get('enabled') else '⏸️'}")
+                del_key = f"confirm_del_rule_{r['id']}"
+                if st.session_state.get(del_key):
+                    if cols[4].button("Sim", key=f"rule_del_yes_{r['id']}", width='stretch'):
+                        delete_alert_rule(r['id'])
+                        st.session_state.pop(del_key, None)
+                        st.rerun()
+                    if cols[5].button("Não", key=f"rule_del_no_{r['id']}", width='stretch'):
+                        st.session_state.pop(del_key, None)
+                        st.rerun()
+                else:
+                    if cols[4].button("Excluir", key=f"rule_del_{r['id']}", width='stretch'):
+                        st.session_state[del_key] = True
+                        st.rerun()
+                    cols[5].write("")
+            st.divider()
         else:
             info_box("Nenhuma regra de alerta configurada.", "info")
 

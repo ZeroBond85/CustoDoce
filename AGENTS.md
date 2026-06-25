@@ -544,6 +544,7 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 - **Fase 17b** ✅ Trigger Fix + Fuzzy Matching + Deprecation — PHASE 15 trigger `update_history_from_prices()` com `ON CONFLICT DO UPDATE` (fix 23505); `approve_review_item()` fuzzy matching RapidFuzz ≥70%; `upsert_price()` fallback try/except; `use_container_width` → `width='stretch'` (80 ocorrências); 230 testes
 - **Fase 17c** ✅ E2E Tests + Mock Collision Fix + Warning Suppression — `tests/test_review_queue_e2e.py` (8 testes E2E contra Supabase real: trigger ON CONFLICT, approve UUID/exact/fuzzy/duplicate, reject, add alias); `tests/conftest.py` dotenv loading; fixture reload via `importlib.util.spec_from_file_location` para resolver colisão com mock do `test_dashboard_full.py`; `pyproject.toml` `[tool.pytest.ini_options]` filtra DeprecationWarning do Supabase; 243 testes, ruff 0
 - **Fase 18** ✅ Store Health Check + Dashboard Status Real + Reativacao — `store_health_check.py` testa HTTP em desativadas (YAML fallback); GP Distribuidora e Padeirão reativados; 5 lojas confirmadas mortas; `tab_lojas()` usa `scrape_frequencies.enabled` + coluna "Motivo" extraída do `coverage`; 243 testes
+- **Fase 19** ✅ Match Type Cleanup + Brand Extraction + Review Queue UX — `match_type` renomeados para PT (exato/proximo_nome/proximo_apelido/contido); `brand_extractor.py` com 3 níveis (exato/substring/fuzzy palavra a palavra); seletor de marca dinâmico na revisão; 163 registros migrados; 255 testes
 
 ## Fase 16b — Trigger ON CONFLICT Fix + Real DB Sync (concluida)
 
@@ -592,6 +593,19 @@ ruff check . && python -m pytest tests/ -q
 | **Dashboard `tab_lojas()` refatorada** — agora usa `scrape_frequencies.enabled` (não mais `stores.is_active`, que era sempre True); adicionado filtro "Status" (ativas/desativadas/todas); coluna "Motivo" extraída do campo `coverage` (ex: "Domínio fora do ar", "Só embalagens") | ✅ |
 | **9 stores Tier 4 sem URL** mantidas desativadas (SAV, Bolão, Merkadoces, Canola, VOMG, Maranata, Domingos, Litosul, Ki Delícia) | ✅ |
 | 243 testes, ruff 0 | ✅ Todos limpos |
+
+## Fase 19 — Match Type Cleanup + Brand Extraction + Review Queue UX (concluida)
+
+| O que foi feito | Resultado |
+|----------------|-----------|
+| **`parsers/matcher.py`** — `match_type` renomeados: `exact`→`exato`, `fuzzy_canonical`→`proximo_nome`, `fuzzy_alias`→`proximo_apelido`, `word_subset`→`contido` | ✅ |
+| **`main.py`** — `type_labels` atualizados para PT descritivo ("semelhante ao nome do ingrediente", "semelhante a um apelido", "nome do ingrediente contido no produto") | ✅ |
+| **`admin/app.py`** — Badges com texto claro; fallback mantido para registros antigos no DB | ✅ |
+| **`parsers/brand_extractor.py`** — Nível 2 (substring): regex `(?<![A-Z])BRAND(?![A-Z])` evita falsos positivos (ex: "Moca" em "Mocambo"); Nível 3 (fuzzy): compara palavra a palavra com `fuzz.ratio` ≥80 (ex: "Piracajuba"→"Piracanjuba" = 95%) | ✅ |
+| **`services/price_service.py`** — `approve_review_item()` aceita `brand_override` opcional | ✅ |
+| **`admin/app.py` (tab_revisao)`** — Seletor de marca dinâmico pós-selectbox de ingrediente; pré-preenchido com marca detectada se coincidir; opção "Manter detecção automática" | ✅ |
+| **DB migration** — 163 registros `review_queue` migrados: `fuzzy_canonical`→`proximo_nome` (30), `fuzzy_alias`→`proximo_apelido` (133) | ✅ |
+| **255 testes, ruff 0, bandit 0** | ✅ Todos limpos |
 
 ## Fase 17 — Store Expansion: Cacau Center Reactivation + Deep Analysis (concluida)
 

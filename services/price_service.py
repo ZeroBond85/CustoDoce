@@ -262,7 +262,7 @@ def get_review_queue(limit: int = 500) -> list[dict]:
     return result.data if result.data else []
 
 
-def approve_review_item(item_id: str, ingredient_id: str) -> dict:
+def approve_review_item(item_id: str, ingredient_id: str, brand_override: str = "") -> dict:
     client = get_service_client()
 
     # Resolve ingredient name or UUID to actual UUID FIRST (before any DB write)
@@ -306,28 +306,11 @@ def approve_review_item(item_id: str, ingredient_id: str) -> dict:
     if item is None or not item.data:
         return {}
 
-    result = (
-        client.table("review_queue")
-        .update({
-            "status": "approved",
-            "resolved_ingredient": resolved_ingredient_id,
-            "reviewed_at": datetime.now(timezone.utc).isoformat(),
-        })
-        .eq("id", item_id)
-        .execute()
-    )
-
     store_name = item.data.get("store_name", "")
     store_lookup = get_store_by_name(store_name) if store_name else None
     if not store_lookup and store_name:
         store_lookup = _fuzzy_find_store(store_name)
     store_id = store_lookup.get("id", "") if store_lookup else ""
-
-    if not store_id:
-        logging.getLogger(__name__).warning(
-            "approve_review_item: store '%s' not found in DB, skipping price insert", store_name
-        )
-        return result.data[0] if result.data else {}
 
     price_entry = {
         "ingredient_id": resolved_ingredient_id,
@@ -340,29 +323,72 @@ def approve_review_item(item_id: str, ingredient_id: str) -> dict:
         "validity_raw": item.data.get("validity_raw", ""),
         "tier": 2,
         "confidence": float(item.data.get("confidence", 0.8)),
-        "brand": item.data.get("brand", ""),
+        "brand": brand_override or item.data.get("brand", ""),
         "city": item.data.get("city", ""),
         "logistics": "pickup_local",
     }
-    try:
-        upsert_price(price_entry)
-        if resolved_ingredient_id and price_entry.get('raw_product'):
+
+    if store_id:
+        try:
+            upsert_price(price_entry)
+        except Exception as e:
+            logging.getLogger(__name__).error("approve_review_item upsert_price failed: %s", e)
+            return {"error": f"Falha ao inserir preço: {e}"}
+
+    if store_id and resolved_ingredient_id and price_entry.get('raw_product'):
+        try:
             add_alias_to_ingredient(resolved_ingredient_id, price_entry['raw_product'])
-    except Exception as e:
-        logging.getLogger(__name__).error("approve_review_item upsert failed: %s", e)
-        raise
+        except Exception as e:
+            logging.getLogger(__name__).warning("approve_review_item add_alias failed: %s", e)
+
+    result = (
+        client.table("review_queue")
+        .update({
+            "status": "approved",
+            "resolved_ingredient": resolved_ingredient_id,
+            "reviewed_at": datetime.now(timezone.utc).isoformat(),
+        })
+        .eq("id", item_id)
+        .execute()
+    )
 
     return result.data[0] if result.data else {}
 
 def reject_review_item(item_id: str) -> dict:
     client = get_service_client()
-    result = (
-        client.table("review_queue")
-        .update({"status": "rejected"})
-        .eq("id", item_id)
-        .execute()
-    )
-    return result.data[0] if result.data else {}
+    try:
+        result = (
+            client.table("review_queue")
+            .update({"status": "rejected"})
+            .eq("id", item_id)
+            .execute()
+        )
+        return result.data[0] if result.data else {}
+    except Exception as e:
+        logging.getLogger(__name__).error("reject_review_item failed: %s", e)
+        return {}
+
+
+def auto_reject_stale_review_items(max_age_days: int = 7, min_confidence: float = 0.6) -> int:
+    client = get_service_client()
+    cutoff = (date.today() - timedelta(days=max_age_days)).isoformat()
+    try:
+        items = client.table("review_queue").select("id,confidence").eq("status", "pending").lt("collected_at", cutoff).execute()
+        rejected = 0
+        for item in items.data or []:
+            conf = item.get("confidence", 0)
+            if isinstance(conf, str):
+                try:
+                    conf = float(conf)
+                except (ValueError, TypeError):
+                    conf = 0
+            if conf < min_confidence:
+                client.table("review_queue").update({"status": "rejected"}).eq("id", item["id"]).execute()
+                rejected += 1
+        return rejected
+    except Exception as e:
+        logging.getLogger(__name__).error("auto_reject_stale_review_items failed: %s", e)
+        return 0
 
 
 def get_telegram_report(ingredients: list[dict], top_n: int = 5) -> list[dict]:

@@ -51,6 +51,10 @@ class MockQueryBuilder:
         self._applied_filters.append(("lte", field, value))
         return self
 
+    def lt(self, field, value):
+        self._applied_filters.append(("lt", field, value))
+        return self
+
     def gte(self, field, value):
         self._applied_filters.append(("gte", field, value))
         return self
@@ -469,6 +473,42 @@ class TestPriceService:
         assert "raw_product" in eq_fields
         assert "status" not in eq_fields, "Nao deveria filtrar por status"
 
+    # ── auto_reject_stale_review_items ───────────────────────────
+
+    @patch("services.price_service.get_service_client")
+    def test_auto_reject_stale_rejects_low_confidence_pending(self, mock_get_client):
+        from services.price_service import auto_reject_stale_review_items
+        mock_client, _, qb = make_mocks()
+        qb._return_data = [
+            {"id": "old1", "confidence": 0.3},
+            {"id": "old2", "confidence": 0.5},
+            {"id": "old3", "confidence": 0.8},  # above threshold
+        ]
+        mock_get_client.return_value = mock_client
+        count = auto_reject_stale_review_items(max_age_days=7, min_confidence=0.6)
+        assert count == 2  # old1 and old2 rejected
+
+    @patch("services.price_service.get_service_client")
+    def test_auto_reject_stale_handles_string_confidence(self, mock_get_client):
+        from services.price_service import auto_reject_stale_review_items
+        mock_client, _, qb = make_mocks()
+        qb._return_data = [
+            {"id": "old1", "confidence": "0.4"},
+            {"id": "old2", "confidence": 0.9},
+        ]
+        mock_get_client.return_value = mock_client
+        count = auto_reject_stale_review_items(max_age_days=7, min_confidence=0.6)
+        assert count == 1
+
+    @patch("services.price_service.get_service_client")
+    def test_auto_reject_stale_empty_queue(self, mock_get_client):
+        from services.price_service import auto_reject_stale_review_items
+        mock_client, _, qb = make_mocks()
+        qb._return_data = []
+        mock_get_client.return_value = mock_client
+        count = auto_reject_stale_review_items()
+        assert count == 0
+
     # ── approve_review_item ────────────────────────────────────
 
     @patch("services.price_service.get_service_client")
@@ -617,10 +657,11 @@ class TestPriceService:
         """process_price_match() deve incluir validity_raw, is_promotion, collected_weekday."""
         from main import process_price_match
 
-        mock_match.return_value = ({"canonical_name": "Leite Condensado", "aliases": []}, 95.0, "exact")
+        mock_match.return_value = ({"canonical_name": "Leite Condensado", "aliases": [], "search_terms": ["leite"]}, 95.0, "exato")
 
         store = {"name": "Assai", "type": "pdf", "tier": 1, "city": "Santos"}
-        result = process_price_match(store, "Leite Moca PROMO 50% OFF", 39.90, "cx 12x395g", [])
+        ing_list = [{"canonical_name": "Leite Condensado", "aliases": ["leite moca"], "search_terms": ["leite condensado"]}]
+        result = process_price_match(store, "Leite Moca PROMO 50% OFF", 39.90, "cx 12x395g", ing_list)
 
         assert result is not None
         assert result["is_promotion"] is True
@@ -633,10 +674,11 @@ class TestPriceService:
         """Sem keywords de promocao, is_promotion=False."""
         from main import process_price_match
 
-        mock_match.return_value = ({"canonical_name": "Farinha", "aliases": []}, 95.0, "exact")
+        mock_match.return_value = ({"canonical_name": "Farinha", "aliases": [], "search_terms": ["farinha"]}, 95.0, "exato")
 
         store = {"name": "Assai", "type": "pdf", "tier": 1}
-        result = process_price_match(store, "Farinha de Trigo 1kg", 5.90, "1kg", [])
+        ing_list = [{"canonical_name": "Farinha", "aliases": ["farinha trigo"], "search_terms": ["farinha de trigo"]}]
+        result = process_price_match(store, "Farinha de Trigo 1kg", 5.90, "1kg", ing_list)
 
         assert result is not None
         assert result["is_promotion"] is False
@@ -650,7 +692,8 @@ class TestPriceService:
         mock_match.return_value = (None, 60.0, "fuzzy")
 
         store = {"name": "Extra", "type": "website"}
-        process_price_match(store, "Produto Desconto 30%", 15.0, "un", [], validity_raw="Promo Semanal")
+        ing_list = [{"canonical_name": "Leite Condensado", "aliases": [], "search_terms": ["leite condensado"]}]
+        process_price_match(store, "Leite Produto Desconto 30%", 15.0, "un", ing_list, validity_raw="Promo Semanal")
 
         inserted = mock_insert.call_args[0][0]
         assert inserted["validity_raw"] == "Promo Semanal"
@@ -662,11 +705,12 @@ class TestPriceService:
         """Validity_raw fornecido externamente deve ser passado ao entry."""
         from main import process_price_match
 
-        mock_match.return_value = ({"canonical_name": "Leite Ninho", "aliases": []}, 90.0, "exact")
+        mock_match.return_value = ({"canonical_name": "Leite Ninho", "aliases": [], "search_terms": ["leite"]}, 90.0, "exato")
 
         store = {"name": "Extra", "type": "website", "tier": 2}
+        ing_list = [{"canonical_name": "Leite Ninho", "aliases": ["ninho"], "search_terms": ["leite em po"]}]
         result = process_price_match(
-            store, "Leite Ninho Integral 400g", 25.90, "un", [],
+            store, "Leite Ninho Integral 400g", 25.90, "un", ing_list,
             validity_raw="Oferta valida ate 30/06",
         )
 
@@ -679,11 +723,12 @@ class TestPriceService:
         """Extrai texto de validade do nome do produto quando validity_raw nao fornecido."""
         from main import process_price_match
 
-        mock_match.return_value = ({"canonical_name": "Teste", "aliases": []}, 95.0, "exact")
+        mock_match.return_value = ({"canonical_name": "Teste", "aliases": [], "search_terms": ["teste"]}, 95.0, "exato")
 
         store = {"name": "Test", "type": "pdf", "tier": 1}
+        ing_list = [{"canonical_name": "Teste", "aliases": ["produto"], "search_terms": ["teste", "produto"]}]
         result = process_price_match(
-            store, "Produto Teste ate 30/06/2026", 10.0, "un", [],
+            store, "Produto Teste ate 30/06/2026", 10.0, "un", ing_list,
         )
 
         assert result is not None
@@ -1171,7 +1216,7 @@ class TestMatcher:
         assert result[0] is not None
         assert result[0]["canonical_name"] == "Leite Condensado"
         assert result[1] == 100.0
-        assert result[2] == "exact"
+        assert result[2] == "exato"
 
     def test_match_ingredient_fuzzy(self):
         from parsers.matcher import match_ingredient
@@ -1183,7 +1228,7 @@ class TestMatcher:
         assert coca is not None
         assert coca["canonical_name"] == "Creme de Leite"
         assert score >= 80.0
-        assert match_type in ("fuzzy_canonical", "fuzzy_alias")
+        assert match_type in ("proximo_nome", "proximo_apelido")
 
     def test_match_ingredient_no_match(self):
         from parsers.matcher import match_ingredient
@@ -1196,7 +1241,7 @@ class TestMatcher:
         result = match_ingredient("Leite Condensado", self.INGREDIENTS, threshold=99.0)
         assert result[0] is not None
         assert result[1] == 100.0
-        assert result[2] == "exact"
+        assert result[2] == "exato"
 
     def test_rank_ingredients(self):
         from parsers.matcher import rank_ingredients
@@ -1211,6 +1256,48 @@ class TestMatcher:
         pairs = [(c, a) for c, a, _ in result]
         assert ("Leite Condensado", "Leite Condensado") in pairs
         assert ("Leite Condensado", "Leite Condensado Moça") in pairs
+
+    INGREDIENTS_BRANDS = [
+        {"canonical_name": "Leite Condensado Integral", "aliases": ["LC"], "search_terms": ["leite condensado", "moca"]},
+        {"canonical_name": "Chocolate em Pó 50%", "aliases": ["chocolate 50%"], "search_terms": ["chocolate po", "melken"]},
+    ]
+
+    def test_extract_all_keywords(self):
+        from parsers.matcher import extract_all_keywords
+        kw = extract_all_keywords(self.INGREDIENTS_BRANDS)
+        assert "LEITE" in kw
+        assert "CONDENSADO" in kw
+        assert "CHOCOLATE" in kw
+        assert "50" not in kw  # 2 chars only after cleanup
+        for w in kw:
+            assert len(w) > 2
+
+    def test_extract_all_keywords_empty(self):
+        from parsers.matcher import extract_all_keywords
+        kw = extract_all_keywords([])
+        assert kw == set()
+
+    def test_has_ingredient_keyword_found(self):
+        from parsers.matcher import has_ingredient_keyword, extract_all_keywords
+        kw = extract_all_keywords(self.INGREDIENTS_BRANDS)
+        assert has_ingredient_keyword("Leite Condensado Moca", kw)
+        assert has_ingredient_keyword("Chocolate em Po Melken 200g", kw)
+
+    def test_has_ingredient_keyword_not_found(self):
+        from parsers.matcher import has_ingredient_keyword, extract_all_keywords
+        kw = extract_all_keywords(self.INGREDIENTS_BRANDS)
+        assert not has_ingredient_keyword("Arroz Branco 5kg", kw)
+        assert not has_ingredient_keyword("Sabonete Liquido", kw)
+
+    def test_has_ingredient_keyword_empty_text(self):
+        from parsers.matcher import has_ingredient_keyword
+        assert not has_ingredient_keyword("", {"TESTE"})
+
+    def test_has_ingredient_keyword_short_words_only(self):
+        from parsers.matcher import extract_all_keywords
+        ings = [{"canonical_name": "X", "aliases": ["ab"], "search_terms": ["cd"]}]
+        kw = extract_all_keywords(ings)
+        assert kw == set()
 
 
 class TestLongitudinalWinners:
@@ -1361,6 +1448,23 @@ class TestBrandExtractor:
         from parsers.brand_extractor import extract_brand
         ing = {"canonical": "Teste", "brands": ["Moca"]}
         assert extract_brand("Mocambo 1kg", ing) == "Desconhecido"
+
+    def test_extract_brand_fuzzy_match(self):
+        from parsers.brand_extractor import extract_brand
+        ing = {"canonical": "Leite Condensado", "brands": ["Piracanjuba"]}
+        assert extract_brand("Leite Condensado Piracajuba 395g", ing) == "Piracanjuba"
+
+    def test_extract_brand_substring_precedes_partial_word(self):
+        from parsers.brand_extractor import extract_brand
+        ing = {"canonical": "Teste", "brands": ["Melken"]}
+        assert extract_brand("Cobertura Melken 1kg", ing) == "Melken"
+        assert extract_brand("Melkenzada 500g", ing) == "Desconhecido"
+
+    def test_extract_brand_substring_with_number_boundary(self):
+        from parsers.brand_extractor import extract_brand
+        ing = {"canonical": "Teste", "brands": ["Ninho"]}
+        assert extract_brand("Ninho 400g", ing) == "Ninho"
+        assert extract_brand("Ninho400g", ing) == "Ninho"
 
     def test_extract_brand_from_all_found(self):
         from parsers.brand_extractor import extract_brand_from_all

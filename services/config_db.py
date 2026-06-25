@@ -54,6 +54,9 @@ def upsert_ingredient(data: dict) -> dict:
 
 def delete_ingredient(ingredient_id: str) -> bool:
     client = get_service_client()
+    client.table("prices").delete().eq("ingredient_id", ingredient_id).execute()
+    client.table("price_history").delete().eq("ingredient_id", ingredient_id).execute()
+    client.table("review_queue").delete().eq("resolved_ingredient", ingredient_id).execute()
     result = client.table("ingredients").delete().eq("id", ingredient_id).execute()
     return bool(result.data)
 
@@ -126,6 +129,11 @@ def upsert_store(data: dict) -> dict:
 
 def delete_store(store_id: str) -> bool:
     client = get_service_client()
+    client.table("prices").delete().eq("store_id", store_id).execute()
+    client.table("price_history").delete().eq("store_id", store_id).execute()
+    client.table("scraping_logs").delete().eq("store_id", store_id).execute()
+    client.table("flyers").delete().eq("store_id", store_id).execute()
+    client.table("scrape_frequencies").delete().eq("store_id", store_id).execute()
     result = client.table("stores").delete().eq("id", store_id).execute()
     return bool(result.data)
 

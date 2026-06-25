@@ -4,6 +4,22 @@ from typing import Optional
 from rapidfuzz import fuzz
 
 
+def extract_all_keywords(ingredients: list[dict]) -> set:
+    keywords = set()
+    for ing in ingredients:
+        for text in [ing.get("canonical_name", "")] + ing.get("aliases", []) + ing.get("search_terms", []):
+            for w in text.split():
+                clean = re.sub(r"[^A-Z0-9]", "", w.upper())
+                if clean and len(clean) > 2:
+                    keywords.add(clean)
+    return keywords
+
+
+def has_ingredient_keyword(product_text: str, keywords: set) -> bool:
+    product_words = {w.upper() for w in product_text.split() if len(w) > 2}
+    return bool(product_words & keywords)
+
+
 def clean_text(text: str) -> str:
     text = text.upper()
     text = re.sub(r"[^A-Z0-9\s]", "", text)
@@ -53,7 +69,7 @@ def match_ingredient(
     for ing in ingredients:
         # exact match first
         if match_exact(product_text, ing):
-            return ing, 100.0, "exact"
+            return ing, 100.0, "exato"
 
         # fuzzy match on canonical
         canonical_clean = clean_text(ing["canonical_name"])
@@ -61,7 +77,7 @@ def match_ingredient(
         if score > best_score:
             best_score = score
             best_ingredient = ing
-            match_type = "fuzzy_canonical"
+            match_type = "proximo_nome"
 
         for alias in ing.get("aliases", []):
             alias_clean = clean_text(alias)
@@ -69,7 +85,7 @@ def match_ingredient(
             if score > best_score:
                 best_score = score
                 best_ingredient = ing
-                match_type = "fuzzy_alias"
+                match_type = "proximo_apelido"
 
     if best_score >= threshold:
         return best_ingredient, best_score, match_type
@@ -89,7 +105,7 @@ def rank_ingredients(
     for ing in ingredients:
         canonical_clean = clean_text(ing["canonical_name"])
         score = fuzz.token_set_ratio(product_clean, canonical_clean)
-        match_type = "fuzzy_canonical"
+        match_type = "proximo_nome"
         matched_term = ing["canonical_name"]
 
         for alias in ing.get("aliases", []):
@@ -97,7 +113,7 @@ def rank_ingredients(
             alias_score = fuzz.token_set_ratio(product_clean, alias_clean)
             if alias_score > score:
                 score = alias_score
-                match_type = "fuzzy_alias"
+                match_type = "proximo_apelido"
                 matched_term = alias
 
         candidates.append((ing, score, match_type, matched_term))
