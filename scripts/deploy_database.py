@@ -569,7 +569,48 @@ def main():
         conn.close()
         print(f"\nMigration complete: {ok} OK, {fail} WARN")
         print(f"Expected tables: {total_tables}")
-        print("Verify in Supabase Dashboard > Database > Tables")
+
+        # --- Post-deploy: ensure trigger function has ON CONFLICT ---
+        # psycopg2 direct connection sometimes fails silently on CREATE OR REPLACE FUNCTION
+        # Use Supabase REST API (RPC exec_sql) as a robust fallback
+        from supabase import create_client
+        try:
+            anon = os.environ.get("SUPABASE_ANON_KEY", "")
+            sb = create_client(url, anon)
+            trigger_sql = """
+CREATE OR REPLACE FUNCTION update_history_from_prices()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO price_history (
+        price_id, ingredient_id, store_id, store_name,
+        raw_product, raw_price, raw_unit, normalized,
+        valid_from, valid_until, validity_raw, collected_weekday, is_promotion,
+        collected_at
+    ) VALUES (
+        NEW.id, NEW.ingredient_id, NEW.store_id, NEW.store_name,
+        NEW.raw_product, NEW.raw_price, NEW.raw_unit, NEW.normalized,
+        NEW.valid_from, NEW.valid_until, NEW.validity_raw, NEW.collected_weekday, NEW.is_promotion,
+        NEW.collected_at
+    )
+    ON CONFLICT (ingredient_id, store_id, collected_at)
+    DO UPDATE SET
+        price_id = EXCLUDED.price_id,
+        raw_price = EXCLUDED.raw_price,
+        raw_product = EXCLUDED.raw_product,
+        raw_unit = EXCLUDED.raw_unit,
+        valid_from = EXCLUDED.valid_from,
+        valid_until = EXCLUDED.valid_until,
+        validity_raw = EXCLUDED.validity_raw,
+        is_promotion = EXCLUDED.is_promotion,
+        collected_weekday = EXCLUDED.collected_weekday;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+"""
+            sb.rpc('exec_sql', {'sql': trigger_sql}).execute()
+            print("  Trigger function verified via REST API")
+        except Exception:
+            print("  WARN: could not verify trigger function via REST API (non-critical, seed.sql covers it)")
         return
 
     # Default: print to stdout

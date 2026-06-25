@@ -864,7 +864,7 @@ BEGIN
         p_validity_raw, p_collected_weekday, p_is_promotion, p_tier, p_confidence,
         p_normalized, p_city, p_logistics, p_brand
     )
-    ON CONFLICT (ingredient_id, store_id)
+    ON CONFLICT (ingredient_id, store_id, collected_at)
     DO UPDATE SET
         source = EXCLUDED.source,
         store_name = EXCLUDED.store_name,

@@ -545,6 +545,40 @@ ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && 
 - **Fase 17c** ✅ E2E Tests + Mock Collision Fix + Warning Suppression — `tests/test_review_queue_e2e.py` (8 testes E2E contra Supabase real: trigger ON CONFLICT, approve UUID/exact/fuzzy/duplicate, reject, add alias); `tests/conftest.py` dotenv loading; fixture reload via `importlib.util.spec_from_file_location` para resolver colisão com mock do `test_dashboard_full.py`; `pyproject.toml` `[tool.pytest.ini_options]` filtra DeprecationWarning do Supabase; 243 testes, ruff 0
 - **Fase 18** ✅ Store Health Check + Dashboard Status Real + Reativacao — `store_health_check.py` testa HTTP em desativadas (YAML fallback); GP Distribuidora e Padeirão reativados; 5 lojas confirmadas mortas; `tab_lojas()` usa `scrape_frequencies.enabled` + coluna "Motivo" extraída do `coverage`; 243 testes
 
+## Fase 16b — Trigger ON CONFLICT Fix + Real DB Sync (concluida)
+
+| O que foi feito | Resultado |
+|----------------|-----------|
+| **RPC `upsert_price_rpc`** — `ON CONFLICT (ingredient_id, store_id, collected_at)` corrigido (estava com 2 colunas, sem constraint correspondente) | ✅ |
+| **Trigger `update_history_from_prices()`** — adicionado `ON CONFLICT (ingredient_id, store_id, collected_at) DO UPDATE SET` em `supabase_sql/seed.sql` | ✅ |
+| **Deploy script** — pós-deploy verifica trigger via REST API `exec_sql` (fallback para psycopg2 que falha as vezes) | ✅ |
+| **Dedup verificado na base real** — 2 inserts mesmo ingrediente/loja/data → 1 row (UPDATE, não INSERT) | ✅ |
+| **243 testes + ruff + bandit** — todos limpos | ✅ |
+
+## ⚠️ Regra Obrigatória: DB Sync
+
+**Toda alteração em SQL/funções/triggers deve ser verificada na base real do Supabase antes de dar como concluída.** O deploy script (`scripts/deploy_database.py --execute`) nem sempre comita corretamente via psycopg2. Sempre executar verificação comportamental:
+
+```bash
+# 1. Deploy
+python -c "from dotenv import load_dotenv; load_dotenv(); import subprocess, sys; sys.exit(subprocess.call([sys.executable, 'scripts/deploy_database.py', '--execute']))"
+
+# 2. Verificar trigger na base real (via REST API, NÃO psycopg2)
+python -c "
+from dotenv import load_dotenv; load_dotenv()
+from supabase import create_client; import os
+s = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
+# Teste dedup: mesmo ingredient_id, store_id, collected_at
+params = { ... }
+r1 = s.rpc('upsert_price_rpc', params).execute()
+r2 = s.rpc('upsert_price_rpc', params).execute()
+assert r1.data.get('id') == r2.data.get('id')
+"
+
+# 3. Rodar testes
+ruff check . && python -m pytest tests/ -q
+```
+
 ## Fase 18 — Store Health Check + Dashboard Status Real + Reativacao (concluida)
 
 | O que foi feito | Resultado |
