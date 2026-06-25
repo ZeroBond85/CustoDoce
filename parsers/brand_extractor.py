@@ -26,7 +26,7 @@ def extract_brand(product_text: str, ingredient: dict) -> str:
     # Level 3: fuzzy match per word (RapidFuzz ratio >= 80 on each product word vs brand)
     product_words = re.sub(r"[^A-Z\s]", " ", product_text.upper()).split()
     best_brand = "Desconhecido"
-    best_score = 0
+    best_score = 0.0
     for brand in brands:
         brand_upper = brand.upper()
         for word in set(product_words):
@@ -45,7 +45,7 @@ def extract_brand_from_all(product_text: str, ingredients: list[dict], threshold
     text_upper = product_text.upper()
     seen = set()
     best_brand = None
-    best_score = 0
+    best_score = 0.0
 
     for ing in ingredients:
         for brand in ing.get("brands", []):
@@ -69,6 +69,8 @@ def extract_brand_from_all(product_text: str, ingredients: list[dict], threshold
 
     seen.clear()
     product_words = re.sub(r"[^A-Z\s]", " ", text_upper).split()
+    best_brand = None
+    best_score = 0.0
     for ing in ingredients:
         for brand in ing.get("brands", []):
             b_upper = brand.upper()
