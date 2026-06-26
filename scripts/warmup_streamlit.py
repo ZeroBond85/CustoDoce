@@ -1,4 +1,6 @@
-import httpx, time, sys
+import httpx
+import sys
+import time
 
 url = sys.argv[1] if len(sys.argv) > 1 else "https://custodoce.streamlit.app"
 print(f"Warming up {url}...")

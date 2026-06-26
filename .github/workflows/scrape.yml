@@ -39,12 +39,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           token: ${{ secrets.GH_PAT }}
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
@@ -65,7 +65,7 @@ jobs:
           python -m playwright install-deps chromium
 
       - name: Cache PDF Hashes
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: data/cache
           key: pdf-cache-${{ github.run_id }}

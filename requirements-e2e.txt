@@ -1,5 +1,4 @@
 playwright==1.40.0
 pillow==10.0.0
-pixelmatch==1.0.0
 pytest-html==4.1.1
 pytest-playwright==0.4.0
