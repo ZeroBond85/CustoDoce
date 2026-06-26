@@ -78,9 +78,15 @@ print(f'Supabase OK: {len(r.data or [])} rows')
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
-      - name: Run E2E Tests
+      - name: Run Real DB Tests
+        run: pytest tests/test_db_real.py tests/test_scrapers_real.py tests/test_telegram_real.py -m slow -v --tb=short --json-report --json-report-file=.pytest_db.json
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Run E2E Tests (Dashboard + Playwright + Flyers)
         run: |
-          pytest tests/e2e_dashboard.py -v \
+          pytest tests/e2e_dashboard.py tests/e2e_real.py -v \
             --tb=short \
             --html=report.html \
             --self-contained-html \
@@ -107,6 +113,24 @@ print(f'Supabase OK: {len(r.data or [])} rows')
         env:
           STREAMLIT_URL: ${{ env.STREAMLIT_URL }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+
+      - name: Send Telegram Alert on Failure
+        if: failure()
+        run: |
+          pip install httpx
+          python -c "
+import os, httpx
+token = os.environ.get('TELEGRAM_TOKEN', '')
+chat_id = os.environ.get('TELEGRAM_CHAT_ID', '')
+if not token or not chat_id:
+    print('TELEGRAM_TOKEN/CHAT_ID nao configurados. Pulando alerta.')
+    exit(0)
+status = '${{ job.status }}'
+run_url = 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+msg = f'⚠️ *E2E Pipeline FALHOU*\nStatus: {status}\nWorkflow: ${{ github.workflow }}\nRun: {run_url}'
+r = httpx.post(f'https://api.telegram.org/bot{token}/sendMessage', json={'chat_id': chat_id, 'text': msg, 'parse_mode': 'Markdown'}, timeout=10)
+print(f'Telegram alert sent: HTTP {r.status_code}')
+"
 
       - name: Send E2E Report Email
         if: always()

@@ -6,6 +6,9 @@ venv/
 data/cache/  # PDF hash cache (persisted via GitHub Actions cache)
 data/rate_limiter.db
 data/seed_validation.json
+data/embedding_cache/  # sentence-transformers local cache
+data/regression_*.html
+data/regression_*.json
 .mypy_cache/
 .pytest_cache/
 bandit_output.json

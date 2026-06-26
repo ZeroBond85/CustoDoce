@@ -33,6 +33,9 @@ class LLMClassifier:
 
     def classify_sync(self, product_text: str, candidates: list[dict]) -> Optional[dict]:
         """Classifica produto vs candidatos. Retorna dict ou None."""
+        from services.config import get as get_config
+        if not get_config("features.ai.llm_classifier", True):
+            return None
         client = self._get_client()
         if not client:
             logger.debug("LLMClassifier: GROQ_API_KEY não configurada")

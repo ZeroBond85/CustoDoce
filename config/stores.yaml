@@ -7,6 +7,8 @@ stores:
     type: "pdf_flyer"
     logistics: "pickup_local"
     cities: ["Santos", "São Vicente", "Praia Grande"]
+    state: "sp"
+    store_slug: "santos"
     units:
       - name: "Santos - Ana Costa"
         address: "Av. Anna Costa, 340 - Vila Matias, Santos"
@@ -18,7 +20,7 @@ stores:
         address: "Av. Min. Marcos Freire, 1.600 - Glória, Praia Grande"
       - name: "Praia Grande - Emboaçu"
         address: "Av. Pres. Kennedy, 9271 - Emboaçu, Praia Grande"
-    url_pattern: "https://www.assai.com.br/printpdf/ofertas/{state}/{store-slug}"
+    url_pattern: "https://www.assai.com.br/printpdf/ofertas/{state}/{store_slug}"
     url_type: "printpdf"
     publish_day: "wednesday"
     collection_method: "automated"

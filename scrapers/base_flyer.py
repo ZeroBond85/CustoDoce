@@ -50,8 +50,10 @@ class BaseFlyerScraper(ABC):
         week = target_date.isocalendar().week
         year = target_date.year
         city_part = self.store.get("cities", ["santos"])[0].lower().replace(" ", "_")
+        state = self.store.get("state", "sp")
+        store_slug = self.store.get("store_slug", city_part)
         try:
-            url = self.url_pattern.format(week=week, year=year, city=city_part)
+            url = self.url_pattern.format(week=week, year=year, city=city_part, state=state, store_slug=store_slug)
         except KeyError:
             url = self.url_pattern.replace("{week}", str(week)).replace("{city}", city_part)
         return url

@@ -172,42 +172,44 @@ def process_price_match(
         upsert_price(entry)
         return entry
 
-    # Semantic matching integration for scores 55-79%
+    # Semantic matching + LLM integration (gated by features.ai.enabled)
     semantic_score = 0.0
     combined = score / 100.0
-    if ingredient and score >= 55.0:
-        sm = get_matcher()
-        semantic_score = sm.get_similarity(product_text, ingredient)
-        combined = sm.combined_score(score, semantic_score)
-    elif ingredient:
-        combined = score / 100.0
+    from services.config import get as get_config
+    if get_config("features.ai.enabled", True):
+        if ingredient and score >= 55.0:
+            sm = get_matcher()
+            semantic_score = sm.get_similarity(product_text, ingredient)
+            combined = sm.combined_score(score, semantic_score)
+        elif ingredient:
+            combined = score / 100.0
 
-    if ingredient and combined >= 0.80:
-        entry = build_product_entry(
-            store, ingredient, product_text,
-            raw_price, raw_unit, combined,
-            validity_raw=validity_raw,
-            brand=brand,
-        )
-        upsert_price(entry)
-        return entry
+        if ingredient and combined >= 0.80:
+            entry = build_product_entry(
+                store, ingredient, product_text,
+                raw_price, raw_unit, combined,
+                validity_raw=validity_raw,
+                brand=brand,
+            )
+            upsert_price(entry)
+            return entry
 
-    # LLM Classifier for ambiguous cases (65-80%)
-    if 0.65 <= combined < 0.80 and os.environ.get("GROQ_API_KEY"):
-        from parsers.llm_classifier import LLMClassifier
-        candidates = rank_ingredients(product_text, ingredients, top_n=3)
-        llm_result = LLMClassifier().classify_sync(product_text, [c[0] for c in candidates])
-        if llm_result and llm_result.get("confidence", 0) >= 0.85:
-            chosen = next((c for c in candidates if c[0]["canonical_name"] == llm_result["ingredient"]), None)
-            if chosen:
-                entry = build_product_entry(
-                    store, chosen[0], product_text,
-                    raw_price, raw_unit, llm_result["confidence"],
-                    validity_raw=validity_raw,
-                    brand=brand,
-                )
-                upsert_price(entry)
-                return entry
+        # LLM Classifier for ambiguous cases (65-80%)
+        if 0.65 <= combined < 0.80 and os.environ.get("GROQ_API_KEY"):
+            from parsers.llm_classifier import LLMClassifier
+            candidates = rank_ingredients(product_text, ingredients, top_n=3)
+            llm_result = LLMClassifier().classify_sync(product_text, [c[0] for c in candidates])
+            if llm_result and llm_result.get("confidence", 0) >= 0.85:
+                chosen = next((c for c in candidates if c[0]["canonical_name"] == llm_result["ingredient"]), None)
+                if chosen:
+                    entry = build_product_entry(
+                        store, chosen[0], product_text,
+                        raw_price, raw_unit, llm_result["confidence"],
+                        validity_raw=validity_raw,
+                        brand=brand,
+                    )
+                    upsert_price(entry)
+                    return entry
 
     if combined >= 0.55:
         candidates = rank_ingredients(product_text, ingredients, top_n=3)
@@ -261,23 +263,11 @@ def process_price_match(
             brand = extract_brand(product_text, candidates[0][0])
 
         # Use combined score for confidence and match_reason
-        combined_pct = int(combined * 100)
-        match_reason = f"Tipo: {type_label} | Score combinado: {combined_pct}% (RF: {score:.0f}%, Semântico: {int(semantic_score*100)}%) | Candidato: '{top_ing['canonical_name']}' | Termo match: '{top_term}'"
-        if unmatched_words:
-            match_reason += f" | Palavras não matcheadas: {', '.join(sorted(unmatched_words))}"
-
-        # Build top 3 summary for UI
-        top3_summary = []
-        for c in candidates:
-            top3_summary.append({
-                "canonical_name": c[0]["canonical_name"],
-                "score": c[1],
-                "match_type": c[2],
-                "matched_term": c[3],
-            })
-
-        if not brand and candidates:
-            brand = extract_brand(product_text, candidates[0][0])
+        if candidates:
+            combined_pct = int(combined * 100)
+            match_reason = f"Tipo: {type_label} | Score combinado: {combined_pct}% (RF: {score:.0f}%, Semântico: {int(semantic_score*100)}%) | Candidato: '{top_ing['canonical_name']}' | Termo match: '{top_term}'"
+            if unmatched_words:
+                match_reason += f" | Palavras não matcheadas: {', '.join(sorted(unmatched_words))}"
 
         review_item = {
             "raw_product": product_text,

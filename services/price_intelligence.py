@@ -37,6 +37,9 @@ class PriceIntelligence:
         Detecta se um preço é anômalo.
         Retorna: {is_anomaly, severity, tag, expected_range}
         """
+        from services.config import get as get_config
+        if not get_config("features.ai.price_intelligence", True):
+            return {"is_anomaly": False, "severity": "none", "tag": "NORMAL"}
         stats = self.get_historical_stats(ingredient_id, store_id)
         if stats["n"] < 3:
             return {"is_anomaly": False, "severity": "none", "tag": "SEM_HISTORICO"}

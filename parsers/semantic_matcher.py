@@ -54,6 +54,9 @@ class SemanticMatcher:
         self._loaded = True
 
     def get_similarity(self, product_text: str, ingredient: dict) -> float:
+        from services.config import get as get_config
+        if not get_config("features.ai.semantic_matcher", True):
+            return 0.0
         if not self._loaded:
             self.load_ingredients([ingredient])
         prod_emb = self.get_embedding(product_text)

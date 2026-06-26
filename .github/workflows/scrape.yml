@@ -30,6 +30,7 @@ env:
   SMTP_FROM: ${{ secrets.SMTP_FROM }}
   ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
   GH_PAT: ${{ secrets.GH_PAT }}
+  GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
 
 jobs:
   collect:
@@ -91,7 +92,7 @@ jobs:
           python -c "from main import collect_aggregators_js, process_ocr_queue; flyers = collect_aggregators_js(); print(f'JS Aggregators: {len(flyers)} flyers'); processed = process_ocr_queue(); print(f'OCR processed: {processed} flyers')"
 
       - name: Run AI Intelligence Layer
-        if: ${{ github.event.inputs.run_ai != 'false' }}
+        if: steps.check-day.outputs.should_run == 'true'
         run: |
           python -c "
 from services.price_intelligence import PriceIntelligence
@@ -103,8 +104,6 @@ anomalies = [p for p in enriched if p.get('ai_anomaly',{}).get('is_anomaly')]
 offers = [p for p in enriched if 'OFERTA_REAL' in p.get('ai_tags',[])]
 print(f'IA: {len(enriched)} preços analisados, {len(anomalies)} anomalias, {len(offers)} ofertas')
 "
-        env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
 
       - name: Commit Latest Prices
         run: |
