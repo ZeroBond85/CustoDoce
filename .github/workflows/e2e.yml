@@ -1,4 +1,4 @@
-name: E2E Dashboard - Produção Real
+name: E2E Dashboard - Producao Real
 
 on:
   schedule:
@@ -49,31 +49,11 @@ jobs:
           playwright install chromium --with-deps
 
       - name: Warmup Streamlit Cloud
-        run: |
-          python -c "
-import httpx, time
-url = 'https://custodoce.streamlit.app'
-print(f'Warming up {url}...')
-for i in range(6):
-    try:
-        r = httpx.get(url, timeout=30)
-        print(f'Attempt {i+1}: HTTP {r.status_code}')
-        if r.status_code in (200, 303):
-            print('App is awake!')
-            break
-    except Exception as e:
-        print(f'Attempt {i+1}: {e}')
-    time.sleep(15)
-"
+        run: python scripts/warmup_streamlit.py ${{ env.STREAMLIT_URL }}
 
       - name: Test Supabase Connection
         run: |
-          python -c "
-from supabase import create_client; import os
-s = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
-r = s.table('prices').select('id').limit(1).execute()
-print(f'Supabase OK: {len(r.data or [])} rows')
-"
+          python -c "from supabase import create_client; import os; s = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY']); r = s.table('prices').select('id').limit(1).execute(); print(f'Supabase OK: {len(r.data or [])} rows')"
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -100,16 +80,14 @@ print(f'Supabase OK: {len(r.data or [])} rows')
 
       - name: Visual Regression
         if: ${{ !inputs.skip_visual }}
-        run: |
-          pytest tests/e2e_dashboard.py::TestVisualRegression -v --tb=short
+        run: pytest tests/e2e_dashboard.py::TestVisualRegression -v --tb=short
         env:
           STREAMLIT_URL: ${{ env.STREAMLIT_URL }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
 
       - name: Update Baselines
         if: ${{ inputs.update_baselines }}
-        run: |
-          UPDATE_BASELINES=1 pytest tests/e2e_dashboard.py::TestVisualRegression -v
+        run: UPDATE_BASELINES=1 pytest tests/e2e_dashboard.py::TestVisualRegression -v
         env:
           STREAMLIT_URL: ${{ env.STREAMLIT_URL }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
@@ -117,20 +95,10 @@ print(f'Supabase OK: {len(r.data or [])} rows')
       - name: Send Telegram Alert on Failure
         if: failure()
         run: |
-          pip install httpx
-          python -c "
-import os, httpx
-token = os.environ.get('TELEGRAM_TOKEN', '')
-chat_id = os.environ.get('TELEGRAM_CHAT_ID', '')
-if not token or not chat_id:
-    print('TELEGRAM_TOKEN/CHAT_ID nao configurados. Pulando alerta.')
-    exit(0)
-status = '${{ job.status }}'
-run_url = 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'
-msg = f'⚠️ *E2E Pipeline FALHOU*\nStatus: {status}\nWorkflow: ${{ github.workflow }}\nRun: {run_url}'
-r = httpx.post(f'https://api.telegram.org/bot{token}/sendMessage', json={'chat_id': chat_id, 'text': msg, 'parse_mode': 'Markdown'}, timeout=10)
-print(f'Telegram alert sent: HTTP {r.status_code}')
-"
+          python -c "import os, httpx; token = os.environ.get('TELEGRAM_TOKEN', ''); chat_id = os.environ.get('TELEGRAM_CHAT_ID', ''); status = '${{ job.status }}'; run_url = 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'; msg = f'⚠️ E2E Pipeline FALHOU\nStatus: {status}\nRun: {run_url}'; r = httpx.post(f'https://api.telegram.org/bot{token}/sendMessage', json={'chat_id': chat_id, 'text': msg, 'parse_mode': 'Markdown'}, timeout=10)"
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
       - name: Send E2E Report Email
         if: always()

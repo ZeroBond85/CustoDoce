@@ -94,16 +94,7 @@ jobs:
       - name: Run AI Intelligence Layer
         if: steps.check-day.outputs.should_run == 'true'
         run: |
-          python -c "
-from services.price_intelligence import PriceIntelligence
-from services.price_service import get_all_current_prices
-prices = get_all_current_prices(valid_only=True, limit=2000)
-pi = PriceIntelligence()
-enriched = pi.enrich_prices(prices)
-anomalies = [p for p in enriched if p.get('ai_anomaly',{}).get('is_anomaly')]
-offers = [p for p in enriched if 'OFERTA_REAL' in p.get('ai_tags',[])]
-print(f'IA: {len(enriched)} preços analisados, {len(anomalies)} anomalias, {len(offers)} ofertas')
-"
+          python -c "from services.price_intelligence import PriceIntelligence; from services.price_service import get_all_current_prices; prices = get_all_current_prices(valid_only=True, limit=2000); pi = PriceIntelligence(); enriched = pi.enrich_prices(prices); anomalies = [p for p in enriched if p.get('ai_anomaly',{}).get('is_anomaly')]; offers = [p for p in enriched if 'OFERTA_REAL' in p.get('ai_tags',[])]; print(f'IA: {len(enriched)} precos analisados, {len(anomalies)} anomalias, {len(offers)} ofertas')"
 
       - name: Commit Latest Prices
         run: |
