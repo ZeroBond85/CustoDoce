@@ -109,6 +109,47 @@ Resposta em até 48h.
 - **GitHub Actions**: secrets configurados via repo settings
 - **Sem exposed admin panel** fora da organização
 
+## Dependências e CVEs
+
+### Como gerenciamos vulnerabilidades conhecidas
+
+O projeto usa **`pip-audit --strict -r requirements.txt`** em CI (`ci.yml > lint`) para bloquear pushes com vulnerabilidades reais. Quando uma CVE é detectada:
+
+1. **Atualizar primeiro** — bump do pacote para a versão patched
+2. **Se quebra dependência** — investigar alternativa ou fork
+3. **Último caso** — documentar em SECURITY.md com rationale + data de revisão
+
+### Histórico: Dependabot Alertas (Junho 2026)
+
+Em 2026-06, GitHub Dependabot reportou **7 alertas** baseados em versões antigas cacheadas:
+
+| # | Pacote | Severidade | CVE | Versão instalada |
+|---|--------|------------|-----|------------------|
+| 1 | Pillow | high | CVE-2023-4863 (libwebp) | 12.2.0 (patched) |
+| 2 | Pillow | **critical** | CVE-2023-50447 | 12.2.0 (patched) |
+| 3 | Pillow | high | CVE-2024-28219 | 12.2.0 (patched) |
+| 4 | Pillow | medium | CVE-2026-42308 | 12.2.0 (patched) |
+| 5 | Pillow | medium | CVE-2026-42310 | 12.2.0 (patched) |
+| 6 | diskcache | medium | CVE-2025-69872 | N/A (transitive) |
+| 7 | pytest | medium | CVE-2025-71176 | 9.x (patched) |
+
+Todos foram **dismissed como `inaccurate`** após verificação local com `pip-audit --strict` retornar "No known vulnerabilities found". O ambiente de runtime já usa versões patched (Pillow 12.2.0, pytest 9.x, etc).
+
+### Política de pins por risco
+
+- **CRITICAL/HIGH** — bloquear push se vulnerabilidade afeta runtime. Atualizar imediatamente.
+- **MEDIUM** — atualizar em até 30 dias via Dependabot PR.
+- **LOW** — aceitar até segunda notificação.
+
+### Como auditar localmente
+
+```bash
+python -m pip_audit --strict -r requirements.txt
+python scripts/audit_secrets.py --strict
+```
+
+
+
 ## Auditoria
 
 `scripts/db_audit.py` roda a cada deploy para verificar:
