@@ -193,7 +193,7 @@ def test_pip_audit_returns_no_vulnerabilities() -> None:
     if not REQUIREMENTS_TXT.exists():
         pytest.skip("requirements.txt missing")
     result = subprocess.run(
-        [sys.executable, "-m", "pip_audit", "--strict", "-r", "requirements.txt"],
+        [sys.executable, "-m", "pip_audit", "--strict", "-s", "osv", "-r", "requirements.txt"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,

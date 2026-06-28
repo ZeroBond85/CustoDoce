@@ -25,7 +25,7 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: ruff check . --output-format=github
       - run: bandit -r admin/ dashboard/ services/ -x tests/
-      - run: pip-audit --strict -r requirements.txt
+      - run: pip-audit --strict -s osv -r requirements.txt
 
   typecheck:
     runs-on: ubuntu-latest

@@ -222,7 +222,7 @@ def run_lint() -> bool:
     if not job("bandit", result.returncode == 0, result.stdout if result.returncode else ""):
         all_ok = False
 
-    result = run("python -m pip_audit --strict -r requirements.txt")
+    result = run("python -m pip_audit --strict -s osv -r requirements.txt")
     if not job("pip-audit", result.returncode == 0, result.stdout if result.returncode else ""):
         all_ok = False
 
