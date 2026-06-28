@@ -1,15 +1,109 @@
+# Python
 __pycache__/
 *.pyc
-.env
+*.pyo
+*.pyd
+.Python
+*.so
 .venv/
 venv/
-data/cache/  # PDF hash cache (persisted via GitHub Actions cache)
-data/rate_limiter.db
-data/seed_validation.json
-data/embedding_cache/  # sentence-transformers local cache
-data/regression_*.html
-data/regression_*.json
+env/
+.env
+.env.local
+.env.*.local
+
+# Test caches & tooling
 .mypy_cache/
 .pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 bandit_output.json
+report.json
+
+# Streamlit
 .streamlit/secrets.toml
+.streamlit/secrets.*.toml
+
+# ───────────────────────────────────────────────────────────
+# SECURITY: secrets & credentials (NEVER commit)
+# ───────────────────────────────────────────────────────────
+# API provider / editor configs that may contain real keys
+api_configuration.json
+api_providers.json
+cline_config.json
+auth.json
+cline.log
+*.api-key
+*.api_key
+
+# Generic patterns for accidental key dumps
+**/secrets.json
+**/secrets.yaml
+**/secrets.yml
+**/secrets.toml
+**/*credentials*.json
+**/*credentials*.yaml
+**/*credentials*.yml
+**/*.pem
+**/*.key
+**/service-account*.json
+**/gcp-key*.json
+**/aws-credentials*
+
+# ───────────────────────────────────────────────────────────
+# DATA: caches, models, dumps, logs (no regeneration value)
+# ───────────────────────────────────────────────────────────
+# PDF/scrape caches
+data/cache/
+data/rate_limiter.db
+data/seed_validation.json
+data/regression_*.html
+data/regression_*.json
+data/dispatch.json
+data/prices_latest.json
+data/cleanup_track.json
+data/llm_cache.db
+
+# ML/model artifacts (rebuilt by `scripts/export_onnx.py`)
+data/embedding_cache/
+data/onnx_models/
+*.onnx
+*.npy
+*.npz
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.pkl
+*.h5
+tokenizer.json
+special_tokens_map.json
+tokenizer_config.json
+
+# Backups / dumps / SQL loose files
+*.sql
+!supabase/*.sql
+backup_*.sql
+*_prod_*.sql
+*_staging_*.sql
+dump.sql
+pg_dump*.sql
+trigger_fix.sql
+
+# Editor / scratch files
+git_msg.txt
+*.patch
+*.orig
+*.swp
+.DS_Store
+Thumbs.db
+.vscode/
+.cursor/
+.idea/
+.cline/
+
+# Tooling scratch
+cline.log
+_tmp/
+tmp/

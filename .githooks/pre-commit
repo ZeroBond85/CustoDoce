@@ -1,19 +1,54 @@
 #!/bin/sh
-# Pre-commit hook: avisa se docs precisam de atualização
-# Raio-X = referência dev (tudo), README = vitrine pública (mudanças visíveis)
+# Pre-commit hook: 2 camadas
+#   1. SECRET GUARD  — aborta commit se algum padrao de API key estiver staged
+#   2. DOC WATCHDOG  — avisa se docs (Raio-X / README / Resumido) precisam atualizacao
 
+set -e
+
+# ───────────────────────────────────────────────────────────────
+# 1. SECRET GUARD — bloqueia commit se detectar chave
+# ───────────────────────────────────────────────────────────────
+STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+if [ -n "$STAGED" ]; then
+  SECRET_PATTERN='sk-(proj-)?[A-Za-z0-9_-]\{20,\}|sk-ant-[A-Za-z0-9_-]\{20,\}|gsk_[A-Za-z0-9]\{20,\}|sk-or-v1-[A-Za-f0-9]\{40,\}|hf_[A-Za-z0-9]\{20,\}|AIza[0-9A-Za-z_-]\{35\}|gh[pousr]_[A-Za-z0-9]\{36,\}|xox[abpr]-[0-9A-Za-z-]\{10,\}|sk_(live|test)_[A-Za-z0-9]\{20,\}|-----BEGIN [A-Z ]*PRIVATE KEY-----|"type": *"service_account"'
+
+  HITS=$(git diff --cached -U0 -S "$SECRET_PATTERN" --pickaxe-regex \
+    | grep -E '^\+[^+]' \
+    | grep -E "$SECRET_PATTERN" \
+    | grep -vE '^\+\+\+' \
+    || true)
+
+  if [ -n "$HITS" ]; then
+    echo ""
+    echo "🚨 COMMIT BLOQUEADO: possivel segredo de API detectado nos arquivos staged."
+    echo ""
+    echo "Matches:"
+    echo "$HITS" | head -20
+    echo ""
+    echo "Acoes:"
+    echo "  - Mova a chave para .env (local) ou GitHub Secrets (CI)"
+    echo "  - Substitua no arquivo por referencia: os.environ['OPENAI_API_KEY']"
+    echo "  - Re-stage o arquivo e tente novamente"
+    echo ""
+    exit 1
+  fi
+fi
+
+# ───────────────────────────────────────────────────────────────
+# 2. DOC WATCHDOG — aviso (nao bloqueia) sobre docs desatualizados
+# ───────────────────────────────────────────────────────────────
 MONITORED_ALL="services/*.py scrapers/*.py tests/* supabase/*.sql config/*.yaml .github/workflows/*.yml main.py"
 MONITORED_PUBLIC="dashboard/* config/*.yaml tests/* .github/workflows/*.yml main.py CUSTO_DOCE_RAIO_X.md"
 
-STAGED=$(git diff --cached --name-only)
+STAGED_FILES=$(git diff --cached --name-only)
 
-RAIO_X_STAGED=false;       echo "$STAGED" | grep -q "CUSTO_DOCE_RAIO_X.md"        && RAIO_X_STAGED=true
-README_STAGED=false;       echo "$STAGED" | grep -q "^README.md$"                 && README_STAGED=true
-RESUMO_STAGED=false;       echo "$STAGED" | grep -q "RAIO-X_CUSTO_DOCE_RESUMIDO"  && RESUMO_STAGED=true
+RAIO_X_STAGED=false;       echo "$STAGED_FILES" | grep -q "CUSTO_DOCE_RAIO_X.md"        && RAIO_X_STAGED=true
+README_STAGED=false;       echo "$STAGED_FILES" | grep -q "^README.md$"                 && README_STAGED=true
+RESUMO_STAGED=false;       echo "$STAGED_FILES" | grep -q "RAIO-X_CUSTO_DOCE_RESUMIDO"  && RESUMO_STAGED=true
 
 anything_matched() {
   for pattern in $1; do
-    if echo "$STAGED" | grep -q "$pattern"; then
+    if echo "$STAGED_FILES" | grep -q "$pattern"; then
       return 0
     fi
   done
