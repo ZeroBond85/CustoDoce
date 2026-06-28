@@ -40,10 +40,12 @@ GITIGNORE = REPO_ROOT / ".gitignore"
 
 
 def run(cmd: str, cwd: Path = REPO_ROOT, capture: bool = True) -> subprocess.CompletedProcess:
-    """Executa comando shell."""
-    print(f"  $ {cmd}")
+    """Executa comando shell, usando o mesmo Python que roda este script."""
+    import sys
+    actual_cmd = cmd.replace("python ", f"{sys.executable} ", 1) if cmd.startswith("python ") else cmd
+    print(f"  $ {actual_cmd}")
     result = subprocess.run(  # noqa: S602
-        cmd,
+        actual_cmd,
         shell=True,
         cwd=cwd,
         capture_output=capture,
