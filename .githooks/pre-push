@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 pre-push hook (CustoDoce)
 Executa ANTES do push — se falhar, o push NAO acontece.
