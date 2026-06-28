@@ -1,20 +1,20 @@
-#!/bin/sh
-# Pre-commit hook: 2 camadas
-#   1. SECRET GUARD  — aborta commit se algum padrao de API key estiver staged
-#   2. DOC WATCHDOG  — avisa se docs (Raio-X / README / Resumido) precisam atualizacao
+#!/usr/bin/env bash
+# Pre-commit hook (CustoDoce)
+# Layer 1: SECRET GUARD  - aborta commit se padrao de API key for staged
+# Layer 2: DOC WATCHDOG  - avisa se docs (Raio-X / README / Resumido) precisam atualizacao
 
 set -e
 
-# ───────────────────────────────────────────────────────────────
-# 1. SECRET GUARD — bloqueia commit se detectar chave
-# ───────────────────────────────────────────────────────────────
+# ----------------------------------------------------------------
+# 1. SECRET GUARD
+# ----------------------------------------------------------------
 STAGED=$(git diff --cached --name-only --diff-filter=ACM)
 if [ -n "$STAGED" ]; then
-  SECRET_PATTERN='sk-(proj-)?[A-Za-z0-9_-]\{20,\}|sk-ant-[A-Za-z0-9_-]\{20,\}|gsk_[A-Za-z0-9]\{20,\}|sk-or-v1-[A-Za-f0-9]\{40,\}|hf_[A-Za-z0-9]\{20,\}|AIza[0-9A-Za-z_-]\{35\}|gh[pousr]_[A-Za-z0-9]\{36,\}|xox[abpr]-[0-9A-Za-z-]\{10,\}|sk_(live|test)_[A-Za-z0-9]\{20,\}|-----BEGIN [A-Z ]*PRIVATE KEY-----|"type": *"service_account"'
+  PATTERN='sk-(proj-)?[A-Za-z0-9_-]{20,}|sk-ant-[A-Za-z0-9_-]{20,}|gsk_[A-Za-z0-9]{20,}|sk-or-v1-[A-Za-f0-9]{40,}|hf_[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{35,}|gh[pousr]_[A-Za-z0-9]{36,}|xox[abpr]-[0-9A-Za-z-]{10,}|sk_(live|test)_[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|"type": *"service_account"'
 
-  HITS=$(git diff --cached -U0 -S "$SECRET_PATTERN" --pickaxe-regex \
+  HITS=$(git diff --cached -U0 -S "$PATTERN" --pickaxe-regex 2>/dev/null \
     | grep -E '^\+[^+]' \
-    | grep -E "$SECRET_PATTERN" \
+    | grep -E "$PATTERN" \
     | grep -vE '^\+\+\+' \
     || true)
 
@@ -22,7 +22,7 @@ if [ -n "$STAGED" ]; then
     echo ""
     echo "🚨 COMMIT BLOQUEADO: possivel segredo de API detectado nos arquivos staged."
     echo ""
-    echo "Matches:"
+    echo "Matches (primeiros 20):"
     echo "$HITS" | head -20
     echo ""
     echo "Acoes:"
@@ -34,9 +34,9 @@ if [ -n "$STAGED" ]; then
   fi
 fi
 
-# ───────────────────────────────────────────────────────────────
-# 2. DOC WATCHDOG — aviso (nao bloqueia) sobre docs desatualizados
-# ───────────────────────────────────────────────────────────────
+# ----------------------------------------------------------------
+# 2. DOC WATCHDOG
+# ----------------------------------------------------------------
 MONITORED_ALL="services/*.py scrapers/*.py tests/* supabase/*.sql config/*.yaml .github/workflows/*.yml main.py"
 MONITORED_PUBLIC="dashboard/* config/*.yaml tests/* .github/workflows/*.yml main.py CUSTO_DOCE_RAIO_X.md"
 
@@ -57,22 +57,19 @@ anything_matched() {
 
 if anything_matched "$MONITORED_ALL" && [ "$RAIO_X_STAGED" = false ]; then
   echo ""
-  echo "⚠️  AVISO: CUSTO_DOCE_RAIO_X.md pode precisar de atualização (referência dev)."
-  echo "   git add CUSTO_DOCE_RAIO_X.md + edite seção relevante + changelog"
+  echo "[DOC] Aviso: CUSTO_DOCE_RAIO_X.md pode precisar de atualizacao."
   echo ""
 fi
 
 if anything_matched "$MONITORED_PUBLIC" && [ "$README_STAGED" = false ]; then
   echo ""
-  echo "👁️  AVISO: README.md pode precisar de atualização (vitrine pública)."
-  echo "   git add README.md se houver mudanças visíveis ao usuário"
+  echo "[DOC] Aviso: README.md pode precisar de atualizacao."
   echo ""
 fi
 
 if anything_matched "$MONITORED_PUBLIC" && [ "$RESUMO_STAGED" = false ]; then
   echo ""
-  echo "📋  AVISO: RAIO-X_CUSTO_DOCE_RESUMIDO.md pode precisar de atualização (resumo executivo + ações)."
-  echo "   git add RAIO-X_CUSTO_DOCE_RESUMIDO.md + atualize seções e histórico"
+  echo "[DOC] Aviso: RAIO-X_CUSTO_DOCE_RESUMIDO.md pode precisar de atualizacao."
   echo ""
 fi
 
