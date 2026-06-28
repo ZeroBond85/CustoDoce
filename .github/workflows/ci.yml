@@ -10,7 +10,7 @@ on:
 env:
   PYTHON_VERSION: '3.12'
   PYTHONUNBUFFERED: '1'
-  PIP_INDEX_URL: 'https://download.pytorch.org/whl/cpu'
+  PIP_EXTRA_INDEX_URL: 'https://download.pytorch.org/whl/cpu'
 
 jobs:
   lint:
