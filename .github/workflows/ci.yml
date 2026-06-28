@@ -62,7 +62,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: pip install -r requirements.txt -r requirements-dev.txt -r tests/requirements-test.txt
       - run: python -m pytest tests/unit/ tests/schema/ -q --tb=short --no-header
 
   integration:
@@ -77,7 +77,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: pip install -r requirements.txt -r requirements-dev.txt -r tests/requirements-test.txt
       - name: Run integration tests
         run: python -m pytest tests/integration/ -q --tb=short --no-header
         env:
@@ -97,7 +97,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      - run: pip install -r requirements-dev.txt
+      - run: pip install -r requirements.txt -r requirements-dev.txt
       - name: Deploy check
         run: python scripts/deploy_check.py
         env:
@@ -125,7 +125,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-por poppler-utils
-      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: pip install -r requirements.txt -r requirements-dev.txt -r tests/requirements-test.txt
       - name: Real scraper tests
         run: python -m pytest tests/real/ -q --tb=short --no-header
         env:
