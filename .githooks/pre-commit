@@ -1,21 +1,28 @@
 #!/usr/bin/env bash
-# Pre-commit hook (CustoDoce)
-# Layer 1: SECRET GUARD  - aborta commit se padrao de API key for staged
-# Layer 2: DOC WATCHDOG  - avisa se docs (Raio-X / README / Resumido) precisam atualizacao
+# Pre-commit hook (CustoDoce) — blindado para committers Windows + POSIX
+#
+# Layer 1: SECRET GUARD    - BLOQUEIA chave de API em staged (irreversivel: iria vazar)
+# Layer 2: DOC SYNC        - AVISA se codigo mudou sem docs (usuario decide)
+# Layer 3: SIZE GUARD      - BLOQUEIA arquivo >100MB (GitHub rejeita; mais vale parar antes)
+# Layer 4: DOC WATCHDOG    - AVISO leve sobre outros docs
+#
+# Para pular TODOS os checks:  git commit --no-verify  (usar com consciencia)
 
-set -e
+set -euo pipefail
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null || true)
 
 # ----------------------------------------------------------------
-# 1. SECRET GUARD
+# 1. SECRET GUARD - bloqueante (chave em staged => catastrofe publica)
 # ----------------------------------------------------------------
-STAGED=$(git diff --cached --name-only --diff-filter=ACM)
-if [ -n "$STAGED" ]; then
-  PATTERN='sk-(proj-)?[A-Za-z0-9_-]{20,}|sk-ant-[A-Za-z0-9_-]{20,}|gsk_[A-Za-z0-9]{20,}|sk-or-v1-[A-Za-f0-9]{40,}|hf_[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{35,}|gh[pousr]_[A-Za-z0-9]{36,}|xox[abpr]-[0-9A-Za-z-]{10,}|sk_(live|test)_[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|"type": *"service_account"'
+if [ -n "${STAGED:-}" ]; then
+  PATTERN='sk-(proj-)?[A-Za-z0-9_-]{20,}|sk-ant-[A-Za-z0-9_-]{20,}|gsk_[A-Za-z0-9]{20,}|sk-or-v1-[A-Za-f0-9]{40,}|hf_[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{35,}|gh[pousr]_[A-Za-z0-9]{36,}|xox[abpr]-[0-9A-Za-z-]{10,}|sk_(live|test)_[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|"type": *"service_account"|nvapi-[A-Za-z0-9_-]{20,}'
 
   HITS=$(git diff --cached -U0 -S "$PATTERN" --pickaxe-regex 2>/dev/null \
     | grep -E '^\+[^+]' \
     | grep -E "$PATTERN" \
     | grep -vE '^\+\+\+' \
+    | grep -vE '^-' \
     || true)
 
   if [ -n "$HITS" ]; then
@@ -28,49 +35,71 @@ if [ -n "$STAGED" ]; then
     echo "Acoes:"
     echo "  - Mova a chave para .env (local) ou GitHub Secrets (CI)"
     echo "  - Substitua no arquivo por referencia: os.environ['OPENAI_API_KEY']"
-    echo "  - Re-stage o arquivo e tente novamente"
+    echo "  - Re-stage e tente novamente"
+    echo "Bypass de emergencia: git commit --no-verify (NAO recomendado)"
     echo ""
     exit 1
   fi
 fi
 
 # ----------------------------------------------------------------
-# 2. DOC WATCHDOG
+# 2. DOC SYNC - AVISO (usuario pode ignorar conscientemente)
 # ----------------------------------------------------------------
-MONITORED_ALL="services/*.py scrapers/*.py tests/* supabase/*.sql config/*.yaml .github/workflows/*.yml main.py"
-MONITORED_PUBLIC="dashboard/* config/*.yaml tests/* .github/workflows/*.yml main.py CUSTO_DOCE_RAIO_X.md"
+CODE_PATTERNS='^(services|scrapers|parsers|telegram_bot|dashboard|admin)/|main\.py$|^\.github/workflows/|^config/|^tests/'
+DOC_REQUIRED='^docs/changelog\.md$|^README\.md$|^CUSTO_DOCE_RAIO_X\.md$|^RAIO-X_CUSTO_DOCE_RESUMIDO\.md$'
 
-STAGED_FILES=$(git diff --cached --name-only)
-
-RAIO_X_STAGED=false;       echo "$STAGED_FILES" | grep -q "CUSTO_DOCE_RAIO_X.md"        && RAIO_X_STAGED=true
-README_STAGED=false;       echo "$STAGED_FILES" | grep -q "^README.md$"                 && README_STAGED=true
-RESUMO_STAGED=false;       echo "$STAGED_FILES" | grep -q "RAIO-X_CUSTO_DOCE_RESUMIDO"  && RESUMO_STAGED=true
-
-anything_matched() {
-  for pattern in $1; do
-    if echo "$STAGED_FILES" | grep -q "$pattern"; then
-      return 0
+if echo "${STAGED:-}" | grep -qE "$CODE_PATTERNS"; then
+  if ! echo "${STAGED:-}" | grep -qE "$DOC_REQUIRED"; then
+    echo ""
+    echo "💡 [AVISO] Codigo de producao alterado sem docs sincronizados."
+    echo ""
+    echo "Arquivos de codigo staged:"
+    echo "$STAGED" | grep -E "$CODE_PATTERNS"
+    echo ""
+    echo "Sugestao: stagear pelo menos um dos:"
+    echo "  - docs/changelog.md (sempre que alterou ciclo de release)"
+    echo "  - README.md (mudancas visiveis ao usuario)"
+    echo "  - CUSTO_DOCE_RAIO_X.md / RAIO-X_CUSTO_DOCE_RESUMIDO.md (referencia interna)"
+    echo ""
+    echo "  -> Se voce REALMENTE sabe que nao precisa, pressione ENTER para confirmar (timeout 10s)"
+    echo ""
+    if read -r -t 10 CONFIRM 2>/dev/null; then
+      if [ "$CONFIRM" != "" ]; then
+        echo "Cancelado. Ajuste os docs e commite novamente."
+        exit 1
+      fi
     fi
-  done
-  return 1
-}
-
-if anything_matched "$MONITORED_ALL" && [ "$RAIO_X_STAGED" = false ]; then
-  echo ""
-  echo "[DOC] Aviso: CUSTO_DOCE_RAIO_X.md pode precisar de atualizacao."
-  echo ""
+    echo "[AVISO] Continuando sem docs (10s sem resposta = segue)"
+  fi
 fi
 
-if anything_matched "$MONITORED_PUBLIC" && [ "$README_STAGED" = false ]; then
-  echo ""
-  echo "[DOC] Aviso: README.md pode precisar de atualizacao."
-  echo ""
-fi
+# ----------------------------------------------------------------
+# 3. SIZE GUARD - BLOQUEIA arquivo >100MB (GitHub rejeita de qualquer jeito)
+# ----------------------------------------------------------------
+for FILE in $STAGED; do
+  if [ -f "$FILE" ]; then
+    SIZE=$(stat -c%s "$FILE" 2>/dev/null || ls -la "$FILE" 2>/dev/null | awk '{print $5}')
+    if [ -n "$SIZE" ] && [ "$SIZE" -gt 104857600 ]; then
+      SIZE_MB=$((SIZE / 1048576))
+      echo ""
+      echo "🚨 COMMIT BLOQUEADO: arquivo >100MB: $FILE ($SIZE_MB MB)."
+      echo "GitHub nao aceita arquivos >100MB. Use Git LFS ou adicione em .gitignore."
+      echo ""
+      exit 1
+    fi
+  fi
+done
 
-if anything_matched "$MONITORED_PUBLIC" && [ "$RESUMO_STAGED" = false ]; then
-  echo ""
-  echo "[DOC] Aviso: RAIO-X_CUSTO_DOCE_RESUMIDO.md pode precisar de atualizacao."
-  echo ""
+# ----------------------------------------------------------------
+# 4. DOC WATCHDOG - AVISO leve
+# ----------------------------------------------------------------
+TEST_PATTERNS='^tests/'
+if echo "${STAGED:-}" | grep -qE "$TEST_PATTERNS"; then
+  if ! echo "${STAGED:-}" | grep -q 'tests/README.md'; then
+    echo ""
+    echo "💡 [AVISO] tests/* alterado. Considere atualizar tests/README.md."
+    echo ""
+  fi
 fi
 
 exit 0

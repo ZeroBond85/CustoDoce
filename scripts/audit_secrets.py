@@ -20,10 +20,10 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import subprocess
 import sys
 from dataclasses import asdict, dataclass
-from pathlib import Path
 
 HIGH_CONFIDENCE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("openai_key", re.compile(r"sk-(?:proj-)?[A-Za-z0-9_\-]{20,}")),
@@ -51,10 +51,13 @@ class Finding:
     snippet: str
 
 
+_GIT = shutil.which("git") or "git"
+
+
 def _git_blob_text(path: str) -> str | None:
     try:
         result = subprocess.run(
-            ["git", "show", f":{path}"],
+            [_GIT, "show", f":{path}"],
             capture_output=True,
             check=True,
             timeout=10,
@@ -66,7 +69,7 @@ def _git_blob_text(path: str) -> str | None:
 
 def scan_tracked_files() -> list[Finding]:
     ls = subprocess.run(
-        ["git", "ls-files"],
+        [_GIT, "ls-files"],
         capture_output=True,
         check=True,
         text=True,

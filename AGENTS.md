@@ -273,5 +273,53 @@ python scripts/seed_prices.py --dry-run
 
 ## Ambiente
 
-- **Padrão: Windows** (PowerShell) — pytest/ruff/mypy rodam direto
-- **WSL (Debian)**: só para testes Linux-específicos (Playwright, OCR, scrapers reais, CI pipeline)
+**Regra: escolha o executor mais rápido para cada tarefa.**
+
+| Tarefa | Executor | Motivo |
+|--------|----------|--------|
+| ruff, mypy, pytest (unit/schema) | **Windows** (PowerShell) | Nativo, sem overhead de WSL |
+| Shell scripts (.sh) | **WSL (Debian)** | PowerShell/cmd quebra escapes, shebang, `&&` |
+| Git filter-branch, rebase | **WSL (Debian)** | PowerShell heredoc quebra `\` escapes |
+| Simular CI Linux (act, bash) | **WSL (Debian)** | GitHub Actions usa Linux |
+| Playwright, scrapers reais, OCR | **WSL (Debian)** | Browser automation mais estável |
+| Scripts de deploy, DB, SQL | **Windows** | python direto funciona; WSL para scripts .sh |
+
+**Windows (PowerShell) — padrão para Python:**
+```powershell
+# Verificar ambiente
+python --version    # deve ser 3.11+
+python -m ruff check .
+python -m mypy .
+python -m pytest tests/unit tests/schema -q
+```
+
+**WSL (Debian) — para Git/shell/CI:**
+```bash
+# Sempre usar bash absoluto
+bash /mnt/c/.../scripts/rewrite.sh
+# Nunca fazer cd dentro de heredoc PowerShell
+# Usar cmd /c para .bat ou bash -c para .sh
+```
+
+**Configurações obrigatórias (Windows):**
+```powershell
+git config core.hooksPath .githooks   # ativa hooks
+git config core.autocrlf false         # LF = LF (nao converte CRLF)
+git config core.fileMode false         # permissoes nao travam em Windows
+```
+
+**Pre-commit hook (`.githooks/pre-commit`):**
+- SECRET GUARD: BLOQUEIA se `sk-*`, `gsk_*`, `sk-or-*` etc. forem staged (irreversivel)
+- DOC SYNC: AVISA se codigo mudou sem changelog (usuario confirma com ENTER)
+- SIZE GUARD: BLOQUEIA se arquivo >100MB staged (GitHub rejeita)
+- DOC WATCHDOG: AVISO leve sobre tests/README
+
+**Pre-push hook (`.githooks/pre-push`):**
+- Valida: working tree limpo + audit_secrets --strict + ruff + mypy
+- Se qualquer um falhar: push NAO acontece
+- Pular (emergencia): `git push --no-verify` (NAO recomendado)
+
+**Scripts de seguranca:**
+- `scripts/audit_secrets.py --strict` — varre historico por chaves
+- `scripts/install_hooks.sh` — instala/re-instala hooks (run apos clone)
+- `Makefile` — targets consolidados para Windows

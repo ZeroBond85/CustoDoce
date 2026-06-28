@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# pre-push hook (CustoDoce)
+# Executa ANTES do push — se falhar, o push NAO acontece.
+# Funciona em WSL (onde bash existe) + chama Python do Windows via PATH.
+#
+# Pular em emergencia: git push --no-verify
+# Ideal para CI parity: ruff, audit_secrets, status clean.
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+echo "=== pre-push: validando..." >&2
+
+# 1. Working tree limpo
+if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+  echo "ERRO: working tree tem mudancas nao commitadas." >&2
+  git status --short >&2
+  echo "Commit ou descarte antes de fazer push." >&2
+  exit 1
+fi
+
+# 2. Audit de secrets (historico + staged)
+# Tenta WSL python; se falhar usa python do PATH
+PYBIN=$(wslpath -w "$(which python 2>/dev/null)" 2>/dev/null || echo "python")
+echo "[1/3] audit_secrets..." >&2
+$PYBIN scripts/audit_secrets.py --strict 2>&1 || {
+  echo "FALHA: secrets detectados no repo. Corrija antes de push." >&2
+  exit 1
+}
+echo "[OK] secrets: limpos" >&2
+
+# 3. Lint (ruff) — se falhar, nao push
+PYBIN2=$(wslpath -w "$(which python 2>/dev/null)" 2>/dev/null || echo "python")
+echo "[2/3] ruff check..." >&2
+$PYBIN2 -m ruff check . 2>&1 || {
+  echo "FALHA: ruff encontrou errors. Corrija antes de push." >&2
+  exit 1
+}
+echo "[OK] ruff: limpos" >&2
+
+# 4. Type check (mypy) — se falhar, nao push
+echo "[3/3] mypy..." >&2
+$PYBIN2 -m mypy . 2>&1 || {
+  echo "FALHA: mypy encontrou errors. Corrija antes de push." >&2
+  exit 1
+}
+echo "[OK] mypy: limpos" >&2
+
+echo "" >&2
+echo "=== pre-push: TODOS os checks passaram. Push liberdo. ===" >&2
+exit 0

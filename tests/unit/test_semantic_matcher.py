@@ -8,13 +8,29 @@ from parsers.semantic_matcher import SemanticMatcher
 def mock_matcher():
     with patch("sentence_transformers.SentenceTransformer") as mock_st:
         matcher = SemanticMatcher()
-        # Mock the model encode method
         matcher._model = MagicMock()
-        # Return a predictable vector
         matcher._model.encode.side_effect = lambda text: (
-            np.array([1.0, 0.0, 0.0]) if "leite" in text.lower() else np.array([0.0, 1.0, 0.0])
+            np.array([1.0, 0.0, 0.0]) if "leite" in text.lower()
+            else np.array([0.0, 1.0, 0.0])
         )
         matcher._loaded = True
+        yield matcher
+
+
+@pytest.fixture
+def mock_matcher_full():
+    """Full isolation: bypass cache and ONNX, use mocked PyTorch model."""
+    matcher = SemanticMatcher()
+    matcher._model = MagicMock()
+    matcher._model.encode.side_effect = lambda text: (
+        np.array([1.0, 0.0, 0.0]) if "leite" in text.lower()
+        else np.array([0.0, 1.0, 0.0])
+    )
+    matcher._loaded = True
+    with (
+        patch.object(matcher, "_get_cached_embedding", return_value=None),
+        patch.object(matcher, "_get_onnx_model", return_value=None),
+    ):
         yield matcher
 
 
@@ -25,17 +41,17 @@ def test_combined_score():
     assert pytest.approx(score) == 0.68
 
 
-def test_get_similarity_basic(mock_matcher):
+def test_get_similarity_basic(mock_matcher_full):
     ing = {"canonical_name": "Leite Condensado", "aliases": []}
     # Both contain "leite" -> dot product of [1,0,0] and [1,0,0] is 1.0
-    sim = mock_matcher.get_similarity("Leite de coco", ing)
+    sim = mock_matcher_full.get_similarity("Leite de coco", ing)
     assert pytest.approx(sim) == 1.0
 
 
-def test_get_similarity_different(mock_matcher):
+def test_get_similarity_different(mock_matcher_full):
     ing = {"canonical_name": "Leite Condensado", "aliases": []}
     # "Chocolate" doesn't contain "leite" -> [0,1,0] dot [1,0,0] is 0.0
-    sim = mock_matcher.get_similarity("Chocolate amargo", ing)
+    sim = mock_matcher_full.get_similarity("Chocolate amargo", ing)
     assert pytest.approx(sim) == 0.0
 
 
@@ -54,8 +70,8 @@ def test_get_similarity_disabled():
         ("Torta", [0.0, 1.0, 0.0]),
     ],
 )
-def test_embedding_mock(mock_matcher, text, expected_vec):
-    vec = mock_matcher.get_embedding(text)
+def test_embedding_mock(mock_matcher_full, text, expected_vec):
+    vec = mock_matcher_full.get_embedding(text)
     assert np.array_equal(vec, np.array(expected_vec))
 
 
