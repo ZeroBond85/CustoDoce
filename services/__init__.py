@@ -1,2 +1,0 @@
-
-# raio-x test marker
