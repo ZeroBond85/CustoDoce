@@ -41,8 +41,12 @@ GITIGNORE = REPO_ROOT / ".gitignore"
 
 def run(cmd: str, cwd: Path = REPO_ROOT, capture: bool = True) -> subprocess.CompletedProcess:
     """Executa comando shell, usando o mesmo Python que roda este script."""
-    import sys
-    actual_cmd = cmd.replace("python ", f"{sys.executable} ", 1) if cmd.startswith("python ") else cmd
+    py = sys.executable
+    if cmd.startswith("python "):
+        quoted_py = f'"{py}"' if " " in py else py
+        actual_cmd = cmd.replace("python ", f"{quoted_py} ", 1)
+    else:
+        actual_cmd = cmd
     print(f"  $ {actual_cmd}")
     result = subprocess.run(  # noqa: S602
         actual_cmd,
@@ -171,7 +175,11 @@ def validate_hooks_syntax() -> tuple[bool, str]:
                 errors.append(f"{hook.name}: arquivo vazio")
                 continue
             first_line = content.splitlines()[0] if content else ""
-            valid_shebangs = {"#!/usr/bin/env bash", "#!/bin/bash", "#!/bash"}
+            valid_shebangs = {
+                "#!/usr/bin/env bash", "#!/bin/bash", "#!/bash",
+                "#!/usr/bin/env python3", "#!/usr/bin/env python",
+                "#!/usr/bin/python3", "#!/usr/bin/python",
+            }
             if not any(first_line.startswith(s) for s in valid_shebangs):
                 errors.append(f"{hook.name}: shebang inválido '{first_line}'")
     if errors:
