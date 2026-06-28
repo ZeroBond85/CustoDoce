@@ -8,34 +8,59 @@ O sistema opera em um ciclo de coleta, processamento, armazenamento e consumo.
 
 ```mermaid
 graph TD
-    subgraph "Camada de Coleta (GitHub Actions)"
-        A[Cron 2x/dia] --> B{CollectorPipeline}
-        B --> C[Tier 1: PDF Scrapers]
-        B --> D[Tier 2: VTEX/Web Scrapers]
+    subgraph "Camada de Coleta (GitHub Actions — 7 workflows)"
+        A[Cron 2x/dia<br/>+ On-Demand] --> B{CollectorPipeline}
+        B --> C[Tier 1: PDF Scrapers<br/>pdfplumber + OCR]
+        B --> D[Tier 2: VTEX/Web/API Scrapers]
         B --> E[Tier 3: Aggregators/Playwright]
-        B --> F[Tier 4: Manual Import]
+        B --> F[Tier 4: Manual Import .xlsx]
     end
 
     subgraph "Camada de Processamento (Parsers)"
-        C & D & E & F --> G[Normalizer]
-        G --> H[Matcher Pipeline]
+        C & D & E & F --> G[Normalizer<br/>qty/unit_kg/total_kg/ppk/pun]
+        G --> H[Matcher Pipeline<br/>6 estágios]
         H --> I{Confidence Score}
-        I -- ">= 80%" --> J[Direct Upsert RPC]
-        I -- "55% - 80%" --> K[Semantic/LLM Blend]
-        I -- "< 55%" --> L[Review Queue]
+        I -- ">= 80%" --> J[Upsert Price RPC]
+        I -- "55-79%" --> K[Semantic Blend<br/>RapidFuzz 0.6 + ONNX Emb. 0.4]
+        I -- "65-80%" --> L[LLM Classifier<br/>Groq → OpenRouter → HF<br/>+ Circuit Breaker]
+        I -- "< 55%" --> M[Review Queue<br/>Aprovação Manual]
+        K -- ">= 80%" --> J
+        K -- "< 65%" --> M
+        L -- ">= 85%" --> J
+        L -- "Falha" --> M
     end
 
-    subgraph "Camada de Armazenamento (Supabase)"
-        J & K --> M[(PostgreSQL)]
-        L --> M
-        M --> N[Materialized View: v_latest_prices]
-        M --> O[Price History Trigger]
+    subgraph "Cache Layer"
+        N1[LLM Cache SQLite<br/>SHA-256, TTL 30d]
+        N2[LLM Match Cache DB<br/>expires_at 30d]
+        N3[Embedding Cache .npy<br/>Permanente]
+        N4[IF Cache .joblib<br/>TTL 7d]
+        N5[Feature Flags YAML<br/>LRU in-memory]
+        L --> N1
+        L --> N2
+        K --> N3
+    end
+
+    subgraph "Camada de Armazenamento (Supabase — 13 tabelas)"
+        J --> O[(PostgreSQL)]
+        M --> O
+        O --> P[Materialized View: v_latest_prices]
+        O --> Q[Price History Trigger]
+        O --> R[llm_match_cache]
+    end
+
+    subgraph "Camada de Inteligência"
+        O --> S[Price Intelligence<br/>Z-score + Isolation Forest]
+        S --> T[Anomaly Tags]
+        O --> U[Cart Optimizer<br/>Monofonte / Multifonte]
+        T --> P
     end
 
     subgraph "Camada de Consumo"
-        N --> P[Streamlit Dashboard]
-        N --> Q[Telegram Bot]
-        M --> R[Email Report Service]
+        P --> V[Streamlit Dashboard<br/>17 módulos]
+        P --> W[Telegram Bot<br/>6 comandos]
+        O --> X[Email Report Service<br/>Gmail SMTP]
+        O --> Y[Alert Service<br/>price_drop / scrape_failure]
     end
 ```
 
@@ -70,6 +95,20 @@ graph TD
 O score semântico é calculado como:
 `Score Final = (0.6 * RapidFuzz_Score) + (0.4 * Cosine_Similarity_ONNX)`
 
+## 2.1. LLM Resilience (3 Providers + Circuit Breaker)
+
+O LLM Classifier usa **Strategy Pattern** com fallchain em cascata:
+
+| Ordem | Provider | Modelo | JSON Mode | Circuit Breaker |
+|-------|----------|--------|-----------|-----------------|
+| 1º | Groq | `llama-3.3-70b-versatile` | ✅ | 3 falhas → 10min cooldown |
+| 2º | OpenRouter | `mixtral-8x7b-instruct` | ✅ | 3 falhas → 10min cooldown |
+| 3º | HuggingFace | `Mistral-7B-Instruct-v0.2` | ✅ | 3 falhas → 10min cooldown |
+
+**Cache em 2 níveis:**
+1. **SQLite local** (`llm_cache.py`) — SHA-256 do prompt, TTL 30 dias
+2. **Supabase** (`llm_match_cache`) — backup persistente com `expires_at`
+
 ## 3. Design do Banco de Dados (Supabase)
 
 O banco foi otimizado para leitura rápida no dashboard e integridade absoluta na escrita.
@@ -94,8 +133,28 @@ O banco foi otimizado para leitura rápida no dashboard e integridade absoluta n
 
 ---
 
-## 5. Segurança e Isolamento
+## 5. Cart Optimizer (Calculadora Inteligente)
+
+O `price_analytics.otimizar_carrinho_compras()` calcula o custo de uma lista de ingredientes em 2 cenários:
+
+| Cenário | Descrição | Algoritmo |
+|---------|-----------|-----------|
+| **Monofonte** | Loja única que vende a lista inteira pelo menor valor | Para cada loja, testa cobertura 100%; escolhe a de menor total |
+| **Multifonte** | Divide a compra em até N lojas (default 2) | Combinações O(n²); escolhe mais barata por ingrediente |
+
+Retorna: economia percentual, lojas recomendadas e tabela formatada (markdown + HTML).
+
+## 6. Observabilidade (Structlog + OpenTelemetry)
+
+| Componente | Tecnologia | Saída |
+|------------|-----------|-------|
+| **Logging** | `structlog` | JSON em produção, console colorido em dev |
+| **Tracing** | OpenTelemetry | `OTLPSpanExporter` em prod, `ConsoleSpanExporter` em local |
+| **Capacity Planning** | Dashboard | Disco vs 500MB, Actions vs 2000min, SMTP vs 500/dia |
+
+## 7. Segurança e Isolamento
 
 - **RLS (Row Level Security)**: O Dashboard acessa dados via `anon key` com permissões de leitura.
 - **Service Role**: Apenas o Orquestrador (GitHub Actions) e scripts de deploy usam a `service_role` para bypass de RLS e escrita.
 - **Rate Limiting**: Implementado via SQLite local nos scrapers para evitar banimentos de IP (429 Too Many Requests).
+- **Feature Flags**: Sistema em 2 níveis (global + per-ingrediente) via `config/features.yaml` + `services/config.py`

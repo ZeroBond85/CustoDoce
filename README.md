@@ -1,6 +1,6 @@
 # CustoDoce — Buscador de Preços para Confeitaria 🍰
 
-![Build Status](https://img.shields.io/github/actions/workflow/status/CustoDoce/ci.yml?branch=main)
+![Build Status](https://img.shields.io/github/actions/workflow/status/CustoDoce/ci.yml?branch=master)
 ![Version](https://img.shields.io/badge/version-1.0.0--mvp-blue)
 ![License](https://img.shields.io/badge/license-Personal-green)
 ![Deploy](https://img.shields.io/badge/deploy-production%20%7C%20staging-brightgreen)
@@ -200,10 +200,11 @@ Mais detalhes em [docs/contributing.md](docs/contributing.md).
 ## 🗺️ Roadmap de Desenvolvimento
 
 - [x] **Fases 0-21**: Fundação, Scrapers, Dashboard, Matcher, CI/CD, Docs, Quality e Observabilidade.
-- [x] **Fase 2.4**: Staging Environment.
-- [x] **Fase 4.1**: Observabilidade Estruturada (structlog + OTel).
-- [x] **Fase 4.4**: Feature Flags por Ingrediente.
-- [ ] **Próximos Passos**: Living Docs (mkdocstrings).
+- [x] **Fase 2.4**: Staging Environment (2º Supabase isolado, CI/CD unificado).
+- [x] **Fase 4.1**: Observabilidade Estruturada (structlog + OpenTelemetry).
+- [x] **Fase 4.4**: Feature Flags por Ingrediente (2 níveis: global + override).
+- [x] **Fase 8 (Full Overhaul)**: LLM Resilience (Strategy Pattern, Circuit Breaker, 3 providers), Cache (SQLite + DB), Cart Optimizer (Monofonte/Multifonte), Capacity Planning Dashboard, CI/CD Unification com Makefile.
+- [ ] **Próximos Passos**: Testes E2E (Playwright), role `dashboard_user` (segurança), cache LRU no dashboard.
 
 ---
 

@@ -132,8 +132,7 @@ PR só é mergeado se todos passarem:
 - ✅ Ruff (0 errors)
 - ✅ MyPy (0 errors)
 - ✅ Bandit (0 issues, exceto `nosec` marcados)
-- ✅ pytest unit (476 testes passando)
-- ✅ pytest schema (93 testes passando)
+- ✅ pytest unit (477 testes passando: unit 383 + schema 94)
 - ⚠️ pytest integration (só se tiver credenciais)
 
 ### 4. Code Review
@@ -148,11 +147,11 @@ PR só é mergeado se todos passarem:
 
 ```
 tests/
-├── unit/           # 476 testes mockados
-├── schema/         # 93 testes de DB via RPC
-├── integration/    # testes reais (precisa credenciais)
-├── e2e/            # Playwright (dashboard UI)
-└── real/           # scrapers contra internet real
+├── unit/           # 383 testes mockados (20 arquivos)
+├── schema/         # 94 testes de DB via RPC (parametrizados)
+├── integration/    # 13 arquivos (precisa credenciais DB)
+├── e2e/            # 4 arquivos (Playwright, 0 collected sem setup)
+└── real/           # 3 arquivos (slow/flaky, marcados @pytest.mark.real)
 ```
 
 ### Writing Tests

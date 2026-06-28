@@ -31,7 +31,11 @@ CustoDoce/
 ├── .github/workflows/
 │   ├── scrape.yml                   # Coleta automática (cron + deploy)
 │   ├── ci.yml                       # CI: 7 jobs (lint → typecheck → unit → integration → schema → deploy-check → real)
-│   └── e2e.yml                      # E2E quinzenal (Playwright + visual regression)
+│   ├── e2e.yml                      # E2E quinzenal (Playwright + visual regression)
+│   ├── backup.yml                   # Backup semanal pg_dump
+│   ├── restore-test.yml             # Teste de restauração mensal
+│   ├── deploy-staging.yml           # Deploy para ambiente de staging
+│   └── on_demand_scrape.yml         # Scraping manual via workflow_dispatch
 ├── config/
 │   ├── ingredients.yaml             # 23 ingredientes canônicos + aliases + search_terms
 │   ├── stores.yaml                  # 51 lojas (Tier 1-4)
@@ -41,7 +45,7 @@ CustoDoce/
 │   ├── base_flyer.py, base_web_scraper.py  # ABCs
 │   ├── flyer_scraper.py, flyer_parser.py   # PDF genérico
 │   ├── vtex_scraper.py, website_scraper.py, carrefour_scraper.py  # E-commerce
-│   ├── tenda_api_scraper.py, roldao_api_scraper.py, max_api_scraper.py  # APIs
+│   ├── tenda_api_scraper.py, roldao_api_scraper.py, roldao_flyer_scraper.py, max_api_scraper.py  # APIs
 │   ├── aggregator_scraper.py, playwright_scraper.py, playwright_price_scraper.py  # JS
 │   ├── extra_flyer_scraper.py, pao_flyer_scraper.py  # Redes específicas
 │   ├── ocr.py, unit_extractor.py
@@ -72,7 +76,7 @@ CustoDoce/
 │   └── pages/                       # 16 módulos (visao_geral, precos, historico, etc.)
 ├── telegram_bot/
 │   └── handlers.py                  # /preco, /lista, /status
-├── admin/app.py                     # 124 linhas — importa 16 pages + sidebar + login
+├── admin/app.py                     # 107 linhas — importa 17 pages + sidebar + login
 ├── supabase/
 │   ├── seed.sql, consolidated_migration.sql
 │   ├── 002_add_brand_column.sql
@@ -88,13 +92,21 @@ CustoDoce/
 │   ├── seed_prices.py               # Dados sintéticos
 │   ├── sync_staging.py              # Sync Prod → Staging
 │   ├── seed_staging.py              # Seed de teste para Staging
-│   └── validate_staging.py          # Health check do ambiente Staging
+│   ├── validate_staging.py          # Health check do ambiente Staging
+│   ├── run_quality_gates.py         # Great Expectations suite (5 expectations)
+│   ├── sanity_check.py              # Sanity check pré-coleta
+│   ├── sync_docs.py                 # Sincronização de documentação
+│   ├── validate_production.py       # Validação completa de produção
+│   ├── full_prod_validation.py      # Validador multi-fase (0-6)
+│   ├── validation_phases/           # 7 módulos (phase0_static → phase6_health)
+│   ├── archive/                     # 28 scripts históricos
+│   └── ... (+20 scripts utilitários)
 ├── tests/
-│   ├── unit/                        # 253 testes mockados (dashboard + services + llm)
-│   ├── schema/                      # 93 parametrized (tables, columns, constraints, indexes, functions)
-│   ├── integration/                 # Benchmarks + DB integration (via RPC)
-│   ├── e2e/                         # Playwright E2E (estabilidade UI)
-│   └── real/                        # Scrapers reais (slow, flaky)
+│   ├── unit/                        # 383 testes mockados (dashboard + services + llm)
+│   ├── schema/                      # 94 parametrized (tables, columns, constraints, indexes, functions)
+│   ├── integration/                 # 13 files — Benchmarks + DB integration (via RPC)
+│   ├── e2e/                         # 4 files — Playwright E2E (estabilidade UI, 0 collected sem setup)
+│   └── real/                        # 3 files — Scrapers reais (slow, flaky)
 ├── main.py                          # Orquestrador: collect + cleanup + intelligence loop
 ├── pyproject.toml                   # Ruff (120 chars), mypy (3.12), pytest config
 ├── requirements.txt                 # Runtime: pdfplumber, supabase, streamlit, groq, torch, etc.
@@ -242,12 +254,21 @@ python scripts/seed_prices.py --dry-run
 
 ## Status Atual
  
-**28 fases concluídas.** Última (Fase 4.8): LLM Resilience + Cache + Cart Optimizer + Capacity Planning.
+**Fase 8 concluída (Full Project Overhaul).** 
+- LLM Resilience + Cache (Strategy Pattern, Circuit Breaker, 3 providers) ✅
+- Cart Optimizer (Monofonte/Multifonte) ✅
+- Capacity Planning Dashboard ✅
+- Staging Environment + CI/CD Unification ✅
+- Observabilidade (structlog + OTel) ✅
+- Feature Flags per-ingredient ✅
  
 | Ferramenta | Status |
 |------------|--------|
-| pytest (unit) | pending update | ⏳ |
-| pytest (schema) | 94 passing | ✅ |
+| pytest (unit) | **477 passing** | ✅ |
+| pytest (schema) | **94 passing** | ✅ |
+| pytest (integration) | 100 tests | ⏳ |
+| pytest (e2e) | 0 collected (Playwright setup needed) | ⏳ |
+| pytest (real) | 6 tests (slow/flaky) | ⏳ |
 
 ## Ambiente
 

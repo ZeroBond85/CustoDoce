@@ -8,7 +8,7 @@
 | **Nome** | CustoDoce — Busca e comparação de preços de ingredientes para confeitaria |
 | **Público** | Confeiteiros profissionais/amadores — Baixada Santista + SP Capital |
 | **Stack** | Python 3.12 (runtime.txt + CI + mypy) + Streamlit + Supabase (PostgreSQL) + GitHub Actions |
-| **Nota** | **8.0/10** — Arquitetura sólida, pipeline de matching sofisticado. Corrigir segurança da service_role e atualizar testes. |
+| **Nota** | **8.0/10** — Arquitetura sólida, pipeline de matching sofisticado. Testes unitários e de schema atualizados (477 passing). Corrigir segurança da service_role. |
 | **Risco** | 🟡 MÉDIO |
 | **Recomendação** | ✅ MANTER E CORRIGIR |
 
@@ -18,7 +18,7 @@
 | :--- | :--- | :--- | :--- |
 | 1 | SERVICE_ROLE_KEY exposta no dashboard (`get_service_client()`) | `price_repository.py:8` chamado pelo Streamlit | 🔴 CRÍTICO — vazamento = acesso total ao banco |
 | 2 | RPC `exec_sql_query` aceita SQL arbitrário sem sanitização | `consolidated_migration.sql:959` | 🔴 CRÍTICO — se service_role vazar, invasor executa qualquer SQL |
-| 3 | Testes desatualizados — doc diz 16 unit, real são 417 | `CUSTO_DOCE_RAIO_X.md` | 🟠 ALTO — documentação enganosa |
+| 3 | Testes desatualizados — doc diz 16 unit, real são 383 + 94 schema | `CUSTO_DOCE_RAIO_X.md` | 🟠 ALTO — documentação enganosa |
 | 4 | Busca de preços no dashboard sem cache (toda consulta vai ao Supabase) | `dashboard/pages/`, `price_repository.py` | 🟡 MÉDIO — latência em toda requisição |
 | 5 | Normalizer sem fallback: se `parse_unit()` falha, produto é perdido | `normalizer.py:91` | 🟡 MÉDIO — produtos sem unidade reconhecível descartados |
 
@@ -142,7 +142,7 @@ CustoDoce/
 ├── services/            23 arquivos: price_repository, price_service (facade), price_analytics, price_intelligence, collector, review_queue_service, config_db, config, alert_service, email_service, telegram_service, auth, rate_limiter, recipe_service, flyer_service, import_service, maintenance_service, dashboard_queries, logger, otel, types, supabase_client
 ├── supabase/            consolidated_migration.sql (861 linhas, 20 fases) + migrations/001_config_tables.sql + 3 migrações avulsas
 ├── telegram_bot/        handlers.py (154 linhas, 6 comandos)
-├── tests/               unit/ (417), schema/ (94 parametrized), integration/ (100), e2e/ (0 collected — 3 arquivos, requer Playwright), real/ (6)
+├── tests/               unit/ (383, 20 arquivos), schema/ (94 parametrizados), integration/ (13 arquivos), e2e/ (3 arquivos — 0 collected, requer Playwright), real/ (3 arquivos, 6 testes)
 ├── main.py              Orquestrador principal (154 linhas)
 └── pyproject.toml       Ruff (120 chars), mypy (3.12), pytest config
 ```
@@ -550,7 +550,7 @@ Produto bruto → [1] Normalizer → [2] Match Exato (100%) → [3] Fuzzy (≥80
 | :--- | :--- | :--- | :--- |
 | 1 | SERVICE_ROLE_KEY no dashboard | `price_repository.py:8` chamado pelo Streamlit | 🔴 CRÍTICO |
 | 2 | exec_sql_query sem sanitização | `consolidated.sql:959` | 🔴 CRÍTICO |
-| 3 | Testes desatualizados | pytest unit status "pending update" | 🟠 ALTO |
+| 3 | Testes unitários e de schema atualizados | 477 testes passing (unit: 383 + schema: 94) | 🟢 RESOLVIDO |
 | 4 | Sem cache em consultas do dashboard | `dashboard/pages/` | 🟡 MÉDIO |
 | 5 | Normalizer sem fallback | `normalizer.py:91` — se parse_unit falha, perde produto | 🟡 MÉDIO |
 | 6 | Busca Telegram só startswith | `handlers.py:52` — "/preco condensado" não acha | 🟡 MÉDIO |
@@ -569,7 +569,7 @@ Produto bruto → [1] Normalizer → [2] Match Exato (100%) → [3] Fuzzy (≥80
 | :--- | :--- | :--- | :--- |
 | 🔴 | Criar role `dashboard_user` (sem service_role) | 2-3d | Elimina risco crítico |
 | 🔴 | Sanitizar ou remover `exec_sql_query` | 1d | Elimina injeção SQL |
-| 🟡 | Atualizar testes unitários | 3-5d | README volta a refletir realidade |
+| 🟢 | Testes unitários e de schema atualizados | Concluído | 477 testes passando |
 | 🟡 | Cache LRU em dashboard_queries (TTL 5min) | 2d | Dashboard mais rápido |
 | 🟡 | Melhorar busca Telegram (fuzzy no lugar de startswith) | 1d | UX melhor |
 | 🟡 | Fallback de unidade no normalizer (ex: "un" se kg falha) | 1d | Mais produtos aproveitados |
@@ -588,14 +588,14 @@ Produto bruto → [1] Normalizer → [2] Match Exato (100%) → [3] Fuzzy (≥80
 | :--- | :--- |
 | Arquitetura | 9/10 |
 | Código | 8/10 |
-| Testes | 5/10 ↓ |
+| Testes | 7/10 → |
 | Segurança | 6/10 ↓ |
 | Performance | 8/10 |
 | UX/Produto | 8/10 |
 | Documentação | 9/10 |
 | **Nota Final** | **8.0/10** |
 
-**Recomendação: ✅ MANTER E CORRIGIR** — Projeto maduro, bem arquitetado, pipeline de matching sofisticado para um projeto free tier. Problemas são corrigíveis e concentrados em segurança da service_role + testes desatualizados. Nada que justifique rewrite.
+**Recomendação: ✅ MANTER E CORRIGIR** — Projeto maduro, bem arquitetado, pipeline de matching sofisticado para um projeto free tier. Problemas são corrigíveis e concentrados principalmente em segurança da service_role (requirement to create dashboard_user role and restrict RPCs). Testes unitários e de schema estão em excelente estado (477 passing). Nada que justifique rewrite.
 
 ---
 

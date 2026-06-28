@@ -63,7 +63,7 @@ O diferencial está no **pipeline de matching com IA de 6 estágios**: combina r
 | Ingredientes monitorados | **23** canônicos (leite condensado, chocolate, farinha, etc.) | Expansível via YAML |
 | Lojas/fornecedores | **51** lojas em 4 tiers (PDF, API VTEX, sites, manual) | Cobre atacados + e-commerces |
 | Precisão do Matching | **~85-90%** estimado | Via pipeline 6 estágios + fila de revisão manual |
-| Testes automatizados | **617** testes (417 unit + 94 schema + 100 integration + 6 real) | Pendente: E2E (Playwright requer setup) |
+| Testes automatizados | **477** testes (383 unit + 94 schema) + 13 integration files + 6 real | Pendente: E2E (Playwright requer setup) |
 | Dashboard | **17** módulos analíticos | Visão geral, preços, histórico, ranking, calculadora, scrapers, etc. |
 | Alertas configurados | 5 triggers de alerta (price_drop, scrape_failure, etc.) | 3 canais: e-mail, Telegram, WhatsApp |
 | Consumo GitHub Actions | **~400 min/mês** de 2.000 disponíveis | Margem para 5x expansão |
@@ -77,7 +77,7 @@ O diferencial está no **pipeline de matching com IA de 6 estágios**: combina r
 | 1 | **Dependência de Free Tier:** Limites de armazenamento/ação podem estourar com crescimento | ⚠️ Médio | Cleanup automático (prices 90d, logs 30d). Migrar para planos pagos ao atingir 50+ usuários ativos. |
 | 2 | **Qualidade dos Dados:** Matching impreciso faz o usuário perder confiança | 🔴 Alto | Review Queue com aprovação manual + auto-aprendizado de aliases (se semântica ≥0.75). |
 | 3 | **Segurança da Service Role:** Chave de admin exposta no dashboard | 🔴 Alto | Já identificado. Criar role `dashboard_user` com permissões restritas. |
-| 4 | **Falta de Cobertura de Testes:** Testes unitários existem (417), mas integração e E2E são frágeis | 🟠 Alto | Priorizar testes E2E e de integração na próxima fase. |
+| 4 | **Falta de Cobertura de Testes:** Testes unitários existem (383), mas integração e E2E são frágeis | 🟠 Alto | Priorizar testes E2E e de integração na próxima fase. |
 | 5 | **Concorrência:** Grandes players (marketplaces) podem lançar soluções similares | 🟡 Médio | Foco em regionalidade (Baixada Santista) + atendimento personalizado + dados históricos como barreira de saída. |
 
 ---
@@ -86,7 +86,7 @@ O diferencial está no **pipeline de matching com IA de 6 estágios**: combina r
 
 | Fase | Objetivo | Principais Entregas | Prazo |
 | :--- | :--- | :--- | :--- |
-| **Atual** | MVP Consolidado | 51 lojas, 23 ingredientes, 617 testes, 17 telas, Telegram, alertas, calculadora | Concluído |
+| **Atual** | MVP Consolidado | 51 lojas, 23 ingredientes, 477 testes, 17 telas, Telegram, alertas, calculadora | Concluído |
 | **Curto Prazo** | Confiabilidade | Testes E2E + role `dashboard_user` (segurança) + sanitizar RPCs + cache no dashboard | 1-2 meses |
 | **Médio Prazo** | Escalabilidade | Expansão para novas regiões (interior SP), novas fontes de dados, cache Redis, self-learning de aliases | 3-6 meses |
 | **Longo Prazo** | Diferencial | Previsão de preços (IA), painel de tendências, recomendação de substituição de marcas, app mobile | 6-12 meses |
