@@ -16,7 +16,7 @@ Sistema automatizado de busca e comparação de preços de ingredientes para con
 - 🧮 **Calculadora de Receitas**: Cálculo de custo real baseado nos preços atuais do banco, com salvamento de receitas e cenários de margem.
 - 📧 **Relatórios Diários**: Envio automático de resumo de melhores preços via Gmail SMTP.
 - ⚙️ **Configuração Declarativa**: Controle de funcionalidades via `config/features.yaml` sem necessidade de alteração de código.
-- 🛠️ **Infraestrutura Robusta**: CI/CD com 8 jobs, validação de schema via RPC, ONNX para performance de ML e rate limiting.
+- 🛠️ **Infraestrutura Robusta**: CI/CD com 7 jobs, validação de schema via RPC, ONNX para performance de ML e rate limiting.
 
 ## 📋 REGRAS DE NEGÓCIO
 

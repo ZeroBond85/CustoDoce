@@ -42,7 +42,7 @@ def build_html(results: dict, screenshots: list, history: list) -> str:
         ("A - Corrigir Testes", "test_new_features.py"),
         ("B - AI Feature Flags", "code changes"),
         ("C - Optimize scrape.yml", "scrape.yml"),
-        ("D1 - Playwright 16x3", "e2e_real.py"),
+        ("D1 - Playwright 16x3", "test_e2e_real.py"),
         ("D2 - DB Real", "TestDBReal"),
         ("D3 - Pipeline E2E", "TestPipelineReal"),
         ("D4 - Scrapers Reais", "TestScrapersReal"),

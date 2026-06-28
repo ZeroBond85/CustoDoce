@@ -84,7 +84,7 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - `scripts/export_onnx.py` — export sentence-transformers para ONNX (8-10s cold start vs 2min PyTorch)
 - `scripts/verify_onnx.py` — verifica consistência cosine similarity PyTorch vs ONNX (1.0)
 - `scripts/validate_db_schema.py` — 87+ checks via RPC (sem psycopg2, porta 443)
-- `Makefile` — 8 targets (test-unit, test-int, lint, typecheck, quality, deploy, schema, clean)
+- `Makefile` — 10 targets (test-unit, test-int, test-real, lint, typecheck, quality, deploy, schema, db-audit, clean)
 
 #### Fase 2.1 — Data Quality Gates
 - `scripts/run_quality_gates.py` — Great Expectations suite com 5 expectations
@@ -126,7 +126,7 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 - Ruff W293 (whitespace), F401 (unused imports), S608 (SQL injection via f-string)
 - Mypy 0 erros em 34 source files
-- 476+ pytest passando (unit + schema)
+- 477+ pytest passando (unit + schema)
 
 ### Known Risks
 
@@ -138,11 +138,14 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [unreleased]
 
+### Fixed
+- E2E tests now collect (renamed `e2e_*.py` → `test_e2e_*.py` in `tests/e2e/` to match `python_files = test_*.py`). Added 49 collected tests across dashboard + Playwright + flyer validation.
+- Updated `.github/workflows/e2e.yml` and `scripts/generate_regression_report.py` references.
+
 ### Added
 ### Changed
 ### Deprecated
 ### Removed
-### Fixed
 ### Security
 
 ---

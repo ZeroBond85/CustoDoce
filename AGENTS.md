@@ -30,7 +30,7 @@ graph LR
 CustoDoce/
 ├── .github/workflows/
 │   ├── scrape.yml                   # Coleta automática (cron + deploy)
-│   ├── ci.yml                       # CI: 7 jobs (lint → typecheck → unit → integration → schema → deploy-check → real)
+│   ├── ci.yml                       # CI: 7 jobs (lint → typecheck → docs-sync → unit → integration → deploy-check → real)
 │   ├── e2e.yml                      # E2E quinzenal (Playwright + visual regression)
 │   ├── backup.yml                   # Backup semanal pg_dump
 │   ├── restore-test.yml             # Teste de restauração mensal
@@ -73,7 +73,7 @@ CustoDoce/
 │   └── dashboard_queries.py         # Query cache + extract_ppk/pun (single source)
 ├── dashboard/
 │   ├── login_page.py, components/ (ui.py, layout.py)
-│   └── pages/                       # 16 módulos (visao_geral, precos, historico, etc.)
+│   └── pages/                       # 17 módulos (visao_geral, precos, historico, etc.)
 ├── telegram_bot/
 │   └── handlers.py                  # /preco, /lista, /status
 ├── admin/app.py                     # 107 linhas — importa 17 pages + sidebar + login
@@ -102,11 +102,12 @@ CustoDoce/
 │   ├── archive/                     # 28 scripts históricos
 │   └── ... (+20 scripts utilitários)
 ├── tests/
-│   ├── unit/                        # 383 testes mockados (dashboard + services + llm)
-│   ├── schema/                      # 94 parametrized (tables, columns, constraints, indexes, functions)
-│   ├── integration/                 # 13 files — Benchmarks + DB integration (via RPC)
-│   ├── e2e/                         # 4 files — Playwright E2E (estabilidade UI, 0 collected sem setup)
-│   └── real/                        # 3 files — Scrapers reais (slow, flaky)
+│   ├── unit/                        # 383 testes (18 arquivos) — dashboard + services + llm
+│   ├── schema/                      # 94 testes parametrizados (1 arquivo)
+│   ├── integration/                 # 12 arquivos — Benchmarks + DB integration (via RPC)
+│   ├── design/                      # 1 arquivo — CSS/estrutura (10 testes)
+│   ├── e2e/                         # 3 arquivos — Playwright E2E (0 collected sem setup)
+│   └── real/                        # 2 arquivos — Scrapers reais (6 testes, slow/flaky)
 ├── main.py                          # Orquestrador: collect + cleanup + intelligence loop
 ├── pyproject.toml                   # Ruff (120 chars), mypy (3.12), pytest config
 ├── requirements.txt                 # Runtime: pdfplumber, supabase, streamlit, groq, torch, etc.
@@ -264,9 +265,9 @@ python scripts/seed_prices.py --dry-run
  
 | Ferramenta | Status |
 |------------|--------|
-| pytest (unit) | **477 passing** | ✅ |
-| pytest (schema) | **94 passing** | ✅ |
+| pytest (unit + schema) | **477 passing** | ✅ |
 | pytest (integration) | 100 tests | ⏳ |
+| pytest (design) | 10 tests | ✅ |
 | pytest (e2e) | 0 collected (Playwright setup needed) | ⏳ |
 | pytest (real) | 6 tests (slow/flaky) | ⏳ |
 
