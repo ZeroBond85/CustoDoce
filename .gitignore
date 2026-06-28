@@ -104,6 +104,7 @@ Thumbs.db
 .cline/
 
 # Tooling scratch
+scripts/diagnose.py
 cline.log
 _tmp/
 tmp/
