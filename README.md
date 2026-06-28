@@ -208,5 +208,28 @@ Mais detalhes em [docs/contributing.md](docs/contributing.md).
 
 ---
 
+## 🧠 OpenCode Skills Strategy
+
+This project uses **two layers of OpenCode skills**:
+
+| Layer | Location | Purpose |
+|-------|----------|---------|
+| **Global** | `~/.config/opencode/skills/` | 17 universal skills usable in any project (scraping, code quality, testing, SQL, git, CI/CD, etc.) |
+| **Local (CustoDoce)** | `.opencode/skills/` | 7 overlays that inject CustoDoce-specific context (Telegram commands, Supabase schema, dashboard pages, GHA workflows, etc.) |
+
+**Why this works:**
+- OpenCode merges both layers when you open **this repo** — you get universal patterns + project shortcuts.
+- In any other project, only the **global layer** loads — clean, reusable skills.
+- Overlays are tiny (~30-100 lines each), extend without duplication, and are versioned with the repo.
+- Adding a new project? Just reuse the global skills. The overlays stay here.
+
+**Key global skills** (in `~/.config/opencode/skills/`): `scraping-resilience`, `code-quality-pro`, `test-architect`, `api-design`, `code-review`, `debug-troubleshooting`, `docs-writer`, `git-workflow`, `github-actions`, `project-doc-sync`, `refactor-patterns`, `sql-optimizer`, `streamlit`, `telegram-bot`, `test-generation`, `humanizer`, `seo`, `ui-ux-pro-max`.
+
+**CustoDoce overlays** (in `.opencode/skills/`): `telegram-bot`, `docs-writer`, `sql-optimizer`, `streamlit`, `api-design`, `github-actions`, `project-doc-sync`.
+
+> To validate: open this repo in OpenCode → skills from both layers are listed. Open any other folder → only global skills appear.
+
+---
+
 ## 📜 Licença
 Projeto para fins de estudo e automação pessoal.

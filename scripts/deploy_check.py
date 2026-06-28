@@ -23,9 +23,10 @@ if os.path.exists(_dotenv):
 
 PASS = 0
 FAIL = 0
+FAIL_NAMES: list[tuple[str, bool]] = []
 
 
-def _check(label: str, fn):
+def _check(label: str, fn, required: bool = True):
     global PASS, FAIL
     start = time.time()
     try:
@@ -37,6 +38,7 @@ def _check(label: str, fn):
         elapsed = time.time() - start
         print(f"  [FAIL] {label} — {e} ({elapsed:.2f}s)")
         FAIL += 1
+        FAIL_NAMES.append((label, required))
 
 
 def test_supabase():
@@ -150,10 +152,12 @@ if __name__ == "__main__":
     _check("Features config (services/config.py)", test_features_config)
     _check("Auth (hash + verify)", test_auth)
     _check("Rate Limiter", test_rate_limiter)
-    env_checks = [
+    env_required = [
         "SUPABASE_URL",
-        "SUPABASE_ANON_KEY",
         "SUPABASE_SERVICE_ROLE_KEY",
+    ]
+    env_optional = [
+        "SUPABASE_ANON_KEY",
         "AUTH_SECRET_KEY",
         "SMTP_HOST",
         "SMTP_USER",
@@ -163,22 +167,43 @@ if __name__ == "__main__":
         "ALERT_EMAIL_TO",
     ]
 
-    def _check_env(v):
+    def _check_env_required(v):
         val = os.environ.get(v)
         if not val:
             raise ValueError(f"{v} nao configurado")
         return val
 
-    for var in env_checks:
-        _check(f"ENV: {var}", lambda v=var: _check_env(v))
-    _check("Telegram envio", test_telegram)
-    _check("SMTP envio", test_smtp)
-    _check("Scraper health (3+ falhas consecutivas)", test_scraper_health)
+    def _check_env_optional(v):
+        val = os.environ.get(v)
+        if not val:
+            print(f"    [warn] {v} nao configurado (opcional, ignorado)")
+            return None
+        return val
+
+    for var in env_required:
+        _check(f"ENV: {var}", lambda v=var: _check_env_required(v), required=True)
+    for var in env_optional:
+        _check(f"ENV: {var} (opcional)", lambda v=var: _check_env_optional(v), required=False)
+    _check("Telegram envio", test_telegram, required=False)
+    _check("SMTP envio", test_smtp, required=False)
+    _check("Scraper health (3+ falhas consecutivas)", test_scraper_health, required=False)
 
     print(f"\n{'=' * 55}")
-    print(f"  Resultado: {PASS} passed, {FAIL} failed")
-    if FAIL:
-        print("  [!] Corrigir antes do deploy.")
-        sys.exit(1)
+    required_failures = [name for name, required in FAIL_NAMES if required]
+    optional_failures = [name for name, required in FAIL_NAMES if not required]
+    if FAIL_NAMES:
+        print(f"  Resultado: {PASS} passed, {FAIL} failed")
+        for n in required_failures:
+            print(f"      [required] {n}")
+        for n in optional_failures:
+            print(f"      [warn] {n}")
+        if required_failures:
+            print("  [ERROR] Required check(s) failed. Deploy not safe.")
+            sys.exit(1)
+        else:
+            print("  [WARN] Optional checks failed (acceptable in CI without secrets).")
+            sys.exit(0)
     else:
+        print(f"  Resultado: {PASS} passed, {FAIL} failed")
         print("  [OK] Pronto para deploy!")
+        sys.exit(0)

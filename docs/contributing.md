@@ -233,3 +233,32 @@ Ao abrir issue, usar template:
 - [Architecture](./architecture.md) — visão geral
 - [Deployment](./deployment.md) — setup de produção
 - [API Reference](./api/) — documentação dos serviços
+
+---
+
+## 🧠 AI-Assisted Development (OpenCode Skills)
+
+Este projeto usa **OpenCode** com **duas camadas de skills** para acelerar tarefas recorrentes:
+
+| Camada | Localização | Acesso |
+|--------|-------------|--------|
+| **Global** | `~/.config/opencode/skills/` | Qualquer projeto |
+| **Local (CustoDoce)** | `.opencode/skills/` | Só neste repo |
+
+### Skills Globais Disponíveis (17)
+`scraping-resilience`, `code-quality-pro`, `test-architect`, `api-design`, `code-review`, `debug-troubleshooting`, `docs-writer`, `git-workflow`, `github-actions`, `project-doc-sync`, `refactor-patterns`, `sql-optimizer`, `streamlit`, `telegram-bot`, `test-generation`, `humanizer`, `seo`, `ui-ux-pro-max`
+
+### Overlays Locais (7)
+`telegram-bot`, `docs-writer`, `sql-optimizer`, `streamlit`, `api-design`, `github-actions`, `project-doc-sync`
+
+### Como usar
+```bash
+# No terminal com opencode ativo:
+skill({ name: "code-review" })       # Checklist CRITICAL/HIGH/MEDIUM/LOW
+skill({ name: "sql-optimizer" })     # Index patterns, RLS, partitioning
+skill({ name: "test-architect" })    # Mocks, fixtures, parametrize, CI
+skill({ name: "scraping-resilience" }) # Fallback chain, anti-bot
+skill({ name: "telegram-bot" })      # Handlers, ConversationHandler, dedup
+```
+
+As skills locais injetam contexto específico (comandos `/preco`, schema `prices`, 17 pages do dashboard, 7 GHA workflows) sem duplicar o conteúdo global.

@@ -254,7 +254,7 @@ python scripts/seed_prices.py --dry-run
 ```
 
 ## Status Atual
- 
+
 **Fase 8 concluída (Full Project Overhaul).** 
 - LLM Resilience + Cache (Strategy Pattern, Circuit Breaker, 3 providers) ✅
 - Cart Optimizer (Monofonte/Multifonte) ✅
@@ -262,14 +262,128 @@ python scripts/seed_prices.py --dry-run
 - Staging Environment + CI/CD Unification ✅
 - Observabilidade (structlog + OTel) ✅
 - Feature Flags per-ingredient ✅
- 
+
+**Fase 9 concluída (CI Hygiene + Cleanup out 2026-06-28):**
+- `git filter-branch` removed 11 sensitive files from 190 commits; pack 444MB → 8.7MB ✅
+- 7 Dependabot alerts dismissed (Pillow 12.2.0 patched; `pip-audit --strict` clean) ✅
+- Smart pre-push hook (Python + `sys.executable`) replaces bash + wslpath ✅
+- `scripts/ci_local.py` — 7 config validators + 13 `tests/unit/test_ci_infrastructure.py` infra tests ✅
+- `.gitattributes` (LF), `.gitignore` (`scripts/diagnose.py`), `data/prices_latest.json` removed ✅
+- `check_ingredients.py` etc. use `# mypy: ignore-errors` (per-file directive) ✅
+- 3 integration tests refactored from `psycopg2` to `exec_sql_query` RPC (porta 443) ✅
+- `deploy_check.py` — required/optional env split; CI não bloqueia por secrets ausentes ✅
+
 | Ferramenta | Status |
 |------------|--------|
-| pytest (unit + schema) | **477 passing** | ✅ |
-| pytest (integration) | 100 tests | ⏳ |
+| pytest (unit + schema) | **488 passing** | ✅ |
+| pytest (integration) | **102 passing** | ✅ |
 | pytest (design) | 10 tests | ✅ |
 | pytest (e2e) | 0 collected (Playwright setup needed) | ⏳ |
 | pytest (real) | 6 tests (slow/flaky) | ⏳ |
+| ruff / mypy / bandit / pip-audit | clean | ✅ |
+| CI lint / typecheck / docs-sync / unit / integration | passing | ✅ |
+| CI deploy-check | required-passing, optional-warning | ✅ |
+
+## Lições Aprendidas (CI/Mocks)
+
+> **Estas regras foram aprendidas corrigindo 7+ erros consecutivos do CI.** Aplicar ANTES de escrever novos tests.
+
+### 1. Mocks — boundary layer, not internal functions
+
+```python
+# ❌ ERRADO: patcha onde a função é definida
+@patch("services.dashboard_queries.get_latest_prices_cached")
+def test_x(): ...  # NÃO pega — Python resolves module-level imports
+
+# ✅ CERTO: patcha onde é usada
+@patch("dashboard.pages.relatorios.get_latest_prices_cached")
+def test_x(): ...  # pega porque o module já importou
+```
+
+**Ou** marca como `@pytest.mark.integration` e deixa o conftest `db_conn` resolver via RPC.
+
+### 2. Tests que tocam Supabase real — marque `integration`
+
+Se um teste depende de estado Real DB, NÃO finja que mock cobre tudo. Marque com `@pytest.mark.integration`. `pyproject.toml` tem `addopts = "-m 'not slow and not integration'"` que pula automaticamente em unit CI, mantendo 100% determinístico.
+
+### 3. `exec_sql_query` RPC (porta 443), NUNCA `psycopg2` (porta 5432)
+
+GitHub Actions **bloqueia porta 5432** (exceto service containers). Use o fixture `db_conn` do `tests/conftest.py` que internamente chama `exec_sql_query` RPC. A `_SchemaCursor` mock psycopg2 cursor de forma transparente.
+
+```python
+# ❌ ERRADO (bloqueia no CI):
+import psycopg2
+conn = psycopg2.connect(host="db.fqdn.supabase.co", port=5432, ...)
+
+# ✅ CERTO (funciona via porta 443):
+def test_x(db_conn):  # fixture do conftest.py
+    cur = db_conn.cursor()
+    cur.execute("SELECT 1 FROM prices LIMIT 1")
+    assert cur.fetchone() is not None
+```
+
+### 4. Cleanup POST test, não só PRE
+
+Dados de runs anteriores Persistem em Supabase (não há sandbox). Setup PRE não basta — sempre cleanup POST também. Para testes que inserem dados únicos por chave `(ingredient_id, store_id, collected_at)`, **filtre por `collected_at = today`** ao validar.
+
+### 5. `deploy_check.py` — required vs optional env
+
+Required: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`. Existem no GitHub Secrets.  
+Optional: `GMAIL_*`, `AUTH_SECRET_KEY`, `SUPABASE_ANON_KEY`, `TELEGRAM_*` — opcionais em CI. Falhas opcionais viram WARN, não bloqueiam o job.
+
+### 6. Pre-commit hook SECRETS GUARD — bloqueia, não skipa
+
+Padrões: `sk-*`, `gsk_*`, `sk-or-*`, `sk-or-v1-*`, `sk-proj-*`, `hf_*`, `github_pat_*`, `nvapi-*`, `mOns*`, `AQ.*`. Se pattern estiver staged PARA IR no commit, bloqueia com exit 1.
+
+### 7. `PIP_INDEX_URL` → `PIP_EXTRA_INDEX_URL`
+
+Para torch CPU em CI: use `PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu` (preserva PyPI como primary). `PIP_INDEX_URL` SUBSTITUI PyPI e quebra `ruff`/`mypy` install.
+
+## OpenCode Skills Strategy
+
+Este projeto usa **duas camadas de skills OpenCode**:
+
+| Camada | Localização | Propósito |
+|--------|-------------|-----------|
+| **Global** | `~/.config/opencode/skills/` | 17 skills universais usáveis em qualquer projeto |
+| **Local (CustoDoce)** | `.opencode/skills/` | 7 overlays que injetam contexto específico do projeto |
+
+### Skills Globais (17)
+
+| Skill | Foco |
+|-------|------|
+| `scraping-resilience` | Anti-bot, fallback chain, proxy, CAPTCHA, error taxonomy |
+| `code-quality-pro` | SOLID, Clean Code, security (bandit, pip-audit, detect-secrets) |
+| `test-architect` | Pirâmide de testes, mocks, factories, contracts, CI integration |
+| `api-design` | REST/GraphQL patterns, RFC 7807, OpenAPI, versioning |
+| `code-review` | Checklist por severidade (CRITICAL/HIGH/MEDIUM/LOW) |
+| `debug-troubleshooting` | Fluxo universal 4 passos + tabelas Python/Supabase/Streamlit/GHA |
+| `docs-writer` | README, API doc, ADR, Runbook, Decision Panel templates |
+| `git-workflow` | GitHub Flow, conventional commits, release/hotfix, aliases |
+| `github-actions` | Workflows, caching, matrix, secrets, free-tier math |
+| `project-doc-sync` | `scripts/sync_docs.py` — AGENTS.md, pages, workflows auto-sync |
+| `refactor-patterns` | 6 patterns: Extract Method, Polymorphism, Primitive Obsession, etc. |
+| `sql-optimizer` | Index design, RLS, partitioning, migration safety, RPC patterns |
+| `streamlit` | Execution model, caching, multipage, layout, antipatterns |
+| `telegram-bot` | python-telegram-bot v20+, async, ConversationHandler, dedup |
+| `test-generation` | Unit/integration templates, parametrized, fixtures, Hypothesis |
+| `humanizer` | 29 AI patterns removal + voice calibration |
+| `seo` | 16 sub-skills, deterministic audit workflow, scripts |
+| `ui-ux-pro-max` | 99 UX guidelines, 161 palettes, 57 font pairings, 10 priority categories |
+
+### Overlays Locais (7 — em `.opencode/skills/`)
+
+| Overlay | Conteúdo específico CustoDoce |
+|---------|------------------------------|
+| `telegram-bot` | Comandos `/preco /lista /status`, REST 443, dedup cron |
+| `docs-writer` | AGENTS.md, ADRs, runbooks, sync_docs.py |
+| `sql-optimizer` | Schema `prices`, RPCs, índices, migration workflow |
+| `streamlit` | 17 pages, login gate, kpi_card, column_config, RPC 443 |
+| `api-design` | Supabase REST/RPC real, auth boundaries, RPC naming |
+| `github-actions` | 7 workflows + free-tier math (818 min/mês) |
+| `project-doc-sync` | Cobertura do `sync_docs.py` |
+
+**Como funciona:** Abra este repo no OpenCode → carrega globais + overlays. Abra outro projeto → só globais. Overlays são versionados com o repo.
 
 ## Ambiente
 

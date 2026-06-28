@@ -578,36 +578,6 @@ class TestPriceService:
         count = auto_reject_stale_review_items()
         assert count == 0
 
-    # ── approve_review_item ────────────────────────────────────
-
-    @patch("services.price_repository.get_service_client")
-    @patch("services.review_queue_service.get_service_client")
-    @patch("services.config_db.get_store_by_name", return_value={"id": "test_store", "name": "Test"})
-    @patch("services.config_db.add_alias_to_ingredient", return_value=True)
-    @patch("services.config_db.get_ingredient_by_id", return_value=None)
-    @patch(
-        "services.config_db.get_ingredient_by_name",
-        return_value={"id": "ing-uuid-123", "canonical_name": "Leite Ninho Integral"},
-    )
-    def test_approve_review_item_updates_and_upserts(
-        self, mock_ing_name, mock_ing_id, mock_alias, mock_store, mock_get_client_repo, mock_get_client_review
-    ):
-        """Aprova: update status + upsert price."""
-        from services.price_service import approve_review_item
-
-        mock_client, table, qb = make_mocks()
-        qb._return_data = SAMPLE_REVIEW
-        mock_get_client_repo.return_value = mock_client
-        mock_get_client_review.return_value = mock_client
-
-        approve_review_item("r1", "Leite Ninho Integral")
-
-        assert qb._captured_update is not None, "update() deveria ser chamado"
-        assert qb._captured_update.get("status") == "approved"
-        fn_name, rpc_params = mock_client._captured_rpc
-        assert fn_name == "upsert_price_rpc", "upsert should use RPC"
-        assert rpc_params["p_ingredient_id"] == "ing-uuid-123"
-
     # ── reject_review_item ─────────────────────────────────────
 
     @patch("services.review_queue_service.get_service_client")

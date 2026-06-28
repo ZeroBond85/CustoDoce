@@ -62,10 +62,29 @@ class TestCollectorPipeline:
         assert entry is not None, f"Falha no match para {product_text}"
         assert entry["ingredient_id"] == ing["canonical_name"]
 
+        # Verifica que EXISTE uma row para (ingredient_id, store_id, collected_at=hoje).
+        # Tolerância a dados cumulativos de runs anteriores (collected_at diferente).
+        from datetime import date
+        today_iso = date.today().isoformat()
         res = client.table("prices").select("*").eq("store_id", store["id"]).execute()
-        assert len(res.data) == 1
-        assert res.data[0]["raw_product"] == product_text
-        assert res.data[0]["raw_price"] == 10.50
+        today_rows = [r for r in res.data if r.get("collected_at", "")[:10] == today_iso]
+        assert len(today_rows) >= 1, (
+            f"Expected >=1 price row today={today_iso} para _test_pipeline_store_exact. "
+            f"Got {[r.get('collected_at') for r in res.data]}"
+        )
+        match = next(
+            (r for r in today_rows if r.get("raw_product") == product_text and r.get("raw_price") == 10.50),
+            None,
+        )
+        assert match is not None, (
+            f"Expected raw_product='{product_text}' raw_price=10.50 today={today_iso}, "
+            f"got {[(r.get('raw_product'), r.get('raw_price')) for r in today_rows]}"
+        )
+
+        # Cleanup after to ensure test isolation for next runs
+        client.table("prices").delete().eq("store_id", store["id"]).execute()
+        client.table("price_history").delete().eq("store_id", store["id"]).execute()
+        client.table("review_queue").delete().eq("store_name", store["name"]).execute()
 
     def test_pipeline_fuzzy_match_to_review_queue(self):
         """Produto com confidence baixa deve ir para a review_queue."""

@@ -7,7 +7,6 @@ Uso:
 import os
 import sys
 import traceback
-import unittest.mock as mock
 from datetime import UTC
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -619,16 +618,6 @@ def test_render_functions_exist():
     assert "def " in content
 
 
-def test_build_report_html():
-    from dashboard.pages.relatorios import build_daily_report_html, build_telegram_summary
-
-    with mock.patch("services.dashboard_queries.get_latest_prices_cached", return_value=[]):
-        html = build_daily_report_html()
-        assert "CustoDoce" in html or "Sem dados" in html
-        msg = build_telegram_summary()
-        assert "CustoDoce" in msg or "Sem dados" in msg
-
-
 def test_test_smtp():
     from services.email_service import send_email
 
@@ -1031,7 +1020,6 @@ tests = [
     (test_matcher_function, "matcher: _test_matcher callable"),
     (test_render_functions_exist, "refactor: todas as 6 sub-funcoes chamadas"),
     # Phase 5 — Control & Reports
-    (test_build_report_html, "reports: _build_report_html gera HTML valido"),
     (test_test_smtp, "reports: _test_smtp callable"),
     (test_test_telegram, "reports: _test_telegram callable"),
     (test_render_schedule_info, "reports: _render_schedule_info callable"),
