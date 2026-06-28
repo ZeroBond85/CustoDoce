@@ -1,4 +1,5 @@
 """Test user-provided URLs."""
+
 import httpx
 import re
 

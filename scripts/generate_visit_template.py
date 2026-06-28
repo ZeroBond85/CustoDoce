@@ -15,18 +15,30 @@ HEADERS = [
 ]
 
 STORES_SP = [
-    "Manos Doces", "Dijos Doces", "Jabaquara Doces",
-    "Nova Paulista Doces", "Patikal Doces", "Marsil Atacadista",
-    "Vito Quintas", "Doces Cabo Verde", "Fernandez Atacadista",
-    "Campineira Doces", "Embalagens Cantareira",
+    "Manos Doces",
+    "Dijos Doces",
+    "Jabaquara Doces",
+    "Nova Paulista Doces",
+    "Patikal Doces",
+    "Marsil Atacadista",
+    "Vito Quintas",
+    "Doces Cabo Verde",
+    "Fernandez Atacadista",
+    "Campineira Doces",
+    "Embalagens Cantareira",
 ]
 
 INGREDIENTS = [
-    "Leite Condensado Integral", "Creme de Leite 20% Gordura",
-    "Chocolate em Pó 50% Cacau", "Leite Ninho Integral",
-    "Granulado Melken Ao Leite", "Granulado Melken Branco",
-    "Granulado Melken Meio Amargo", "Nutella",
-    "Coloretti Granulado Colorido", "Coco Ralado Grosso sem Açúcar",
+    "Leite Condensado Integral",
+    "Creme de Leite 20% Gordura",
+    "Chocolate em Pó 50% Cacau",
+    "Leite Ninho Integral",
+    "Granulado Melken Ao Leite",
+    "Granulado Melken Branco",
+    "Granulado Melken Meio Amargo",
+    "Nutella",
+    "Coloretti Granulado Colorido",
+    "Coco Ralado Grosso sem Açúcar",
     "Chocolate Nobre Blend Harald",
 ]
 

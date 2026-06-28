@@ -1,4 +1,5 @@
 """Check other stores sitemaps."""
+
 import httpx
 import re
 
@@ -16,7 +17,11 @@ with httpx.Client(timeout=30, follow_redirects=True, verify=False) as client:
             r = client.get(url)
             if r.status_code == 200:
                 matches = re.findall(r"<loc>([^<]+)</loc>", r.text)
-                encartes = [u for u in matches if any(w in u.lower() for w in ["encarte", "oferta", "folheto", "tabloide", "pdf"])]
+                encartes = [
+                    u
+                    for u in matches
+                    if any(w in u.lower() for w in ["encarte", "oferta", "folheto", "tabloide", "pdf"])
+                ]
                 store_name = url.split("//")[1].split("/")[0]
                 print(f"{store_name}: {len(encartes)} encartes")
                 for u in encartes[:5]:

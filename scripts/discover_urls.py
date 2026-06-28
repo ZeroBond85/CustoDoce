@@ -1,4 +1,5 @@
 """Discover real Tier 1 PDF URLs for each store."""
+
 import httpx
 import re
 

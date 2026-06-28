@@ -1,36 +1,44 @@
 import re
-from typing import Optional
-
+import unicodedata
 from rapidfuzz import fuzz
+from services.types import Ingredient
 
 
-def extract_brand(product_text: str, ingredient: dict) -> str:
+def _normalize_accents(text: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn")
+
+
+def extract_brand(product_text: str, ingredient: Ingredient) -> str:
     brands = ingredient.get("brands", [])
     if not brands:
         return "Desconhecido"
 
     text_upper = product_text.upper()
+    text_norm = _normalize_accents(text_upper)
 
     # Level 1: exact word boundary match
     for brand in brands:
         brand_upper = brand.upper()
-        if re.search(rf"\b{re.escape(brand_upper)}\b", text_upper):
+        brand_norm = _normalize_accents(brand_upper)
+        if re.search(rf"\b{re.escape(brand_norm)}\b", text_norm):
             return brand
 
     # Level 2: substring match (brand not embedded inside another word)
     for brand in brands:
         brand_upper = brand.upper()
-        if re.search(rf"(?<![A-Z]){re.escape(brand_upper)}(?![A-Z])", text_upper):
+        brand_norm = _normalize_accents(brand_upper)
+        if re.search(rf"(?<![A-Z]){re.escape(brand_norm)}(?![A-Z])", text_norm):
             return brand
 
     # Level 3: fuzzy match per word (RapidFuzz ratio >= 80 on each product word vs brand)
-    product_words = re.sub(r"[^A-Z\s]", " ", product_text.upper()).split()
+    product_words = re.sub(r"[^A-Z\s]", " ", text_norm).split()
     best_brand = "Desconhecido"
     best_score = 0.0
     for brand in brands:
         brand_upper = brand.upper()
+        brand_norm = _normalize_accents(brand_upper)
         for word in set(product_words):
-            score = fuzz.ratio(word, brand_upper)
+            score = fuzz.ratio(word, brand_norm)
             if score > best_score:
                 best_score = score
                 best_brand = brand if score >= 80 else "Desconhecido"
@@ -38,7 +46,7 @@ def extract_brand(product_text: str, ingredient: dict) -> str:
     return best_brand
 
 
-def extract_brand_from_all(product_text: str, ingredients: list[dict], threshold: float = 85.0) -> Optional[str]:
+def extract_brand_from_all(product_text: str, ingredients: list[Ingredient], threshold: float = 85.0) -> str | None:
     if not ingredients:
         return None
 

@@ -1,4 +1,5 @@
 """Run ALL pending migrations on Supabase production DB."""
+
 import psycopg2
 import os
 
@@ -6,21 +7,26 @@ url = os.environ.get("SUPABASE_URL", "")
 proj = url.split("//")[1].split(".")[0]
 pwd = os.environ.get("SUPABASE_DB_PASSWORD", "")
 
+
 def get_conn():
     for host, port, user in [
         (f"db.{proj}.supabase.co", 5432, "postgres"),
         ("aws-0-us-west-1.pooler.supabase.com", 6543, f"postgres.{proj}"),
     ]:
         try:
-            conn = psycopg2.connect(host=host, dbname="postgres", user=user, password=pwd, port=port, connect_timeout=10)
+            conn = psycopg2.connect(
+                host=host, dbname="postgres", user=user, password=pwd, port=port, connect_timeout=10
+            )
             return conn
         except Exception:
             continue
     raise RuntimeError("Cannot connect to Supabase DB")
 
+
 conn = get_conn()
 cur = conn.cursor()
 ok, fail = 0, 0
+
 
 def run(sql):
     global ok, fail
@@ -33,6 +39,7 @@ def run(sql):
         conn.rollback()
         fail += 1
         print(f"  FAIL: {sql[:60]}...  {e}")
+
 
 # ─── 1. Create exec_sql function (for future deploy_database.py) ───
 print("\n=== 1. exec_sql function ===")
@@ -105,7 +112,7 @@ run("ALTER TABLE prices ADD COLUMN IF NOT EXISTS brand TEXT DEFAULT '';")
 run("ALTER TABLE price_history ADD COLUMN IF NOT EXISTS brand TEXT DEFAULT '';")
 run("ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS brand TEXT DEFAULT '';")
 
-print(f"\n{'='*50}")
+print(f"\n{'=' * 50}")
 print(f"Migration complete: {ok} OK, {fail} FAIL")
 cur.close()
 conn.close()

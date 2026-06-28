@@ -30,5 +30,21 @@ def get(key: str, default=None):
     return data
 
 
+def get_feature(path: str, ingredient: str = None, default=None):
+    """
+    Gets a feature flag. If an ingredient is provided, it checks for a
+    per-ingredient override in 'features.overrides[ingredient]'.
+    """
+    # 1. Try ingredient override first
+    if ingredient:
+        override_path = f"features.overrides.{ingredient}.{path.replace('features.', '')}"
+        val = get(override_path)
+        if val is not None:
+            return val
+
+    # 2. Fallback to global feature flag
+    return get(path, default)
+
+
 def reload():
     _load_config.cache_clear()

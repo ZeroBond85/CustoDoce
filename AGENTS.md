@@ -11,6 +11,7 @@ e São Paulo Capital. Infraestrutura 100% gratuita.
 - **Dashboard**: Streamlit Cloud (Python, 1 app privado grátis)
 - **Bot**: Telegram (python-telegram-bot)
 - **Email**: Gmail SMTP (500 e-mails/dia)
+- **AI/ML**: Sentence-Transformers (ONNX), Groq API, Scikit-learn (Isolation Forest)
 - **Total Free Tier**: R$ 0,00
 
 ## Arquitetura
@@ -29,206 +30,198 @@ graph LR
 CustoDoce/
 ├── .github/workflows/
 │   ├── scrape.yml                   # Coleta automática (cron + deploy)
-│   └── ci.yml                       # CI: ruff + bandit + pytest + pip-audit
+│   ├── ci.yml                       # CI: 7 jobs (lint → typecheck → unit → integration → schema → deploy-check → real)
+│   └── e2e.yml                      # E2E quinzenal (Playwright + visual regression)
 ├── config/
 │   ├── ingredients.yaml             # 23 ingredientes canônicos + aliases + search_terms
 │   ├── stores.yaml                  # 51 lojas (Tier 1-4)
 │   ├── features.yaml                # Flags declarativas liga/desliga
 │   └── schema_prices.json           # Contrato de dados
 ├── scrapers/
-│   ├── base_flyer.py                # ABC: download PDF + ETag cache + OCR fallback
-│   ├── base_web_scraper.py          # ABC: httpx.Client + context manager + rate limit
-│   ├── flyer_scraper.py             # Scraper genérico para PDFs (substitui 8 subclasses)
-│   ├── flyer_parser.py              # Parser genérico de linhas de PDF
-│   ├── vtex_scraper.py              # Scraper VTEX API (herda BaseWebScraper)
-│   ├── website_scraper.py           # Scraper HTML (herda BaseWebScraper)
-│   ├── carrefour_scraper.py         # Scraper Carrefour (herda BaseWebScraper)
-│   ├── tenda_api_scraper.py         # API Tenda (herda BaseWebScraper)
-│   ├── roldao_api_scraper.py        # API Roldão (herda BaseWebScraper)
-│   ├── max_api_scraper.py           # API Max (herda BaseWebScraper)
-│   ├── aggregator_scraper.py        # Agregadores SSR (Tiendeo, Guiato)
-│   ├── playwright_scraper.py        # Agregadores JS (Playwright)
-│   ├── playwright_price_scraper.py  # Scraper e-commerce SPA (Playwright)
-│   ├── ocr.py                       # OCR fallback (Tesseract)
-│   ├── unit_extractor.py            # Extrator centralizado de unidade
-│   ├── extra_flyer_scraper.py       # Extra Folheteria (HTTP, OCR pre-extraido)
-│   └── pao_flyer_scraper.py         # Pão de Açúcar Fresh (herda de ExtraFlyerScraper)
+│   ├── base_flyer.py, base_web_scraper.py  # ABCs
+│   ├── flyer_scraper.py, flyer_parser.py   # PDF genérico
+│   ├── vtex_scraper.py, website_scraper.py, carrefour_scraper.py  # E-commerce
+│   ├── tenda_api_scraper.py, roldao_api_scraper.py, max_api_scraper.py  # APIs
+│   ├── aggregator_scraper.py, playwright_scraper.py, playwright_price_scraper.py  # JS
+│   ├── extra_flyer_scraper.py, pao_flyer_scraper.py  # Redes específicas
+│   ├── ocr.py, unit_extractor.py
+│   └── semantic_matcher.py          # Embeddings sentence-transformers (ONNX + cache)
 ├── parsers/
 │   ├── normalizer.py                # Extrai unidade → R$/kg + R$/un
 │   ├── matcher.py                   # token_set_ratio ≥80% (RapidFuzz)
-│   └── brand_extractor.py           # Extrai marca do texto do produto via YAML
+│   ├── brand_extractor.py           # Extrai marca via YAML (3 níveis)
+│   ├── llm_cache.py                 # Cache SQLite (TTL 30d) — Recurso 3
+│   ├── llm_strategies.py            # Strategy Pattern (Groq/OpenRouter/HF) + Circuit Breaker + JSON Mode — Recurso 2
+│   └── llm_classifier.py            # Orquestrador: cache → Groq → OpenRouter → HF → fallback seguro — Recurso 2
 ├── services/
 │   ├── supabase_client.py           # Singleton conexão
-│   ├── price_service.py             # CRUD + busca + cleanup_old_prices/logs
-│   ├── flyer_service.py             # CRUD flyers + cleanup_old_flyers
-│   ├── email_service.py             # SMTP genérico (SMTP_* ou GMAIL_* fallback)
-│   ├── telegram_service.py          # Telegram Bot API
-│   ├── config.py                    # Config loader (cache + reload)
-│   ├── config_db.py                 # DB-backed config (ingredients, stores, schedules, etc.)
-│   ├── auth.py                      # PBKDF2 + JWT + TOTP
-│   └── rate_limiter.py              # SQLite rate limit
+│   ├── price_repository.py          # Queries brutas e acesso ao DB
+│   ├── price_service.py             # Orquestração CRUD + busca + cleanup
+│   ├── price_analytics.py           # Winners, trends, relatórios + otimizar_carrinho_compras (monofonte/multifonte) — Recurso 1
+│   ├── price_intelligence.py        # Z-score + Isolation Forest (anomalias/ofertas)
+│   ├── review_queue_service.py      # Gestão de aprovação/rejeição de matches
+│   ├── collector.py                 # Orquestrador declarativo de coleta (Pipeline)
+│   ├── config_db.py                 # DB-backed config (Ingredients/Stores)
+│   ├── email_service.py, telegram_service.py, auth.py, rate_limiter.py
+│   ├── alert_service.py             # Alertas proativos (ex: ingrediente sem preço > 48h)
+│   ├── logger.py                    # Structured Logging (structlog)
+│   ├── otel.py                      # Tracing (OpenTelemetry)
+│   └── dashboard_queries.py         # Query cache + extract_ppk/pun (single source)
+├── dashboard/
+│   ├── login_page.py, components/ (ui.py, layout.py)
+│   └── pages/                       # 16 módulos (visao_geral, precos, historico, etc.)
 ├── telegram_bot/
 │   └── handlers.py                  # /preco, /lista, /status
-├── admin/
-│   └── app.py                       # Streamlit dashboard (16 abas)
-├── dashboard/
-│   ├── login_page.py                # Auth + 2FA
-│   └── components/
-│       ├── ui.py                    # CSS + componentes reutilizáveis
-│       └── layout.py                # Sidebar com navegação (16 páginas)
+├── admin/app.py                     # 124 linhas — importa 16 pages + sidebar + login
 ├── supabase/
-│   ├── seed.sql                     # Tabelas + índices + RLS + triggers
-│   ├── consolidated_migration.sql   # Migração consolidada (574 linhas)
-│   ├── 002_add_brand_column.sql     # Adiciona coluna brand nas tabelas
-│   └── 003_fix_price_history_trigger.sql  # PHASE 15 trigger ON CONFLICT fix
+│   ├── seed.sql, consolidated_migration.sql
+│   ├── 002_add_brand_column.sql
+│   ├── 003_fix_price_history_trigger.sql
+│   └── 004_add_llm_match_cache.sql   # Cache persistente de decisões LLM (Recurso 3)
 ├── scripts/
-│   ├── seed_prices.py               # Gera dados sintéticos (--dry-run/--execute/--json)
-│   ├── deploy_database.py           # Migração SQL (--dry-run/--execute/--output)
-│   ├── send_daily_report.py         # Relatório diário por email
+│   ├── deploy_database.py           # Migração SQL (--dry-run/--execute)
 │   ├── deploy_check.py              # Health check pré-deploy
-│   ├── db_audit.py                  # Auditoria completa do DB (83 queries)
-│   └── validate_db_schema.py        # 87 checks de schema (tabelas, colunas, constraints)
+│   ├── validate_db_schema.py        # 87 checks de schema (via RPC)
+│   ├── db_audit.py                  # Auditoria completa do DB
+│   ├── sync_all_store_fields.py     # Sync stores.yaml ↔ DB + scrape_frequencies
+│   ├── send_daily_report.py         # Relatório diário por email
+│   ├── seed_prices.py               # Dados sintéticos
+│   ├── sync_staging.py              # Sync Prod → Staging
+│   ├── seed_staging.py              # Seed de teste para Staging
+│   └── validate_staging.py          # Health check do ambiente Staging
 ├── tests/
-│   ├── conftest.py                    # dotenv loading para testes de integração
-│   ├── test_dashboard_full.py       # 85 testes unitários
-│   ├── test_services_mocked.py      # 145 testes com mocks
-│   ├── test_review_queue_e2e.py     # 8 testes E2E (Supabase real)
-│   ├── test_db_integration.py       # 5 testes integração (banco real)
-│   └── README.md                    # Plano de testes
-├── main.py                          # Orquestrador: collect + cleanup loop
-├── pyproject.toml                   # Ruff config (line-length=120, ignore E501)
-├── requirements.txt                 # Dependências runtime
-├── requirements-dev.txt             # Ferramentas de qualidade
-├── packages.txt                     # System deps (tesseract-ocr, poppler-utils)
-└── data/
-    └── prices_latest.json           # Snapshot da última coleta
+│   ├── unit/                        # 253 testes mockados (dashboard + services + llm)
+│   ├── schema/                      # 93 parametrized (tables, columns, constraints, indexes, functions)
+│   ├── integration/                 # Benchmarks + DB integration (via RPC)
+│   ├── e2e/                         # Playwright E2E (estabilidade UI)
+│   └── real/                        # Scrapers reais (slow, flaky)
+├── main.py                          # Orquestrador: collect + cleanup + intelligence loop
+├── pyproject.toml                   # Ruff (120 chars), mypy (3.12), pytest config
+├── requirements.txt                 # Runtime: pdfplumber, supabase, streamlit, groq, torch, etc.
+├── requirements-dev.txt             # ruff, bandit, pip-audit, mypy, pytest, psycopg2-binary
+└── data/prices_latest.json          # Snapshot da última coleta
 ```
 
 ## Tiers de Lojas
 
 | Tier | Tipo | Frequência | Como coleta |
 |------|------|------------|-------------|
-| 1 | PDF Direto (9 redes atacadistas) | Semanal (quarta/quinta) | Automatizado - pdfplumber |
-| 2a | E-commerce SP (VTEX API) | Diária | Automatizado - requests API |
+| 1 | PDF Direto (9 redes atacadistas) | Semanal (quarta/quinta) | pdfplumber + OCR fallback |
+| 2a | E-commerce SP (VTEX API) | Diária | requests API |
 | 2b | Atacado Físico SP (Manos, Jabaquara etc.) | Mensal | Manual - visita + planilha |
-| 3 | Agregadores (Tiendeo, Guiato) | Fallback | Automatizado - if tier 1/2 fail |
+| 3 | Agregadores (Tiendeo, Guiato) | Fallback | Playwright / SSR |
 | 4 | Manual (WhatsApp, visita local) | Sob demanda | Planilha .xlsx |
 
 ## Ingredientes Monitorados (23)
-1. Leite Condensado Integral (lacteos) — brands: Moça, Piracanjuba, Italac, Itambé
-2. Creme de Leite 20% Gordura (lacteos) — brands: Nestlé, Piracanjuba
-3. Chocolate em Pó 50% Cacau (chocolates) — brands: Melken, Sicao
-4. Leite em Pó Integral (lacteos) — brands: Ninho
-5. Granulado Ao Leite (confeitos) — brands: Melken
-6. Granulado Branco (confeitos) — brands: Melken
-7. Granulado Meio Amargo (confeitos) — brands: Melken
-8. Creme de Avelã (pastas) — brands: Nutella
-9. Granulado Colorido (confeitos) — brands: Coloretti
-10. Coco Ralado Grosso sem Açúcar (secos) — brands: Socôco, Ducoco
-11. Chocolate Nobre Blend (chocolates) — brands: Harald
-12. Açúcar Mascavo (acucares) — brands: JR
-13. Açúcar de Confeiteiro (acucares) — brands: Mavalerio
-14. Chocolate em Pó 70% Cacau (chocolates) — brands: Sicao
-15. Farinha de Trigo (farinhas) — brands: Dona Benta
-16. Micro Ball (confeitos) — brands: Mavalerio
-17. Top Confete Morango (confeitos) — brands: Harald
-18. Gotas de Chocolate Branco (chocolates) — brands: Melken
-19. Manteiga (lacteos) — brands: Aviação, Delícia, Itambé, Piracanjuba, Batavo, Vigor, Presidente, Tirolez
-20. Gotas de Chocolate Meio Amargo (chocolates) — brands: Harald, Melken
-21. Chocolate Meio Amargo em Barra (chocolates) — brands: Harald, Callebaut, Garoto
-22. Fermento Químico em Pó (farinhas) — brands: Royal, Dona Benta
-23. Essência de Baunilha (essencias) — brands: Mavalerio, Coza, Dr.Oetker
 
-## Fluxo de Coleta (GitHub Actions)
+| # | Ingrediente | Categoria | Brands |
+|---|-------------|-----------|--------|
+| 1 | Leite Condensado Integral | lacteos | Moça, Piracanjuba, Italac, Itambé |
+| 2 | Creme de Leite 20% Gordura | lacteos | Nestlé, Piracanjuba |
+| 3 | Chocolate em Pó 50% Cacau | chocolates | Melken, Sicao |
+| 4 | Leite em Pó Integral | lacteos | Ninho |
+| 5 | Granulado Ao Leite | confeitos | Melken |
+| 6 | Granulado Branco | confeitos | Melken |
+| 7 | Granulado Meio Amargo | confeitos | Melken |
+| 8 | Creme de Avelã | pastas | Nutella |
+| 9 | Granulado Colorido | confeitos | Coloretti |
+| 10 | Coco Ralado Grosso s/ Açúcar | secos | Socôco, Ducoco |
+| 11 | Chocolate Nobre Blend | chocolates | Harald |
+| 12 | Açúcar Mascavo | acucares | JR |
+| 13 | Açúcar de Confeiteiro | acucares | Mavalerio |
+| 14 | Chocolate em Pó 70% Cacau | chocolates | Sicao |
+| 15 | Farinha de Trigo | farinhas | Dona Benta |
+| 16 | Micro Ball | confeitos | Mavalerio |
+| 17 | Top Confete Morango | confeitos | Harald |
+| 18 | Gotas de Chocolate Branco | chocolates | Melken |
+| 19 | Manteiga | lacteos | Aviação, Delícia, Itambé, Piracanjuba, Batavo, Vigor, Presidente, Tirolez |
+| 20 | Gotas de Chocolate Meio Amargo | chocolates | Harald, Melken |
+| 21 | Chocolate Meio Amargo em Barra | chocolates | Harald, Callebaut, Garoto |
+| 22 | Fermento Químico em Pó | farinhas | Royal, Dona Benta |
+| 23 | Essência de Baunilha | essencias | Mavalerio, Coza, Dr.Oetker |
+
+## Fluxo de Coleta (GitHub Actions scrape.yml)
 
 ```
-1. Checkout repo
-2. sudo apt-get tesseract-ocr (OCR fallback)
-3. pip install -r requirements.txt
-4. Cache MD5 de PDFs
-5. main.py:
-   a. Para cada loja Tier 1:
-      - Se quarta/quinta:
-        - build_url(week)
-        - HEAD request (check ETag)
-        - Se mudou: download PDF
-        - MD5 check (cache)
-        - Se igual → skip
-        - pdfplumber extract text
-        - Se vazio → OCR fallback (Tesseract)
-        - flyer_parser → linhas produto + preço + unidade
-        - process_price_match():
-          - Matcher ≥80% → upsert_price()
-          - Matcher 30-80% → insert_review_item(sugestões)
-   b. Para cada loja Tier 2a (VTEX):
-      - GET api/catalog_system/pub/products/search?ft=
-      - Parse JSON VTEX → raw products
-      - process_price_match() (mesmo fluxo acima)
-   c. Para cada loja Tier 3 (Website):
-      - GET {base_url}/busca?q=
-      - selectolax → CSS selectors → raw products
-      - process_price_match() (mesmo fluxo acima)
-6. git commit data/prices_latest.json
-7. Se 1º do mês: Release GitHub com snapshot mensal (prices_latest.json.gz)
-8. Sempre: send_daily_report.py (email com top 5 preços por ingrediente)
+main.py → sync_store_fields() → para cada loja ativa:
+  Tier 1 (PDF): build_url → HEAD (ETag) → download → MD5 cache → pdfplumber → OCR fallback
+  Tier 2a (VTEX): GET api/products/search?ft= → parse JSON
+  Tier 3 (site): GET /busca?q= → selectolax CSS selectors
+  Todos → process_price_match():
+    → match_ingredient() [exact → alias → word_subset → fuzzy RapidFuzz ≥80%]
+    → se ≥80%: upsert_price_rpc() (server-side upsert via Supabase RPC)
+    → se 55-79%: semantic_matcher blend (RapidFuzz 0.6 + embeddings 0.4)
+    → se 65-80%: llm_classifier (Groq)
+    → se <55%: review_queue com match_type, match_reason, brand, top3 candidatos
+  Sexta/sábado (opcional): Playwright agregadores + OCR fila
+  Fim: enrich_prices() [Isolation Forest] → commit data/prices_latest.json → send_daily_report.py (email)
+  Processamento Extra: process_ocr_queue() → alert_service.process_proactive_alerts()
+  1º do mês: release GitHub com snapshot .json.gz
 ```
 
 ## Matcher (parsers/matcher.py)
 
-1. **Exact match**: canonical name in product text (case-insensitive)
-2. **Alias exact**: each alias checked via `in` operator
-3. **Word subset**: all canonical words found in product text
-4. **Fuzzy fallback**: RapidFuzz `fuzz.token_set_ratio(product, canonical/alias)` threshold 80%
-5. **Confidence Score**: 1.0 (exact), 0.8-1.0 (fuzzy ≥80%), <0.8 (review queue)
-6. **Review Queue**: items with confidence <80% go to `review_queue` table
+1. **Exato**: canonical name no texto do produto
+2. **Apelido exato**: cada alias com `in` operator
+3. **Contido**: todas as palavras do canonical no produto
+4. **Fuzzy**: RapidFuzz `fuzz.token_set_ratio(product, canonical/alias)` ≥80%
+5. **Match types PT**: `exato` / `proximo_nome` / `proximo_apelido` / `contido`
+6. **Confidence Score**: 1.0 (exato), 0.8-1.0 (fuzzy ≥80%), <0.8 (review queue)
+7. **Brand extraction**: 3 níveis (exato → substring regex → fuzzy palavra a palavra ≥80%)
+8. **Review Queue**: items <80% vão pra `review_queue` com `match_type`, `match_reason`, `top3` candidatos, `brand`
 
 ## Normalizer (parsers/normalizer.py)
 
-```python
-# Extrai do texto bruto: qty, unit_kg, total_kg
-"cx 12x395g"       → qty=12, unit_kg=0.395, total_kg=4.74
-"2kg"              → qty=1,  unit_kg=2.0,   total_kg=2.0
-"500g"             → qty=1,  unit_kg=0.5,   total_kg=0.5
-"cx 24x200g"       → qty=24, unit_kg=0.2,   total_kg=4.8
-"12un 395g"        → qty=12, unit_kg=0.395, total_kg=4.74
-"lata 1kg"         → qty=1,  unit_kg=1.0,   total_kg=1.0
+```
+"cx 12x395g" → qty=12, unit_kg=0.395, total_kg=4.74
+"2kg"        → qty=1,  unit_kg=2.0,   total_kg=2.0
+"500g"       → qty=1,  unit_kg=0.5,   total_kg=0.5
+"12un 395g"  → qty=12, unit_kg=0.395, total_kg=4.74
+"lata 1kg"   → qty=1,  unit_kg=1.0,   total_kg=1.0
 
-# Preço normalizado:
 price_per_kg = raw_price / total_kg
 price_per_un = raw_price / qty
-```
-
-## Tratamento de Checagem e Validação de PDF
-
-```python
-# Em: scrapers/base_flyer.py
-# Sequência:
-# 1. generate URL from template: url_pattern.format(week=week, city=city)
-# 2. httpx HEAD request (check ETag / Content-Length)
-# 3. If modified: GET full PDF
-# 4. compute MD5(content)
-# 5. compare with cached MD5 (data/cache/{store}_md5.txt)
-# 6. if same → skip (no changes)
-# 7. if different → pdfplumber → extract text
-# 8. update cache file
 ```
 
 ## Tratamento de Erros
 
 | Erro | Ação |
 |------|------|
-| PDF não encontrado (404) | Loga aviso, pula loja |
-| Timeout no download | Retry 2x, depois pula |
+| PDF 404 | Loga aviso, pula loja |
+| Timeout | Retry 2x, depois pula |
 | ETag não mudou | Pula (cache hit) |
-| pdfplumber vazio | Pula (PDF rasterizado - OCR fallback) |
-| Matcher <80% | Vai para review_queue |
-| Supabase offline | Salva em prices_latest.json local como fallback |
+| pdfplumber vazio | OCR fallback (Tesseract) |
+| Matcher <80% | Review queue (com match_reason detalhado) |
+| Supabase offline | Salva em prices_latest.json local |
 | Email falha | Loga erro, não bloqueia pipeline |
+| Porta 5432 bloqueada | Usa exec_sql_query RPC (porta 443) |
+
+## ⚠️ Regra Obrigatória: DB Sync
+
+**Toda alteração em SQL/funções/triggers deve ser verificada na base real do Supabase antes de dar como concluída.** Usar REST API (RPC `exec_sql_query`), NÃO psycopg2 direto.
+
+```bash
+# Deploy e verificação via RPC (porta 443, funciona de qualquer rede)
+python scripts/deploy_database.py --execute
+# Teste comportamental
+python -c "
+from supabase import create_client; import os
+s = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
+r1 = s.rpc('upsert_price_rpc', {...}).execute()
+r2 = s.rpc('upsert_price_rpc', {...}).execute()
+assert r1.data.get('id') == r2.data.get('id')  # dedup
+"
+# Rodar testes
+ruff check . && python -m pytest tests/unit/ tests/schema/ -q
+```
 
 ## Comandos Relevantes
 
 ```bash
-# Testar um scraper manualmente
+# Lint + type + test
+ruff check . && python -m mypy . && python -m pytest tests/unit/ tests/schema/ -q
+
+# Testar scraper manualmente
 python -c "from scrapers.base_flyer import BaseFlyerScraper; s = BaseFlyerScraper({'name':'Assaí','url_pattern':'...'}); print(s.run())"
 
 # Testar normalizer
@@ -237,407 +230,26 @@ python -c "from parsers.normalizer import normalize_price; print(normalize_price
 # Testar matcher
 python -c "from parsers.matcher import match_ingredient; ing = [{'canonical':'Leite Condensado','aliases':[]}]; print(match_ingredient('Leite Condensado Moça 12un', ing))"
 
-# Validar schema
-python -c "import json, jsonschema; s=json.load(open('config/schema_prices.json')); jsonschema.validate({'ingredient_id':'x','store_id':'y','raw_price':1.0,'raw_product':'test','raw_unit':'un','collected_at':'2025-01-01','source':'manual'}, s)"
+# Schema validation (via REST API, precisa .env com credenciais)
+python scripts/validate_db_schema.py
+
+# Migração SQL
+python scripts/deploy_database.py --dry-run
+
+# Gerar dados sintéticos
+python scripts/seed_prices.py --dry-run
 ```
 
-## Regras de Execução
+## Status Atual
+ 
+**28 fases concluídas.** Última (Fase 4.8): LLM Resilience + Cache + Cart Optimizer + Capacity Planning.
+ 
+| Ferramenta | Status |
+|------------|--------|
+| pytest (unit) | pending update | ⏳ |
+| pytest (schema) | 94 passing | ✅ |
 
-1. **SEMPRE apresentar um plano antes de executar.** Conter: diagnóstico, correção proposta, e verificação. O usuário decide se quer que eu execute ou que outro agente execute.
+## Ambiente
 
-2. **NUNCA fazer commit sem autorização explícita do usuário.** Mesmo que a correção esteja pronta e testada, esperar ordem.
-
-3. **Ao pedir deploy, sempre pedir autorização.** Nunca deployar por conta própria.
-
-4. **Após completar uma tarefa, apresentar resumo e esperar instrução.** Não assumir que devo seguir para a próxima coisa automaticamente.
-
-## Regras de Responsividade
-
-- **TODO componente deve ser responsivo**: celular (320px+), tablet (768px+), desktop (1024px+)
-- **KPIs**: flex grid 2x2 no mobile, 4x1 no desktop
-- **Tabelas**: `overflow-x: auto` + `min-width: 600px` — **nunca esconder colunas**
-- **Grids**: CSS `grid-template-columns` com `repeat(auto-fill, minmax(...))` + media queries
-- **Sempre validar** visualmente em múltiplos viewports antes de dar como pronto
-
-## Infraestrutura de Testes
-
-### Ferramentas
-- `ruff` — lint (zero erros, config `pyproject.toml`)
-- `mypy` — type hints (pendente)
-- `bandit` — segurança (zero issues)
-- `pip-audit` — CVEs (zero vulnerabilidades)
-- `radon` — complexidade (média B)
-- `pytest` — 230 testes unitários + 8 testes E2E + 5 testes integração (dashboard: 85, services: 145, E2E review queue: 8, DB integration: 5)
-- `flake8` / `vulture` — código morto (opcional)
-
-### Checklist por Fase
-```
-ruff check . && bandit -r admin/ dashboard/ services/ -x tests/ && pip-audit && python -m pytest tests/ -v
-```
-
-### Arquivos
-- `tests/README.md` — plano de testes completo
-- `requirements-dev.txt` — ferramentas de qualidade
-- `tests/test_dashboard_full.py` — 85 testes unitários
-- `tests/test_services_mocked.py` — 75 testes com mocks
-
-## Fase 4 — CRUD Console (concluida)
-
-| O que foi feito | Resultado |
-|----------------|-----------|
-| `tab_visao_geral` refatorada | E(38) → A(2) + 6 sub-funcoes |
-| `tab_lojas` com filtros, busca, editor YAML | ✅ |
-| `tab_ingredientes` com abas + testadores | ✅ |
-| `_test_normalizer()` + `_test_matcher()` | ✅ |
-| `generate_secret_key()` em auth.py | ✅ |
-| Bug `is_limited` corrigido no rate_limiter | ✅ |
-| 49 testes, ruff, bandit, pip-audit | ✅ Todos limpos |
-
-## Fase 5 — Control & Reports (concluida)
-
-| O que foi feito | Resultado |
-|----------------|-----------|
-| `tab_relatorios` — builder HTML com preview + envio | ✅ |
-| `tab_relatorios` — abas: Relatorio, Testar SMTP, Testar Telegram | ✅ |
-| `_test_smtp()` — testa conexao Gmail SMTP | ✅ |
-| `_test_telegram()` — testa envio via Telegram Bot API | ✅ |
-| `_render_schedule_info()` — exibe crons do scrape.yml | ✅ |
-| `tab_scrapers` melhorada com schedule + logs | ✅ |
-| 55 testes, ruff, bandit, pip-audit | ✅ Todos limpos |
-
-## Fase 6 — System Config & Diagnostics (concluida)
-
-| O que foi feito | Resultado |
-|----------------|-----------|
-| `tab_config` — secrets editor inline com edicao + salvar `.env` | ✅ |
-| `tab_config` — variaveis agrupadas por categoria (5 grupos, 13 vars) | ✅ |
-| `_mask_val()` — mascaramento padrao de secrets | ✅ |
-| `tab_diagnostico` — testes individuais por componente com timing | ✅ |
-| `tab_diagnostico` — testadores SMTP e Telegram inline | ✅ |
-| `_render_schedule_info` — modo edicao de cron expressions | ✅ |
-| Botao "Executar Todos" + "Limpar Resultados" | ✅ |
-| 62 testes, ruff, bandit, pip-audit | ✅ Todos limpos |
-
-## Fase 7 — Polish, Config Declarativo & Deploy (concluida)
-
-| O que foi feito | Resultado |
-|----------------|-----------|
-| `config/features.yaml` — flags declarativas liga/desliga | ✅ |
-| `services/config.py` com `get()` + cache + `reload()` | ✅ |
-| Config guards no dashboard (telegram/email/alerts/export) | ✅ |
-| `:focus-visible` rings CSS + `aria-label` sidebar | ✅ |
-| Export CSV com `st.download_button` em Precos/Historico | ✅ |
-| `scripts/deploy_check.py` — testa Supabase/Gmail/Telegram | ✅ |
-| 70 testes, ruff, bandit, pip-audit | ✅ Todos limpos |
-
-## Fase 8 — Dedup, Cleanup & Segurança (concluida)
-
-| O que foi feito | Resultado |
-|----------------|-----------|
-| `upsert_price()` com `collected_at` truncado pra data (UNIQUE por dia) | ✅ |
-| `insert_review_item()` dedup por `(store_name, raw_product)` — qualquer status | ✅ |
-| `cleanup_old_prices(90)` — deleta prices + price_history > 90 dias | ✅ |
-| `cleanup_old_logs(30)` — deleta scraping_logs > 30 dias | ✅ |
-| `cleanup_old_flyers(60)` — deleta flyers com OCR failed + >60 dias | ✅ |
-| Loop de cleanup no `main.py` (3 funções sequenciais) | ✅ |
-| XSS sanitization `_sanitize()` — html.escape em todo unsafe_allow_html | ✅ |
-| Senha hardcoded removida — `os.environ.get("ADMIN_PASSWORD")` + fallback | ✅ |
-| HTML injection fix em `email_service.py` — _html.escape() | ✅ |
-| `consolidated_migration.sql` — 574 linhas, todas as tabelas + funções | ✅ |
-| **Adicionada constraint UNIQUE (ingredient_id, store_id, collected_at) em prices e price_history** | ✅ |
-| **Correção da tabela scrape_frequencies: store_id TEXT REFERENCES stores(id)** | ✅ |
-| 127 testes, ruff, bandit, pip-audit | ✅ Todos limpos |
-
-## Fase 9 — Dashboard Insights (concluida)
-
-| O que foi feito | Resultado |
-|----------------|-----------|
-| `tab_fontes` — Cobertura por Ingrediente + Promoções Ativas + Ranking Fontes | ✅ |
-| `tab_ranking` — Gráfico linha/área/barras + ranking atual + estatísticas | ✅ |
-| `tab_insights` — Heatmap (px.imshow) + Outliers (desvio padrão) + Melhores Ofertas | ✅ |
-| `packages.txt` — tesseract-ocr + poppler-utils para Streamlit Cloud | ✅ |
-| `ci.yml` — ruff + bandit + pytest + pip-audit em cada push/PR | ✅ |
-| `seed_prices.py` — gera 4128 preços sintéticos (11 ing × 20 lojas × 91 dias) | ✅ |
-| 17 páginas no dashboard sidebar (18 na Fase 13) | ✅ |
-| 127 testes, ruff, bandit, pip-audit | ✅ Todos limpos |
-
-## Fase 10 — Brand Extraction, Email/TG UX & Ruff Config (concluida)
-
-| O que foi feito | Resultado |
-|----------------|-----------|
-| `config/ingredients.yaml` — campo `brands` adicionado a todos 11 ingredientes | ✅ |
-| `parsers/brand_extractor.py` — `extract_brand()` + `extract_brand_from_all()` | ✅ |
-| `scrapers/vtex_scraper.py` — lê `brand` da API + fallback `extract_brand()` | ✅ |
-| `main.py` — `brand` propagado via `build_product_entry()` / `process_price_match()` | ✅ |
-| `supabase/002_add_brand_column.sql` — coluna `brand` em prices/price_history/review_queue | ✅ |
-| `services/price_service.py` — `brand` incluído no upsert de prices e review_queue | ✅ |
-| `admin/app.py` — coluna "Marca" exibida em Preços, Histórico, Revisão, Promoções, Ranking, Ofertas | ✅ |
-| Email templates rewrite — responsivo, logo CID, laranja+rosa, preheader, tagline, "Cotação de Preços" | ✅ |
-| SMTP migrado de Outlook → Gmail (custodoce.alertas@gmail.com) | ✅ |
-| Telegram template — mensagem consolidada com medals 🥇🥈🥉 | ✅ |
-| UX audit — 27 issues corrigidas + docs/ux_audit.md | ✅ |
-| `pyproject.toml` — Ruff config (`line-length=120`, `ignore=["E501"]`) + per-file-ignores `"admin/app.py" = ["E402"]` | ✅ |
-| `scripts/archive/` — 6 fixes E741 + E722 | ✅ |
-| 160 testes, ruff clean, bandit/pip-audit | ✅ Todos limpos |
-
-## Fase 11 — Correção de Constraints & Migration (concluida)
-
-| O que foi feito | Resultado |
-|----------------|-----------|
-| `_split_sql_statements()` — split SQL respeitando blocos `$$` (DO blocks) | ✅ |
-| `deploy_database.py` — adicionado PHASE 7 com constraints UNIQUE 3-colunas | ✅ |
-| `deploy_database.py` — adicionado PHASE 8 com scrape_frequencies corrigida | ✅ |
-| `consolidated_migration.sql` — atualizado com PHASE 7 + 8 | ✅ |
-| Constraint `UNIQUE (ingredient_id, store_id, collected_at)` em prices | ✅ |
-| Constraint `UNIQUE (ingredient_id, store_id, collected_at)` em price_history | ✅ |
-| Tabela `scrape_frequencies` com `store_id TEXT REFERENCES stores(id)` | ✅ |
-| Migração executada: 124 OK, 34 WARN (todos inofensivos) | ✅ |
-| Tratamento de erro 42P10 no dashboard com instrução SQL | ✅ |
-
-## Fase 12 — Self-Learning Review Queue & Fixes (concluida)
-
-| O que foi feito | Resultado |
-|----------------|-----------|
-| `search_prices()` — ordenação client-side para price_per_kg e price_per_un | ✅ |
-| `search_prices()` — condicional `.order()` só para colunas diretas do DB | ✅ |
-| `add_alias_to_ingredient()` — novo alias é adicionado ao ingrediente no DB | ✅ |
-| `approve_review_item()` — aprovação adiciona raw_product como alias automaticamente | ✅ |
-| `tab_revisao()` — explicação "Revisão necessária: confiança inferior a 80%" | ✅ |
-| Bug `get_ingredient_by_id` corrigido para `get_ingredient_by_name` | ✅ |
-| README.md — Fase 11 adicionada ao roadmap | ✅ |
-| AGENTS.md — Fases 11 e 12 adicionadas ao Status | ✅ |
-
-## Fase 13 — UX Audit Fixes + Calculadora de Receita (concluida)
-
-| O que foi feito | Resultado |
-|----------------|-----------|
-| `docs/ux_audit.md` — 27 issues documentadas (6 críticas, 9 high, 8 medium, 4 low) | ✅ |
-| UX fixes: bare excepts eliminados, spinners adicionados, dataframes com fallback, KPIs responsivos | ✅ |
-| UX fixes: timezone padronizado, botões com confirmação, acessibilidade (tabindex, aria-label) | ✅ |
-| `tab_calculadora()` — aba com modo Simples/Completo, auto-fill do menor preço do DB | ✅ |
-| Modo Completo: top 3 lojas por ingrediente, 3 cenários de margem, salvar receita no Supabase | ✅ |
-| `get_cheapest_prices()` — função no price_service que retorna top N preços mais baratos | ✅ |
-| `recipes` + `recipe_items` — tabelas no Supabase (PHASE 9 da migration) | ✅ |
-| Telegram inline: envio do resumo da receita via bot | ✅ |
-| `supabase/consolidated_migration.sql` — PHASE 9 adicionada | ✅ |
-| `dashboard/components/ui.py` — CSS do calculator (result cards, scenarios, ingredient rows) | ✅ |
-| 16 páginas no dashboard sidebar | ✅ |
-| 168 testes (85 dashboard + 80 services + 3 novos), ruff, bandit, pip-audit | ✅ Todos limpos |
-
-## Fase 14e — Tab Consolidation (concluida)
-
-| O que foi feito | Resultado |
-|----------------|-----------|
-| `tab_agendamentos()` movido para subtab dentro de `tab_scrapers()` | ✅ |
-| `tab_frequencias()` movido para campos dentro do formulário de `tab_lojas()` | ✅ |
-| Testadores SMTP/Telegram removidos de `tab_relatorios()` (mantidos em `tab_config` + `tab_diagnostico`) | ✅ |
-| Bug `client if 'client' in dir()` corrigido (inicialização explícita) | ✅ |
-| Bug `st.number_input(value=None)` eliminado (merge evitou o código quebrado) | ✅ |
-| Sidebar reduzida de 18 para 16 abas | ✅ |
-| 230 testes, ruff, bandit, pip-audit | ✅ Todos limpos |
-
-## Fase 14f — Regression Bugfixes (concluida)
-
-| O que foi feito | Resultado |
-|----------------|-----------|
-| `open()` sem `encoding='utf-8'` — corrigido em **9 arquivos** (main.py, admin/app.py x3, deploy_check.py, send_daily_report.py, setup_github_secrets.py, config.py, handlers.py) | ✅ |
-| Price regex sem `\s*` antes de vírgula — corrigido em **4 scrapers** (carrefour_scraper.py, flyer_parser.py, website_scraper.py, playwright_price_scraper.py) | ✅ |
-| `datetime.now()` sem timezone — corrigido em **5 arquivos** (main.py, price_service.py, flyer_service.py, aggregator_scraper.py, seed_prices.py) | ✅ |
-| 230 testes, ruff (0 new), bandit (0), pip-audit (0) | ✅ Todos limpos |
-
-## Fase 15 — Review Queue Enhanced (concluida)
-
-| O que foi feito | Resultado |
-|----------------|-----------|
-| Schema: coluna `match_type TEXT DEFAULT ''` em `review_queue` (PHASE 9 migration) | ✅ |
-| `main.py`: `match_reason` detalhado com tipo de match, score, candidato, termo match, palavras não matcheadas | ✅ |
-| `main.py`: review item inclui `match_type`, `top3` (top 3 candidatos com scores) | ✅ |
-| `main.py`: flyers passam `source_url` do prod ou flyer dict | ✅ |
-| `services/price_service.py`: `insert_review_item()` inclui `match_type` | ✅ |
-| `admin/app.py`: layout 2 colunas — imagem/dados lado a lado (não mais expander) | ✅ |
-| `admin/app.py`: barra de confiança visual (`st.progress`) | ✅ |
-| `admin/app.py`: badge de match_type colorido (verde=exato, amarelo=fuzzy, azul=word_subset) | ✅ |
-| `admin/app.py`: seção "Top 3 Candidatos" com scores individuais + progress bars | ✅ |
-| `admin/app.py`: diagnóstico detalhado com tipo, score, candidato, termo, palavras não matcheadas | ✅ |
-| `scripts/deploy_database.py`: PHASE 9 adicionada (match_type + image_url + source_url + match_reason) | ✅ |
-| `scripts/deploy_database.py`: PHASE 9 — colunas `image_url`, `source_url`, `match_reason` (faltavam desde Fase 14c) | ✅ |
-| `scripts/check_schema_diff.py`: review_queue schema atualizado | ✅ |
-| Migration executada no Supabase: PHASE 7 (UNIQUE constraint) + PHASE 9 (4 colunas) | ✅ |
-| 230 testes, ruff 0, bandit 0 | ✅ Todos limpos |
-
-## Fase 15b — DB Gaps & Refactor (concluida)
-
-| O que foi feito | Resultado |
-|----------------|-----------|
-| `reject_review_item()` — corrigido retorno `[]`→`{}` (quebrava `dict.get()`) | ✅ |
-| `upsert_price()` — removido dead code `valid_until` (linha 26 sobrescrita na 28) | ✅ |
-| `get_review_queue()` — adicionado `.limit(500)` (travamento com 10k+ itens) | ✅ |
-| Export CSV — criado `_export_csv_button()` helper, refatorado 8 locais (**-96 linhas**) | ✅ |
-| `_cached_get_all_current_prices()` — criado com ttl=60s, substitui 6 chamadas diretas | ✅ |
-| `approve_review_item()` — `store_id` agora busca real via `get_store_by_name()` (não mais fabricado) | ✅ |
-| 5 índices de performance — PHASE 10: `idx_prices_ing_collected`, `idx_history_ing_collected`, `idx_review_collected`, `idx_stores_name`, `idx_logs_store_started` | ✅ |
-| Migration no Supabase: PHASE 10 executada + `consolidated_migration.sql` atualizado | ✅ |
-| 230 testes, ruff 0, bandit 0 | ✅ |
-
-## Fase 15d — RPC Upsert + DB Validation (concluida)
-
-| O que foi feito | Resultado |
-|----------------|-----------|
-| Erro 42P10 corrigido: constraint UNIQUE faltava na tabela `prices` | ✅ |
-| PHASE 12: constraints UNIQUE (ingredient_id, store_id, collected_at) em prices + price_history | ✅ |
-| PHASE 13: `upsert_price_rpc()` PL/pgSQL — server-side upsert, bypassa on_conflict do client | ✅ |
-| `upsert_price()` tenta RPC primeiro, fallback para on_conflict client-side | ✅ |
-| `validate_db_schema.py` — 72 checks (tabelas, colunas, constraints, índices, funções) | ✅ |
-| CI pipeline: DB schema validation adicionado ao ci.yml | ✅ |
-| `st.image()` com try/except — thumbnails quebradas mostram fallback | ✅ |
-| Logo sidebar: 180px → 220px; tagline: 0.7rem → 0.9rem | ✅ |
-| Testes atualizados: mocks verificam RPC params em vez de table upsert | ✅ |
-| 230 testes, ruff 0, bandit 0 | ✅ |
-
-## Fase 15e — Integration Tests + E2E Bugfixes (concluida)
-
-| O que foi feito | Resultado |
-|----------------|-----------|
-| `test_db_integration.py` — 6 testes contra banco real Supabase (RPC upsert, constraints, functions, indexes, approve E2E) | ✅ |
-| Bugfix: `upsert_price()` — handle dict/list do return do Supabase client | ✅ |
-| Bugfix: `add_alias_to_ingredient()` — aceita UUID ou canonical_name (antes só aceitava nome) | ✅ |
-| Fixture `db_conn` com psycopg2 para queries diretas (cleanup price_history do trigger) | ✅ |
-| Fixture `supabase_client` reseta cache global de clientes Supabase | ✅ |
-| Auto-skip quando SUPABASE_URL/DB_PASSWORD não configurados (len > 10) | ✅ |
-| 230 testes unitários + 6 integração, ruff 0, bandit 0 | ✅ |
-
-## Status das Fases
-
-- **Fase 1** ✅ Estrutura base (pastas, parsers, services, schema, base_flyer)
-- **Fase 2** ✅ Scrapers VTEX — `vtex_scraper.py` (Rizzo, Amendolate, Loja Sto Antônio + demais VTEX)
-- **Fase 3a** ✅ Scrapers site — `website_scraper.py` (Cacau Center, Confeitos & Cia, Padeirão + demais)
-- **Fase 3b** ✅ Template planilha visitas SP (`scripts/generate_visit_template.py`) + importador (`scripts/import_visit_spreadsheet.py`)
-- **Fase 3c** ✅ Dashboard Flyers & History — grid responsivo de flyers, detale com OCR, gráficos históricos com R$/kg, heatmap de cobertura, KPIs na Home
-- **Fase 4** ✅ Fila de revisão no dashboard — `process_price_match()` roteia <80% para `review_queue`; dashboard permite aprovar/rejeitar com seleção de ingrediente
-- **Fase 5** ✅ Control & Reports — `tab_relatorios` (builder HTML + preview + envio); `_test_smtp()` / `_test_telegram()`; agendamento exibido em `tab_scrapers`
-- **Fase 6** ✅ System Config & Diagnostics — secrets editor `tab_config` (5 grupos, 13 vars, inline edit + save `.env`); `tab_diagnostico` com testes individuais + SMTP/Telegram inline; schedule manager com edição de crons
-- **Fase 7** ✅ Polish & Deploy — `config/features.yaml` (flags declarativas liga/desliga); `services/config.py` com `get()` + cache + `reload()`; config guards no dashboard; `:focus-visible` rings CSS + `aria-label` sidebar; export CSV com `st.download_button`; `scripts/deploy_check.py`
-- **Fase 8** ✅ Dedup & Cleanup — `collected_at` truncado pra data; review queue dedup sem filtro status; `cleanup_old_prices(90)` + `cleanup_old_logs(30)` + `cleanup_old_flyers(60)`; XSS sanitization; HTML injection fix; consolidated migration SQL
-- **Fase 9** ✅ Dashboard Insights — `tab_fontes` (cobertura + promoções + ranking); `tab_ranking` (gráficos + estatísticas); `tab_insights` (heatmap + outliers + melhores ofertas); CI/CD (ci.yml + packages.txt); seed data (4128 preços sintéticos)
-- **Fase 10** ✅ Brand Extraction — `brand_extractor.py`, coluna `brand` no DB, coluna "Marca" no dashboard; Email/TG UX overhaul; Ruff config (`pyproject.toml`)
-- **Fase 11** ✅ Correção de Constraints — UNIQUE (ingredient_id, store_id, collected_at) em prices e price_history, correção scrape_frequencies (store_id TEXT), tratamento de erro 42P10
-- **Fase 12** ✅ Self-Learning Review Queue — ordenação client-side, aliases automáticos ao aprovar, explicação na UI
-- **Fase 13** ✅ UX Audit Fixes + Calculadora de Receita — 27 UX issues corrigidas, calculadora Simples/Completo com auto-fill, salvar receitas no Supabase, 168 testes
-- **Fase 14a** ✅ Performance Optimization — `get_all_current_prices()` elimina 55+ N+1; 12 cached wrappers `@st.cache_data`; hoisting de queries duplicadas; `get_latest_prices()` limit 500→2000; `get_telegram_report()` 1 query em vez de 11
-- **Fase 14b** ✅ Playwright Price Scraper + Health Check — `playwright_price_scraper.py` (SPA e-commerce); `_auto_disable_if_needed()` (3 falhas → desativa); `test_scraper_health()` no deploy_check; 7 novos ingredientes (18 total); 225 testes
-- **Fase 14c** ✅ Review Queue Overhaul — threshold 30%→55% (elimina ~95% falsos positivos); colunas `image_url`, `source_url`, `match_reason`, `brand` na `review_queue`; `matcher.py` retorna `(ingredient, score, match_type, matched_term)`; `tab_revisao` exibe: motivo do match, expander com imagem do panfleto, botão link para página do produto; 227 testes
-- **Fase 14d** ✅ Pão de Açúcar Fresh Scraper — `pao_flyer_scraper.py` herda de `ExtraFlyerScraper` com `BRAND=pao`, `CAMPAIGN_TYPE=fresh`; ExtraFlyerScraper refatorado: class-level attrs `BRAND` e `CAMPAIGN_TYPE`; store `"Pão de Açúcar Fresh"` (Tier 1, type `pao_flyer`); 101 produtos/roda em teste manual; 230 testes
-- **Fase 14e** ✅ Tab Consolidation — `tab_agendamentos()` → subtab de `tab_scrapers()`; `tab_frequencias()` → campos no form `tab_lojas()`; testadores SMTP/Telegram removidos de `tab_relatorios()`; sidebar 18→16 abas; 230 testes
-- **Fase 14f** ✅ Regression Bugfixes — `open()` encoding utf-8 (9 arquivos), price regex `\s*` (4 scrapers), `datetime.now(timezone.utc)` (5 arquivos); 230 testes; ruff/bandit/pip-audit limpos
-- **Fase 15** ✅ Review Queue Enhanced — coluna `match_type`, `match_reason` detalhado (tipo, score, candidato, termo, palavras não matcheadas), top 3 com scores, UI 2 colunas com imagem sempre visível, badge de match type colorido, progress bar de confiança; 230 testes
-- **Fase 15b** ✅ DB Gaps & Refactor — `reject_review_item()` retorna `{}`, dead code removido, `get_review_queue()` com `.limit(500)`, `_export_csv_button()` helper (**-96 linhas**), `_cached_get_all_current_prices()` substitui 6 chamadas, `store_id` real em vez de fabricado, 5 índices PHASE 10; 230 testes
-- **Fase 15c** ✅ Brand Propagation & Alias UX — `extract_brand` chamado também no caminho de revisão; VTEX scraper prioriza brands conhecidas sobre API; `brand` adicionado a todos os scrapers (website com `product_brand` selector); form de ingredientes redesenhado com campos `brands`+`search_terms`; sugestão automática de aliases com 5 padrões; PHASE 11 migration (`brands`+`search_terms` na tabela `ingredients`); 19 ingredientes (adicionado Manteiga); 230 testes
-- **Fase 15d** ✅ RPC Upsert + DB Validation — erro 42P10 corrigido: `upsert_price_rpc()` PL/pgSQL server-side bypassa `on_conflict` do client; PHASE 12 (constraints UNIQUE) + PHASE 13 (RPC function); `validate_db_schema.py` (72 checks: tabelas, colunas, constraints, índices, funções); CI pipeline atualizado com DB schema validation; st.image() com try/except para thumbnails quebradas; logo 220px + tagline 0.9rem; 230 testes
-- **Fase 15e** ✅ Integration Tests + E2E Bugfixes — `test_db_integration.py` (5 testes contra banco real: RPC upsert, constraints, functions, indexes); bugfix: `upsert_price()` handle dict/list do Supabase client; bugfix: `add_alias_to_ingredient()` aceita UUID ou canonical_name; 230 testes + 5 integração
-- **Fase 15f** ✅ .single() → .maybe_single() sistêmico + Thumbs quebradas + Filtro Tiendeo — `services/config_db.py` + `price_service.py`: todos os 6 `.single()` substituídos por `.maybe_single()`, eliminando PGRST116 na raiz sem try/except; `admin/app.py`: fallback visual nas 3 seções de imagem (flyer grid, flyer detail, review queue) — URL inválida vira link clicável em vez de thumbnail quebrada; `aggregator_scraper.py`: `_is_food_store()` com 15+ keywords alimentícias e 50+ de blocklist (Boticário, farmácias, magazines etc.) + `_fix_image_url()` que prefixa `https:` em URLs `//`; `flyer_service.py`: `cleanup_non_food_flyers()` deleta flyers existentes de lojas não-alimentícias; `main.py`: incluído no loop de cleanup; 230 testes + 6 integração, ruff 0
-- **Fase 15g** ✅ DB Audit + Tabelas recipes/recipe_items — Auditoria completa (`scripts/db_audit.py`) revelou 3 problemas: (1) tabelas `recipes`+`recipe_items` não existiam (crítico — calculadora não salvava); (2) 51/75 flyers sem image_url (PDF scrapers); (3) `scrape_frequencies` vazia. Correção: PHASE 14 criou `recipes` (id, name, yield_qty, overhead_pct, profit_pct, created_at) + `recipe_items` (id, recipe_id→recipes(id), ingredient_id, quantity_g, selected_store, price_per_kg) com RLS + índice; `validate_db_schema.py` atualizado (87/87 checks); `deploy_database.py` + `consolidated_migration.sql` atualizados; 230 testes + 6 integração, ruff 0
-- **Fase 15h** ✅ PDF Thumbnails + scrape_frequencies seeding — `scrapers/base_flyer.py`: método `_render_first_page()` usa `pdfplumber.to_image(resolution=150)` para renderizar primeira página como PNG; `_thumbnail` salvo como atributo de instância durante `run()`; `main.py`: `_upload_flyer_thumbnail()` faz upload para Supabase Storage (bucket `thumbnails`, pasta `flyers/`) e retorna URL pública; `_collect_prices()` salva flyer record com thumbnail URL após processar PDF; fallback gracioso em todas as etapas (falha = sem thumbnail, não bloqueia pipeline); `scrape_frequencies` populada: 60 lojas com frequências por tier (Tier 1=semanal, Tier 2=diário, Tier 3=quinzenal, Tier 4=desabilitado); auditoria: 14 tabelas OK, 0 erros críticos; 230 testes + 6 integração, ruff 0
-- **Fase 15i** ✅ Ingredient Normalization & DB Cleanup — 26.476 linhas com `ingredient_id` inválido removidas de `prices` e `price_history`; 11 ingredientes renomeados removendo marca do nome canônico (Ninho→Leite em Pó, Melken removido, Coloretti removido, Blend Harald removido); 2 duplicatas deletadas (Chocolate Nobre, Granulado ao Leite); 12 novos ingredientes inseridos no DB (Açúcar Mascavo, Açúcar Confeiteiro, Chocolate 70%, Farinha, Micro Ball, Top Confete, Gotas Branco, Manteiga, Gotas Meio Amargo, Chocolate Barra, Fermento, Baunilha); total 23 ingredientes no DB; `brands` e `search_terms` populados em todos; 230 testes + 6 integração, ruff 0
-- **Fase 15j** ✅ UUID Resolution Fix — `approve_review_item()` e `add_alias_to_ingredient()` chamavam `get_ingredient_by_id()` com nome de ingrediente (texto) em coluna UUID, causando erro 22P02; fix: valida formato UUID antes de chamar `get_ingredient_by_id()`, senão vai direto pra `get_ingredient_by_name()`; auditoria completa de todos os 5 pontos de `get_ingredient_by_id()` no código; 230 testes + 6 integração, ruff 0
-- **Fase 16** ✅ 42P10 definitivo + Cache Clear + Brand+XSS — Manual SELECT+UPDATE/INSERT substitui `on_conflict`; proteção try/except em 23 operações de escrita; Cache Clear com CACHE_VERSION + botão sidebar + URL param; XSS sanitization em `build_product_entry()`; 230 testes
-- **Fase 17** ✅ Store Expansion: Cacau Center — WooCommerce reativado (SP São Vicente); Ingredientes Santa Vita diagnosticado (Loja Integrada, login wall); Shopping do Confeiteiro removido (DF); 51 lojas; 230 testes
-- **Fase 17b** ✅ Trigger Fix + Fuzzy Matching + Deprecation — PHASE 15 trigger `update_history_from_prices()` com `ON CONFLICT DO UPDATE` (fix 23505); `approve_review_item()` fuzzy matching RapidFuzz ≥70%; `upsert_price()` fallback try/except; `use_container_width` → `width='stretch'` (80 ocorrências); 230 testes
-- **Fase 17c** ✅ E2E Tests + Mock Collision Fix + Warning Suppression — `tests/test_review_queue_e2e.py` (8 testes E2E contra Supabase real: trigger ON CONFLICT, approve UUID/exact/fuzzy/duplicate, reject, add alias); `tests/conftest.py` dotenv loading; fixture reload via `importlib.util.spec_from_file_location` para resolver colisão com mock do `test_dashboard_full.py`; `pyproject.toml` `[tool.pytest.ini_options]` filtra DeprecationWarning do Supabase; 243 testes, ruff 0
-- **Fase 18** ✅ Store Health Check + Dashboard Status Real + Reativacao — `store_health_check.py` testa HTTP em desativadas (YAML fallback); GP Distribuidora e Padeirão reativados; 5 lojas confirmadas mortas; `tab_lojas()` usa `scrape_frequencies.enabled` + coluna "Motivo" extraída do `coverage`; 243 testes
-- **Fase 19** ✅ Match Type Cleanup + Brand Extraction + Review Queue UX — `match_type` renomeados para PT (exato/proximo_nome/proximo_apelido/contido); `brand_extractor.py` com 3 níveis (exato/substring/fuzzy palavra a palavra); seletor de marca dinâmico na revisão; 163 registros migrados; 255 testes
-
-## Fase 16b — Trigger ON CONFLICT Fix + Real DB Sync (concluida)
-
-| O que foi feito | Resultado |
-|----------------|-----------|
-| **RPC `upsert_price_rpc`** — `ON CONFLICT (ingredient_id, store_id, collected_at)` corrigido (estava com 2 colunas, sem constraint correspondente) | ✅ |
-| **Trigger `update_history_from_prices()`** — adicionado `ON CONFLICT (ingredient_id, store_id, collected_at) DO UPDATE SET` em `supabase_sql/seed.sql` | ✅ |
-| **Deploy script** — pós-deploy verifica trigger via REST API `exec_sql` (fallback para psycopg2 que falha as vezes) | ✅ |
-| **Dedup verificado na base real** — 2 inserts mesmo ingrediente/loja/data → 1 row (UPDATE, não INSERT) | ✅ |
-| **243 testes + ruff + bandit** — todos limpos | ✅ |
-
-## ⚠️ Regra Obrigatória: DB Sync
-
-**Toda alteração em SQL/funções/triggers deve ser verificada na base real do Supabase antes de dar como concluída.** O deploy script (`scripts/deploy_database.py --execute`) nem sempre comita corretamente via psycopg2. Sempre executar verificação comportamental:
-
-```bash
-# 1. Deploy
-python -c "from dotenv import load_dotenv; load_dotenv(); import subprocess, sys; sys.exit(subprocess.call([sys.executable, 'scripts/deploy_database.py', '--execute']))"
-
-# 2. Verificar trigger na base real (via REST API, NÃO psycopg2)
-python -c "
-from dotenv import load_dotenv; load_dotenv()
-from supabase import create_client; import os
-s = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
-# Teste dedup: mesmo ingredient_id, store_id, collected_at
-params = { ... }
-r1 = s.rpc('upsert_price_rpc', params).execute()
-r2 = s.rpc('upsert_price_rpc', params).execute()
-assert r1.data.get('id') == r2.data.get('id')
-"
-
-# 3. Rodar testes
-ruff check . && python -m pytest tests/ -q
-```
-
-## Fase 18 — Store Health Check + Dashboard Status Real + Reativacao (concluida)
-
-| O que foi feito | Resultado |
-|----------------|-----------|
-| **`store_health_check.py`** — testa HTTP em lojas desativadas (busca URL no YAML como fallback, já que o DB não tem URLs populadas) | ✅ |
-| **GP Distribuidora** reativada — Tier 2, SP capital, website_scraper, domínio voltou ao ar | ✅ |
-| **Padeirão e ArtPão** reativado — Tier 2, Santos, website_scraper, domínio voltou ao ar; entrada criada em `scrape_frequencies` | ✅ |
-| **Casa Rio Doces** mantida desativada — site é WordPress/WhatsApp (MeChamenoZAP), sem preços scrapeáveis | ✅ |
-| **5 lojas confirmadas mortas** (DNS falhou): Central Flavor, Casa dos Confeiteiros, Empório da Confeitaria, Doce Festa, Point Baker | ✅ |
-| **4 lojas no ar mas mantidas desativadas** (categoria errada): Shopping das Embalagens, Proplastik, Bezerra Embalagens, Pejuca Festas | ✅ |
-| **Dashboard `tab_lojas()` refatorada** — agora usa `scrape_frequencies.enabled` (não mais `stores.is_active`, que era sempre True); adicionado filtro "Status" (ativas/desativadas/todas); coluna "Motivo" extraída do campo `coverage` (ex: "Domínio fora do ar", "Só embalagens") | ✅ |
-| **9 stores Tier 4 sem URL** mantidas desativadas (SAV, Bolão, Merkadoces, Canola, VOMG, Maranata, Domingos, Litosul, Ki Delícia) | ✅ |
-| 243 testes, ruff 0 | ✅ Todos limpos |
-
-## Fase 19 — Match Type Cleanup + Brand Extraction + Review Queue UX (concluida)
-
-| O que foi feito | Resultado |
-|----------------|-----------|
-| **`parsers/matcher.py`** — `match_type` renomeados: `exact`→`exato`, `fuzzy_canonical`→`proximo_nome`, `fuzzy_alias`→`proximo_apelido`, `word_subset`→`contido` | ✅ |
-| **`main.py`** — `type_labels` atualizados para PT descritivo ("semelhante ao nome do ingrediente", "semelhante a um apelido", "nome do ingrediente contido no produto") | ✅ |
-| **`admin/app.py`** — Badges com texto claro; fallback mantido para registros antigos no DB | ✅ |
-| **`parsers/brand_extractor.py`** — Nível 2 (substring): regex `(?<![A-Z])BRAND(?![A-Z])` evita falsos positivos (ex: "Moca" em "Mocambo"); Nível 3 (fuzzy): compara palavra a palavra com `fuzz.ratio` ≥80 (ex: "Piracajuba"→"Piracanjuba" = 95%) | ✅ |
-| **`services/price_service.py`** — `approve_review_item()` aceita `brand_override` opcional | ✅ |
-| **`admin/app.py` (tab_revisao)`** — Seletor de marca dinâmico pós-selectbox de ingrediente; pré-preenchido com marca detectada se coincidir; opção "Manter detecção automática" | ✅ |
-| **DB migration** — 163 registros `review_queue` migrados: `fuzzy_canonical`→`proximo_nome` (30), `fuzzy_alias`→`proximo_apelido` (133) | ✅ |
-| **255 testes, ruff 0, bandit 0** | ✅ Todos limpos |
-
-## Fase 17 — Store Expansion: Cacau Center Reactivation + Deep Analysis (concluida)
-
-| O que foi feito | Resultado |
-|----------------|-----------|
-| **Cacau Center** reativado — WooCommerce funcional! | ✅ |
-| Selectors WooCommerce: `.product`, `.woocommerce-loop-product__title`, `.price` | ✅ |
-| search_url: `/?s={query}&post_type=product` | ✅ |
-| Categorias testadas: confeitaria (16), chocolate (7), recheio (5), panificação (5), variedades (3), guloseimas (2) — todas com preços | ✅ |
-| Produto individual `/produto/chant-norcau-1lt/` — R$ 18,99 visível | ✅ |
-| Ingredientes Santa Vita diagnosticado — Loja Integrada com login wall + JS templates (`--PRODUTO_NOME--`) | ✅ |
-| Ingredientes Santa Vita adicionado como Tier 4 (manual, inativo) | ✅ |
-| Shopping do Confeiteiro removido (Brasília/DF, fora da região) | ✅ |
-| Deep analysis: 7 lojas investigadas (3 aproveitadas, 4 descartadas) | ✅ |
-| 51 lojas no stores.yaml (50 + 1 Santa Vita) | ✅ |
-| 230 testes, ruff 0, bandit 0 | ✅ Todos limpos |
-
-## Fase 20 — Trigger ON CONFLICT Fix + AI Intelligence Layer + E2E Pipeline (concluida)
-
-| O que foi feito | Resultado |
-|----------------|-----------|
-| **`supabase/consolidated_migration.sql`** — Trigger `update_history_from_prices()` corrigido com `ON CONFLICT (ingredient_id, store_id, collected_at) DO UPDATE SET ...` para `price_history` (fix 23505) | ✅ |
-| **`parsers/semantic_matcher.py`** — Embeddings locais via `sentence-transformers` (`paraphrase-multilingual-MiniLM-L12-v2`), CPU-only, cache em disco, score combinado 0.6×RapidFuzz + 0.4×semantic | ✅ |
-| **`services/price_intelligence.py`** — Detecção anomalias via Z-score (threshold 2.0) + Isolation Forest; tags: `OFERTA_REAL`, `PRECO_SUSPEITO`, `PRECO_ELEVADO`, `NORMAL` | ✅ |
-| **`parsers/llm_classifier.py`** — Groq API (`llama-3.1-8b-instant`, 14k req/dia grátis) para zona cinzenta 65-80%; fallback silencioso | ✅ |
-| **`services/price_service.py`** — Auto-learning aliases ao aprovar review (sim ≥ 0.75), invalida cache embeddings | ✅ |
-| **`main.py`** — `process_price_match()` com fluxo: exact≥80% → auto; 55-79% → semantic blend; 65-80% → LLM; <55% → review queue | ✅ |
-| **`admin/app.py`** — UI review queue com seletor marca dinâmico, tags IA (`OFERTA_REAL`, `PRECO_SUSPEITO`, etc.) | ✅ |
-| **`main.py` cleanup loop** — Novas funções: `cleanup_old_flyers_all(180d)`, `cleanup_resolved_review_items(30d)` | ✅ |
-| **Auto-reject calibrado** — `max_age_days=14`, `min_confidence=0.3` (zero perda itens válidos) | ✅ |
-| **Scraper schedule** — 4×/sem (Seg,Qua,Qui,Sex) + Sáb Playwright + 1º dia release | ✅ |
-| **E2E Pipeline** — `.github/workflows/e2e.yml` (quinzenal + manual), `scripts/send_e2e_report.py` (email HTML `custodoce@gmail.com`), `tests/e2e_dashboard.py` (18 abas + Auth + Supabase D1-D10) | ✅ |
-| **DB Migration PHASE 16** — `cleanup_old_flyers_all(180d)`, `cleanup_resolved_review_items(30d)` + trigger `ON CONFLICT DO UPDATE` fixado no Supabase real | ✅ |
-| **255 testes, ruff 0, bandit 0, mypy 0, pip-audit 0** | ✅ Todos limpos |
-| **CI/CD Free Tier** — 805 min/mês (40%) → 60% folga | ✅ |
+- **Padrão: Windows** (PowerShell) — pytest/ruff/mypy rodam direto
+- **WSL (Debian)**: só para testes Linux-específicos (Playwright, OCR, scrapers reais, CI pipeline)

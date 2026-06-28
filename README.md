@@ -1,292 +1,211 @@
-# CustoDoce - Buscador de Preços para Confeitaria
+# CustoDoce — Buscador de Preços para Confeitaria 🍰
 
-Sistema automatizado de busca e comparação de preços de ingredientes para confeitaria, focado na **Baixada Santista** (Santos, São Vicente, Praia Grande, Mongaguá, Itanhaém, Peruíbe) e **São Paulo Capital**. Infraestrutura 100% gratuita.
+![Build Status](https://img.shields.io/github/actions/workflow/status/CustoDoce/ci.yml?branch=main)
+![Version](https://img.shields.io/badge/version-1.0.0--mvp-blue)
+![License](https://img.shields.io/badge/license-Personal-green)
+![Deploy](https://img.shields.io/badge/deploy-production%20%7C%20staging-brightgreen)
 
-## Funcionalidades
+Sistema automatizado de busca e comparação de preços de ingredientes para confeitaria, focado na **Baixada Santista** (Santos, São Vicente, Praia Grande, Mongaguá, Itanhaém, Peruíbe) e **São Paulo Capital**. Infraestrutura otimizada para operar 100% no **Free Tier**.
 
-- 🔍 **Busca automática 2x/dia** - Coleta preços de PDFs de atacados, APIs VTEX e sites
-- 🏪 **16 abas no dashboard** - Visão geral, preços, histórico, flyers, revisão, fontes, ranking, insights, lojas, ingredientes, calculadora, scrapers, relatórios, config, diagnóstico
-- 🤖 **Telegram Bot** - `/preco <ingrediente>` → lista ordenada por R$/kg
-- ⚙️ **Config declarativa** - Edite `config/features.yaml` para ligar/desligar funções sem alterar código
-- 📊 **Export CSV** com helper unificado — feature flag + fallback automático em 8 locais
-- 📧 **Email + Telegram Testers** - Teste de conexão SMTP e Telegram inline no dashboard
-- 🔬 **Diagnóstico automático** - Health check individual por componente com timing
-- 📦 **5 índices de performance** no Supabase — consultas otimizadas
+## 🚀 Funcionalidades Principais
 
-## Tech Stack
+- 🔍 **Coleta Automatizada**: Varredura 2x/dia de PDFs de atacados, APIs VTEX, sites de e-commerce e agregadores.
+- 🤖 **Inteligência de Matching**: Pipeline multi-estágio (Exato → Alias → Fuzzy → Semantic Embeddings → LLM Groq → Review Queue).
+- 📊 **Dashboard Analítico**: 17 módulos especializados incluindo visão geral, histórico de preços, ranking de fontes, insights de outliers e health de scrapers.
+- 📱 **Telegram Bot**: Consultas instantâneas via `/preco <ingrediente>`, lista de monitorados e status do sistema.
+- 🧮 **Calculadora de Receitas**: Cálculo de custo real baseado nos preços atuais do banco, com salvamento de receitas e cenários de margem.
+- 📧 **Relatórios Diários**: Envio automático de resumo de melhores preços via Gmail SMTP.
+- ⚙️ **Configuração Declarativa**: Controle de funcionalidades via `config/features.yaml` sem necessidade de alteração de código.
+- 🛠️ **Infraestrutura Robusta**: CI/CD com 8 jobs, validação de schema via RPC, ONNX para performance de ML e rate limiting.
 
-| Camada | Tecnologia | Free Tier |
-|--------|------------|-----------|
-| **Banco + API** | Supabase (PostgreSQL) | 500 MB |
-| **Scrapers** | GitHub Actions | 2.000 min/mês |
-| **Dashboard** | Streamlit Cloud | 1 app privado |
-| **Telegram** | python-telegram-bot | Grátis |
-| **Email** | Gmail SMTP | 500/dia |
+## 📋 REGRAS DE NEGÓCIO
 
-## Pré-requisitos
+### Pipeline de Matching
+Para garantir que "Leite Condensado Moça 395g" seja identificado corretamente como "Leite Condensado Integral", utilizamos um fluxo de confiança:
+1. **Match Exato**: Busca o nome canônico ou apelidos exatos no texto do produto.
+2. **Contido**: Verifica se todas as palavras do ingrediente estão presentes no nome do produto.
+3. **Fuzzy (RapidFuzz)**: Calcula a similaridade de tokens. Matches $\ge 80\%$ são aceitos automaticamente.
+4. **Semantic Blend**: Para casos duvidosos ($55\% - 80\%$), combinamos a similaridade de texto com Embeddings de Vetores (ONNX).
+5. **LLM Classifier (Groq)**: Em zona cinzenta, a IA analisa o contexto para decidir o ingrediente.
+6. **Review Queue**: Tudo que não atinge a confiança mínima vai para revisão humana no Dashboard.
 
-- [ ] Conta [GitHub](https://github.com) (gratuita)
-- [ ] Conta [Supabase](https://supabase.com) (gratuita)
-- [ ] Conta [Streamlit Cloud](https://streamlit.io/cloud) (gratuita - login com GitHub)
-- [ ] Conta [Gmail](https://gmail.com) (gratuita)
-- [ ] Telegram instalado no celular
+### Cálculo de Preços e Normalização
+- **Normalização**: Todos os produtos são convertidos para a unidade base (**R$/kg** ou **R$/un**) para permitir comparação justa (ex: lata de 395g $\rightarrow$ preço por kg).
+- **Detecção de Outliers**: Utilizamos Z-Score e Isolation Forest para marcar preços irreais (erros de digitação do mercado) e evitar que poluam o ranking.
+- **Confiabilidade**: Cada preço possui um score de confiança baseado no método de matching utilizado.
 
-## Setup Passo a Passo
+### Calculadora de Receitas
+- **Auto-fill**: Ao adicionar um ingrediente, o sistema busca automaticamente o melhor preço atual no banco de dados.
+- **Margem de Lucro**: Permite definir a porcentagem de lucro desejada para calcular o preço final de venda do doce.
+- **Custo Histórico**: Possibilidade de analisar a variação do custo de uma receita ao longo do tempo.
 
-### 1. Criar Projeto Supabase
+### Alertas e Notificações
+- **Variação de Preço**: Notificações proativas quando um ingrediente essencial sofre queda ou alta brusca ($\ge 15\%$).
+- **Relatórios Diários**: Resumo matinal com os "Winners" do dia enviado por e-mail.
+- **Alertas de Cobertura**: Aviso se algum ingrediente monitorado não recebe atualização de preço há mais de 48h.
 
-1. Acesse [supabase.com](https://supabase.com) e faça login com GitHub
-2. Clique **"New Project"**
-3. Preencha:
-   - Name: `custodoce`
-   - Database Password: **anote em local seguro**
-   - Region: `South America (São Paulo)`
-4. Aguarde (2-3 minutos)
-5. Vá em **Settings → API** e copie:
-   - `Project URL` → será `SUPABASE_URL`
-   - `anon public` → será `SUPABASE_ANON_KEY`
-   - `service_role secret` → será `SUPABASE_SERVICE_ROLE_KEY`
+### Segurança e Permissões
+- **RLS (Row Level Security)**: O banco de dados Supabase impede que o Dashboard altere dados sensíveis, permitindo apenas leitura via `anon key`.
+- **Admin Password**: Acesso ao dashboard é protegido por senha via Streamlit Secrets.
+- **Service Role**: Operações de escrita (scrapers) utilizam a `service_role key`, isolada do acesso público.
 
-### 2. Rodar Schema do Banco
+## 🧭 FLUXOS DE USUÁRIO
 
-1. No Supabase, vá em **SQL Editor**
-2. Abra `supabase/seed.sql` do projeto
-3. Cole e execute (**Ctrl+Enter**)
-4. Verifique: tabelas `prices`, `price_history`, `review_queue`, `scraping_logs`, `stores` criadas
+### Fluxo de Coleta Automática
+`GitHub Actions (Cron)` $\rightarrow$ `Sync Store Fields` $\rightarrow$ `Scrapers (PDF/API/Web)` $\rightarrow$ `Normalizer` $\rightarrow$ `Matcher Pipeline` $\rightarrow$ `Supabase RPC` $\rightarrow$ `Price Intelligence (Anomalias)` $\rightarrow$ `Relatório E-mail`.
 
-### 3. Criar Bot no Telegram
+### Fluxo de Consulta via Telegram
+`/preco <ingrediente>` $\rightarrow$ `Search Supabase` $\rightarrow$ `Filter Best Prices` $\rightarrow$ `Format Message` $\rightarrow$ `Telegram Response`.
 
-1. Abra o Telegram e pesquise por **@BotFather**
-2. Envie `/newbot`
-3. Nome: `CustoDoce Preços` (ou qualquer nome)
-4. Username: `CustoDoceBot` (ou similar - deve terminar com `bot`)
-5. Copie o **token** (ex: `123456:ABC-DEF1234...`)
-6. Envie `/setprivacy` → `Disable` (para o bot ver todas as mensagens)
-7. Envie `/setdescription` → `Buscador de preços de ingredientes para confeitaria. Use /preco <ingrediente> para buscar.`
-8. Envie `/setcommands`:
-   ```
-   preco <ingrediente> - Buscar preços do ingrediente
-   lista - Listar todos os ingredientes
-   status - Status do sistema
-   ajuda - Ajuda
-   ```
+### Fluxo de Dashboard
+`Login` $\rightarrow$ `Visão Geral (KPIs)` $\rightarrow$ `Análise de Preço` $\rightarrow$ `Ajuste de Flag (features.yaml)` $\rightarrow$ `Trigger Manual de Coleta`.
 
-### 4. Obter CHAT_ID
+### Fluxo da Calculadora
+`Criar Receita` $\rightarrow$ `Adicionar Ingredientes` $\rightarrow$ `Auto-fill Preços` $\rightarrow$ `Definir Margem` $\rightarrow$ `Calcular Preço Final` $\rightarrow$ `Salvar`.
 
-1. Pesquise por **@userinfobot** no Telegram
-2. Envie `/start`
-3. Copie o número `Id` (ex: `123456789`) → será `TELEGRAM_CHAT_ID`
+## 🛠️ Tech Stack
 
-### 5. Configurar Gmail
+| Camada | Tecnologia | Papel | Free Tier |
+|--------|------------|-------|-----------|
+| **Banco + API** | Supabase (PostgreSQL) | Armazenamento, RPCs e RLS | 500 MB |
+| **Scrapers** | GitHub Actions | Orquestração e Coleta (Cron) | 2.000 min/mês |
+| **Dashboard** | Streamlit Cloud | Interface de Administração e Análise | 1 app privado |
+| **ML/AI** | Sentence-Transformers + Groq | Embeddings ONNX e Classificação LLM | Grátis / API Key |
+| **Bot** | python-telegram-bot | Interface de consulta rápida | Grátis |
+| **Email** | Gmail SMTP | Relatórios e Alertas | 500 e-mails/dia |
 
-1. Acesse [myaccount.google.com/security](https://myaccount.google.com/security)
-2. Ative **"Verificação em duas etapas"** (obrigatório)
-3. Vá em **"Senhas de app"**
-4. Nome: `CustoDoce Bot`
-5. Copie a senha de **16 caracteres** gerada → será `GMAIL_APP_PASSWORD`
+## 🔧 SEGURANÇA
 
-### 6. Fazer Fork/Clone do Repositório
+- **Gestão de Credenciais**: Nenhuma chave é commitada. Utilizamos GitHub Secrets e Streamlit Secrets.
+- **Isolamento de Banco**: Uso rigoroso de RLS para separar a camada de visualização da camada de escrita.
+- **Proteção de API**: Implementação de rate limiting nos scrapers para evitar banimentos por excesso de requisições.
+- **Env**: Variáveis de ambiente controladas via `.env` localmente e Secrets no CI/CD.
 
-```bash
-# No terminal:
-git clone https://github.com/SEU_USUARIO/CustoDoce.git
-cd CustoDoce
-```
+## ⚠️ LIMITES E ESCALABILIDADE
 
-Ou crie o repositório manualmente e faça upload dos arquivos.
+O sistema foi desenhado para o **Free Tier**, com as seguintes considerações:
+- **Supabase (500MB)**: Suficiente para milhões de registros de preços. A política de cleanup remove preços com mais de 90 dias para manter o banco leve.
+- **GitHub Actions (2000 min/mês)**: O consumo atual é de $\sim 400$ min/mês. Temos margem para expandir o número de lojas.
+- **Escalabilidade**: Caso a demanda cresça, a migração para o plano *Pro* do Supabase e a utilização de proxies residenciais para scrapers são os próximos passos recomendados.
 
-### 7. Adicionar Secrets no GitHub
+## ⚙️ Setup e Instalação
+Para configurar o sistema do zero, siga o [Guia de Deployment detalhado](docs/deployment.md).
 
-1. No repositório, vá em **Settings → Secrets and variables → Actions**
-2. Clique **"New repository secret"** e adicione cada um:
+---
 
-| Secret | Valor |
-|--------|-------|
-| `SUPABASE_URL` | `https://xxxx.supabase.co` |
-| `SUPABASE_ANON_KEY` | `eyJxxxx` |
-| `SUPABASE_SERVICE_ROLE_KEY` | `eyJxxxx` (service_role, não anon) |
-| `TELEGRAM_TOKEN` | `123456:ABC-DEF1234` |
-| `TELEGRAM_CHAT_ID` | `123456789` |
-| `GMAIL_USER` | `seuemail@gmail.com` |
-| `GMAIL_APP_PASSWORD` | `xxxx xxxx xxxx xxxx` |
-| `ALERT_EMAIL_TO` | `seuemail@gmail.com` |
-| `GH_PAT` | Token GitHub (Settings → Developer → PAT, escopo `repo`) |
+## 📱 Comandos do Telegram
+- `/preco <ingrediente>` → Lista os melhores preços ordenados por R$/kg.
+- `/lista` → Exibe todos os ingredientes monitorados por categoria.
+- `/status` → Resumo de saúde do sistema, total de preços e confiabilidade.
+- `/ajuda` → Guia de uso do bot.
 
-### 8. Rodar o Workflow Manualmente
+---
 
-1. Vá em **Actions → CustoDoce - Coleta Diária de Preços**
-2. Clique **"Run workflow"** (botão azul à direita)
-3. Aguarde a execução (2-5 minutos)
-4. Verifique os logs: deve mostrar conexão com Supabase e tentativas de download
+## 📊 Módulos do Dashboard
 
-### 9. Verificar Dados no Supabase
+| Aba | Função Principal | Como Usar | Ações Disponíveis |
+|-----|------------------|------------|-------------------|
+| **Visão Geral** | KPIs globais e alertas. | Acesse a home para ver o resumo do dia. | Monitorar variação de preços. |
+| **Preços** | Busca detalhada e top 3. | Filtre por ingrediente na barra de busca. | Exportar lista para CSV. |
+| **Histórico** | Evolução temporal. | Selecione o ingrediente e a loja no gráfico. | Analisar tendências sazonais. |
+| **Flyers** | Galeria de encartes. | Navegue pelos PDFs coletados. | Validar extração de OCR. |
+| **Revisão** | Fila de aprovação. | Analise itens com confiança $< 80\%$. | Aprovar ou Rejeitar match. |
+| **Fontes & Ofertas** | Ranking de lojas. | Compare quem tem o melhor preço médio. | Detectar promoções reais. |
+| **Ranking** | Comparativo direto. | Selecione 2 ou mais lojas para comparar. | Identificar a loja mais barata. |
+| **Insights** | Análise de outliers. | Verifique a lista de "anomalias". | Validar se o preço é erro ou oferta. |
+| **Lojas** | Gestão de lojas. | Edite tiers e status de ativação. | Ativar/Desativar lojas. |
+| **Ingredientes** | Gestão de canônicos. | Adicione aliases ou termos de busca. | Refinar a precisão do matching. |
+| **Calculadora** | Custos de receitas. | Crie sua receita e adicione itens. | Calcular custo e preço de venda. |
+| **Scrapers** | Gatilhos de coleta. | Clique em "Run Scraper" para forçar coleta. | Monitorar logs em tempo real. |
+| **Scraper Health** | Monitoramento. | Verifique a taxa de sucesso por loja. | Diagnosticar falhas de conexão. |
+| **Relatórios** | Gestão de e-mails. | Configure o template do HTML. | Testar envio de e-mail. |
+| **Configuração** | Secrets e Flags. | Alterne flags no `features.yaml`. | Ativar/Desativar módulos do sistema. |
+| **Diagnóstico** | Health check. | Rode o teste de conexão com Supabase. | Validar latência da API. |
+| **Alertas** | Regras de notificação. | Defina a $\%$ de variação para alerta. | Configurar e-mails de aviso. |
 
-1. No Supabase, vá em **Table Editor**
-2. Abra a tabela `prices`
-3. Se a coleta funcionou, você verá linhas com `ingredient_id`, `raw_price`, `store_name`
+---
 
-### 10. Dar um ping no Bot do Telegram
-
-1. Abra o Telegram
-2. Pesquise pelo seu bot (username que você criou)
-3. Envie `/start`
-4. Envie `/status`
-5. Envie `/preco leite condensado`
-
-### 11. Deploy do Streamlit Dashboard
-
-1. Acesse [streamlit.io/cloud](https://streamlit.io/cloud)
-2. Faça login com GitHub
-3. Clique **"New app"**
-4. Selecione o repositório `CustoDoce`
-5. Branch: `main`
-6. Main file path: `admin/app.py`
-7. Clique **"Deploy"**
-8. Vá em **Settings → Secrets** e adicione:
-   ```toml
-   SUPABASE_URL = "https://xxxx.supabase.co"
-   SUPABASE_ANON_KEY = "eyJxxxx"
-   ADMIN_PASSWORD = "sua_senha_admin"
-   ```
-9. Acesse o dashboard em `https://custodoce.streamlit.app`
-
-## Comandos do Telegram
-
-```
-/preco leite condensado    → Lista preços ordenados por R$/kg
-/preco chocolate           → Busca chocolate
-/preco nutella             → Busca nutella
-/lista                     → Lista todos ingredientes
-/status                    → Status do sistema
-/ajuda                     → Ajuda completa
-```
-
-## Comandos do Dashboard (Streamlit)
-
-| Aba | Função |
-|-----|--------|
-| **Visão Geral** | KPIs (preços/flyers), top 3 mini-cards, boxplot, heatmap cobertura, alertas variação |
-| **Preços** | Busca por ingrediente, ordenação, top 3, gráfico barras, export CSV |
-| **Histórico** | Gráficos linha/scatter R$/kg, cobertura por loja, export CSV |
-| **Flyers** | Grid responsivo, filtros (status/source/período), detalhe com OCR |
-| **Revisão** | Fila de itens <80% confiança (aprovar/rejeitar) |
-| **Fontes & Ofertas** | Cobertura por ingrediente, promoções ativas, ranking de fontes |
-| **Ranking** | Gráfico linha/área/barras, ranking atual, estatísticas do período |
-| **Insights** | Heatmap preço×loja, outliers por desvio padrão, melhores ofertas |
-| **Calculadora** | Cálculo de custo de receita (auto-fill preços), modo Simples/Completo, 3 cenários de margem, salvar receitas |
-| **Lojas** | CRUD via YAML inline, filtros tier, busca |
-| **Ingredientes** | CRUD via YAML, testadores normalizer + matcher |
-| **Scrapers** | Trigger manual GitHub Actions, schedule info + editor, logs |
-| **Relatórios** | Builder HTML com preview + envio email, testers SMTP/Telegram |
-| **Configuração** | Secrets editor inline (5 grupos, 13 vars), save .env, features YAML |
-| **Diagnóstico** | Testes individuais por componente com timing, SMTP/Telegram inline |
-
-## Estrutura do Projeto
+## 🏗️ Estrutura do Projeto
 
 ```
 CustoDoce/
-├── .github/workflows/
-│   ├── scrape.yml                   # Coleta automática (cron + deploy)
-│   └── ci.yml                       # CI: ruff + bandit + pytest + pip-audit
-├── config/
-│   ├── ingredients.yaml             # 23 ingredientes canônicos + aliases + search_terms
-│   ├── stores.yaml                  # 51 lojas (Tier 1-4)
-│   ├── features.yaml                # Flags declarativas liga/desliga
-│   └── schema_prices.json           # Validação dos dados
-├── scrapers/
-│   ├── base_flyer.py                # ABC: download PDF + ETag cache + OCR fallback
-│   ├── base_web_scraper.py          # ABC: httpx.Client + context manager + rate limit
-│   ├── flyer_scraper.py             # Scraper genérico para PDFs (substitui 8 subclasses)
-│   ├── flyer_parser.py              # Parser genérico de linhas de PDF
-│   ├── vtex_scraper.py              # Scraper VTEX API (herda BaseWebScraper)
-│   ├── website_scraper.py           # Scraper HTML (herda BaseWebScraper)
-│   ├── carrefour_scraper.py         # Scraper Carrefour (herda BaseWebScraper)
-│   ├── tenda_api_scraper.py         # API Tenda (herda BaseWebScraper)
-│   ├── roldao_api_scraper.py        # API Roldão (herda BaseWebScraper)
-│   ├── max_api_scraper.py           # API Max (herda BaseWebScraper)
-│   ├── aggregator_scraper.py        # Agregadores SSR (Tiendeo, Guiato)
-│   ├── playwright_scraper.py        # Agregadores JS (Playwright)
-│   ├── playwright_price_scraper.py  # Scraper e-commerce SPA (Playwright)
-│   ├── ocr.py                       # OCR fallback (Tesseract)
-│   ├── unit_extractor.py            # Extrator centralizado de unidade
-│   ├── extra_flyer_scraper.py       # Extra Folheteria (HTTP, OCR pre-extraido)
-│   └── pao_flyer_scraper.py         # Pão de Açúcar Fresh (herda de ExtraFlyerScraper)
-├── parsers/
-│   ├── normalizer.py                # Extrai unidade → R$/kg + R$/un
-│   ├── matcher.py                   # token_set_ratio ≥80% (RapidFuzz)
-│   └── brand_extractor.py           # Extrai marca do texto do produto via YAML
-├── services/
-│   ├── supabase_client.py           # Singleton conexão
-│   ├── price_service.py             # CRUD + busca + cleanup_old_prices/logs
-│   ├── flyer_service.py             # CRUD flyers + cleanup_old_flyers
-│   ├── email_service.py             # SMTP genérico (SMTP_* ou GMAIL_* fallback)
-│   ├── telegram_service.py          # Telegram Bot API
-│   ├── config.py                    # Config loader (cache + reload)
-│   ├── config_db.py                 # DB-backed config (ingredients, stores, schedules, etc.)
-│   ├── auth.py                      # PBKDF2 + JWT + TOTP
-│   └── rate_limiter.py              # SQLite rate limit
-├── telegram_bot/
-│   └── handlers.py                  # /preco, /lista, /status
-├── admin/
-│   └── app.py                       # Streamlit dashboard (17 abas)
-├── dashboard/
-│   ├── login_page.py                # Auth + 2FA
-│   └── components/
-│       ├── ui.py                    # CSS + componentes reutilizáveis
-│       └── layout.py                # Sidebar com navegação (17 páginas)
-├── supabase/
-│   ├── seed.sql                     # Tabelas + índices + RLS + triggers
-│   ├── consolidated_migration.sql   # Migração consolidada (574 linhas)
-│   └── 002_add_brand_column.sql     # Adiciona coluna brand nas tabelas
-├── scripts/
-│   ├── seed_prices.py               # Gera dados sintéticos (--dry-run/--execute/--json)
-│   ├── deploy_database.py           # Migração SQL (--dry-run/--execute/--output)
-│   ├── send_daily_report.py         # Relatório diário por email
-│   ├── validate_db_schema.py        # Valida schema do DB (72 checks)
-│   └── deploy_check.py              # Health check pré-deploy
-├── tests/
-│   ├── conftest.py                    # dotenv loading para testes de integração
-│   ├── test_dashboard_full.py       # 85 testes unitários
-│   ├── test_services_mocked.py      # 145 testes com mocks
-│   ├── test_review_queue_e2e.py     # 8 testes E2E (Supabase real)
-│   ├── test_db_integration.py       # 5 testes integração (banco real)
-│   └── README.md                    # Plano de testes
-├── main.py                          # Orquestrador: collect + cleanup loop
-├── pyproject.toml                   # Ruff config (line-length=120, ignore E501)
-├── requirements.txt                 # Dependências runtime
-├── requirements-dev.txt             # Ferramentas de qualidade
-├── packages.txt                     # System deps (tesseract-ocr, poppler-utils)
-└── data/
-    └── prices_latest.json           # Snapshot da última coleta
+├── .github/workflows/    # CI/CD (Lint, Typecheck, Tests, Scrape, Deploy)
+├── config/               # YAMLs de ingredientes, lojas e features
+├── scrapers/             # Lógica de coleta (PDF, VTEX, Web, Playwright, OCR)
+├── parsers/              # Normalização, Matching, Brand Extraction e LLM
+├── services/             # Core Business (Supabase, Price, Alerts, Config, Auth)
+├── dashboard/            # UI Streamlit (Pages, Components, Layout)
+├── admin/                # Entrypoint do Dashboard (app.py)
+├── telegram_bot/         # Handlers e lógica do Bot
+├── supabase/             # SQL Seeds, Migrations e RPCs
+├── scripts/              # Utilitários de Deploy, Audit e Sync
+├── tests/                # Unit, Schema, Integration, E2E e Real tests
+└── main.py               # Orquestrador principal da coleta
 ```
 
-## Licenciamento de Lojas (Tiers)
+---
 
-| Tier | Tipo | Exemplos | Frequência |
-|------|------|----------|------------|
-| 1 | PDF Direto (Atacados) | Assaí, Atacadão, Spani, Mercadão | Semanal |
-| 2a | E-commerce SP Capital | Rizzo, Amendolate, Loja Sto Antônio | Diária |
-| 2b | Atacado Físico SP | Manos, Jabaquara, Marsil | Mensal (manual) |
-| 3 | Agregadores | Tiendeo, Guiato | Fallback |
-| 4 | Manual | Bolão Docemania, SAV Fratelli | Sob demanda |
+## 🏪 Tiers de Lojas
 
-## Roadmap
+| Tier | Tipo | Frequência | Método de Coleta |
+|------|------|------------|-------------------|
+| **1** | PDF Direto | Semanal | `pdfplumber` + OCR Fallback |
+| **2a** | E-commerce SP | Diária | API VTEX / JSON |
+| **2b** | Atacado Físico | Mensal | Importação Manual (.xlsx) |
+| **3** | Agregadores | Fallback | Playwright / SSR HTML |
+| **4** | Manual | Sob Demanda | Planilha / WhatsApp |
 
-- [x] **Fase 1** — Estrutura base: scrapers PDF, parsers, Supabase, Telegram
-- [x] **Fase 2** — Scrapers VTEX + site + OCR fallback
-- [x] **Fase 3** — Dashboard Flyers & History + KPIs + heatmap
-- [x] **Fase 4** — CRUD Console: lojas/ingredientes inline + testadores
-- [x] **Fase 5** — Control & Reports: builder HTML, SMTP/Telegram testers
-- [x] **Fase 6** — System Config & Diagnostics: secrets editor, health check
-- [x] **Fase 7** — Polish & Deploy: config declarativa, acessibilidade, export CSV, deploy check
-- [x] **Fase 8** — Dedup & Cleanup: collected_at truncado, review dedup, cleanup_old_prices/logs/flyers, XSS sanitization
-- [x] **Fase 9** — Dashboard Insights: Fontes & Ofertas, Ranking, Insights (heatmap + outliers + melhores ofertas)
-- [x] **Fase 10** — Brand Extraction + Email/TG UX: coluna brand no DB/dashboard, templates responsivos, SMTP Gmail, Ruff config
-- [x] **Fase 11** — Correção de Constraints: UNIQUE (ingredient_id, store_id, collected_at) em prices e price_history, correção do scrape_frequencies, tratamento de erro 42P10
-- [x] **Fase 12** — Self-Learning Review Queue: ordenação client-side, aliases automáticos ao aprovar
-- [x] **Fase 13** — UX Audit Fixes + Calculadora de Receita: 27 UX issues corrigidas, calculadora com auto-fill do DB, salvar receitas no Supabase, 18 abas, 168 testes
-- [x] **Fase 14c** — Review Queue Overhaul: threshold 30%→55%, colunas image_url/source_url/match_reason/brand na review_queue, matcher retorna matched_term, tab_revisao com folheto/link/motivo
+---
 
-## Contribuindo
+## 📊 EXEMPLO DE USO
 
-Este é um projeto pessoal, mas sugestões e PRs são bem-vindos.
+### Consulta no Telegram
+**Usuário**: `/preco leite condensado`
+**Bot**: 
+> 🥛 **Leite Condensado Integral**
+> 1. **Assaí**: R$ 5,49 (R$ 13,95/kg) ✅
+> 2. **Atacadão**: R$ 5,60 (R$ 14,18/kg)
+> 3. **Carrefour**: R$ 6,10 (R$ 15,41/kg)
+> _Atualizado em: 27/06 08:00_
+
+### Relatório Diário (E-mail)
+Um e-mail HTML contendo a tabela de "Melhores Preços do Dia", destacando ingredientes que baixaram mais de 10% em relação à média da semana.
+
+### Dashboard de Análise
+Uma tela com um gráfico de linha mostrando que o preço do Chocolate Melken caiu 15% no Atacadão, disparando um alerta de "Oportunidade de Compra".
+
+---
+
+## 🧪 TESTES
+O projeto possui uma suíte de testes rigorosa para garantir a estabilidade do MVP:
+- **Unitários**: Validação de normalizadores, matchers e serviços (pytest).
+- **Schema**: Verificação de tabelas, colunas e RPCs no Supabase.
+- **Integration**: Testes de fluxo completo (Coleta $\rightarrow$ Banco).
+- **E2E**: Testes de interface do Dashboard via Playwright.
+- **Real**: Validação de scrapers contra sites reais (flaky/slow).
+
+**Como rodar**: `python -m pytest tests/`
+
+---
+
+## 📝 GUIA DE CONTRIBUIÇÃO
+Contribuições são bem-vindas! Siga os padrões:
+- **Código**: Use Ruff para linting e Mypy para tipagem.
+- **PRs**: Crie branches para cada feature (`feat/` ou `fix/`) e abra PR para a `main`.
+- **Docs**: Atualize a documentação em `docs/` ao alterar funcionalidades.
+Mais detalhes em [docs/contributing.md](docs/contributing.md).
+
+---
+
+## 🗺️ Roadmap de Desenvolvimento
+
+- [x] **Fases 0-21**: Fundação, Scrapers, Dashboard, Matcher, CI/CD, Docs, Quality e Observabilidade.
+- [x] **Fase 2.4**: Staging Environment.
+- [x] **Fase 4.1**: Observabilidade Estruturada (structlog + OTel).
+- [x] **Fase 4.4**: Feature Flags por Ingrediente.
+- [ ] **Próximos Passos**: Living Docs (mkdocstrings).
+
+---
+
+## 📜 Licença
+Projeto para fins de estudo e automação pessoal.

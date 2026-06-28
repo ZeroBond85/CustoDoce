@@ -18,7 +18,7 @@ if os.path.exists(_dotenv):
             _line = _line.strip()
             if _line and "=" in _line and not _line.startswith("#"):
                 _k, _v = _line.split("=", 1)
-                _v = _v.strip("\"'")
+                _v = _v.strip("'\"").strip()
                 os.environ.setdefault(_k.strip(), _v)
 
 PASS = 0
@@ -41,6 +41,7 @@ def _check(label: str, fn):
 
 def test_supabase():
     from services.supabase_client import get_supabase as gs
+
     client = gs()
     resp = client.table("prices").select("count", count="exact").limit(1).execute()
     assert resp.count is not None, "Supabase nao retornou count"
@@ -48,6 +49,7 @@ def test_supabase():
 
 def test_yaml_configs():
     import yaml
+
     for path in ["config/ingredients.yaml", "config/stores.yaml", "config/features.yaml"]:
         with open(path, encoding="utf-8") as f:
             yaml.safe_load(f)
@@ -55,6 +57,7 @@ def test_yaml_configs():
 
 def test_features_config():
     from services.config import get as get_config
+
     assert get_config("features.telegram.enabled", None) is not None
     assert get_config("features.email.enabled", None) is not None
     assert get_config("features.alerts.price_variation_pct", None) is not None
@@ -62,12 +65,14 @@ def test_features_config():
 
 def test_auth():
     from services.auth import hash_password, verify_password
+
     h = hash_password("deploy_test")
     assert verify_password("deploy_test", h), "Auth hash/verify falhou"
 
 
 def test_rate_limiter():
     from services.rate_limiter import RateLimiter
+
     rl = RateLimiter()
     assert rl.is_limited("deploy_test_key") is False
 
@@ -78,6 +83,7 @@ def test_telegram():
     if not token or not chat_id:
         raise ValueError("TELEGRAM_TOKEN ou TELEGRAM_CHAT_ID nao configurados")
     import httpx
+
     resp = httpx.post(
         f"https://api.telegram.org/bot{token}/sendMessage",
         json={"chat_id": chat_id, "text": "🚀 CustoDoce — Deploy check OK"},
@@ -97,6 +103,7 @@ def test_smtp():
         raise ValueError("SMTP_USER/GMAIL_USER, SMTP_PASSWORD/GMAIL_APP_PASSWORD ou ALERT_EMAIL_TO nao configurados")
     import smtplib
     from email.message import EmailMessage
+
     msg = EmailMessage()
     msg.set_content("🚀 CustoDoce — Deploy check OK")
     msg["Subject"] = "CustoDoce - Deploy Check"
@@ -112,17 +119,15 @@ def test_smtp():
 def test_scraper_health():
     """Valida saude dos scrapers: sem falhas recorrentes nos ultimos 3 runs."""
     from services.supabase_client import get_supabase
+
     client = get_supabase()
     logs = (
-        client.table("scraping_logs")
-        .select("store_name, status")
-        .order("started_at", desc=True)
-        .limit(200)
-        .execute()
+        client.table("scraping_logs").select("store_name, status").order("started_at", desc=True).limit(200).execute()
     )
     if not logs.data:
         return
     from collections import defaultdict
+
     by_store = defaultdict(list)
     for log in logs.data:
         by_store[log["store_name"]].append(log["status"])
@@ -145,10 +150,19 @@ if __name__ == "__main__":
     _check("Features config (services/config.py)", test_features_config)
     _check("Auth (hash + verify)", test_auth)
     _check("Rate Limiter", test_rate_limiter)
-    env_checks = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY",
-                   "AUTH_SECRET_KEY", "SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD",
-                   "GMAIL_USER", "GMAIL_APP_PASSWORD",
-                   "ALERT_EMAIL_TO"]
+    env_checks = [
+        "SUPABASE_URL",
+        "SUPABASE_ANON_KEY",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "AUTH_SECRET_KEY",
+        "SMTP_HOST",
+        "SMTP_USER",
+        "SMTP_PASSWORD",
+        "GMAIL_USER",
+        "GMAIL_APP_PASSWORD",
+        "ALERT_EMAIL_TO",
+    ]
+
     def _check_env(v):
         val = os.environ.get(v)
         if not val:

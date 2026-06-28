@@ -15,14 +15,14 @@ CREATE TABLE IF NOT EXISTS prices (
     ingredient_id TEXT NOT NULL,
     store_id TEXT NOT NULL,
     source TEXT NOT NULL DEFAULT 'automated',
-    store_name TEXT NOT NULL,
+    store_name TEXT NOT NULL DEFAULT '',
     raw_product TEXT NOT NULL,
     raw_price DECIMAL(10,2) NOT NULL,
     raw_unit TEXT NOT NULL DEFAULT '',
+    collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     valid_from DATE DEFAULT CURRENT_DATE,
     valid_until DATE DEFAULT (CURRENT_DATE + INTERVAL '7 days'),
     validity_raw TEXT DEFAULT '',
-    collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     collected_weekday TEXT DEFAULT '',
     is_promotion BOOLEAN DEFAULT FALSE,
     tier INTEGER DEFAULT 3,
@@ -30,10 +30,9 @@ CREATE TABLE IF NOT EXISTS prices (
     normalized JSONB DEFAULT NULL,
     city TEXT DEFAULT '',
     logistics TEXT DEFAULT 'pickup_local',
-    brand TEXT DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    
-    UNIQUE (ingredient_id, store_id)
+
+    UNIQUE (ingredient_id, store_id, collected_at)
 );
 
 -- Indexes for fast search
@@ -95,11 +94,7 @@ CREATE TABLE IF NOT EXISTS review_queue (
     status TEXT DEFAULT 'pending',
     resolved_ingredient TEXT,
     collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    reviewed_at TIMESTAMPTZ,
-    image_url TEXT,
-    source_url TEXT,
-    match_reason TEXT,
-    brand TEXT DEFAULT ''
+    reviewed_at TIMESTAMPTZ
 );
 
 CREATE INDEX IF NOT EXISTS idx_review_status ON review_queue(status);
@@ -224,25 +219,25 @@ BEGIN
         price_id, ingredient_id, store_id, store_name,
         raw_product, raw_price, raw_unit, normalized,
         valid_from, valid_until, validity_raw, collected_weekday, is_promotion,
-        collected_at
+        collected_at, brand
     ) VALUES (
         NEW.id, NEW.ingredient_id, NEW.store_id, NEW.store_name,
         NEW.raw_product, NEW.raw_price, NEW.raw_unit, NEW.normalized,
         NEW.valid_from, NEW.valid_until, NEW.validity_raw, NEW.collected_weekday, NEW.is_promotion,
-        NEW.collected_at
+        NEW.collected_at, NEW.brand
     )
-    ON CONFLICT (ingredient_id, store_id, collected_at) DO UPDATE SET
+    ON CONFLICT (ingredient_id, store_id, collected_at)
+    DO UPDATE SET
         price_id = EXCLUDED.price_id,
-        store_name = EXCLUDED.store_name,
-        raw_product = EXCLUDED.raw_product,
         raw_price = EXCLUDED.raw_price,
+        raw_product = EXCLUDED.raw_product,
         raw_unit = EXCLUDED.raw_unit,
-        normalized = EXCLUDED.normalized,
         valid_from = EXCLUDED.valid_from,
         valid_until = EXCLUDED.valid_until,
         validity_raw = EXCLUDED.validity_raw,
+        is_promotion = EXCLUDED.is_promotion,
         collected_weekday = EXCLUDED.collected_weekday,
-        is_promotion = EXCLUDED.is_promotion;
+        brand = EXCLUDED.brand;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -416,14 +411,16 @@ create trigger trg_schedules_updated_at
 -- ============================================================
 -- SCRAPE FREQUENCIES (per store/tier config)
 -- ============================================================
--- SKIPPED: scrape_frequencies table + indexes + trigger recreated in Phase 8
--- SKIPPED: create index if not exists idx_scrape_freq_store on scrape_frequencies(store_id);
--- SKIPPED: create index if not exists idx_scrape_freq_tier on scrape_frequencies(tier);
--- SKIPPED: create index if not exists idx_scrape_freq_enabled on scrape_frequencies(enabled);
--- SKIPPED: drop trigger if exists trg_scrape_freq_updated_at on scrape_frequencies;
--- SKIPPED: create trigger trg_scrape_freq_updated_at
--- SKIPPED:     before update on scrape_frequencies
--- SKIPPED:     for each row execute function update_updated_at_column();
+-- REPLACED: scrape_frequencies with TEXT PK (original used UUID)
+CREATE TABLE IF NOT EXISTS scrape_frequencies (id UUID PRIMARY KEY DEFAULT gen_random_uuid(),store_id TEXT REFERENCES stores(id) ON DELETE CASCADE,tier INT,frequency_minutes INT DEFAULT 1440,max_retries INT DEFAULT 2,timeout_seconds INT DEFAULT 30,rate_limit_per_minute INT DEFAULT 10,enabled BOOLEAN DEFAULT TRUE,created_at TIMESTAMPTZ DEFAULT NOW(),updated_at TIMESTAMPTZ DEFAULT NOW());
+create index if not exists idx_scrape_freq_store on scrape_frequencies(store_id);
+create index if not exists idx_scrape_freq_tier on scrape_frequencies(tier);
+create index if not exists idx_scrape_freq_enabled on scrape_frequencies(enabled);
+
+drop trigger if exists trg_scrape_freq_updated_at on scrape_frequencies;
+create trigger trg_scrape_freq_updated_at
+    before update on scrape_frequencies
+    for each row execute function update_updated_at_column();
 
 -- ============================================================
 -- ALERT RECIPIENTS (email, telegram, whatsapp)
@@ -500,8 +497,7 @@ create trigger trg_feature_flags_updated_at
 alter table ingredients enable row level security;
 alter table stores enable row level security;
 alter table schedules enable row level security;
--- SKIPPED: scrape_frequencies RLS + policies recreated in Phase 8
--- SKIPPED: alter table scrape_frequencies enable row level security;
+alter table scrape_frequencies enable row level security;
 alter table alert_recipients enable row level security;
 alter table alert_rules enable row level security;
 alter table feature_flags enable row level security;
@@ -510,7 +506,7 @@ alter table feature_flags enable row level security;
 create policy "service_role_all" on ingredients for all using (auth.role() = 'service_role');
 create policy "service_role_all" on stores for all using (auth.role() = 'service_role');
 create policy "service_role_all" on schedules for all using (auth.role() = 'service_role');
--- SKIPPED: create policy "service_role_all" on scrape_frequencies for all using (auth.role() = 'service_role');
+create policy "service_role_all" on scrape_frequencies for all using (auth.role() = 'service_role');
 create policy "service_role_all" on alert_recipients for all using (auth.role() = 'service_role');
 create policy "service_role_all" on alert_rules for all using (auth.role() = 'service_role');
 create policy "service_role_all" on feature_flags for all using (auth.role() = 'service_role');
@@ -519,7 +515,7 @@ create policy "service_role_all" on feature_flags for all using (auth.role() = '
 create policy "anon_read" on ingredients for select using (true);
 create policy "anon_read" on stores for select using (true);
 create policy "anon_read" on schedules for select using (true);
--- SKIPPED: create policy "anon_read" on scrape_frequencies for select using (true);
+create policy "anon_read" on scrape_frequencies for select using (true);
 create policy "anon_read" on alert_recipients for select using (true);
 create policy "anon_read" on alert_rules for select using (true);
 create policy "anon_read" on feature_flags for select using (true);
@@ -587,26 +583,12 @@ END $$;
 
 
 -- ============================================================
--- PHASE 6: Additional cleanup functions
+-- PHASE 6: Add brand column (002_add_brand_column.sql)
 -- ============================================================
+ALTER TABLE prices ADD COLUMN IF NOT EXISTS brand TEXT DEFAULT '';
+ALTER TABLE price_history ADD COLUMN IF NOT EXISTS brand TEXT DEFAULT '';
+ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS brand TEXT DEFAULT '';
 
-CREATE OR REPLACE FUNCTION cleanup_old_logs(retention_days int DEFAULT 30)
-RETURNS void
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    DELETE FROM scraping_logs WHERE started_at < now() - (retention_days || ' days')::interval;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION cleanup_old_flyers(retention_days int DEFAULT 60)
-RETURNS void
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    DELETE FROM flyers WHERE ocr_status = 'failed' AND collected_at < now() - (retention_days || ' days')::interval;
-END;
-$$;
 
 -- ============================================================
 -- PHASE 7: Ensure UNIQUE constraint on prices + price_history
@@ -665,21 +647,8 @@ DO $$ BEGIN
 END $$;
 
 -- ============================================================
--- PHASE 8: Create scrape_frequencies table (was skipped due to UUID mismatch)
+-- PHASE 8: scrape_frequencies indexes + RLS (table already created in Phase 3)
 -- ============================================================
-CREATE TABLE IF NOT EXISTS scrape_frequencies (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    store_id TEXT REFERENCES stores(id) ON DELETE CASCADE,
-    tier INT,
-    frequency_minutes INT DEFAULT 1440,
-    max_retries INT DEFAULT 2,
-    timeout_seconds INT DEFAULT 30,
-    rate_limit_per_minute INT DEFAULT 10,
-    enabled BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
 CREATE INDEX IF NOT EXISTS idx_scrape_freq_store ON scrape_frequencies(store_id);
 CREATE INDEX IF NOT EXISTS idx_scrape_freq_tier ON scrape_frequencies(tier);
 CREATE INDEX IF NOT EXISTS idx_scrape_freq_enabled ON scrape_frequencies(enabled);
@@ -688,112 +657,16 @@ ALTER TABLE scrape_frequencies ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "service_role_all" ON scrape_frequencies FOR ALL USING (auth.role() = 'service_role');
 CREATE POLICY "anon_read" ON scrape_frequencies FOR SELECT USING (true);
 
--- ============================================================
--- PHASE 9: Recipe calculator tables
--- ============================================================
-CREATE TABLE IF NOT EXISTS recipes (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name TEXT NOT NULL,
-    user_id TEXT DEFAULT 'admin',
-    yield_qty INT NOT NULL DEFAULT 1,
-    overhead_pct NUMERIC(5,2) DEFAULT 15.0,
-    profit_pct NUMERIC(5,2) DEFAULT 300.0,
-    notes TEXT DEFAULT '',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS recipe_items (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    recipe_id UUID REFERENCES recipes(id) ON DELETE CASCADE,
-    ingredient_id TEXT NOT NULL,
-    quantity_g NUMERIC(10,2) NOT NULL,
-    selected_store TEXT,
-    price_per_kg NUMERIC(10,2),
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_recipe_items_recipe ON recipe_items(recipe_id);
-
-ALTER TABLE recipes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE recipe_items ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "service_role_all" ON recipes FOR ALL USING (auth.role() = 'service_role');
-CREATE POLICY "service_role_all" ON recipe_items FOR ALL USING (auth.role() = 'service_role');
-CREATE POLICY "anon_read" ON recipes FOR SELECT USING (true);
-CREATE POLICY "anon_read" ON recipe_items FOR SELECT USING (true);
 
 -- ============================================================
--- PHASE 10: Brand column, city in review_queue, dedup index
+-- PHASE 9: Add review_queue columns (image_url, source_url, match_reason, match_type)
 -- ============================================================
-
--- A2: Add brand column to prices
-ALTER TABLE prices ADD COLUMN IF NOT EXISTS brand TEXT DEFAULT '';
-
--- A2: Add brand column to price_history
-ALTER TABLE price_history ADD COLUMN IF NOT EXISTS brand TEXT DEFAULT '';
-
--- A2: Add brand column to review_queue
-ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS brand TEXT DEFAULT '';
-
--- A4: Add city column to review_queue
-ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS city TEXT DEFAULT '';
-
--- A3: Update trigger to include brand
-CREATE OR REPLACE FUNCTION update_history_from_prices()
-RETURNS TRIGGER AS $$
-BEGIN
-    -- On INSERT: save NEW values
-    -- On UPDATE: save OLD values (to preserve history of what changed)
-    IF TG_OP = 'INSERT' THEN
-        INSERT INTO price_history (
-            price_id, ingredient_id, store_id, store_name,
-            raw_product, raw_price, raw_unit, normalized,
-            valid_from, valid_until, validity_raw, collected_weekday, is_promotion,
-            collected_at
-        ) VALUES (
-            NEW.id, NEW.ingredient_id, NEW.store_id, NEW.store_name,
-            NEW.raw_product, NEW.raw_price, NEW.raw_unit, NEW.normalized,
-            NEW.valid_from, NEW.valid_until, NEW.validity_raw, NEW.collected_weekday, NEW.is_promotion,
-            NEW.collected_at
-        );
-    ELSIF TG_OP = 'UPDATE' THEN
-        INSERT INTO price_history (
-            price_id, ingredient_id, store_id, store_name,
-            raw_product, raw_price, raw_unit, normalized,
-            valid_from, valid_until, validity_raw, collected_weekday, is_promotion,
-            collected_at
-        ) VALUES (
-            OLD.id, OLD.ingredient_id, OLD.store_id, OLD.store_name,
-            OLD.raw_product, OLD.raw_price, OLD.raw_unit, OLD.normalized,
-            OLD.valid_from, OLD.valid_until, OLD.validity_raw, OLD.collected_weekday, OLD.is_promotion,
-            OLD.collected_at
-        );
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- A5: Add dedup index on review_queue
-CREATE INDEX IF NOT EXISTS idx_review_store_product ON review_queue(store_name, raw_product);
-
--- Add updated_at trigger to recipes
-DROP TRIGGER IF EXISTS trg_recipes_updated_at ON recipes;
-CREATE TRIGGER trg_recipes_updated_at
-    BEFORE UPDATE ON recipes
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- Add stores name UNIQUE constraint (needed by upsert_store on_conflict)
-ALTER TABLE stores ADD CONSTRAINT IF NOT EXISTS stores_name_key UNIQUE (name);
-
--- ============================================================
--- PHASE 11: Review Queue context columns (image_url, source_url, match_reason)
--- Added as part of Fase 14c — Review Queue Overhaul
--- ============================================================
-
 ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS image_url TEXT DEFAULT '';
 ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS source_url TEXT DEFAULT '';
 ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS match_reason TEXT DEFAULT '';
+ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS match_type TEXT DEFAULT '';
 ALTER TABLE review_queue ADD COLUMN IF NOT EXISTS top3 JSONB DEFAULT '[]';
+
 
 -- ============================================================
 -- PHASE 10: Performance indexes
@@ -804,11 +677,13 @@ CREATE INDEX IF NOT EXISTS idx_review_collected ON review_queue(collected_at DES
 CREATE INDEX IF NOT EXISTS idx_stores_name ON stores(name);
 CREATE INDEX IF NOT EXISTS idx_logs_store_started ON scraping_logs(store_name, started_at DESC);
 
+
 -- ============================================================
 -- PHASE 11: Add brands + search_terms to ingredients
 -- ============================================================
 ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS brands TEXT[] DEFAULT '{}';
 ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS search_terms TEXT[] DEFAULT '{}';
+
 
 -- ============================================================
 -- PHASE 12: Ensure UNIQUE constraint on prices + price_history
@@ -837,8 +712,9 @@ DO $$ BEGIN
     END IF;
 END $$;
 
+
 -- ============================================================
--- PHASE 13: RPC upsert_price — server-side upsert (bypasses on_conflict issues)
+-- PHASE 13: RPC upsert_price_rpc — server-side upsert
 -- ============================================================
 CREATE OR REPLACE FUNCTION upsert_price_rpc(
     p_ingredient_id TEXT,
@@ -883,7 +759,6 @@ BEGIN
         raw_product = EXCLUDED.raw_product,
         raw_price = EXCLUDED.raw_price,
         raw_unit = EXCLUDED.raw_unit,
-        collected_at = EXCLUDED.collected_at,
         valid_from = EXCLUDED.valid_from,
         valid_until = EXCLUDED.valid_until,
         validity_raw = EXCLUDED.validity_raw,
@@ -899,6 +774,7 @@ BEGIN
     RETURN result;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
 
 -- ============================================================
 -- PHASE 14: recipes + recipe_items tables
@@ -932,48 +808,6 @@ CREATE POLICY "service_role_all" ON recipe_items FOR ALL USING (auth.role() = 's
 CREATE POLICY "anon_read" ON recipe_items FOR SELECT USING (true);
 
 -- ============================================================
--- PHASE 15: Fix price_history trigger ON CONFLICT
--- Root cause: trigger trg_price_history did INSERT without ON CONFLICT,
--- causing 23505 when an UPDATE on prices fired the trigger.
--- ============================================================
-CREATE OR REPLACE FUNCTION update_history_from_prices()
-RETURNS TRIGGER AS $$
-BEGIN
-    INSERT INTO price_history (
-        price_id, ingredient_id, store_id, store_name,
-        raw_product, raw_price, raw_unit, normalized,
-        valid_from, valid_until, validity_raw, collected_weekday, is_promotion,
-        collected_at, brand
-    ) VALUES (
-        NEW.id, NEW.ingredient_id, NEW.store_id, NEW.store_name,
-        NEW.raw_product, NEW.raw_price, NEW.raw_unit, NEW.normalized,
-        NEW.valid_from, NEW.valid_until, NEW.validity_raw, NEW.collected_weekday, NEW.is_promotion,
-        NEW.collected_at, NEW.brand
-    )
-        ON CONFLICT (ingredient_id, store_id, collected_at)
-        DO UPDATE SET
-            price_id = EXCLUDED.price_id,
-            raw_price = EXCLUDED.raw_price,
-            raw_product = EXCLUDED.raw_product,
-            raw_unit = EXCLUDED.raw_unit,
-            valid_from = EXCLUDED.valid_from,
-            valid_until = EXCLUDED.valid_until,
-            validity_raw = EXCLUDED.validity_raw,
-            is_promotion = EXCLUDED.is_promotion,
-            collected_weekday = EXCLUDED.collected_weekday,
-            brand = EXCLUDED.brand;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- ============================================================
--- Migration complete. Verify with:
---   SELECT table_name FROM information_schema.tables
---   WHERE table_schema = 'public' ORDER BY table_name;
--- ============================================================
-
-
--- ============================================================
 -- PHASE 15: Insert missing stores (Extra Folheteria, Pao de Acucar Fresh, Dona Dani)
 -- ============================================================
 INSERT INTO stores (id, name, tier, type, scraper, is_active, city, coverage, collection_method, priority)
@@ -1000,6 +834,82 @@ INSERT INTO scrape_frequencies (store_id, tier, frequency_minutes, max_retries, 
 VALUES ('dona_dani_ingredientes', 2, 1440, 3, 120, 10, true)
 ON CONFLICT DO NOTHING;
 
+
+-- ============================================================
+-- PHASE 15b: Generated column price_per_kg for server-side sorting
+-- ============================================================
+ALTER TABLE prices ADD COLUMN IF NOT EXISTS price_per_kg NUMERIC
+GENERATED ALWAYS AS ((normalized->>'price_per_kg')::numeric) STORED;
+
+CREATE INDEX IF NOT EXISTS idx_prices_price_per_kg ON prices(price_per_kg)
+WHERE price_per_kg IS NOT NULL AND price_per_kg > 0;
+
+ALTER TABLE price_history ADD COLUMN IF NOT EXISTS price_per_kg NUMERIC
+GENERATED ALWAYS AS ((normalized->>'price_per_kg')::numeric) STORED;
+
+CREATE INDEX IF NOT EXISTS idx_history_price_per_kg ON price_history(price_per_kg)
+WHERE price_per_kg IS NOT NULL AND price_per_kg > 0;
+
+
+-- ============================================================
+-- PHASE 15c: Materialized view for latest prices per ingredient
+-- ============================================================
+CREATE MATERIALIZED VIEW IF NOT EXISTS v_latest_prices AS
+SELECT DISTINCT ON (ingredient_id, store_id)
+    id,
+    ingredient_id,
+    store_id,
+    store_name,
+    raw_product,
+    raw_price,
+    raw_unit,
+    normalized,
+    price_per_kg,
+    collected_at,
+    valid_from,
+    valid_until,
+    is_promotion,
+    tier,
+    confidence,
+    city,
+    logistics,
+    brand
+FROM prices
+WHERE valid_from <= CURRENT_DATE
+  AND valid_until >= CURRENT_DATE
+  AND price_per_kg IS NOT NULL
+  AND price_per_kg > 0
+ORDER BY ingredient_id, store_id, collected_at DESC;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_v_latest_prices_ing_store
+    ON v_latest_prices (ingredient_id, store_id);
+
+CREATE INDEX IF NOT EXISTS idx_v_latest_prices_ingredient
+    ON v_latest_prices (ingredient_id);
+
+CREATE INDEX IF NOT EXISTS idx_v_latest_prices_price_kg
+    ON v_latest_prices (price_per_kg);
+
+
+-- ============================================================
+-- PHASE 15d: Additional performance indexes
+-- ============================================================
+CREATE INDEX IF NOT EXISTS idx_prices_store_collected
+    ON prices(store_id, collected_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_prices_promo_collected
+    ON prices(collected_at DESC) WHERE is_promotion = TRUE;
+
+CREATE INDEX IF NOT EXISTS idx_review_status_collected
+    ON review_queue(status, collected_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_flyers_store_ocr_collected
+    ON flyers(store_name, ocr_status, collected_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_ingredients_active_name
+    ON ingredients(active, canonical_name);
+
+
 -- ============================================================
 -- PHASE 16: Additional cleanup functions
 -- ============================================================
@@ -1014,14 +924,64 @@ BEGIN
 END;
 $$;
 
--- 2. Cleanup resolved review_queue items (approved/rejected) older than retention_days
+-- Fix review_queue unique constraint
+ALTER TABLE review_queue ADD CONSTRAINT review_queue_store_name_raw_product_key UNIQUE (store_name, raw_product);
+
 CREATE OR REPLACE FUNCTION cleanup_resolved_review_items(retention_days int DEFAULT 30)
 RETURNS void
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    DELETE FROM review_queue 
-    WHERE status IN ('approved', 'rejected') 
+    DELETE FROM review_queue
+    WHERE status IN ('approved', 'rejected')
       AND reviewed_at < now() - (retention_days || ' days')::interval;
 END;
 $$;
+
+
+-- ============================================================
+-- PHASE 17: RPC functions for REST API (port 443) deployment
+-- ============================================================
+
+-- 1. exec_sql — executes DDL/any SQL (returns void)
+CREATE OR REPLACE FUNCTION exec_sql(sql text)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    EXECUTE sql;
+END;
+$$;
+
+-- 2. exec_sql_query — executes SELECT and returns JSON array
+-- Used by tests/conftest.py _SchemaCursor via REST API (porta 443)
+CREATE OR REPLACE FUNCTION exec_sql_query(sql text)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    result JSON;
+BEGIN
+    EXECUTE format('SELECT COALESCE(json_agg(row_to_json(d)), ''[]''::json) FROM (%s) d', sql) INTO result;
+    RETURN result;
+END;
+$$;
+
+-- 3. cleanup_old_logs — TTL for scraping_logs
+CREATE OR REPLACE FUNCTION cleanup_old_logs(retention_days int DEFAULT 30)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    DELETE FROM scraping_logs WHERE started_at < now() - (retention_days || ' days')::interval;
+END;
+$$;
+
+
+-- ============================================================
+-- Migration complete. Verify with:
+--   SELECT table_name FROM information_schema.tables
+--   WHERE table_schema = 'public' ORDER BY table_name;
+-- ============================================================

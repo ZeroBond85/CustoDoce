@@ -1,4 +1,5 @@
 """Inspect Spani page for data."""
+
 import httpx
 import re
 

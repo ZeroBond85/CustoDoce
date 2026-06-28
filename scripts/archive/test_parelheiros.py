@@ -1,4 +1,5 @@
 """Test Parelheiros slug."""
+
 import httpx
 
 url = "https://spani-tabloides-bucket.s3.us-east-1.amazonaws.com/tabloides/paralheiros-3xpqbw606muo9vuajitvcl.pdf"

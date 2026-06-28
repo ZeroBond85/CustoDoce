@@ -1,4 +1,5 @@
 """Test Roldão ofertas page."""
+
 import httpx
 import re
 

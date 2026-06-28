@@ -28,7 +28,8 @@ def get_logo_sidebar_base64() -> str:
 
 
 def inject_css():
-    st.markdown("""
+    st.markdown(
+        """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
 
@@ -380,20 +381,20 @@ div[data-testid="stSidebar"] .stButton>button:focus-visible {
     }
 }
 </style>
-""", unsafe_allow_html=True)
+""",
+        unsafe_allow_html=True,
+    )
 
 
 def metric_card(label: str, value, delta=None, delta_positive=True, help_text="", key=""):
     delta_class = "positive" if delta_positive else "negative"
-    delta_html = (
-        f'<div class="delta {delta_class}">{delta}</div>' if delta is not None else ""
-    )
+    delta_html = f'<div class="delta {delta_class}">{delta}</div>' if delta is not None else ""
     help_attr = f'title="{help_text}"' if help_text else ""
     st.markdown(
         f'<div class="cd-metric" {help_attr}>'
         f'<div class="label">{label}</div>'
         f'<div class="value">{value}</div>'
-        f'{delta_html}'
+        f"{delta_html}"
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -401,10 +402,17 @@ def metric_card(label: str, value, delta=None, delta_positive=True, help_text=""
 
 def status_badge(status: str):
     mapping = {
-        "active": "success", "approved": "success", "success": "success",
-        "pending": "warning", "partial": "warning",
-        "error": "danger", "failed": "danger", "rejected": "danger",
-        "info": "info", "running": "info", "processing": "info",
+        "active": "success",
+        "approved": "success",
+        "success": "success",
+        "pending": "warning",
+        "partial": "warning",
+        "error": "danger",
+        "failed": "danger",
+        "rejected": "danger",
+        "info": "info",
+        "running": "info",
+        "processing": "info",
     }
     cls = mapping.get(status.lower(), "neutral")
     st.markdown(

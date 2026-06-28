@@ -1,64 +1,54 @@
-# Makefile para CustoDoce
-# Comandos comuns para desenvolvimento, lint, typecheck, test e deploy
+# Makefile for CustoDoce
+# Standardized commands for development, testing, and deployment
 
-.PHONY: help lint typecheck test unit integration real deploy-check deploy execute clean
+.PHONY: all lint typecheck test-unit test-int test-e2e test-real quality deploy schema db-audit clean
 
-help:
-	@echo "Comandos disponíveis:"
-	@echo "  make lint           -> Roda ruff lint"
-	@echo "  make typecheck      -> Roda mypy"
-	@echo "  make test           -> Roda todos os testes (unit + integration + schema)"
-	@echo "  make unit           -> Roda testes unitários"
-	@echo "  make integration    -> Roda testes de integração"
-	@echo "  make real           -> Roda testes reais (slow, flaky)"
-	@echo "  make schema         -> Valida schema do banco via RPC"
-	@echo "  make deploy-check   -> Verifica migração SQL sem executar"
-	@echo "  make deploy         -> Executa migração SQL"
-	@echo "  make clean          -> Remove arquivos temporários"
-	@echo "  make sanity         -> Roda sanity check"
+# Default target
+all: lint typecheck test-unit
+
+# --- Quality & Linting ---
 
 lint:
-	python -m ruff check .
+	ruff check .
+	bandit -r admin/ dashboard/ services/ -x tests/
+	pip-audit --strict
 
-bandit:
-	python -m bandit -r . -c pyproject.toml
+typecheck:
+	python -m mypy . --config-file pyproject.toml
 
-pip-audit:
-	python -m pip_audit
+# --- Testing ---
 
-mypy:
-	python -m mypy .
-
-pre-commit:
-	make lint && make bandit && make pip-audit && make mypy
-
-unit:
+test-unit:
 	python -m pytest tests/unit/ tests/schema/ -q
 
-integration:
-	python -m pytest tests/integration/ -q
+test-int:
+	python -m pytest tests/integration/ -q --tb=short
 
-real:
+test-e2e:
+	python -m pytest tests/e2e/ -q
+
+test-real:
 	python -m pytest tests/real/ -q
 
-test: unit integration real
+# New quality gate check
+quality:
+	python -m pytest tests/unit/ tests/schema/ -q
+	ruff check .
+	python -m mypy . --config-file pyproject.toml
 
-schema:
-	python scripts/validate_db_schema.py
-
-sanity:
-	python scripts/sanity_check.py
-
-deploy-check:
-	python scripts/deploy_database.py --dry-run
+# --- Database & Deployment ---
 
 deploy:
 	python scripts/deploy_database.py --execute
 
-clean:
-	find . -type f -name "*.pyc" -delete
-	find . -type d -name "__pycache__" -delete
-	find . -type f -name "*.npy" -delete
+schema:
+	python scripts/validate_db_schema.py
 
-ci:
-	make lint && make mypy && make unit && make integration && make deploy-check && make real
+db-audit:
+	python scripts/db_audit.py
+
+# --- Utility ---
+
+clean:
+	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || powershell -Command "Get-ChildItem -Recurse -Filter __pycache__ | Remove-Item -Recurse -Force"
+	rm -rf .mypy_cache .pytest_cache 2>/dev/null || powershell -Command "Remove-Item -Recurse -Force .mypy_cache, .pytest_cache" -ErrorAction SilentlyContinue

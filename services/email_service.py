@@ -1,4 +1,3 @@
-
 import html as _html
 import os
 import smtplib
@@ -8,14 +7,13 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from email.mime.image import MIMEImage
 from pathlib import Path
-from typing import Optional
 
 # ── Brand ( cores do logo CustoDoce ) ─────────────────────────────────
 _BRAND = {
     "name": "CustoDoce",
-    "primary": "#F59E42",       # laranja (Custo)
-    "secondary": "#E91E8C",     # rosa (Doce)
-    "accent": "#3B82F6",        # azul (cupcake icon)
+    "primary": "#F59E42",  # laranja (Custo)
+    "secondary": "#E91E8C",  # rosa (Doce)
+    "accent": "#3B82F6",  # azul (cupcake icon)
     "bg": "#FFF9F5",
     "text": "#3D2C1E",
     "muted": "#8B7355",
@@ -23,9 +21,9 @@ _BRAND = {
     "white": "#FFFFFF",
     "danger": "#DC2626",
     "success": "#16A34A",
-    "promo_bg": "#FDF2F8",      # rosa claro
+    "promo_bg": "#FDF2F8",  # rosa claro
     "promo_border": "#FBCFE8",  # rosa borda
-    "promo_text": "#9D174D",    # rosa texto
+    "promo_text": "#9D174D",  # rosa texto
 }
 
 _BASE_DIR = Path(__file__).resolve().parent.parent
@@ -60,6 +58,7 @@ def _load_stores() -> dict:
     if _STORES_CACHE is not None:
         return _STORES_CACHE
     import yaml
+
     if _STORES_YAML.exists():
         with open(_STORES_YAML, encoding="utf-8") as f:
             data = yaml.safe_load(f)
@@ -100,9 +99,7 @@ def _store_info_html(store_name: str) -> str:
         return ""
     return (
         '<div style="margin-top:8px;padding:8px 12px;background:#F9FAFB;'
-        'border-radius:6px;font-size:12px;color:#6B7280;line-height:1.6;">'
-        + "<br>".join(parts)
-        + "</div>"
+        'border-radius:6px;font-size:12px;color:#6B7280;line-height:1.6;">' + "<br>".join(parts) + "</div>"
     )
 
 
@@ -118,7 +115,7 @@ def _logo_tag() -> str:
         '<span style="font-size:28px;font-weight:700;">'
         f'<span style="color:{_BRAND["primary"]};">Custo</span>'
         f'<span style="color:{_BRAND["secondary"]};">Doce</span>'
-        '</span>'
+        "</span>"
     )
 
 
@@ -126,8 +123,8 @@ def _tagline() -> str:
     """Tagline curta da empresa para o header do email."""
     return (
         '<p style="margin:2px 0 0 0;font-size:12px;color:rgba(255,255,255,0.85);">'
-        'Compare precos de confeitaria e encontre as melhores ofertas da sua regiao.'
-        '</p>'
+        "Compare precos de confeitaria e encontre as melhores ofertas da sua regiao."
+        "</p>"
     )
 
 
@@ -169,16 +166,16 @@ def _wrap_html(title: str, preheader: str, body_inner: str) -> str:
 }}
 </style>
 </head>
-<body style="margin:0;padding:0;background:{_BRAND['bg']};font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:{_BRAND['text']};-webkit-text-size-adjust:100%;">
+<body style="margin:0;padding:0;background:{_BRAND["bg"]};font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:{_BRAND["text"]};-webkit-text-size-adjust:100%;">
 <!-- preheader -->
 <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;">{_html.escape(preheader)}</div>
 <!-- wrapper -->
-<table class="body-table" role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{_BRAND['bg']};">
+<table class="body-table" role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{_BRAND["bg"]};">
 <tr><td align="center" style="padding:24px 12px;" class="body-cell">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-       style="max-width:640px;width:100%;background:{_BRAND['white']};border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06);">
+       style="max-width:640px;width:100%;background:{_BRAND["white"]};border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06);">
   <!-- header -->
-  <tr><td style="background:linear-gradient(135deg,{_BRAND['primary']},{_BRAND['secondary']});padding:20px 28px;" class="header-cell">
+  <tr><td style="background:linear-gradient(135deg,{_BRAND["primary"]},{_BRAND["secondary"]});padding:20px 28px;" class="header-cell">
     {_logo_tag()}
     {_tagline()}
   </td></tr>
@@ -188,7 +185,7 @@ def _wrap_html(title: str, preheader: str, body_inner: str) -> str:
   </td></tr>
   <!-- footer -->
   <tr><td style="padding:16px 28px;border-top:1px solid #F3F4F6;text-align:center;">
-    <p style="margin:0;font-size:12px;color:{_BRAND['light']};">
+    <p style="margin:0;font-size:12px;color:{_BRAND["light"]};">
       Gerado automaticamente em {date.today().strftime("%d/%m/%Y")}. &mdash; CustoDoce
     </p>
   </td></tr>
@@ -237,9 +234,13 @@ def build_full_report_html(prices_by_ingredient: dict) -> str:
             norm = p.get("normalized") or {}
             ppk = norm.get("price_per_kg", 0)
             ppk_str = f"R$ {ppk:.2f}" if ppk else "—"
-            promo = " <span style='background:{};color:{};padding:2px 6px;border-radius:4px;font-size:11px;'>PROMO</span>".format(
-                _BRAND["promo_bg"], _BRAND["promo_text"]
-            ) if p.get("is_promotion") else ""
+            promo = (
+                " <span style='background:{};color:{};padding:2px 6px;border-radius:4px;font-size:11px;'>PROMO</span>".format(
+                    _BRAND["promo_bg"], _BRAND["promo_text"]
+                )
+                if p.get("is_promotion")
+                else ""
+            )
             valid = p.get("valid_until", "")
             valid_str = f"<br><span style='font-size:11px;color:{_BRAND['light']}'>até {valid}</span>" if valid else ""
             highlight = "background:#FFFBEB;" if p == best else ""
@@ -253,13 +254,13 @@ def build_full_report_html(prices_by_ingredient: dict) -> str:
 
         sections += f"""
         <div style="margin-bottom:24px;">
-          <h2 class="email-h2" style="margin:0 0 4px 0;font-size:17px;color:{_BRAND['text']};">{safe_ing}</h2>
-          <p class="email-p" style="margin:0 0 10px 0;font-size:13px;color:{_BRAND['muted']};">Melhor: {best_store} &mdash; R$ {best_ppk:.2f}/kg</p>
+          <h2 class="email-h2" style="margin:0 0 4px 0;font-size:17px;color:{_BRAND["text"]};">{safe_ing}</h2>
+          <p class="email-p" style="margin:0 0 10px 0;font-size:13px;color:{_BRAND["muted"]};">Melhor: {best_store} &mdash; R$ {best_ppk:.2f}/kg</p>
           <div class="table-wrap" style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-                 style="border-collapse:collapse;background:{_BRAND['white']};border-radius:8px;overflow:hidden;border:1px solid #F3F4F6;min-width:420px;">
+                 style="border-collapse:collapse;background:{_BRAND["white"]};border-radius:8px;overflow:hidden;border:1px solid #F3F4F6;min-width:420px;">
             <thead>
-              <tr style="background:{_BRAND['primary']};color:{_BRAND['white']};">
+              <tr style="background:{_BRAND["primary"]};color:{_BRAND["white"]};">
                 <th class="table-th" style="padding:10px 12px;text-align:left;font-size:13px;">Loja</th>
                 <th class="table-th" style="padding:10px 12px;text-align:left;font-size:13px;">Produto</th>
                 <th class="table-th" style="padding:10px 12px;text-align:left;font-size:13px;">Preço</th>
@@ -272,12 +273,12 @@ def build_full_report_html(prices_by_ingredient: dict) -> str:
         </div>"""
 
     body = f"""
-    <h1 class="email-h1" style="margin:0 0 4px 0;font-size:20px;color:{_BRAND['text']};">Cotação de Preços</h1>
-    <p class="email-p" style="margin:0 0 20px 0;font-size:14px;color:{_BRAND['muted']};">
-      {total} ofertas em {n_stores} lojas &mdash; {date.today().strftime('%d/%m/%Y')}
+    <h1 class="email-h1" style="margin:0 0 4px 0;font-size:20px;color:{_BRAND["text"]};">Cotação de Preços</h1>
+    <p class="email-p" style="margin:0 0 20px 0;font-size:14px;color:{_BRAND["muted"]};">
+      {total} ofertas em {n_stores} lojas &mdash; {date.today().strftime("%d/%m/%Y")}
     </p>
     {sections}
-    <p class="email-p" style="margin:20px 0 0 0;font-size:12px;color:{_BRAND['light']};text-align:center;">
+    <p class="email-p" style="margin:20px 0 0 0;font-size:12px;color:{_BRAND["light"]};text-align:center;">
       Melhor preço por loja. Ordenado por R$/kg (menor primeiro). Destaque em amarelo.
     </p>"""
     return _wrap_html("Cotação CustoDoce", f"Cotação com {total} ofertas de {n_stores} lojas.", body)
@@ -288,22 +289,22 @@ def send_critical_alert(
     ingredient_name: str,
     price: float,
     store: str,
-    to_email: Optional[str] = None,
+    to_email: str | None = None,
 ):
     safe_name = _html.escape(ingredient_name)
     safe_store = _html.escape(store)
     body = f"""
-    <h2 style="margin:0 0 16px 0;font-size:20px;color:{_BRAND['text']};">🎯 Oferta Encontrada</h2>
+    <h2 style="margin:0 0 16px 0;font-size:20px;color:{_BRAND["text"]};">🎯 Oferta Encontrada</h2>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-           style="background:{_BRAND['promo_bg']};border-radius:8px;border:1px solid {_BRAND['promo_border']};">
+           style="background:{_BRAND["promo_bg"]};border-radius:8px;border:1px solid {_BRAND["promo_border"]};">
       <tr>
         <td style="padding:20px;">
-          <p style="margin:0 0 6px 0;font-size:13px;color:{_BRAND['muted']};">Ingrediente</p>
-          <p style="margin:0 0 16px 0;font-size:18px;font-weight:700;color:{_BRAND['text']};">{safe_name}</p>
-          <p style="margin:0 0 6px 0;font-size:13px;color:{_BRAND['muted']};">Preço</p>
-          <p style="margin:0 0 16px 0;font-size:28px;font-weight:700;color:{_BRAND['secondary']};">R$ {price:.2f}</p>
-          <p style="margin:0 0 6px 0;font-size:13px;color:{_BRAND['muted']};">Loja</p>
-          <p style="margin:0;font-size:16px;font-weight:600;color:{_BRAND['text']};">{safe_store}</p>
+          <p style="margin:0 0 6px 0;font-size:13px;color:{_BRAND["muted"]};">Ingrediente</p>
+          <p style="margin:0 0 16px 0;font-size:18px;font-weight:700;color:{_BRAND["text"]};">{safe_name}</p>
+          <p style="margin:0 0 6px 0;font-size:13px;color:{_BRAND["muted"]};">Preço</p>
+          <p style="margin:0 0 16px 0;font-size:28px;font-weight:700;color:{_BRAND["secondary"]};">R$ {price:.2f}</p>
+          <p style="margin:0 0 6px 0;font-size:13px;color:{_BRAND["muted"]};">Loja</p>
+          <p style="margin:0;font-size:16px;font-weight:600;color:{_BRAND["text"]};">{safe_store}</p>
         </td>
       </tr>
     </table>"""
@@ -315,24 +316,24 @@ def send_critical_alert(
 
 
 # ── Erro de scraper (email) ───────────────────────────────────────────
-def send_scraper_error(store_name: str, error: str, to_email: Optional[str] = None):
+def send_scraper_error(store_name: str, error: str, to_email: str | None = None):
     safe_store = _html.escape(store_name)
     safe_error = _html.escape(error)
     body = f"""
-    <h2 style="margin:0 0 16px 0;font-size:20px;color:{_BRAND['text']};">⚠️ Erro no Scraper</h2>
+    <h2 style="margin:0 0 16px 0;font-size:20px;color:{_BRAND["text"]};">⚠️ Erro no Scraper</h2>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
            style="background:#FEF2F2;border-radius:8px;border:1px solid #FECACA;">
       <tr>
         <td style="padding:20px;">
-          <p style="margin:0 0 6px 0;font-size:13px;color:{_BRAND['muted']};">Loja</p>
-          <p style="margin:0 0 16px 0;font-size:18px;font-weight:700;color:{_BRAND['text']};">{safe_store}</p>
-          <p style="margin:0 0 6px 0;font-size:13px;color:{_BRAND['muted']};">Erro</p>
-          <p style="margin:0;font-size:14px;color:{_BRAND['danger']};font-family:monospace;word-break:break-all;">{safe_error}</p>
+          <p style="margin:0 0 6px 0;font-size:13px;color:{_BRAND["muted"]};">Loja</p>
+          <p style="margin:0 0 16px 0;font-size:18px;font-weight:700;color:{_BRAND["text"]};">{safe_store}</p>
+          <p style="margin:0 0 6px 0;font-size:13px;color:{_BRAND["muted"]};">Erro</p>
+          <p style="margin:0;font-size:14px;color:{_BRAND["danger"]};font-family:monospace;word-break:break-all;">{safe_error}</p>
         </td>
       </tr>
     </table>
-    <p style="margin:16px 0 0 0;font-size:13px;color:{_BRAND['muted']};">
-      Verifique os <a href="https://github.com/ZeroBond85/CustoDoce/actions" style="color:{_BRAND['secondary']};">logs do GitHub Actions</a>.
+    <p style="margin:16px 0 0 0;font-size:13px;color:{_BRAND["muted"]};">
+      Verifique os <a href="https://github.com/ZeroBond85/CustoDoce/actions" style="color:{_BRAND["secondary"]};">logs do GitHub Actions</a>.
     </p>"""
     send_daily_report(
         report_html=body,
@@ -342,19 +343,53 @@ def send_scraper_error(store_name: str, error: str, to_email: Optional[str] = No
 
 
 # ── Envio genérico ────────────────────────────────────────────────────
+def send_email(to_email: str, subject: str, html_body: str):
+    """Simple email sender using the existing SMTP config."""
+    host, port, user, password, from_addr = _get_smtp_config()
+
+    if not user or not password or not to_email:
+        raise ValueError("SMTP credentials not configured")
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = f"CustoDoce <{from_addr}>"
+    msg["To"] = to_email
+    msg.attach(MIMEText(html_body, "html", "utf-8"))
+
+    if _LOGO_PATH.exists():
+        with open(_LOGO_PATH, "rb") as f:
+            img_data = f.read()
+        img = MIMEImage(img_data, _subtype="png")
+        img.add_header("Content-ID", "<logo>")
+        img.add_header("Content-Disposition", "inline", filename="logo.png")
+        msg.attach(img)
+
+    if port == 465:
+        import smtplib as _ssl_smtplib
+
+        server = _ssl_smtplib.SMTP_SSL(host, port, timeout=30)
+        server.login(user, password)
+    else:
+        server = smtplib.SMTP(host, port, timeout=30)
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+        server.login(user, password)
+    server.send_message(msg)
+    server.quit()
+
+
 def send_daily_report(
     report_html: str,
-    csv_bytes: Optional[bytes] = None,
-    to_email: Optional[str] = None,
-    subject: Optional[str] = None,
+    csv_bytes: bytes | None = None,
+    to_email: str | None = None,
+    subject: str | None = None,
 ):
     host, port, user, password, from_addr = _get_smtp_config()
     to_email = to_email or os.environ.get("ALERT_EMAIL_TO", user)
 
     if not user or not password or not to_email:
-        raise ValueError(
-            "SMTP_USER/SMTP_PASSWORD/ALERT_EMAIL_TO (ou GMAIL_USER/GMAIL_APP_PASSWORD) must be set."
-        )
+        raise ValueError("SMTP_USER/SMTP_PASSWORD/ALERT_EMAIL_TO (ou GMAIL_USER/GMAIL_APP_PASSWORD) must be set.")
 
     msg = MIMEMultipart("mixed")
     msg["Subject"] = subject or f"📊 Cotação de Preços CustoDoce • {date.today().strftime('%d/%m/%Y')}"
@@ -385,6 +420,7 @@ def send_daily_report(
 
     if port == 465:
         import smtplib as _ssl_smtplib
+
         server = _ssl_smtplib.SMTP_SSL(host, port, timeout=30)
         server.login(user, password)
     else:

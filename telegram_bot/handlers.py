@@ -40,9 +40,7 @@ async def precos_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = " ".join(context.args)
     if not query:
         await update.message.reply_text(
-            "Use: /preco <ingrediente>\n"
-            "Exemplo: /preco leite condensado\n\n"
-            "Para ver todos os ingredientes: /lista"
+            "Use: /preco <ingrediente>\nExemplo: /preco leite condensado\n\nPara ver todos os ingredientes: /lista"
         )
         return
 
@@ -54,17 +52,13 @@ async def precos_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             break
 
     if not matched:
-        await update.message.reply_text(
-            f"Ingrediente '{query}' não encontrado.\n"
-            "Use /lista para ver todos."
-        )
+        await update.message.reply_text(f"Ingrediente '{query}' não encontrado.\nUse /lista para ver todos.")
         return
 
     prices = get_prices_for_ingredient(matched["canonical_name"])
     if not prices:
         await update.message.reply_text(
-            f"Nenhum preço encontrado para '{matched['canonical_name']}' ainda.\n"
-            "Aguarde a próxima coleta."
+            f"Nenhum preço encontrado para '{matched['canonical_name']}' ainda.\nAguarde a próxima coleta."
         )
         return
 
@@ -96,9 +90,7 @@ async def lista_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             msg += f"  • {item}\n"
         msg += "\n"
 
-    msg += (
-        "Use /preco <nome> para ver os preços."
-    )
+    msg += "Use /preco <nome> para ver os preços."
     await update.message.reply_text(msg, parse_mode="HTML")
 
 
@@ -153,6 +145,37 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg, parse_mode="HTML")
 
 
+async def scrape_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = " ".join(context.args)
+    if not query:
+        await update.message.reply_text(
+            "Use: /scrape <loja>\nExemplo: /scrape assai\n\nIsso solicitará uma coleta imediata desta loja."
+        )
+        return
+
+    from services.supabase_client import get_service_client
+
+    client = get_service_client()
+
+    # Find store by name
+    res = client.table("stores").select("id, name").ilike("name", f"%{query}%").execute()
+    if not res.data:
+        await update.message.reply_text(f"Loja '{query}' não encontrada.")
+        return
+
+    store = res.data[0]
+
+    # Request scrape
+    client.table("scrape_requests").insert(
+        {"user_id": str(update.effective_user.id), "store_id": store["id"], "status": "pending"}
+    ).execute()
+
+    await update.message.reply_text(
+        f"✅ Solicitação enviada para <b>{store['name']}</b>.\n"
+        f"O robô coletará os preços na próxima execução do worker (máx 15 min)."
+    )
+
+
 def run_bot():
     token = os.environ.get("TELEGRAM_TOKEN")
     if not token:
@@ -164,6 +187,7 @@ def run_bot():
     app.add_handler(CommandHandler("preco", precos_command))
     app.add_handler(CommandHandler("lista", lista_command))
     app.add_handler(CommandHandler("status", status_command))
+    app.add_handler(CommandHandler("scrape", scrape_command))
     app.add_handler(CommandHandler("ajuda", help_command))
     app.add_handler(CommandHandler("help", help_command))
 

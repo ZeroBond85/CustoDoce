@@ -1,15 +1,10 @@
-
-import hashlib
-import logging
-
-import httpx
 from scrapers.base_web_scraper import BaseWebScraper
-
-logger = logging.getLogger(__name__)
+from services.logger import logger
+import httpx
+import hashlib
 
 
 class RoldaoApiScraper(BaseWebScraper):
-
     def __init__(self, store_config: dict):
         # Roldão's blog has SSL certificate issues, force verify_ssl=False
         store_config = {**store_config, "verify_ssl": False}
@@ -54,15 +49,17 @@ class RoldaoApiScraper(BaseWebScraper):
         date = post.get("date", "")
         excerpt = post.get("excerpt", {}).get("rendered", "")
 
-        entries.append({
-            "product": f"Encarte Roldão - {title}",
-            "price": 0.0,
-            "unit": "encarte",
-            "image_url": image_url,
-            "image_hash": hashlib.md5(image_url.encode(), usedforsecurity=False).hexdigest(),
-            "post_date": date,
-            "excerpt": excerpt,
-        })
+        entries.append(
+            {
+                "product": f"Encarte Roldão - {title}",
+                "price": 0.0,
+                "unit": "encarte",
+                "image_url": image_url,
+                "image_hash": hashlib.md5(image_url.encode(), usedforsecurity=False).hexdigest(),
+                "post_date": date,
+                "excerpt": excerpt,
+            }
+        )
         return entries
 
     def parse_products(self, raw_data) -> list[dict]:

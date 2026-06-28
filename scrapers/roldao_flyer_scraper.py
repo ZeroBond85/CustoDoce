@@ -4,14 +4,13 @@ Uses Playwright to render JavaScript-rendered flyer page.
 """
 
 import asyncio
-import logging
 import re
 
+from services.logger import logger
 from scrapers.playwright_pool import get_browser_pool
 
-logger = logging.getLogger(__name__)
-
 PRICE_RE = re.compile(r"(?:R\$\s*)?([1-9]\d{0,2}(?:\.\d{3})*\s*,\d{2})\b")
+
 
 class RoldaoFlyerScraper:
     """Scraper para folhetos do Roldão em https://roldao.com.br/ofertas-do-roldao/.
@@ -35,12 +34,16 @@ class RoldaoFlyerScraper:
         await page.wait_for_timeout(3000)
 
         # Try to find product cards
-        cards = await page.query_selector_all('[class*="product"], [class*="offer"], [class*="item"], article, [class*="card"]')
+        cards = await page.query_selector_all(
+            '[class*="product"], [class*="offer"], [class*="item"], article, [class*="card"]'
+        )
 
         for card in cards:
             try:
                 # Try to extract name
-                name_el = await card.query_selector('[class*="name"], [class*="title"], h3, h4, .product-name, .product-title')
+                name_el = await card.query_selector(
+                    '[class*="name"], [class*="title"], h3, h4, .product-name, .product-title'
+                )
                 name = await name_el.inner_text() if name_el else ""
 
                 # Try to extract price
@@ -60,13 +63,15 @@ class RoldaoFlyerScraper:
 
                 unit = self._extract_unit(name, unit_text)
 
-                products.append({
-                    "product": name.strip(),
-                    "price": price,
-                    "unit": unit,
-                    "validity_raw": "",
-                    "brand": "",
-                })
+                products.append(
+                    {
+                        "product": name.strip(),
+                        "price": price,
+                        "unit": unit,
+                        "validity_raw": "",
+                        "brand": "",
+                    }
+                )
 
             except Exception as e:
                 logger.debug("Erro ao extrair produto: %s", e)
@@ -77,10 +82,11 @@ class RoldaoFlyerScraper:
     def _parse_price(self, text: str) -> float | None:
         if not text:
             return None
-        m = re.search(r"(?:R\$\s*)?([1-9]\d{0,2}(?:\.\d{3})*\s*,\d{2})\b", text.replace(".", "").replace(",", "."))
+        m = re.search(r"(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)", text)
         if m:
+            raw = m.group(1).replace(".", "").replace(",", ".")
             try:
-                return float(m.group(1).replace(".", "").replace(",", "."))
+                return float(raw)
             except ValueError:
                 pass
         return None
@@ -89,6 +95,7 @@ class RoldaoFlyerScraper:
         combined = f"{name} {unit_text}"
         # Try to extract unit from name or unit_text
         import re
+
         m = re.search(r"(\d+(?:[.,]\d+)?)\s*(kg|g|ml|l|un|unidades|cx|pct|pacote)", combined, re.I)
         if m:
             return f"{m.group(1)} {m.group(2).lower()}"

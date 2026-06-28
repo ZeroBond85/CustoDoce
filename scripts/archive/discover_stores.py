@@ -1,4 +1,5 @@
 """Discover all store locations for each chain."""
+
 import httpx
 import re
 
@@ -8,7 +9,7 @@ with httpx.Client(timeout=20, follow_redirects=True, verify=False) as client:
     r = client.get("https://www.maxatacadista.com.br/lojas/")
     if r.status_code == 200:
         # Look for loja links
-        lojas = re.findall(r'/lojas/encartes-e-videos/\?loja=(\d+)', r.text)
+        lojas = re.findall(r"/lojas/encartes-e-videos/\?loja=(\d+)", r.text)
         lojas = list(set(lojas))
         print(f"Loja IDs: {lojas[:20]}")
         # Also look for store names
@@ -19,7 +20,7 @@ with httpx.Client(timeout=20, follow_redirects=True, verify=False) as client:
     print("\n=== SPANI ===")
     r = client.get("https://lojas.spani.com.br/")
     if r.status_code == 200:
-        stores = re.findall(r'lojas\.spani\.com\.br/lojas/([a-z0-9\-]+)', r.text)
+        stores = re.findall(r"lojas\.spani\.com\.br/lojas/([a-z0-9\-]+)", r.text)
         stores = list(set(stores))
         print(f"Stores: {stores[:30]}")
 
@@ -27,7 +28,7 @@ with httpx.Client(timeout=20, follow_redirects=True, verify=False) as client:
     print("\n=== TENDA ===")
     r = client.get("https://www.tendaatacado.com.br/institucional/nossas-lojas/")
     if r.status_code == 200:
-        stores = re.findall(r'nossas-lojas/([a-z0-9\-]+)', r.text)
+        stores = re.findall(r"nossas-lojas/([a-z0-9\-]+)", r.text)
         stores = list(set(stores))
         print(f"Stores: {stores[:30]}")
 
@@ -35,6 +36,6 @@ with httpx.Client(timeout=20, follow_redirects=True, verify=False) as client:
     print("\n=== ROLDÃO ===")
     r = client.get("https://roldao.com.br/lojas/")
     if r.status_code == 200:
-        stores = re.findall(r'lojas/([a-z0-9\-]+)', r.text)
+        stores = re.findall(r"lojas/([a-z0-9\-]+)", r.text)
         stores = list(set(stores))
         print(f"Stores: {stores[:30]}")

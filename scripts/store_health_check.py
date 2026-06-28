@@ -5,6 +5,7 @@ Nao reativa automaticamente — apenas loga para revisao.
 Nota: O Supabase stores table nao tem URLs populadas (campo None).
       Usamos stores.yaml como fallback para buscar a URL.
 """
+
 import logging
 import sys
 from pathlib import Path
@@ -39,8 +40,12 @@ def _lookup_url_from_yaml(store_name: str) -> str:
     """Busca URL da loja no stores.yaml por nome."""
     for s in _get_yaml_stores():
         if s.get("name", "").lower() == store_name.lower():
-            return (s.get("search_url", "") or s.get("base_url", "")
-                    or s.get("url_pattern", "") or s.get("api_endpoint", ""))
+            return (
+                s.get("search_url", "")
+                or s.get("base_url", "")
+                or s.get("url_pattern", "")
+                or s.get("api_endpoint", "")
+            )
     return ""
 
 
@@ -65,8 +70,12 @@ def check_disabled_stores_health(timeout: int = 15) -> list[dict]:
             continue
         name = store.get("name", sid)
         # Try DB first, then YAML fallback
-        url = (store.get("search_url", "") or store.get("base_url", "")
-               or store.get("url_pattern", "") or store.get("api_endpoint", ""))
+        url = (
+            store.get("search_url", "")
+            or store.get("base_url", "")
+            or store.get("url_pattern", "")
+            or store.get("api_endpoint", "")
+        )
         if not url:
             url = _lookup_url_from_yaml(name)
         if not url:
@@ -79,7 +88,7 @@ def check_disabled_stores_health(timeout: int = 15) -> list[dict]:
         try:
             with httpx.Client(timeout=timeout, follow_redirects=True) as h:
                 resp = h.head(url)
-                status = resp.status_code
+                status = str(resp.status_code)
         except Exception as e:
             status = str(e)
 

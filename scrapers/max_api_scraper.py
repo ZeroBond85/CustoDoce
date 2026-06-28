@@ -1,14 +1,8 @@
-
-import hashlib
-import logging
-
 from scrapers.base_web_scraper import BaseWebScraper
-
-logger = logging.getLogger(__name__)
+import hashlib
 
 
 class MaxApiScraper(BaseWebScraper):
-
     def __init__(self, store_config: dict):
         super().__init__(store_config)
         self.api_base = store_config.get("api_base", "https://institucional.supermuffato.com.br/webtools/services/api")
@@ -34,15 +28,17 @@ class MaxApiScraper(BaseWebScraper):
                 if image_url:
                     if image_url.startswith("//"):
                         image_url = "https:" + image_url
-                    entries.append({
-                        "product": "Encarte Max Atacadista",
-                        "price": 0.0,
-                        "unit": "encarte",
-                        "image_url": image_url,
-                        "image_hash": hashlib.md5(image_url.encode(), usedforsecurity=False).hexdigest(),
-                        "flyer_id": item.get("id", ""),
-                        "is_cover": item.get("isCover", False),
-                    })
+                    entries.append(
+                        {
+                            "product": "Encarte Max Atacadista",
+                            "price": 0.0,
+                            "unit": "encarte",
+                            "image_url": image_url,
+                            "image_hash": hashlib.md5(image_url.encode(), usedforsecurity=False).hexdigest(),
+                            "flyer_id": item.get("id", ""),
+                            "is_cover": item.get("isCover", False),
+                        }
+                    )
         return entries
 
     def parse_products(self, raw_data) -> list[dict]:

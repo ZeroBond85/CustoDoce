@@ -1,16 +1,13 @@
-import logging
-import time
 from abc import ABC, abstractmethod
-from typing import Optional
-from urllib.parse import quote
-
+import time
 import httpx
-
-logger = logging.getLogger(__name__)
+from urllib.parse import quote
+from services.logger import logger
 
 
 def _retry_with_backoff(max_retries: int = 3, base_delay: float = 1.0, max_delay: float = 30.0):
     """Decorator para retry com backoff exponencial. Retorna None se todas falharem."""
+
     def decorator(func):
         def wrapper(*args, **kwargs):
             for attempt in range(max_retries + 1):
@@ -18,25 +15,77 @@ def _retry_with_backoff(max_retries: int = 3, base_delay: float = 1.0, max_delay
                     return func(*args, **kwargs)
                 except (httpx.TimeoutException, httpx.NetworkError, httpx.HTTPStatusError) as e:
                     if attempt < max_retries:
-                        delay = min(base_delay * (2 ** attempt), max_delay)
+                        delay = min(base_delay * (2**attempt), max_delay)
                         logger.warning(
                             "[%s] Tentativa %d/%d falhou: %s. Aguardando %.1fs...",
-                            args[0].name if args else "scraper", attempt + 1, max_retries + 1, e, delay
+                            args[0].name if args else "scraper",
+                            attempt + 1,
+                            max_retries + 1,
+                            e,
+                            delay,
                         )
                         time.sleep(delay)
                     else:
-                        logger.error("[%s] Todas %d tentativas falharam: %s. Retornando None.",
-                                     args[0].name if args else "scraper", max_retries + 1, e)
+                        logger.error(
+                            "[%s] Todas %d tentativas falharam: %s. Retornando None.",
+                            args[0].name if args else "scraper",
+                            max_retries + 1,
+                            e,
+                        )
             return None
+
         return wrapper
+
     return decorator
+
+
+DEFAULT_SELECTORS: dict = {
+    "product_card": [
+        ".product-item",
+        ".product",
+        ".produto",
+        "li.product",
+        "article.product",
+        ".item",
+        ".product-card",
+        ".product-box",
+        "[class*=produto]",
+        "[class*=product]",
+    ],
+    "product_name": [
+        "h2 a",
+        "h3 a",
+        ".product-name a",
+        ".product-name",
+        ".nome-produto",
+        ".name a",
+        "a[class*=name]",
+        "a[class*=nome]",
+        "[class*=title] a",
+        ".product-title a",
+    ],
+    "product_price": [
+        ".price",
+        ".preco",
+        ".current-price",
+        "span.price",
+        ".product-price",
+        "[class*=price]",
+        "[class*=preco]",
+        ".sale-price",
+        ".offer-price",
+        ".box-price",
+    ],
+    "product_validity": [],
+    "product_brand": [],
+}
 
 
 class BaseWebScraper(ABC):
     DEFAULT_RATE_LIMIT = 1.0
     DEFAULT_MAX_RETRIES = 3
 
-    def __init__(self, store_config: dict, rate_limit: Optional[float] = None, max_retries: Optional[int] = None):
+    def __init__(self, store_config: dict, rate_limit: float | None = None, max_retries: int | None = None):
         self.store = store_config
         self.name = store_config.get("name", "unknown")
         self.base_url = (store_config.get("base_url") or "").rstrip("/")
@@ -84,7 +133,7 @@ class BaseWebScraper(ABC):
         self._http.close()
 
     @_retry_with_backoff(max_retries=3, base_delay=1.0, max_delay=30.0)
-    def fetch_search(self, query: str) -> Optional[str]:
+    def fetch_search(self, query: str) -> str | None:
         search_url = self.store.get("search_url", "").format(query=quote(query))
         if not search_url:
             return None
@@ -93,7 +142,7 @@ class BaseWebScraper(ABC):
         return resp.text
 
     @_retry_with_backoff(max_retries=3, base_delay=1.0, max_delay=30.0)
-    def fetch_json(self, url: str, params: Optional[dict] = None) -> Optional[dict | list]:
+    def fetch_json(self, url: str, params: dict | None = None) -> dict | list | None:
         resp = self._http.get(url, params=params)
         resp.raise_for_status()
         return resp.json()
@@ -103,8 +152,7 @@ class BaseWebScraper(ABC):
             time.sleep(self.rate_limit)
 
     @abstractmethod
-    def parse_products(self, raw_data) -> list[dict]:
-        ...
+    def parse_products(self, raw_data) -> list[dict]: ...
 
     def run(self, ingredients: list[dict]) -> list[dict]:
         all_entries = []

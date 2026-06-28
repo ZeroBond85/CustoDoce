@@ -1,306 +1,238 @@
 ingredients:
   - canonical: "Leite Condensado Integral"
-    brands: ["Moça", "Piracanjuba", "Itambé", "Italac"]
-    search_terms: ["leite condensado", "lc", "moca"]
-    aliases:
-      - "Leite Condensado Moça 12un"
-      - "Leite Condensado Piracanjuba 12x395g"
-      - "Leite Condensado Itambé 12un"
-      - "Leite Condensado Italac 12un"
-      - "LC Integral 12un"
-      - "Leite Condensado 395g"
-      - "Leite Condensado 1kg"
-      - "Leite Cond. Moca"
-      - "L.COND.MOCA INTEGR.12X395G"
-      - "LEITE COND FD C/12 MOCA"
-      - "MOCA LEITE CONDENS. LATA"
     category: "lacteos"
+    brands: ["Moça", "Piracanjuba", "Italac", "Itambé"]
+    search_terms: ["leite condensado", "moca", "condensado"]
+    aliases:
+      - "Leite Condensado Moça 395g"
+      - "Leite Condensado Piracanjuba"
+      - "Leite Condensado Integral 395g"
+      - "Leite Moça 12x395g"
+      - "Leite Condensado 1kg"
+    exclude_terms: ["recheio", "sabor", "semidesnatado", "desnatado", "preparado", "pronto"]
 
   - canonical: "Creme de Leite 20% Gordura"
-    brands: ["Nestlé", "Piracanjuba"]
-    search_terms: ["creme de leite", "cl", "creme leite"]
-    aliases:
-      - "Creme de Leite Nestlé 12x200g"
-      - "Creme de Leite Piracanjuba 12x200g"
-      - "Creme de Leite 12un"
-      - "CL Nestlé 12un"
-      - "Creme de Leite 20% 12x200g"
-      - "CREME LEITE 20% 1L"
-      - "Creme Leite 200g"
-      - "Creme Leite Nestlé Lata"
-      - "Creme de Leite CX 200G"
     category: "lacteos"
+    brands: ["Nestlé", "Piracanjuba"]
+    search_terms: ["creme de leite", "creme leite"]
+    aliases:
+      - "Creme de Leite Nestlé"
+      - "Creme de Leite Piracanjuba"
+    exclude_terms: ["recheio", "sabor", "preparado", "pronto", "mistura"]
 
   - canonical: "Chocolate em Pó 50% Cacau"
+    category: "chocolates"
     brands: ["Melken", "Sicao"]
     search_terms: ["chocolate po", "cacau 50", "chocolate 50 cacau"]
     aliases:
       - "Chocolate em Pó Melken 1kg"
       - "Chocolate em Pó Sicao 1kg"
-      - "Chocolate em Pó 50% Cacau"
       - "Chocolate em Pó 50%"
       - "Chocolate em Pó 500g"
       - "Chocolate em Pó 1kg"
       - "Cacau em Pó 50% 1kg"
       - "CHOCOLATE PO 50%"
-      - "Chocolate em Pó 1kg Melken"
-      - "Cacau em Pó Sicao"
-    category: "chocolates"
+    exclude_terms: ["achocolatado", "bebida", "preparado"]
 
   - canonical: "Leite em Pó Integral"
-    brands: ["Ninho"]
-    search_terms: ["leite po", "leite ninho", "leite em po"]
-    aliases:
-      - "Leite Ninho Integral"
-      - "Leite Ninho Integral 800g"
-      - "Leite Ninho Integral 380g"
-      - "Leite Ninho Integral 1kg"
-      - "Leite Ninho 800g"
-      - "Ninho Integral 800g"
-      - "LEITE NINHO 800G"
-      - "Ninho Leite Integral"
-      - "Leite Ninho 380g"
-      - "Leite em Pó Ninho"
     category: "lacteos"
+    brands: ["Ninho"]
+    search_terms: ["leite po", "ninho", "leite em po"]
+    aliases:
+      - "Leite em Pó Ninho 400g"
+      - "Leite em Pó Ninho 1kg"
+      - "Leite Ninho Integral"
+      - "Ninho Integral 400g"
+      - "LEITE NINHO 1KG"
+    exclude_terms: ["desnatado", "semidesnatado", "zero", "light"]
 
   - canonical: "Granulado Ao Leite"
-    brands: ["Melken"]
-    search_terms: ["granulado ao leite", "granulado melken"]
-    aliases:
-      - "Granulado Melken Ao Leite"
-      - "Granulado Melken Ao Leite 1kg"
-      - "Granulado Melken Ao Leite 2.5kg"
-      - "Granulado Melken Ao Leite 2500g"
-      - "Granulado Ao Leite Melken 1kg"
-      - "Granulado Ao Leite 1kg"
-      - "GRANULADO MELKEN AO LEITE"
-      - "Granulado Melken 1kg Ao Leite"
-      - "Granulado Mix Ao Leite Melken"
-      - "Granulado ao Leite"
     category: "confeitos"
+    brands: ["Melken"]
+    search_terms: ["granulado", "granulado leite"]
+    aliases:
+      - "Granulado Ao Leite Melken"
+      - "Granulado Leite 500g"
+    exclude_terms: ["mistura", "preparado", "bolo"]
 
   - canonical: "Granulado Branco"
-    brands: ["Melken"]
-    search_terms: ["granulado branco", "granulado melken branco"]
-    aliases:
-      - "Granulado Melken Branco"
-      - "Granulado Melken Branco 1kg"
-      - "Granulado Melken Branco 2.5kg"
-      - "Granulado Branco Melken 1kg"
-      - "Granulado Branco 1kg"
-      - "GRANULADO MELKEN BRANCO"
-      - "Granulado Melken 1kg Branco"
-      - "Granulado Mix Branco Melken"
-      - "Melken Granulado Branco 500g"
     category: "confeitos"
+    brands: ["Melken"]
+    search_terms: ["granulado branco", "granulado white"]
+    aliases:
+      - "Granulado Branco Melken"
+      - "Granulado Branco 500g"
+    exclude_terms: ["mistura", "preparado", "bolo"]
 
   - canonical: "Granulado Meio Amargo"
-    brands: ["Melken"]
-    search_terms: ["granulado meio amargo", "granulado amargo"]
-    aliases:
-      - "Granulado Melken Meio Amargo"
-      - "Granulado Melken Meio Amargo 1kg"
-      - "Granulado Melken Meio Amargo 2.5kg"
-      - "Granulado Meio Amargo Melken 1kg"
-      - "Granulado Meio Amargo 1kg"
-      - "GRANULADO MELKEN MEIO AMARGO"
-      - "Granulado Melken 1kg Meio Amargo"
-      - "Granulado Mix Meio Amargo Melken"
     category: "confeitos"
+    brands: ["Melken"]
+    search_terms: ["granulado meio amargo", "granulado dark"]
+    aliases:
+      - "Granulado Meio Amargo Melken"
+      - "Granulado Dark 500g"
+    exclude_terms: ["mistura", "preparado", "bolo"]
 
   - canonical: "Creme de Avelã"
-    brands: ["Nutella"]
-    search_terms: ["nutella", "creme de avela", "creme avela"]
-    aliases:
-      - "Nutella 3kg"
-      - "Nutella 3kg Food Service"
-      - "Nutella 650g"
-      - "Nutella 750g"
-      - "NUTELLA 3KG"
-      - "Nutella Avelã 3kg"
-      - "Creme Avelã Nutella 3kg"
-      - "Nutella Pote 3kg"
-      - "Creme de Avelã 3kg"
-      - "Creme Avelã 350g"
-      - "Creme Avelã 750g"
     category: "pastas"
+    brands: ["Nutella"]
+    search_terms: ["creme avela", "nutella", "pasta avela"]
+    aliases:
+      - "Creme de Avelã Nutella"
+      - "Nutella 350g"
+      - "Nutella 1kg"
+      - "CREME DE AVELÃ NUTELLA"
+    exclude_terms: ["doce de leite", "goiabada", "mel"]
 
   - canonical: "Granulado Colorido"
-    brands: ["Coloretti"]
-    search_terms: ["granulado colorido", "coloretti", "confeito colorido"]
-    aliases:
-      - "Coloretti Granulado Colorido"
-      - "Coloretti 1kg"
-      - "Coloretti 500g"
-      - "Granulado Colorido 1kg"
-      - "Granulado Colorido Coloretti 1kg"
-      - "COLORETTI 1KG"
-      - "Coloretti 1000g"
-      - "Confeito Colorido 1kg"
     category: "confeitos"
+    brands: ["Coloretti"]
+    search_terms: ["granulado colorido", "granulado color"]
+    aliases:
+      - "Granulado Colorido Coloretti"
+      - "Granulado Colorido 500g"
+    exclude_terms: ["mistura", "preparado"]
 
   - canonical: "Coco Ralado Grosso sem Açúcar"
-    brands: ["Socôco", "Ducoco"]
-    search_terms: ["coco ralado", "coco saco"]
-    aliases:
-      - "Coco Ralado Grosso s Açúcar"
-      - "Coco Ralado Grosso sem Açúcar 1kg"
-      - "Coco Ralado Grosso 1kg"
-      - "Coco Ralado 1kg"
-      - "Coco Ralado Saco 500g"
-      - "COCO RALADO GROSSO"
-      - "Coco Ralado Grosso sem Acucar"
-      - "Coco Ralado Grosso 500g"
     category: "secos"
+    brands: ["Socôco", "Ducoco"]
+    search_terms: ["coco ralado", "coco ralado grosso", "coco sem acucar"]
+    aliases:
+      - "Coco Ralado Grosso Socôco"
+      - "Coco Ralado Grosso Ducoco"
+      - "Coco Ralado sem Açúcar 100g"
+      - "COCO RALADO GROSSO SOCÔCO"
+    exclude_terms: ["acucarado", "com acucar", "adoçado"]
 
   - canonical: "Chocolate Nobre Blend"
+    category: "chocolates"
     brands: ["Harald"]
-    search_terms: ["chocolate nobre", "cobertura nobre", "nobr blend"]
+    search_terms: ["chocolate nobre", "blend harald", "nobre blend"]
     aliases:
       - "Chocolate Nobre Blend Harald"
-      - "Chocolate Nobre Blend Harald 2.1kg"
-      - "Chocolate Nobre Blend Harald 1kg"
-      - "Chocolate Nobre Blend Harald 500g"
-      - "Chocolate nobre Blend Harald"
-      - "Chocolate Harald Blend 2.1kg"
-      - "Chocolate Harald nobre 1kg"
-      - "CHOCOLATE NOBRE HARALD"
-      - "Chocolate nobre 2.1kg Harald Blend"
-      - "Chocolate nobre Blend 1kg"
-      - "Cobertura nobre Blend Harald"
-      - "Chocolate Nobre"
-    category: "chocolates"
+      - "Nobre Blend 1kg"
+      - "CHOCOLATE NOBRE BLEND HARALD"
+    exclude_terms: ["achocolatado", "bebida", "preparado"]
 
   - canonical: "Açúcar Mascavo"
-    brands: ["JR"]
-    search_terms: ["açúcar mascavo", "acucar mascavo"]
-    aliases:
-      - "Açúcar Mascavo 1kg JR"
-      - "ACUCAR MASCAVO 1KG JR"
-      - "Açúcar Mascavo 1kg"
     category: "acucares"
+    brands: ["JR"]
+    search_terms: ["acucar mascavo", "acucar marrom", "mascavo"]
+    aliases:
+      - "Açúcar Mascavo JR"
+      - "Açúcar Mascavo 1kg"
+      - "ACUCAR Mascavo JR"
+      - "Açúcar Mascavo 500g"
+    exclude_terms: ["acucar cristal", "acucar refinado", "acucar de confeiteiro"]
 
   - canonical: "Açúcar de Confeiteiro"
-    brands: ["Mavalerio"]
-    search_terms: ["açúcar de confeiteiro", "snow sugar", "icing sugar"]
-    aliases:
-      - "Açúcar Snow Sugar 500g Mavalerio"
-      - "SNOW SUGAR 500G MAVALERIO"
-      - "Snow Sugar 500g"
-      - "Açúcar Confeiteiro 500g"
-      - "ACUCAR CONFEITEIRO"
     category: "acucares"
+    brands: ["Mavalerio"]
+    search_terms: ["acucar confeiteiro", "acucar de confeiteiro", "acucar po"]
+    aliases:
+      - "Açúcar de Confeiteiro Mavalerio"
+      - "Açúcar de Confeiteiro 1kg"
+      - "ACUCAR DE CONFEITEIRO MAVALERIO"
+    exclude_terms: ["acucar mascavo", "acucar cristal", "acucar refinado"]
 
   - canonical: "Chocolate em Pó 70% Cacau"
-    brands: ["Sicao"]
-    search_terms: ["chocolate em pó 70", "chocolate po 70", "cacau 70%"]
-    aliases:
-      - "Chocolate Pó 70 Sicao 500g"
-      - "CHOCOLATE PO 70 SICAO 500G"
-      - "Chocolate em Pó 70% 500g"
-      - "Chocolate Pó 70%"
-      - "CHOCOLATE PO 70%"
     category: "chocolates"
+    brands: ["Sicao"]
+    search_terms: ["chocolate po 70", "cacau 70", "chocolate 70 cacau"]
+    aliases:
+      - "Chocolate em Pó 70% Cacau Sicao"
+      - "Chocolate em Pó Sicao 70%"
+      - "Cacau em Pó 70%"
+      - "CHOCOLATE PO 70% SICAO"
+    exclude_terms: ["achocolatado", "bebida", "preparado"]
 
   - canonical: "Farinha de Trigo"
+    category: "farinhas"
     brands: ["Dona Benta"]
     search_terms: ["farinha de trigo", "farinha trigo"]
     aliases:
-      - "Farinha Trigo Dona Benta 1kg"
-      - "FARINHA TRIGO DONA BENTA 1KG"
+      - "Farinha de Trigo Dona Benta"
       - "Farinha de Trigo 1kg"
-      - "Farinha Trigo 1kg"
-      - "FARINHA TRIGO 1KG"
-    category: "farinhas"
+      - "FARINHA DE TRIGO DONA BENTA"
+    exclude_terms: ["mistura", "preparado", "bolo"]
 
   - canonical: "Micro Ball"
-    brands: ["Mavalerio"]
-    search_terms: ["micro ball", "microball"]
-    aliases:
-      - "Micro Ball Leite Branco 500g Mavalerio"
-      - "MICRO BALL BRANCO 500G"
-      - "Micro Ball 500g"
-      - "Micro Ball Mavalerio"
     category: "confeitos"
+    brands: ["Mavalerio"]
+    search_terms: ["micro ball", "microball", "bolinha"]
+    aliases:
+      - "Micro Ball Mavalerio"
+      - "Micro Ball 500g"
+      - "MICRO BALL MAVALERIO"
+    exclude_terms: ["mistura", "preparado"]
 
   - canonical: "Top Confete Morango"
-    brands: ["Harald"]
-    search_terms: ["top confete morango", "confete morango"]
-    aliases:
-      - "Top Confete Morango 400g Harald"
-      - "CONFETE MORANGO HARALD 400G"
-      - "Confete Morango 400g"
-      - "Top Confete Morango 400g"
     category: "confeitos"
+    brands: ["Harald"]
+    search_terms: ["top confete", "confete morango", "top morango"]
+    aliases:
+      - "Top Confete Morango Harald"
+      - "Top Confete Morango 500g"
+      - "TOP CONFETE MORANGO HARALD"
+    exclude_terms: ["mistura", "preparado"]
 
   - canonical: "Gotas de Chocolate Branco"
-    brands: ["Melken"]
-    search_terms: ["gotas de chocolate branco", "gotas chocolate branco", "gotas melken branca"]
-    aliases:
-      - "Gotas Melken Branca 205kg"
-      - "GOTAS MELKEN BRANCA 205KG"
-      - "Gotas Chocolate Branco Melken"
-      - "Gotas Brancas Melken"
-      - "Gotas de Chocolate Branco 1kg"
     category: "chocolates"
+    brands: ["Melken"]
+    search_terms: ["gotas chocolate branco", "gotas branco", "chocolate branco gotas"]
+    aliases:
+      - "Gotas de Chocolate Branco Melken"
+      - "Gotas de Chocolate Branco 1kg"
+      - "GOTAS DE CHOCOLATE BRANCO MELKEN"
+    exclude_terms: ["achocolatado", "bebida", "preparado"]
 
   - canonical: "Manteiga"
-    brands: ["Aviação", "Delícia", "Itambé", "Piracanjuba", "Batavo", "Vigor", "Presidente", "Tirolez"]
-    search_terms: ["manteiga", "manteiga extra", "manteiga em tablete", "manteiga 200g"]
-    aliases:
-      - "Manteiga 200g"
-      - "Manteiga 500g"
-      - "Manteiga 1kg"
-      - "Manteiga em Tablete"
-      - "Manteiga em Tablete 200g"
-      - "Manteiga em Tablete 500g"
-      - "Manteiga Extra"
-      - "Manteiga Extra 200g"
-      - "Manteiga Extra 500g"
-      - "Manteiga Extra 1kg"
-      - "Manteiga Extra sem Sal 200g"
-      - "Manteiga Extra Aviação 200g"
-      - "Manteiga Delícia Extra 200g"
-      - "MANTEIGA 200G"
-      - "MANTEIGA EXTRA 200G"
-      - "Manteiga cx 200g"
     category: "lacteos"
+    brands: ["Aviação", "Delícia", "Itambé", "Piracanjuba", "Batavo", "Vigor", "Presidente", "Tirolez"]
+    search_terms: ["manteiga", "manteiga com sal", "manteiga sem sal"]
+    aliases:
+      - "Manteiga Aviação 200g"
+      - "Manteiga Piracanjuba 500g"
+      - "Manteiga com Sal 1kg"
+      - "MANTEIGA AVIACAO"
+    exclude_terms: ["margarina", "creme vegetal", "light"]
 
   - canonical: "Gotas de Chocolate Meio Amargo"
-    brands: ["Harald", "Melken"]
-    search_terms: ["gotas meio amargo", "gotas chocolate"]
-    aliases:
-      - "Gotas de Chocolate Meio Amargo 1kg"
-      - "Gotas Meio Amargo Harald 1kg"
-      - "Gotas Meio Amargo 1kg"
-      - "GOTAS MEIO AMARGO 1KG"
-      - "Gotas Chocolate Meio Amargo"
     category: "chocolates"
+    brands: ["Harald", "Melken"]
+    search_terms: ["gotas chocolate meio amargo", "gotas meio amargo", "gotas dark"]
+    aliases:
+      - "Gotas de Chocolate Meio Amargo Harald"
+      - "Gotas de Chocolate Meio Amargo Melken"
+      - "Gotas Meio Amargo 1kg"
+      - "GOTAS MEIO AMARGO HARALD"
+    exclude_terms: ["achocolatado", "bebida", "preparado"]
 
   - canonical: "Chocolate Meio Amargo em Barra"
-    brands: ["Harald", "Callebaut", "Garoto"]
-    search_terms: ["chocolate barra", "chocolate meio amargo"]
-    aliases:
-      - "Chocolate Meio Amargo Barra 1kg Harald"
-      - "Chocolate Barra 1kg"
-      - "CHOCOLATE BARRA 1KG"
-      - "Chocolate Meio Amargo 1kg"
-      - "Chocolate Barra Meio Amargo 1kg"
     category: "chocolates"
+    brands: ["Harald", "Callebaut", "Garoto"]
+    search_terms: ["chocolate meio amargo barra", "chocolate barra meio amargo", "barra meio amargo"]
+    aliases:
+      - "Chocolate Meio Amargo Harald"
+      - "Chocolate Meio Amargo 500g"
+      - "Barra Chocolate Meio Amargo"
+      - "CHOCOLATE MEIO AMARGO HARALD"
+    exclude_terms: ["achocolatado", "bebida", "preparado"]
 
   - canonical: "Fermento Químico em Pó"
+    category: "farinhas"
     brands: ["Royal", "Dona Benta"]
     search_terms: ["fermento po", "fermento royal", "fermento quimico"]
     aliases:
       - "Fermento Químico em Pó Royal 100g"
       - "Fermento Royal 100g"
       - "FERMENTO ROYAL 100G"
-      - "Fermento em Pó 100g"
       - "Fermento Químico 100g"
       - "Fermento Dona Benta 100g"
-    category: "farinhas"
+    exclude_terms: ["mistura", "preparado", "bolo"]
 
   - canonical: "Essência de Baunilha"
+    category: "essencias"
     brands: ["Mavalerio", "Coza", "Dr.Oetker"]
     search_terms: ["essencia baunilha", "baunilha", "essencia"]
     aliases:
@@ -309,4 +241,4 @@ ingredients:
       - "Essência Baunilha 30ml"
       - "Essência de Baunilha Coza 30ml"
       - "Baunilha Líquida 30ml"
-    category: "essencias"
+    exclude_terms: ["artificial", "aroma", "essencia para"]

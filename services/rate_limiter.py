@@ -15,16 +15,11 @@ class RateLimiter:
         self._local: dict[str, list] = {}
         self._lock = threading.Lock()
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
-        self._conn.execute(
-            "CREATE TABLE IF NOT EXISTS attempts "
-            "(key TEXT PRIMARY KEY, timestamps TEXT)"
-        )
+        self._conn.execute("CREATE TABLE IF NOT EXISTS attempts (key TEXT PRIMARY KEY, timestamps TEXT)")
         self._conn.commit()
 
     def _load(self, key: str) -> list:
-        row = self._conn.execute(
-            "SELECT timestamps FROM attempts WHERE key = ?", (key,)
-        ).fetchone()
+        row = self._conn.execute("SELECT timestamps FROM attempts WHERE key = ?", (key,)).fetchone()
         if row:
             return [float(t) for t in row[0].split(",") if t]
         return []

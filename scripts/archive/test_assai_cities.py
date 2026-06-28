@@ -1,4 +1,5 @@
 """Test Assai offer page pattern."""
+
 import httpx
 
 # Test Assai city-specific offer pages
@@ -19,6 +20,7 @@ with httpx.Client(timeout=20, follow_redirects=True, verify=False) as client:
             if r.status_code == 200:
                 # Check for PDF link in HTML
                 import re
+
                 pdfs = re.findall(r'href=[\'"]([^\'"]+\.pdf)', r.text, re.IGNORECASE)
                 if pdfs:
                     for p in pdfs[:3]:

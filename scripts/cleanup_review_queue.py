@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Cleanup review_queue: remove test data and reject out-of-scope items."""
+
 import sys
 from pathlib import Path
 from collections import Counter
@@ -16,23 +17,47 @@ print("=" * 60)
 
 # 1. Delete test data
 print("\n1. Deletando dados de teste...")
-r = client.table("review_queue").delete().in_(
-    "store_name", ["Test Review Queue Store", "E2E Test Store", "Test Store"]
-).execute()
+r = (
+    client.table("review_queue")
+    .delete()
+    .in_("store_name", ["Test Review Queue Store", "E2E Test Store", "Test Store"])
+    .execute()
+)
 print(f"   Deletados: {len(r.data or [])} itens de teste")
 
 # 2. Reject out-of-scope from Pao de Acucar Fresh
 CONFECTIONERY_TERMS = [
-    "chocolate", "açúcar", "acucar", "farinha", "manteiga",
-    "creme de leite", "leite condensado", "fermento", "baunilha",
-    "coco", "granulado", "cobertura", "essencia", "leite em pó",
-    "leite ninho", "margarina", "glucose", "glicose", "cacau",
+    "chocolate",
+    "açúcar",
+    "acucar",
+    "farinha",
+    "manteiga",
+    "creme de leite",
+    "leite condensado",
+    "fermento",
+    "baunilha",
+    "coco",
+    "granulado",
+    "cobertura",
+    "essencia",
+    "leite em pó",
+    "leite ninho",
+    "margarina",
+    "glucose",
+    "glicose",
+    "cacau",
 ]
 
 print("\n2. Carregando pendentes do Pao de Acucar Fresh...")
-pao_items = client.table("review_queue").select("id,raw_product").eq("store_name", "Pao de Acucar Fresh").eq("status", "pending").execute()
+pao_items = (
+    client.table("review_queue")
+    .select("id,raw_product")
+    .eq("store_name", "Pao de Acucar Fresh")
+    .eq("status", "pending")
+    .execute()
+)
 pao_to_reject = []
-for item in (pao_items.data or []):
+for item in pao_items.data or []:
     prod = item["raw_product"].lower()
     if not any(t in prod for t in CONFECTIONERY_TERMS):
         pao_to_reject.append(item["id"])
@@ -44,9 +69,15 @@ if pao_to_reject:
 
 # 3. Reject out-of-scope from Extra Folheteria
 print("\n3. Carregando pendentes do Extra Folheteria...")
-extra_items = client.table("review_queue").select("id,raw_product").eq("store_name", "Extra Folheteria").eq("status", "pending").execute()
+extra_items = (
+    client.table("review_queue")
+    .select("id,raw_product")
+    .eq("store_name", "Extra Folheteria")
+    .eq("status", "pending")
+    .execute()
+)
 extra_to_reject = []
-for item in (extra_items.data or []):
+for item in extra_items.data or []:
     prod = item["raw_product"].lower()
     if not any(t in prod for t in CONFECTIONERY_TERMS):
         extra_to_reject.append(item["id"])
@@ -58,14 +89,28 @@ if extra_to_reject:
 
 # 4. Reject Dona Dani non-ingredient products
 DONA_DANI_JUNK = [
-    "bolo cremoso", "recheio pronto", "cobertura glacê", "cake chocolate",
-    "procreme", "pão de ló", "pao de lo", "chococookies",
-    "geléia brilho", "brilho chocolate", "ovo pó",
+    "bolo cremoso",
+    "recheio pronto",
+    "cobertura glacê",
+    "cake chocolate",
+    "procreme",
+    "pão de ló",
+    "pao de lo",
+    "chococookies",
+    "geléia brilho",
+    "brilho chocolate",
+    "ovo pó",
 ]
 print("\n4. Carregando pendentes da Dona Dani Ingredientes...")
-dani_items = client.table("review_queue").select("id,raw_product").eq("store_name", "Dona Dani Ingredientes").eq("status", "pending").execute()
+dani_items = (
+    client.table("review_queue")
+    .select("id,raw_product")
+    .eq("store_name", "Dona Dani Ingredientes")
+    .eq("status", "pending")
+    .execute()
+)
 dani_to_reject = []
-for item in (dani_items.data or []):
+for item in dani_items.data or []:
     prod = item["raw_product"].lower()
     if any(t in prod for t in DONA_DANI_JUNK):
         dani_to_reject.append(item["id"])

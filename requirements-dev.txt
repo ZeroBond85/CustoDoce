@@ -1,7 +1,6 @@
-ruff>=0.11
+ruff>=0.15
 mypy>=1.15
 bandit>=1.8
 pip-audit>=2.9
 radon>=6.0
-pytest>=9.1
 psycopg2-binary>=2.9

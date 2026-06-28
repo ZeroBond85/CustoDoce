@@ -1,12 +1,12 @@
 import re
 
 _UNIT_PATTERNS = [
+    re.compile(r"(lata\s*\d+\s*(?:kg|g|ml))", re.I),
+    re.compile(r"(balde\s*\d+\s*(?:kg|g|ml))", re.I),
     re.compile(r"(\d+\s*x\s*[\d.,]+\s*(?:kg|g|ml|un|L|l))", re.I),
     re.compile(r"([\d.,]+\s*(?:kg|g|ml|un|L|l)\b)", re.I),
     re.compile(r"(cx\s*(?:com\s*)?\d+)", re.I),
-    re.compile(r"(lata\s*\d+\s*(?:kg|g|ml))", re.I),
     re.compile(r"(pacote\s*(?:com\s*)?\d+)", re.I),
-    re.compile(r"(balde\s*\d+\s*(?:kg|g|ml))", re.I),
 ]
 
 

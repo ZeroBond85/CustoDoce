@@ -1,4 +1,5 @@
 """Audit ALL Supabase queries against real database."""
+
 import os
 import time
 from supabase import create_client
@@ -39,13 +40,56 @@ print("1. TABLE EXISTENCE + COLUMN CHECKS")
 print("=" * 60)
 
 tables_expected = {
-    "prices": ["id", "ingredient_id", "store_id", "source", "store_name", "raw_product", "raw_price", "raw_unit", "collected_at", "valid_from", "valid_until", "confidence", "tier", "brand", "city", "logistics", "normalized"],
+    "prices": [
+        "id",
+        "ingredient_id",
+        "store_id",
+        "source",
+        "store_name",
+        "raw_product",
+        "raw_price",
+        "raw_unit",
+        "collected_at",
+        "valid_from",
+        "valid_until",
+        "confidence",
+        "tier",
+        "brand",
+        "city",
+        "logistics",
+        "normalized",
+    ],
     "price_history": ["id", "price_id", "ingredient_id", "store_id", "collected_at"],
-    "review_queue": ["id", "raw_product", "raw_price", "raw_unit", "store_name", "source", "confidence", "status", "resolved_ingredient", "brand", "image_url", "source_url", "match_reason", "match_type", "top3"],
+    "review_queue": [
+        "id",
+        "raw_product",
+        "raw_price",
+        "raw_unit",
+        "store_name",
+        "source",
+        "confidence",
+        "status",
+        "resolved_ingredient",
+        "brand",
+        "image_url",
+        "source_url",
+        "match_reason",
+        "match_type",
+        "top3",
+    ],
     "ingredients": ["id", "canonical_name", "aliases", "active", "brands", "search_terms"],
     "stores": ["id", "name", "tier", "type", "is_active", "priority"],
     "flyers": ["id", "store_name", "region", "image_url", "image_hash", "ocr_status", "source", "collected_at"],
-    "scraping_logs": ["id", "store_name", "status", "started_at", "finished_at", "items_found", "items_matched", "errors"],
+    "scraping_logs": [
+        "id",
+        "store_name",
+        "status",
+        "started_at",
+        "finished_at",
+        "items_found",
+        "items_matched",
+        "errors",
+    ],
     "schedules": ["id", "name", "enabled"],
     "scrape_frequencies": ["id", "store_id", "tier"],
     "alert_recipients": ["id", "name", "channel", "active"],
@@ -65,7 +109,30 @@ print("2. RPC FUNCTIONS")
 print("=" * 60)
 
 rpcs = [
-    ("upsert_price_rpc", {"p_ingredient_id": "__audit_test__", "p_store_id": "test", "p_source": "test", "p_store_name": "test", "p_raw_product": "test", "p_raw_price": 0, "p_raw_unit": "un", "p_collected_at": "2099-01-01", "p_valid_from": "2099-01-01", "p_valid_until": "2099-12-31", "p_validity_raw": "", "p_collected_weekday": "Seg", "p_is_promotion": False, "p_tier": 3, "p_confidence": 1.0, "p_normalized": None, "p_city": "", "p_logistics": "", "p_brand": ""}),
+    (
+        "upsert_price_rpc",
+        {
+            "p_ingredient_id": "__audit_test__",
+            "p_store_id": "test",
+            "p_source": "test",
+            "p_store_name": "test",
+            "p_raw_product": "test",
+            "p_raw_price": 0,
+            "p_raw_unit": "un",
+            "p_collected_at": "2099-01-01",
+            "p_valid_from": "2099-01-01",
+            "p_valid_until": "2099-12-31",
+            "p_validity_raw": "",
+            "p_collected_weekday": "Seg",
+            "p_is_promotion": False,
+            "p_tier": 3,
+            "p_confidence": 1.0,
+            "p_normalized": None,
+            "p_city": "",
+            "p_logistics": "",
+            "p_brand": "",
+        },
+    ),
     ("cleanup_old_prices", {"retention_days": 9999}),
     ("cleanup_old_logs", {"retention_days": 9999}),
     ("cleanup_old_flyers", {"retention_days": 9999}),
@@ -85,27 +152,45 @@ print("=" * 60)
 
 queries = [
     ("prices:select_star", lambda: sb.table("prices").select("*").limit(1).execute()),
-    ("prices:select_by_ingredient", lambda: sb.table("prices").select("*").eq("ingredient_id", "Leite Condensado Integral").limit(5).execute()),
+    (
+        "prices:select_by_ingredient",
+        lambda: sb.table("prices").select("*").eq("ingredient_id", "Leite Condensado Integral").limit(5).execute(),
+    ),
     ("prices:count", lambda: sb.table("prices").select("id", count="exact").limit(1).execute()),
-    ("prices:order_collected", lambda: sb.table("prices").select("*").order("collected_at", desc=True).limit(5).execute()),
-    ("prices:index_ingredient", lambda: sb.table("prices").select("id").eq("ingredient_id", "Leite Condensado Integral").limit(1).execute()),
+    (
+        "prices:order_collected",
+        lambda: sb.table("prices").select("*").order("collected_at", desc=True).limit(5).execute(),
+    ),
+    (
+        "prices:index_ingredient",
+        lambda: sb.table("prices").select("id").eq("ingredient_id", "Leite Condensado Integral").limit(1).execute(),
+    ),
     ("prices:index_store", lambda: sb.table("prices").select("id").eq("store_id", "atacadão").limit(1).execute()),
-    ("prices:index_collected", lambda: sb.table("prices").select("id").order("collected_at", desc=True).limit(1).execute()),
-
-    ("review_queue:select_all", lambda: sb.table("review_queue").select("*").order("collected_at", desc=True).limit(10).execute()),
-    ("review_queue:count_pending", lambda: sb.table("review_queue").select("id", count="exact").eq("status", "pending").limit(1).execute()),
-
+    (
+        "prices:index_collected",
+        lambda: sb.table("prices").select("id").order("collected_at", desc=True).limit(1).execute(),
+    ),
+    (
+        "review_queue:select_all",
+        lambda: sb.table("review_queue").select("*").order("collected_at", desc=True).limit(10).execute(),
+    ),
+    (
+        "review_queue:count_pending",
+        lambda: sb.table("review_queue").select("id", count="exact").eq("status", "pending").limit(1).execute(),
+    ),
     ("ingredients:select_all", lambda: sb.table("ingredients").select("*").order("canonical_name").execute()),
-    ("ingredients:select_active", lambda: sb.table("ingredients").select("*").eq("active", True).order("canonical_name").execute()),
-
+    (
+        "ingredients:select_active",
+        lambda: sb.table("ingredients").select("*").eq("active", True).order("canonical_name").execute(),
+    ),
     ("stores:select_all", lambda: sb.table("stores").select("*").order("priority").execute()),
     ("stores:select_active", lambda: sb.table("stores").select("*").eq("is_active", True).order("priority").execute()),
-
     ("flyers:select_all", lambda: sb.table("flyers").select("*").order("collected_at", desc=True).limit(10).execute()),
     ("flyers:select_pending", lambda: sb.table("flyers").select("*").eq("ocr_status", "pending").limit(5).execute()),
-
-    ("scraping_logs:select_all", lambda: sb.table("scraping_logs").select("*").order("started_at", desc=True).limit(10).execute()),
-
+    (
+        "scraping_logs:select_all",
+        lambda: sb.table("scraping_logs").select("*").order("started_at", desc=True).limit(10).execute(),
+    ),
     ("schedules:select_all", lambda: sb.table("schedules").select("*").order("name").execute()),
     ("scrape_frequencies:select_all", lambda: sb.table("scrape_frequencies").select("*").execute()),
     ("alert_recipients:select_all", lambda: sb.table("alert_recipients").select("*").execute()),
@@ -130,7 +215,7 @@ real_ids = {s["id"] for s in (r_stores.data or [])}
 
 r_prices = sb.table("prices").select("store_id").execute()
 orphan_stores = set()
-for p in (r_prices.data or []):
+for p in r_prices.data or []:
     sid = p.get("store_id", "")
     if sid and sid not in real_ids:
         orphan_stores.add(sid)
@@ -143,7 +228,7 @@ real_ings = {i["canonical_name"] for i in (r_ings.data or [])}
 
 r_prices2 = sb.table("prices").select("ingredient_id").execute()
 orphan_ings = set()
-for p in (r_prices2.data or []):
+for p in r_prices2.data or []:
     iid = p.get("ingredient_id", "")
     if iid and iid not in real_ings:
         orphan_ings.add(iid)

@@ -1,46 +1,17 @@
-import logging
+from services.logger import logger
 import re
 from urllib.parse import quote
 
 from selectolax.parser import HTMLParser
 
 from parsers.unit_extractor import extract_unit
-from scrapers.base_web_scraper import BaseWebScraper
-
-logger = logging.getLogger(__name__)
-
-DEFAULT_SELECTORS = {
-    "product_card": [
-        ".product-item", ".product", ".produto",
-        "li.product", "article.product",
-        ".item", ".product-card", ".product-box",
-        "[class*=produto]", "[class*=product]",
-    ],
-    "product_name": [
-        "h2 a", "h3 a", ".product-name a", ".product-name",
-        ".nome-produto", ".name a",
-        "a[class*=name]", "a[class*=nome]",
-        "[class*=title] a", ".product-title a",
-    ],
-    "product_price": [
-        ".price", ".preco", ".current-price",
-        "span.price", ".product-price",
-        "[class*=price]", "[class*=preco]",
-        ".sale-price", ".offer-price", ".box-price",
-    ],
-    "product_validity": [],
-    "product_brand": [],
-}
+from scrapers.base_web_scraper import DEFAULT_SELECTORS, BaseWebScraper
 
 
 class WebsiteScraper(BaseWebScraper):
-
     def __init__(self, store_config: dict):
         super().__init__(store_config)
-        self.search_url = (
-            store_config.get("search_url")
-            or f"{self.base_url}/busca?q={{query}}"
-        )
+        self.search_url = store_config.get("search_url") or f"{self.base_url}/busca?q={{query}}"
         self.selectors = {**DEFAULT_SELECTORS, **store_config.get("selectors", {})}
 
     def fetch_search(self, query: str) -> str | None:
@@ -68,13 +39,15 @@ class WebsiteScraper(BaseWebScraper):
             unit = extract_unit(name)
             validity = self._extract_validity(card)
             brand = self._extract_brand(card)
-            products.append({
-                "product": name.strip(),
-                "price": price,
-                "unit": unit,
-                "validity_raw": validity,
-                "brand": brand,
-            })
+            products.append(
+                {
+                    "product": name.strip(),
+                    "price": price,
+                    "unit": unit,
+                    "validity_raw": validity,
+                    "brand": brand,
+                }
+            )
 
         return products
 
@@ -107,10 +80,11 @@ class WebsiteScraper(BaseWebScraper):
 
     @staticmethod
     def _parse_price(text: str) -> float | None:
-        m = re.search(r"[\d.,]+", text.replace(" ", "").replace(".", "").replace(",", "."))
+        m = re.search(r"(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)", text)
         if m:
+            raw = m.group(1).replace(".", "").replace(",", ".")
             try:
-                return float(m.group())
+                return float(raw)
             except ValueError:
                 pass
         return None

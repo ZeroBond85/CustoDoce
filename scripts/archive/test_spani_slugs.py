@@ -1,4 +1,5 @@
 """Test Spani store slugs for PDF links."""
+
 import httpx
 import re
 

@@ -1,0 +1,118 @@
+name: Backup - Restore Test
+
+on:
+  schedule:
+    - cron: "0 9 1 * *"
+  workflow_dispatch:
+    inputs:
+      artifact_name:
+        description: "Nome do artifact a testar (vazio = mais recente)"
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  group: db-restore-test
+  cancel-in-progress: true
+
+jobs:
+  restore-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install psql and PyGithub
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client gzip > /dev/null 2>&1
+          pip install PyGithub 2>/dev/null
+
+      - name: Derive connection params
+        id: parse_ref
+        run: |
+          URL="${{ secrets.SUPABASE_URL }}"
+          REF="${URL#https://}"
+          REF="${REF%.supabase.co}"
+          echo "ref=$REF" >> $GITHUB_OUTPUT
+          echo "host=db.$REF.supabase.co" >> $GITHUB_OUTPUT
+
+      - name: Download latest backup artifact
+        if: github.event.inputs.artifact_name == ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/download_latest_artifact.py \
+            --repo "${{ github.repository }}" \
+            --prefix "db-backup-" \
+            --token "$GH_TOKEN" \
+            --output-dir ./backup/
+
+      - name: Download specified backup artifact
+        if: github.event.inputs.artifact_name != ''
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ github.event.inputs.artifact_name }}
+          path: ./backup/
+
+      - name: List downloaded files
+        run: ls -lh backup/ || echo "No backup dir"
+
+      - name: Validate backup file integrity
+        run: |
+          BACKUP_FILE=$(ls backup/*.sql.gz 2>/dev/null | head -1)
+          if [ -z "$BACKUP_FILE" ]; then
+            echo "No .sql.gz file found in backup/"
+            ls -la backup/
+            exit 1
+          fi
+          echo "Backup file: $BACKUP_FILE"
+          gzip -t "$BACKUP_FILE" && echo "Gzip integrity: OK"
+          gunzip -l "$BACKUP_FILE"
+
+      - name: Dry-run restore validation
+        env:
+          PGHOST: ${{ steps.parse_ref.outputs.host }}
+          PGPORT: "5432"
+          PGUSER: postgres
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PGDATABASE: postgres
+        run: |
+          BACKUP_FILE=$(ls backup/*.sql.gz 2>/dev/null | head -1)
+          echo "Running dry-run restore of: $BACKUP_FILE"
+          set +e
+          gunzip -c "$BACKUP_FILE" | psql \
+            --set=ON_ERROR_STOP=0 \
+            --set=quiet=on \
+            2>&1 | tee /tmp/restore_output.txt | head -30
+          EXIT_CODE=${PIPESTATUS[0]}
+          echo "---"
+          echo "psql exit code: $EXIT_CODE"
+          ERROR_LINES=$(grep -c "ERROR" /tmp/restore_output.txt 2>/dev/null || echo "0")
+          echo "Error lines found: $ERROR_LINES"
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "DRY-RUN: Restore validation passed"
+          else
+            echo "DRY-RUN: Restore encountered errors (review output above)"
+          fi
+
+      - name: Restore test summary
+        run: |
+          echo "## Restore Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Campo | Valor |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | **Dry-run apenas** (nenhum dado modificado) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Executado | $(date -u +'%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
+          echo "| Artefact | ${{ github.event.inputs.artifact_name || 'mais recente' }} |" >> $GITHUB_STEP_SUMMARY

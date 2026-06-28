@@ -1,4 +1,5 @@
 """Search Tenda for flyer keywords."""
+
 import httpx
 import re
 

@@ -13,8 +13,7 @@ from parsers.normalizer import normalize_price
 
 def import_spreadsheet(filepath: str) -> int:
     df = pd.read_excel(filepath)
-    expected = ["store_name", "city", "ingredient_id", "raw_product",
-                "raw_price", "raw_unit", "visit_date", "notes"]
+    expected = ["store_name", "city", "ingredient_id", "raw_product", "raw_price", "raw_unit", "visit_date", "notes"]
     missing = [c for c in expected if c not in df.columns]
     if missing:
         print(f"Colunas ausentes: {missing}")

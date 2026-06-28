@@ -1,19 +1,59 @@
 import re
 
-PRICE_RE = re.compile(
-    r"(?:R\$\s*)?([1-9]\d{0,2}(?:\.\d{3})*\s*,\d{2})\b"
-)
+PRICE_RE = re.compile(r"(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)\b")
 STOP_WORDS = {
-    "somente", "sexta", "sábado",
-    "sabado", "domingo", "estoque", "limitado", "limite", "unidade",
-    "unidades", "cliente", "clientes", "cada", "preço", "preco",
-    "promoção", "promocao", "confira", "apenas", "www", "http",
-    "facebook", "instagram", "whatsapp", "telefone", "celular",
-    "sac", "não", "nao", "nº", "numero", "número", "página", "pagina",
-    "encarte", "folheto", "ofertas", "parcele",
-    "cartão", "cartao", "crédito", "credito", "débito", "debito",
-    "dinheiro", "total", "subtotal", "desconto", "economize",
-    "condições", "condicoes", "geral",
+    "somente",
+    "sexta",
+    "sábado",
+    "sabado",
+    "domingo",
+    "estoque",
+    "limitado",
+    "limite",
+    "unidade",
+    "unidades",
+    "cliente",
+    "clientes",
+    "cada",
+    "preço",
+    "preco",
+    "promoção",
+    "promocao",
+    "confira",
+    "apenas",
+    "www",
+    "http",
+    "facebook",
+    "instagram",
+    "whatsapp",
+    "telefone",
+    "celular",
+    "sac",
+    "não",
+    "nao",
+    "nº",
+    "numero",
+    "número",
+    "página",
+    "pagina",
+    "encarte",
+    "folheto",
+    "ofertas",
+    "parcele",
+    "cartão",
+    "cartao",
+    "crédito",
+    "credito",
+    "débito",
+    "debito",
+    "dinheiro",
+    "total",
+    "subtotal",
+    "desconto",
+    "economize",
+    "condições",
+    "condicoes",
+    "geral",
 }
 
 VALIDITY_RE = re.compile(
@@ -66,6 +106,7 @@ def extract_price(line: str) -> float | None:
 
 def extract_unit(text: str) -> str:
     from parsers.unit_extractor import extract_unit as _extract_unit
+
     return _extract_unit(text)
 
 
@@ -99,13 +140,15 @@ def parse_flyer_lines(lines: list[str]) -> list[dict]:
                 unit = extract_unit(name)
                 validity = last_validity
                 last_validity = ""
-                products.append({
-                    "product": name,
-                    "price": price,
-                    "unit": unit,
-                    "validity_raw": validity,
-                    "brand": "",
-                })
+                products.append(
+                    {
+                        "product": name,
+                        "price": price,
+                        "unit": unit,
+                        "validity_raw": validity,
+                        "brand": "",
+                    }
+                )
             buffer = []
         else:
             buffer.append(line)

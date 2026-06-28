@@ -19,7 +19,7 @@ import hashlib
 import json
 import random
 import sys
-from datetime import datetime, timedelta, date, timezone
+from datetime import datetime, timedelta, date, UTC
 from pathlib import Path
 
 
@@ -69,48 +69,66 @@ STORE_FACTORS = {
 
 PRODUCT_NAMES = {
     "Leite Condensado Integral": [
-        "Leite Condensado Moça 12un", "Leite Condensado Piracanjuba 12x395g",
-        "Leite Condensado Itambé 12un", "LC Integral 12un",
+        "Leite Condensado Moça 12un",
+        "Leite Condensado Piracanjuba 12x395g",
+        "Leite Condensado Itambé 12un",
+        "LC Integral 12un",
     ],
     "Creme de Leite 20% Gordura": [
-        "Creme de Leite Nestlé 12x200g", "Creme de Leite Piracanjuba 12x200g",
-        "CL Nestlé 12un", "Creme de Leite 20% 1L",
+        "Creme de Leite Nestlé 12x200g",
+        "Creme de Leite Piracanjuba 12x200g",
+        "CL Nestlé 12un",
+        "Creme de Leite 20% 1L",
     ],
     "Chocolate em Pó 50% Cacau": [
-        "Chocolate em Pó Melken 1kg", "Chocolate em Pó Sicao 1kg",
-        "Cacau em Pó 50% 1kg", "Chocolate em Pó 500g",
+        "Chocolate em Pó Melken 1kg",
+        "Chocolate em Pó Sicao 1kg",
+        "Cacau em Pó 50% 1kg",
+        "Chocolate em Pó 500g",
     ],
     "Leite Ninho Integral": [
-        "Leite Ninho Integral 800g", "Leite Ninho Integral 1kg",
-        "Ninho Integral 800g", "Leite Ninho 380g",
+        "Leite Ninho Integral 800g",
+        "Leite Ninho Integral 1kg",
+        "Ninho Integral 800g",
+        "Leite Ninho 380g",
     ],
     "Granulado Melken Ao Leite": [
-        "Granulado Melken Ao Leite 1kg", "Granulado Ao Leite 1kg",
+        "Granulado Melken Ao Leite 1kg",
+        "Granulado Ao Leite 1kg",
         "Granulado Melken 1kg Ao Leite",
     ],
     "Granulado Melken Branco": [
-        "Granulado Melken Branco 1kg", "Granulado Branco 1kg",
+        "Granulado Melken Branco 1kg",
+        "Granulado Branco 1kg",
         "Granulado Melken 1kg Branco",
     ],
     "Granulado Melken Meio Amargo": [
-        "Granulado Melken Meio Amargo 1kg", "Granulado Meio Amargo 1kg",
+        "Granulado Melken Meio Amargo 1kg",
+        "Granulado Meio Amargo 1kg",
         "Granulado Melken 1kg Meio Amargo",
     ],
     "Nutella": [
-        "Nutella 3kg Food Service", "Nutella 650g",
-        "Nutella 750g", "Nutella Pote 3kg",
+        "Nutella 3kg Food Service",
+        "Nutella 650g",
+        "Nutella 750g",
+        "Nutella Pote 3kg",
     ],
     "Coloretti Granulado Colorido": [
-        "Coloretti 1kg", "Granulado Colorido 1kg",
-        "Coloretti 500g", "Confeito Colorido 1kg",
+        "Coloretti 1kg",
+        "Granulado Colorido 1kg",
+        "Coloretti 500g",
+        "Confeito Colorido 1kg",
     ],
     "Coco Ralado Grosso sem Açúcar": [
-        "Coco Ralado Grosso 1kg", "Coco Ralado 1kg",
+        "Coco Ralado Grosso 1kg",
+        "Coco Ralado 1kg",
         "Coco Ralado Grosso 500g",
     ],
     "Chocolate Nobre Blend Harald": [
-        "Chocolate Nobre Blend Harald 2.1kg", "Chocolate Harald Blend 2.1kg",
-        "Chocolate Nobre Blend Harald 1kg", "Cobertura nobre Blend Harald",
+        "Chocolate Nobre Blend Harald 2.1kg",
+        "Chocolate Harald Blend 2.1kg",
+        "Chocolate Nobre Blend Harald 1kg",
+        "Cobertura nobre Blend Harald",
     ],
 }
 
@@ -176,8 +194,30 @@ def generate_prices(days: int = 90) -> list[dict]:
                     "validity_raw": f"Válido até {(current_date + timedelta(days=7)).strftime('%d/%m/%Y')}",
                     "collected_weekday": DIAS_PT[current_date.weekday()],
                     "is_promotion": is_promo,
-                    "tier": 1 if store_name in ["Assaí Atacadista", "Atacadão", "Spani Atacadista", "Mercadão Atacadista", "Tenda Atacado", "Roldão Atacadista", "Sam's Club", "Max Atacadista", "Makro Atacadista"] else
-                           2 if store_name in ["Rizzo Supermercados", "Amendolate", "Cacau Center", "Confeitos & Cia", "Loja Santo Antônio", "Padaria Padeirão"] else 3,
+                    "tier": 1
+                    if store_name
+                    in [
+                        "Assaí Atacadista",
+                        "Atacadão",
+                        "Spani Atacadista",
+                        "Mercadão Atacadista",
+                        "Tenda Atacado",
+                        "Roldão Atacadista",
+                        "Sam's Club",
+                        "Max Atacadista",
+                        "Makro Atacadista",
+                    ]
+                    else 2
+                    if store_name
+                    in [
+                        "Rizzo Supermercados",
+                        "Amendolate",
+                        "Cacau Center",
+                        "Confeitos & Cia",
+                        "Loja Santo Antônio",
+                        "Padaria Padeirão",
+                    ]
+                    else 3,
                     "confidence": round(random.uniform(0.85, 1.0), 3),
                     "normalized": {
                         "qty": _qty_from_unit(unit),
@@ -236,18 +276,20 @@ def generate_review_queue(count: int = 20) -> list[dict]:
         product = random.choice(products) + " (verificar)"
         days_ago = random.randint(0, 15)
 
-        items.append({
-            "raw_product": product,
-            "raw_price": round(random.uniform(15, 150), 2),
-            "raw_unit": random.choice(["1kg", "500g", "cx 12x395g"]),
-            "store_name": store,
-            "source": "automated",
-            "confidence": round(random.uniform(0.3, 0.79), 3),
-            "suggestions": [ing, random.choice(list(INGREDIENT_BASES.keys()))],
-            "validity_raw": f"Válido até {(date.today() + timedelta(days=7)).strftime('%d/%m/%Y')}",
-            "status": "pending",
-            "collected_at": (date.today() - timedelta(days=days_ago)).isoformat(),
-        })
+        items.append(
+            {
+                "raw_product": product,
+                "raw_price": round(random.uniform(15, 150), 2),
+                "raw_unit": random.choice(["1kg", "500g", "cx 12x395g"]),
+                "store_name": store,
+                "source": "automated",
+                "confidence": round(random.uniform(0.3, 0.79), 3),
+                "suggestions": [ing, random.choice(list(INGREDIENT_BASES.keys()))],
+                "validity_raw": f"Válido até {(date.today() + timedelta(days=7)).strftime('%d/%m/%Y')}",
+                "status": "pending",
+                "collected_at": (date.today() - timedelta(days=days_ago)).isoformat(),
+            }
+        )
 
     return items
 
@@ -317,7 +359,7 @@ def main():
             "prices": prices,
             "flyers": flyers,
             "review_queue": review_items,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
         }
         path = Path(args.json)
         with open(path, "w", encoding="utf-8") as f:

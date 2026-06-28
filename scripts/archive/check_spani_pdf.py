@@ -1,4 +1,5 @@
 """Check Spani lojas page for PDF pattern."""
+
 import httpx
 import re
 

@@ -1,22 +1,16 @@
-
-import logging
+from services.logger import logger
 import re
 from urllib.parse import quote
-
 from selectolax.parser import HTMLParser
-
 from parsers.unit_extractor import extract_unit
 from scrapers.base_web_scraper import BaseWebScraper
 
-logger = logging.getLogger(__name__)
-
 
 class CarrefourScraper(BaseWebScraper):
-
     def __init__(self, store_config: dict):
         super().__init__(store_config)
         self.search_url = store_config.get("search_url") or f"{self.base_url}/busca?q={{query}}"
-        self._price_re = re.compile(r"R\$\s*(\d+(?:\s*[.,]\s*\d{2})?)")
+        self._price_re = re.compile(r"(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)")
 
     def fetch_search(self, query: str) -> str | None:
         url = self.search_url.format(query=quote(query))
@@ -56,9 +50,9 @@ class CarrefourScraper(BaseWebScraper):
             if not price_match:
                 continue
 
-            price_str = price_match.group(1).replace(",", ".")
+            raw = price_match.group(1).replace(".", "").replace(",", ".")
             try:
-                price = float(price_str)
+                price = float(raw)
             except ValueError:
                 continue
             if price <= 0 or price >= 10000:
@@ -68,12 +62,14 @@ class CarrefourScraper(BaseWebScraper):
             product_name = re.sub(r"(Patrocinado|Adicionar|Comprar)", "", product_name, flags=re.I).strip()
             product_name = re.sub(r"\s+", " ", product_name).strip()
 
-            products.append({
-                "product": product_name,
-                "price": price,
-                "unit": extract_unit(product_name + " " + link.attributes.get("href", "")),
-                "validity_raw": "",
-                "brand": "",
-            })
+            products.append(
+                {
+                    "product": product_name,
+                    "price": price,
+                    "unit": extract_unit(product_name + " " + link.attributes.get("href", "")),
+                    "validity_raw": "",
+                    "brand": "",
+                }
+            )
 
         return products

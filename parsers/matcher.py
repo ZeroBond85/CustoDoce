@@ -1,10 +1,11 @@
 import re
-from typing import Optional
+
+from services.types import Ingredient
 
 from rapidfuzz import fuzz
 
 
-def extract_all_keywords(ingredients: list[dict]) -> set:
+def extract_all_keywords(ingredients: list[Ingredient]) -> set:
     keywords = set()
     for ing in ingredients:
         for text in [ing.get("canonical_name", "")] + ing.get("aliases", []) + ing.get("search_terms", []):
@@ -27,7 +28,27 @@ def clean_text(text: str) -> str:
     return text
 
 
-def build_alias_list(ingredients: list[dict]) -> list[tuple[str, str, list[str]]]:
+_INGREDIENT_EXCLUDE_CACHE: dict = {}
+
+
+def _load_exclude_terms(ingredients: list[Ingredient]) -> dict[str, list[str]]:
+    """Carrega exclude_terms do YAML e cacheia."""
+    key = id(ingredients)
+    if key not in _INGREDIENT_EXCLUDE_CACHE:
+        _INGREDIENT_EXCLUDE_CACHE[key] = {ing["canonical_name"]: ing.get("exclude_terms", []) for ing in ingredients}
+    return _INGREDIENT_EXCLUDE_CACHE[key]
+
+
+def has_excluded_terms(product_text: str, ingredient: Ingredient) -> bool:
+    """Retorna True se o produto contém termo da exclude_terms do ingrediente."""
+    terms = ingredient.get("exclude_terms", [])
+    if not terms:
+        return False
+    product_lower = product_text.lower()
+    return any(t.lower() in product_lower for t in terms)
+
+
+def build_alias_list(ingredients: list[Ingredient]) -> list[tuple[str, str, list[str]]]:
     alias_map = []
     for ing in ingredients:
         canonical = ing["canonical_name"]
@@ -38,7 +59,7 @@ def build_alias_list(ingredients: list[dict]) -> list[tuple[str, str, list[str]]
     return alias_map
 
 
-def match_exact(product_text: str, ingredient: dict) -> bool:
+def match_exact(product_text: str, ingredient: Ingredient) -> bool:
     product_upper = product_text.upper()
     canonical_upper = ingredient["canonical_name"].upper()
 
@@ -57,9 +78,9 @@ def match_exact(product_text: str, ingredient: dict) -> bool:
 
 def match_ingredient(
     product_text: str,
-    ingredients: list[dict],
+    ingredients: list[Ingredient],
     threshold: float = 80.0,
-) -> tuple[Optional[dict], float, str]:
+) -> tuple[Ingredient | None, float, str]:
     product_clean = clean_text(product_text)
 
     best_ingredient = None
@@ -95,9 +116,9 @@ def match_ingredient(
 
 def rank_ingredients(
     product_text: str,
-    ingredients: list[dict],
+    ingredients: list[Ingredient],
     top_n: int = 3,
-) -> list[tuple[dict, float, str, str]]:
+) -> list[tuple[Ingredient, float, str, str]]:
     """Returns list of (ingredient, score, match_type, matched_term)"""
     product_clean = clean_text(product_text)
     candidates = []

@@ -1,21 +1,19 @@
 import hashlib
-import logging
 
 from scrapers.base_web_scraper import BaseWebScraper
 
-logger = logging.getLogger(__name__)
-
 
 class TendaApiScraper(BaseWebScraper):
-
     def __init__(self, store_config: dict):
         super().__init__(store_config)
         self.api_base = store_config.get("api_base", "https://api.tendaatacado.com.br/api/public/branch")
         self.endpoints = store_config.get("api_endpoints", {})
-        self._http.headers.update({
-            "Content-Type": "application/json; charset=utf-8",
-            "desktop-platform": "true",
-        })
+        self._http.headers.update(
+            {
+                "Content-Type": "application/json; charset=utf-8",
+                "desktop-platform": "true",
+            }
+        )
 
     def get_all_flyers(self, page: int = 1, per_page: int = 12) -> list[dict]:
         url = f"{self.api_base}{self.endpoints.get('flyers', '/flyers?per_page=12&page=1')}"
@@ -44,16 +42,18 @@ class TendaApiScraper(BaseWebScraper):
         for page in pages:
             image_url = page.get("image", "")
             if image_url:
-                entries.append({
-                    "product": f"Encarte Tenda - {branch_name} ({branch_city})",
-                    "price": 0.0,
-                    "unit": "encarte",
-                    "image_url": image_url,
-                    "image_hash": hashlib.md5(image_url.encode(), usedforsecurity=False).hexdigest(),
-                    "flyer_name": flyer.get("name", ""),
-                    "start_date": flyer.get("startDate", ""),
-                    "end_date": flyer.get("endDate", ""),
-                })
+                entries.append(
+                    {
+                        "product": f"Encarte Tenda - {branch_name} ({branch_city})",
+                        "price": 0.0,
+                        "unit": "encarte",
+                        "image_url": image_url,
+                        "image_hash": hashlib.md5(image_url.encode(), usedforsecurity=False).hexdigest(),
+                        "flyer_name": flyer.get("name", ""),
+                        "start_date": flyer.get("startDate", ""),
+                        "end_date": flyer.get("endDate", ""),
+                    }
+                )
         return entries
 
     def parse_products(self, raw_data) -> list[dict]:

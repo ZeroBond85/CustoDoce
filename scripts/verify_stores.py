@@ -1,4 +1,5 @@
 """Verifica lojas website_catalog do stores.yaml + candidatas."""
+
 import sys
 import time
 from pathlib import Path
@@ -11,16 +12,19 @@ from scrapers.website_scraper import WebsiteScraper, DEFAULT_SELECTORS
 
 CONFIG_DIR = Path(__file__).parent.parent / "config"
 
+
 def load_stores():
     with open(CONFIG_DIR / "stores.yaml", encoding="utf-8") as f:
         data = yaml.safe_load(f)
     stores = data.get("stores", [])
     return [s for s in stores if s.get("is_active", True)]
 
+
 def load_ingredients():
     with open(CONFIG_DIR / "ingredients.yaml", encoding="utf-8") as f:
         data = yaml.safe_load(f)
     return data.get("ingredients", [])
+
 
 def test_store_reachability(store: dict):
     """Test if store URL is reachable and returns HTML."""
@@ -75,6 +79,7 @@ def test_store_reachability(store: dict):
 
     return result
 
+
 def test_new_candidate(name: str, base_url: str, search_url: str = None, city: str = ""):
     """Test a candidate store not yet in stores.yaml."""
     store = {
@@ -89,21 +94,19 @@ def test_new_candidate(name: str, base_url: str, search_url: str = None, city: s
     }
     return test_store_reachability(store)
 
+
 def main():
     stores = load_stores()
 
     # Filter website_catalog stores (both scraper types)
     website_stores = [
-        s for s in stores
-        if s.get("type") in ("website_catalog",)
-        and s.get("scraper") in ("website_scraper", "carrefour_scraper")
+        s
+        for s in stores
+        if s.get("type") in ("website_catalog",) and s.get("scraper") in ("website_scraper", "carrefour_scraper")
     ]
 
     # Also test VTEX stores quickly
-    vtex_stores = [
-        s for s in stores
-        if s.get("scraper") == "vtex_scraper"
-    ]
+    vtex_stores = [s for s in stores if s.get("scraper") == "vtex_scraper"]
 
     print("=" * 70)
     print("VERIFICAÇÃO DE LOJAS - CustoDoce")
@@ -121,10 +124,13 @@ def main():
         result = test_store_reachability(store)
         results[store["name"]] = result
 
-        status = "✅" if result["reachable"] and result["products_with_price"] > 0 else \
-                 "⚠️" if result["reachable"] else "❌"
-        print(f"    {status} HTTP {result['status_code']} | HTML: {result['html_size']}b | "
-              f"Cards: {result['products_found']} | Preços: {result['products_with_price']}")
+        status = (
+            "✅" if result["reachable"] and result["products_with_price"] > 0 else "⚠️" if result["reachable"] else "❌"
+        )
+        print(
+            f"    {status} HTTP {result['status_code']} | HTML: {result['html_size']}b | "
+            f"Cards: {result['products_found']} | Preços: {result['products_with_price']}"
+        )
         if result["error"]:
             print(f"    Erro: {result['error']}")
         if result["sample_products"]:
@@ -134,9 +140,13 @@ def main():
 
     # Test VTEX stores (quick reachability check)
     print("\n## VTEX STORES (alcance rápido) ##")
-    client = httpx.Client(timeout=10.0, follow_redirects=True, headers={
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    })
+    client = httpx.Client(
+        timeout=10.0,
+        follow_redirects=True,
+        headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        },
+    )
     for store in vtex_stores:
         name = store["name"]
         api = store.get("api_endpoint", f"{store['base_url']}/api/catalog_system/pub/products/search")
@@ -166,10 +176,17 @@ def main():
         print(f"    URL: {url}")
         try:
             result = test_new_candidate(name, url, search_url, city)
-            status = "✅" if result["reachable"] and result["products_with_price"] > 0 else \
-                     "⚠️" if result["reachable"] else "❌"
-            print(f"    {status} HTTP {result['status_code']} | HTML: {result['html_size']}b | "
-                  f"Produtos: {result['products_found']} | Preços: {result['products_with_price']}")
+            status = (
+                "✅"
+                if result["reachable"] and result["products_with_price"] > 0
+                else "⚠️"
+                if result["reachable"]
+                else "❌"
+            )
+            print(
+                f"    {status} HTTP {result['status_code']} | HTML: {result['html_size']}b | "
+                f"Produtos: {result['products_found']} | Preços: {result['products_with_price']}"
+            )
             if result["error"]:
                 print(f"    Erro: {result['error']}")
             if result["sample_products"]:
@@ -199,6 +216,7 @@ def main():
     for s in failed:
         r = results[s]
         print(f"  - {s}: {r.get('error', 'unknown')}")
+
 
 if __name__ == "__main__":
     main()

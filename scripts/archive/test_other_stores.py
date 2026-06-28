@@ -1,4 +1,5 @@
 """Test other stores PDF patterns."""
+
 import httpx
 
 stores = {

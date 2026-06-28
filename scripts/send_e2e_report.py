@@ -23,12 +23,14 @@ SMTP_USER = os.environ.get("SMTP_USER")
 SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
 TO_EMAIL = os.environ.get("ALERT_EMAIL_TO", "custodoce@gmail.com")
 
+
 def check_supabase():
     """Quick health checks (D1-D10)."""
     if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
         return {"status": "skip", "details": "Secrets não configurados"}
     try:
         from supabase import create_client
+
         s = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
         checks = {}
         # D1: prices count
@@ -66,11 +68,13 @@ def check_supabase():
     except Exception as e:
         return {"status": "error", "details": str(e)}
 
+
 def get_ai_status():
     """Quick AI health check."""
     try:
         from services.price_intelligence import PriceIntelligence
         from services.price_service import get_all_current_prices
+
         prices = get_all_current_prices(valid_only=True, limit=200)
         pi = PriceIntelligence()
         enriched = pi.enrich_prices(prices)
@@ -79,6 +83,7 @@ def get_ai_status():
         return {"status": "ok", "analyzed": len(prices), "anomalies": anomalies, "offers": offers}
     except Exception as e:
         return {"status": "error", "details": str(e)}
+
 
 def build_html_report(pytest_report: str, supabase_status: dict, ai_status: dict, diffs: list) -> str:
     now = datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -109,24 +114,24 @@ img {{max-width:100%;border:1px solid #ddd;border-radius:4px}}
 <body>
 <div class="card">
 <h1>🧪 Relatório E2E CustoDoce</h1>
-<p><strong>Data:</strong> {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>
+<p><strong>Data:</strong> {datetime.now().strftime("%d/%m/%Y %H:%M")}</p>
 <p><strong>Ambiente:</strong> Produção (Streamlit Cloud + Supabase)</p>
 </div>
 
 <div class="card">
 <h2>📊 Resumo Execução</h2>
-<p>Relatório completo disponível no artifact <a href="https://github.com/ZeroBond85/CustoDoce/actions/runs/{os.environ.get('GITHUB_RUN_ID','')}" target="_blank">GitHub Actions Run</a>.</p>
+<p>Relatório completo disponível no artifact <a href="https://github.com/ZeroBond85/CustoDoce/actions/runs/{os.environ.get("GITHUB_RUN_ID", "")}" target="_blank">GitHub Actions Run</a>.</p>
 </div>
 
 <div class="card">
 <h2>🗄️ Supabase Health Checks (D1-D10)</h2>
-<span class="badge {'badge-ok' if supa_ok else 'badge-err'}">{'OK' if supa_ok else 'FALHA'}</span>
-<pre>{json.dumps(supabase_status.get('details', supabase_status), indent=2, ensure_ascii=False)}</pre>
+<span class="badge {"badge-ok" if supa_ok else "badge-err"}">{"OK" if supa_ok else "FALHA"}</span>
+<pre>{json.dumps(supabase_status.get("details", supabase_status), indent=2, ensure_ascii=False)}</pre>
 </div>
 
 <div class="card">
 <h2>🤖 IA Status</h2>
-<span class="badge {'badge-ok' if ai_ok else 'badge-err'}">{'OK' if ai_ok else 'FALHA'}</span>
+<span class="badge {"badge-ok" if ai_ok else "badge-err"}">{"OK" if ai_ok else "FALHA"}</span>
 <pre>{json.dumps(ai_status, indent=2, ensure_ascii=False)}</pre>
 </div>
 
@@ -145,6 +150,7 @@ img {{max-width:100%;border:1px solid #ddd;border-radius:4px}}
 </body>
 </html>"""
 
+
 def send_email(html_body: str):
     msg = MIMEMultipart("alternative")
     msg["Subject"] = f"🧪 E2E Report CustoDoce • {datetime.now().strftime('%d/%m/%Y %H:%M')}"
@@ -161,6 +167,7 @@ def send_email(html_body: str):
         server.starttls()
         server.login(SMTP_USER, SMTP_PASSWORD)
         server.send_message(msg)
+
 
 def main():
     if REPORT_PATH.exists():
@@ -185,6 +192,7 @@ def main():
 
     send_email(html)
     print("E2E report email sent to", TO_EMAIL)
+
 
 if __name__ == "__main__":
     main()

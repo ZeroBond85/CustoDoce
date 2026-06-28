@@ -1,4 +1,5 @@
 """Search Roldão for flyer keywords."""
+
 import httpx
 import re
 

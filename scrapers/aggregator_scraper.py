@@ -1,42 +1,107 @@
-
 import asyncio
-import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 import httpx
 from selectolax.parser import HTMLParser
 
-logger = logging.getLogger(__name__)
+from services.logger import logger
 
 FOOD_KEYWORDS = {
-    "supermercado", "mercado", "mercad", "atacad", "hiper",
-    "padaria", "pao", "confeitaria", "confeiteiro", "doce", "doces",
-    "empório", "emporio", "distribuidora", "distribuidor",
-    "farinha", "frios", "açougue", "acougue", "hortifruti",
-    "bebidas", "acucar", "alimentos", "guloseimas",
-    "festas", "embalagens", "descartaveis", "descartáveis",
+    "supermercado",
+    "mercado",
+    "mercad",
+    "atacad",
+    "hiper",
+    "padaria",
+    "pao",
+    "confeitaria",
+    "confeiteiro",
+    "doce",
+    "doces",
+    "empório",
+    "emporio",
+    "distribuidora",
+    "distribuidor",
+    "farinha",
+    "frios",
+    "açougue",
+    "acougue",
+    "hortifruti",
+    "bebidas",
+    "acucar",
+    "alimentos",
+    "guloseimas",
+    "festas",
+    "embalagens",
+    "descartaveis",
+    "descartáveis",
 }
 NON_FOOD_KEYWORDS = {
-    "boticário", "boticario", "magazine", "casas bahia",
-    "renner", "riachuelo", "marisa", "c&a", "cea",
-    "drogaria", "farmacia", "farmácia", "drogasil", "drogão", "drogao",
-    "polishop", "fast shop", "shop", "lojas", "melissa",
-    "electrolux", "lg", "samsung", "sony", "apple",
-    "posto", "gasolina", "combustivel",
-    "pet", "petshop", "animal",
-    "papelaria", "livraria",
-    "academia", "ginastica",
-    "ótica", "otica", "oculos",
-    "seguros", "banco", "financiamento",
-    "imobiliária", "imobiliaria", "imovel",
-    "automoveis", "carro", "moto", "bicicleta",
-    "cama", "mesa", "banho", "cama mesa banho",
-    "material de construcao", "construcao", "construção",
-    "presentes", "souvenir",
-    "brinquedos", "jogos",
-    "perfumaria", "cosmeticos", "cosméticos",
-    "lavanderia", "limpeza",
+    "boticário",
+    "boticario",
+    "magazine",
+    "casas bahia",
+    "renner",
+    "riachuelo",
+    "marisa",
+    "c&a",
+    "cea",
+    "drogaria",
+    "farmacia",
+    "farmácia",
+    "drogasil",
+    "drogão",
+    "drogao",
+    "polishop",
+    "fast shop",
+    "shop",
+    "lojas",
+    "melissa",
+    "electrolux",
+    "lg",
+    "samsung",
+    "sony",
+    "apple",
+    "posto",
+    "gasolina",
+    "combustivel",
+    "pet",
+    "petshop",
+    "animal",
+    "papelaria",
+    "livraria",
+    "academia",
+    "ginastica",
+    "ótica",
+    "otica",
+    "oculos",
+    "seguros",
+    "banco",
+    "financiamento",
+    "imobiliária",
+    "imobiliaria",
+    "imovel",
+    "automoveis",
+    "carro",
+    "moto",
+    "bicicleta",
+    "cama",
+    "mesa",
+    "banho",
+    "cama mesa banho",
+    "material de construcao",
+    "construcao",
+    "construção",
+    "presentes",
+    "souvenir",
+    "brinquedos",
+    "jogos",
+    "perfumaria",
+    "cosmeticos",
+    "cosméticos",
+    "lavanderia",
+    "limpeza",
 }
 
 
@@ -174,7 +239,7 @@ class TiendeoScraper:
 
     @staticmethod
     def _resolve_year(month: int) -> int:
-        today = datetime.now(timezone.utc)
+        today = datetime.now(UTC)
         return today.year + 1 if month < today.month else today.year
 
     async def _fetch_city_async(self, client: httpx.AsyncClient, url: str) -> str | None:
@@ -202,7 +267,7 @@ class TiendeoScraper:
             results = await asyncio.gather(*tasks)
 
         all_flyers = []
-        for (_url, region), html in zip(city_urls, results):
+        for (_url, region), html in zip(city_urls, results, strict=False):
             if not html:
                 continue
             flyers = self.parse_flyers(html, region)

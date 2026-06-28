@@ -1,0 +1,131 @@
+name: Backup - Database
+
+on:
+  schedule:
+    - cron: "0 8 * * 0"
+  workflow_dispatch:
+    inputs:
+      keep_count:
+        description: "Numero de backups a manter"
+        required: false
+        default: "4"
+        type: string
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install psql client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client gzip > /dev/null 2>&1
+
+      - name: Install Python deps
+        run: pip install supabase 2>/dev/null
+
+      - name: Derive connection params
+        id: parse_ref
+        run: |
+          URL="${{ secrets.SUPABASE_URL }}"
+          REF="${URL#https://}"
+          REF="${REF%.supabase.co}"
+          echo "ref=$REF" >> $GITHUB_OUTPUT
+          echo "host=db.$REF.supabase.co" >> $GITHUB_OUTPUT
+          echo "port=5432" >> $GITHUB_OUTPUT
+
+      - name: Run pg_dump (direct)
+        id: dump
+        continue-on-error: true
+        env:
+          PGHOST: ${{ steps.parse_ref.outputs.host }}
+          PGPORT: ${{ steps.parse_ref.outputs.port }}
+          PGUSER: postgres
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PGDATABASE: postgres
+        run: |
+          TIMESTAMP=$(date -u +"%Y%m%d_%H%M%S")
+          FILENAME="custodoce_backup_${TIMESTAMP}.sql.gz"
+          pg_dump --format=custom --compress=9 --clean --if-exists --no-acl --no-owner \
+            | gzip -9 > "$FILENAME"
+          echo "filename=$FILENAME" >> $GITHUB_OUTPUT
+          echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT
+          echo "size=$(stat -c%s "$FILENAME" 2>/dev/null || stat -f%z "$FILENAME")" >> $GITHUB_OUTPUT
+
+      - name: Fallback to RPC-based backup if pg_dump failed
+        if: steps.dump.outcome == 'failure' || steps.dump.conclusion == 'failure'
+        run: |
+          echo "Direct pg_dump failed (port 5432 blocked). Using RPC-based backup..."
+          python << 'PYEOF'
+import os, json, gzip, datetime
+from supabase import create_client
+s = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
+tables = ['prices','price_history','review_queue','stores','ingredients','flyers','scrape_frequencies','alert_rules','feature_flags']
+backup = {}
+for t in tables:
+    try:
+        data = s.table(t).select('*').execute().data
+        backup[t] = data
+        print(f'  {t}: {len(data)} rows')
+    except Exception as e:
+        print(f'  {t}: ERROR {e}')
+ts = datetime.datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+fn = f'custodoce_backup_rpc_{ts}.json.gz'
+with gzip.open(fn, 'wt', encoding='utf-8') as f:
+    json.dump(backup, f, ensure_ascii=False, default=str)
+print(f'Wrote {fn}')
+with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+    f.write(f'filename={fn}\n')
+PYEOF
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Upload to GitHub Artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: db-backup-${{ steps.dump.outputs.timestamp }}
+          path: ${{ steps.dump.outputs.filename }}
+          retention-days: 14
+          compression-level: 9
+
+      - name: Cleanup old artifacts
+        if: github.event_name == 'schedule'
+        env:
+          KEEP: ${{ github.event.inputs.keep_count || '4' }}
+        run: |
+          pip install github-artifacts-manager 2>/dev/null || true
+          python scripts/cleanup_old_artifacts.py \
+            --repo ${{ github.repository }} \
+            --artifact-prefix db-backup- \
+            --keep $KEEP \
+            --token ${{ secrets.GITHUB_TOKEN }} || \
+          echo "Cleanup skipped (github-artifacts-manager not available)"
+
+      - name: Backup summary
+        run: |
+          echo "## Backup Database Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Campo | Valor |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Timestamp | ${{ steps.dump.outputs.timestamp }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Arquivo | ${{ steps.dump.outputs.filename }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tamanho | $(( ${{ steps.dump.outputs.size }} / 1024 )) KB |" >> $GITHUB_STEP_SUMMARY
+          echo "| Retention | 14 dias (GitHub Artifacts) |" >> $GITHUB_STEP_SUMMARY

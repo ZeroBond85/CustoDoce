@@ -1,4 +1,5 @@
 """Test encarte.br.com PDF patterns for all stores."""
+
 import httpx
 
 urls = [
@@ -8,7 +9,10 @@ urls = [
     ("Tenda", "https://tendaatacado.encarte.br.com/images/tendaatacado/tendaatacado-weekly-ad.pdf"),
     ("Max", "https://maxatacadista.encarte.br.com/images/maxatacadista/maxatacadista-weekly-ad.pdf"),
     ("Spani", "https://spani.encarte.br.com/images/spani/spani-weekly-ad.pdf"),
-    ("Mercadao", "https://mercadaoatacadista.encarte.br.com/images/mercadaoatacadista/mercadaoatacadista-weekly-ad.pdf"),
+    (
+        "Mercadao",
+        "https://mercadaoatacadista.encarte.br.com/images/mercadaoatacadista/mercadaoatacadista-weekly-ad.pdf",
+    ),
 ]
 
 with httpx.Client(timeout=30, follow_redirects=True, verify=False) as client:

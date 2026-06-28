@@ -1,16 +1,29 @@
 import os
-from typing import Optional
+from pathlib import Path
 
 from supabase import Client, create_client
 
 
-_supabase_client: Optional[Client] = None
-_service_client: Optional[Client] = None
+def _ensure_env_loaded() -> None:
+    """Load .env from project root if available (idempotent, no-op if python-dotenv missing)."""
+    try:
+        from dotenv import load_dotenv
+
+        env_path = Path(__file__).resolve().parent.parent / ".env"
+        if env_path.exists():
+            load_dotenv(env_path, override=False)
+    except ImportError:
+        pass
+
+
+_supabase_client: Client | None = None
+_service_client: Client | None = None
 
 
 def get_supabase() -> Client:
     global _supabase_client
     if _supabase_client is None:
+        _ensure_env_loaded()
         url = os.environ.get("SUPABASE_URL")
         key = os.environ.get("SUPABASE_ANON_KEY")
         if not url or not key:
@@ -26,6 +39,7 @@ def get_service_client() -> Client:
     global _service_client
     if _service_client is not None:
         return _service_client
+    _ensure_env_loaded()
     key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
     url = os.environ.get("SUPABASE_URL")
 

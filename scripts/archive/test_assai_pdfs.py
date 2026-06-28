@@ -1,4 +1,5 @@
 """Test Assai offer pages for PDF links."""
+
 import httpx
 import re
 
@@ -17,7 +18,9 @@ with httpx.Client(timeout=20, follow_redirects=True, verify=False) as client:
                 # Look for PDF links, download buttons, etc.
                 pdfs = re.findall(r'href=[\'"]([^\'"]+\.pdf)', r.text, re.IGNORECASE)
                 # Also look for print/offline links
-                prints = re.findall(r'(?:print|imprimir|offline|download|baixar)[^>]*href=[\'"]([^\'"]+)', r.text, re.IGNORECASE)
+                prints = re.findall(
+                    r'(?:print|imprimir|offline|download|baixar)[^>]*href=[\'"]([^\'"]+)', r.text, re.IGNORECASE
+                )
                 # Check for printpdf pattern
                 printpdfs = re.findall(r'printpdf[^>]*href=[\'"]([^\'"]+)', r.text, re.IGNORECASE)
 

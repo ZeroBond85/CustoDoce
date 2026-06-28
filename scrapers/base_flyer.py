@@ -1,14 +1,11 @@
 import hashlib
 import io
-import logging
+from services.logger import logger
 from abc import ABC, abstractmethod
 from datetime import date
 from pathlib import Path
-from typing import Optional
 
 import httpx
-
-logger = logging.getLogger(__name__)
 
 
 class BaseFlyerScraper(ABC):
@@ -24,7 +21,7 @@ class BaseFlyerScraper(ABC):
             follow_redirects=True,
             headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                              "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+                "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
                 "Accept": "application/pdf, */*",
             },
         )
@@ -44,7 +41,7 @@ class BaseFlyerScraper(ABC):
     def _etag_path(self) -> Path:
         return self.cache_dir / f"{self.name.lower().replace(' ', '_')}_etag.txt"
 
-    def build_url(self, target_date: Optional[date] = None) -> str:
+    def build_url(self, target_date: date | None = None) -> str:
         if target_date is None:
             target_date = date.today()
         week = target_date.isocalendar().week
@@ -61,7 +58,7 @@ class BaseFlyerScraper(ABC):
     def _compute_md5(self, content: bytes) -> str:
         return hashlib.md5(content, usedforsecurity=False).hexdigest()  # nosec B324
 
-    def download(self, target_date: Optional[date] = None) -> tuple[Optional[bytes], bool]:
+    def download(self, target_date: date | None = None) -> tuple[bytes | None, bool]:
         url = self.build_url(target_date)
         md5_path = self._md5_path()
         etag_path = self._etag_path()
@@ -105,6 +102,7 @@ class BaseFlyerScraper(ABC):
 
     def extract_text(self, pdf_bytes: bytes) -> str:
         import pdfplumber
+
         text_parts = []
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
             for page in pdf.pages:
@@ -118,10 +116,11 @@ class BaseFlyerScraper(ABC):
                             text_parts.append(" | ".join(str(c) for c in row if c))
         return "\n".join(text_parts)
 
-    def _render_first_page(self, pdf_bytes: bytes) -> Optional[bytes]:
+    def _render_first_page(self, pdf_bytes: bytes) -> bytes | None:
         """Render the first page of a PDF to a PNG thumbnail. Returns None on failure."""
         try:
             import pdfplumber
+
             with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
                 if not pdf.pages:
                     return None
@@ -133,7 +132,7 @@ class BaseFlyerScraper(ABC):
             logger.debug("[%s] Thumbnail generation failed: %s", self.name, e)
             return None
 
-    def run(self, target_date: Optional[date] = None) -> list[dict]:
+    def run(self, target_date: date | None = None) -> list[dict]:
         content, is_new = self.download(target_date)
         if not is_new or content is None:
             return []
@@ -143,6 +142,7 @@ class BaseFlyerScraper(ABC):
             logger.info("[%s] pdfplumber returned empty, trying OCR...", self.name)
             try:
                 from scrapers.ocr import ocr_pdf
+
                 raw_text = ocr_pdf(content)
                 if raw_text.strip():
                     logger.info("[%s] OCR extracted %d chars", self.name, len(raw_text))
@@ -157,5 +157,4 @@ class BaseFlyerScraper(ABC):
         return self.parse_products(raw_text)
 
     @abstractmethod
-    def parse_products(self, text: str) -> list[dict]:
-        ...
+    def parse_products(self, text: str) -> list[dict]: ...

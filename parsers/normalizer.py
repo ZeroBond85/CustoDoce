@@ -1,17 +1,16 @@
 import re
-from typing import Optional
+from typing import Any
 
 
 class NormalizedPrice:
-    def __init__(self, qty: int, unit_kg: float, total_kg: float,
-                 price_per_kg: float, price_per_un: float):
+    def __init__(self, qty: int, unit_kg: float, total_kg: float, price_per_kg: float, price_per_un: float):
         self.qty = qty
         self.unit_kg = unit_kg
         self.total_kg = total_kg
         self.price_per_kg = price_per_kg
         self.price_per_un = price_per_un
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         return {
             "qty": self.qty,
             "unit_kg": round(self.unit_kg, 4),
@@ -21,9 +20,11 @@ class NormalizedPrice:
         }
 
     def __repr__(self):
-        return (f"<Normalized: R${self.price_per_kg:.2f}/kg, "
-                f"R${self.price_per_un:.2f}/un, "
-                f"{self.qty} x {self.unit_kg*1000:.0f}g>")
+        return (
+            f"<Normalized: R${self.price_per_kg:.2f}/kg, "
+            f"R${self.price_per_un:.2f}/un, "
+            f"{self.qty} x {self.unit_kg * 1000:.0f}g>"
+        )
 
 
 _WEIGHT_PATTERNS = [
@@ -40,7 +41,7 @@ _UNIT_PATTERNS = [
 ]
 
 
-def parse_unit(raw_unit: str) -> Optional[NormalizedPrice]:
+def parse_unit(raw_unit: str) -> NormalizedPrice | None:
     if not raw_unit or not isinstance(raw_unit, str):
         return None
 
@@ -69,7 +70,12 @@ def parse_unit(raw_unit: str) -> Optional[NormalizedPrice]:
 
             if weight_unit and weight_unit.lower() in ("kg", "kilo", "kilograma"):
                 unit_kg = weight
-            elif weight_unit and weight_unit.lower() in ("g", "gr", "grama") or weight_unit and weight_unit.lower() in ("ml", "mililitro"):
+            elif (
+                weight_unit
+                and weight_unit.lower() in ("g", "gr", "grama")
+                or weight_unit
+                and weight_unit.lower() in ("ml", "mililitro")
+            ):
                 unit_kg = weight / 1000
             else:
                 unit_kg = weight / 1000
@@ -93,7 +99,7 @@ def parse_unit(raw_unit: str) -> Optional[NormalizedPrice]:
     return None
 
 
-def normalize_price(raw_price: float, raw_unit: str) -> Optional[NormalizedPrice]:
+def normalize_price(raw_price: float, raw_unit: str) -> NormalizedPrice | None:
     if raw_price <= 0:
         return None
 
@@ -101,7 +107,11 @@ def normalize_price(raw_price: float, raw_unit: str) -> Optional[NormalizedPrice
     if parsed is None:
         return None
 
-    parsed.price_per_kg = raw_price / parsed.total_kg
-    parsed.price_per_un = raw_price / parsed.qty
+    # Use rounding to 4 decimals before final round to 2 to avoid float precision issues
+    # 42.9 / 12 = 3.575.
+    # We want to be consistent.
+    parsed.price_per_kg = round(raw_price / parsed.total_kg, 4)
+    parsed.price_per_un = round(raw_price / parsed.qty, 4)
 
+    # The to_dict() method already rounds to 2.
     return parsed

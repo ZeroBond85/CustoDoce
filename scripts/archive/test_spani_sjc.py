@@ -1,4 +1,5 @@
 """Check Spani SJC store page."""
+
 import httpx
 import re
 

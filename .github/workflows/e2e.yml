@@ -15,7 +15,7 @@ on:
         default: false
 
 env:
-  PYTHON_VERSION: '3.11'
+  PYTHON_VERSION: '3.12'
   STREAMLIT_URL: https://custodoce.streamlit.app
 
 jobs:
@@ -59,14 +59,14 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Run Real DB Tests
-        run: pytest tests/test_db_real.py tests/test_scrapers_real.py tests/test_telegram_real.py -m slow -v --tb=short --json-report --json-report-file=.pytest_db.json
+        run: pytest tests/integration/test_db_real.py tests/real/test_scrapers_real.py tests/real/test_telegram_real.py -m slow -v --tb=short --json-report --json-report-file=.pytest_db.json
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Run E2E Tests (Dashboard + Playwright + Flyers)
         run: |
-          pytest tests/e2e_dashboard.py tests/e2e_real.py -v \
+          pytest tests/e2e/e2e_dashboard.py tests/e2e/e2e_real.py -v \
             --tb=short \
             --html=report.html \
             --self-contained-html \
@@ -80,14 +80,14 @@ jobs:
 
       - name: Visual Regression
         if: ${{ !inputs.skip_visual }}
-        run: pytest tests/e2e_dashboard.py::TestVisualRegression -v --tb=short
+        run: pytest tests/e2e/e2e_dashboard.py::TestVisualRegression -v --tb=short
         env:
           STREAMLIT_URL: ${{ env.STREAMLIT_URL }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
 
       - name: Update Baselines
         if: ${{ inputs.update_baselines }}
-        run: UPDATE_BASELINES=1 pytest tests/e2e_dashboard.py::TestVisualRegression -v
+        run: UPDATE_BASELINES=1 pytest tests/e2e/e2e_dashboard.py::TestVisualRegression -v
         env:
           STREAMLIT_URL: ${{ env.STREAMLIT_URL }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}

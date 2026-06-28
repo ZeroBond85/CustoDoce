@@ -1,4 +1,5 @@
 """Check Atacadão download page content."""
+
 import httpx
 import re
 

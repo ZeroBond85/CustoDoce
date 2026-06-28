@@ -3,6 +3,7 @@
 Seed script to populate config tables from YAML files.
 Run after applying migration 001_config_tables.sql
 """
+
 import os
 import sys
 import yaml
@@ -31,13 +32,15 @@ def seed_ingredients():
         data = yaml.safe_load(f)
 
     for ing in data.get("ingredients", []):
-        upsert_ingredient({
-            "canonical_name": ing["canonical"],
-            "category": ing.get("category", ""),
-            "aliases": ing.get("aliases", []),
-            "unit_target": ing.get("unit_target", "kg"),
-            "active": True,
-        })
+        upsert_ingredient(
+            {
+                "canonical_name": ing["canonical"],
+                "category": ing.get("category", ""),
+                "aliases": ing.get("aliases", []),
+                "unit_target": ing.get("unit_target", "kg"),
+                "active": True,
+            }
+        )
         print(f"  ✓ Ingredient: {ing['canonical']}")
 
 
@@ -124,10 +127,38 @@ def seed_schedules():
 def seed_scrape_frequencies():
     """Seed default scrape frequencies per tier"""
     defaults = [
-        {"tier": 1, "frequency_minutes": 1440, "max_retries": 2, "timeout_seconds": 30, "rate_limit_per_minute": 5, "enabled": True},
-        {"tier": 2, "frequency_minutes": 1440, "max_retries": 2, "timeout_seconds": 30, "rate_limit_per_minute": 10, "enabled": True},
-        {"tier": 3, "frequency_minutes": 1440, "max_retries": 1, "timeout_seconds": 60, "rate_limit_per_minute": 5, "enabled": True},
-        {"tier": 4, "frequency_minutes": 10080, "max_retries": 0, "timeout_seconds": 0, "rate_limit_per_minute": 0, "enabled": False},
+        {
+            "tier": 1,
+            "frequency_minutes": 1440,
+            "max_retries": 2,
+            "timeout_seconds": 30,
+            "rate_limit_per_minute": 5,
+            "enabled": True,
+        },
+        {
+            "tier": 2,
+            "frequency_minutes": 1440,
+            "max_retries": 2,
+            "timeout_seconds": 30,
+            "rate_limit_per_minute": 10,
+            "enabled": True,
+        },
+        {
+            "tier": 3,
+            "frequency_minutes": 1440,
+            "max_retries": 1,
+            "timeout_seconds": 60,
+            "rate_limit_per_minute": 5,
+            "enabled": True,
+        },
+        {
+            "tier": 4,
+            "frequency_minutes": 10080,
+            "max_retries": 0,
+            "timeout_seconds": 0,
+            "rate_limit_per_minute": 0,
+            "enabled": False,
+        },
     ]
     for d in defaults:
         upsert_scrape_frequency(d)

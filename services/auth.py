@@ -5,8 +5,7 @@ import os
 import struct
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import datetime, timedelta, UTC
 
 import jwt as pyjwt
 
@@ -21,7 +20,7 @@ TOTP_DIGITS = 6
 class AuthConfig:
     secret_key: str
     admin_password_hash: str
-    totp_secret: Optional[str] = None
+    totp_secret: str | None = None
     totp_enabled: bool = False
 
 
@@ -30,9 +29,7 @@ def generate_secret_key(length: int = 32) -> str:
 
 
 def _derive_key(secret: str, salt: bytes) -> bytes:
-    return hashlib.pbkdf2_hmac(
-        "sha256", secret.encode("utf-8"), salt, PBKDF2_ITERATIONS, dklen=32
-    )
+    return hashlib.pbkdf2_hmac("sha256", secret.encode("utf-8"), salt, PBKDF2_ITERATIONS, dklen=32)
 
 
 def hash_password(password: str) -> str:
@@ -49,7 +46,7 @@ def verify_password(password: str, stored: str) -> bool:
 
 
 def create_token(user_id: str, secret_key: str, expiry_hours: int = JWT_EXPIRY_HOURS) -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {
         "sub": user_id,
         "iat": now,
@@ -58,7 +55,7 @@ def create_token(user_id: str, secret_key: str, expiry_hours: int = JWT_EXPIRY_H
     return pyjwt.encode(payload, secret_key, algorithm=JWT_ALGORITHM)
 
 
-def verify_token(token: str, secret_key: str) -> Optional[dict]:
+def verify_token(token: str, secret_key: str) -> dict | None:
     try:
         return pyjwt.decode(token, secret_key, algorithms=[JWT_ALGORITHM])
     except pyjwt.ExpiredSignatureError:
@@ -99,6 +96,7 @@ def get_totp_uri(secret: str, label: str = "CustoDoce", issuer: str = "CustoDoce
 
 def load_config() -> AuthConfig:
     import os as _os
+
     sk = _os.environ.get("AUTH_SECRET_KEY", "")
     if not sk:
         sk = base64.urlsafe_b64encode(os.urandom(32)).decode("utf-8")

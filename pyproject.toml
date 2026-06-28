@@ -13,7 +13,7 @@ addopts = "-m 'not slow' --ignore=tests/test_real_integration.py"
 
 [tool.ruff]
 line-length = 120
-target-version = "py39"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["F", "E", "W", "B", "S", "UP", "SIM", "C4"]
@@ -21,12 +21,12 @@ ignore = ["E501", "B006", "B008", "B023", "S101"]
 
 [tool.ruff.lint.per-file-ignores]
 "admin/app.py" = ["E402"]
-"scripts/archive/*" = ["S501", "S603", "S311", "S112", "S110", "B007", "UP015", "C401"]
+"scripts/archive/*" = ["S501", "S603", "S311", "S112", "S110", "B007", "UP015", "C401", "S607"]
 "scripts/*.py" = ["S501", "S603", "S311", "S112", "S110", "B007", "UP015", "C401"]
 "tests/*" = ["S101", "S105", "B007", "C401", "E402", "F841", "F811", "S110", "SIM105", "SIM117"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 ignore_missing_imports = true
 explicit_package_bases = true
 exclude = [
@@ -36,8 +36,10 @@ exclude = [
     "scrapers/",       # network-dependent, many stub issues
     "services/",       # supabase-py JSON types cause 100+ false positives per file
     "telegram_bot/",   # python-telegram-bot stubs incomplete
-    "admin/app.py",    # Streamlit + supabase type issues
-    "main.py",         # supabase-py JSON types
+    "admin/app.py",      # Streamlit + supabase type issues
+    "admin/tabs/",       # dead code, stubs only, no real functions
+    "data/",             # diagnostic/utility scripts
+    "main.py",           # supabase-py JSON types
 ]
 warn_unused_ignores = false
 check_untyped_defs = false
@@ -63,4 +65,5 @@ module = [
     "admin.app",
     "scrapers.*",
 ]
+follow_imports = "skip"
 ignore_missing_imports = true

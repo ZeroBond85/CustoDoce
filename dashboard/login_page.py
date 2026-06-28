@@ -112,9 +112,7 @@ def render_login():
         if _limiter.is_limited(ip):
             wait = _limiter.retry_after(ip)
             st.markdown(
-                f'<div class="cd-login-error">'
-                f"Muitas tentativas. Tente novamente em {wait}s."
-                f"</div>",
+                f'<div class="cd-login-error">Muitas tentativas. Tente novamente em {wait}s.</div>',
                 unsafe_allow_html=True,
             )
             return False
@@ -145,19 +143,15 @@ def render_login():
                 label_visibility="collapsed",
             )
             st.markdown(
-                '<p class="cd-login-hint">'
-                "Abra seu app autenticador (Google Authenticator, Authy, etc.)"
-                "</p>",
+                '<p class="cd-login-hint">Abra seu app autenticador (Google Authenticator, Authy, etc.)</p>',
                 unsafe_allow_html=True,
             )
 
         c1, c2 = st.columns(2)
         with c1:
-            submitted = st.button(
-                "Entrar", type="primary", width='stretch'
-            )
+            submitted = st.button("Entrar", type="primary", width="stretch")
         with c2:
-            if st.button("Limpar", width='stretch'):
+            if st.button("Limpar", width="stretch"):
                 for k in ["login_user", "login_pass", "login_totp"]:
                     st.session_state.pop(k, None)
                 st.rerun()
@@ -165,9 +159,7 @@ def render_login():
         if submitted:
             if not username or not password:
                 st.markdown(
-                    '<div class="cd-login-error">'
-                    "Preencha usuario e senha."
-                    "</div>",
+                    '<div class="cd-login-error">Preencha usuario e senha.</div>',
                     unsafe_allow_html=True,
                 )
                 return False
@@ -184,22 +176,18 @@ def render_login():
                 _limiter.record_attempt(ip)
                 remaining = _limiter.remaining_attempts(ip)
                 st.markdown(
-                    '<div class="cd-login-error">'
-                    f"Senha incorreta. {remaining} tentativa(s) restante(s)."
-                    "</div>",
+                    f'<div class="cd-login-error">Senha incorreta. {remaining} tentativa(s) restante(s).</div>',
                     unsafe_allow_html=True,
                 )
                 return False
 
             if totp_needed and (not totp_code or not verify_totp(config.totp_secret, totp_code)):
-                    _limiter.record_attempt(ip)
-                    st.markdown(
-                        '<div class="cd-login-error">'
-                        "Codigo 2FA invalido."
-                        "</div>",
-                        unsafe_allow_html=True,
-                    )
-                    return False
+                _limiter.record_attempt(ip)
+                st.markdown(
+                    '<div class="cd-login-error">Codigo 2FA invalido.</div>',
+                    unsafe_allow_html=True,
+                )
+                return False
 
             _limiter.clear_attempts(ip)
             token = create_token(username, config.secret_key)
@@ -246,9 +234,7 @@ def render_setup_first_user():
             label_visibility="collapsed",
         )
 
-        enable_totp = st.checkbox(
-            "Ativar 2FA (TOTP)", value=False, key="setup_totp"
-        )
+        enable_totp = st.checkbox("Ativar 2FA (TOTP)", value=False, key="setup_totp")
 
         totp_secret = ""  # nosec B105 - inicializacao de string, nao senha
         if enable_totp:
@@ -256,14 +242,10 @@ def render_setup_first_user():
                 st.session_state.setup_totp_secret = generate_totp_secret()
             totp_secret = st.session_state.setup_totp_secret
             uri = get_totp_uri(totp_secret)
-            st.info(
-                "Escaneie o QR code abaixo com seu app autenticador "
-                "(Google Authenticator, Authy, etc.)"
-            )
+            st.info("Escaneie o QR code abaixo com seu app autenticador (Google Authenticator, Authy, etc.)")
             st.code(uri, language="text")
             st.markdown(
-                f'<p class="cd-login-hint">'
-                f"Ou digite manualmente: <strong>{totp_secret}</strong></p>",
+                f'<p class="cd-login-hint">Ou digite manualmente: <strong>{totp_secret}</strong></p>',
                 unsafe_allow_html=True,
             )
             totp_test = st.text_input(
@@ -279,9 +261,7 @@ def render_setup_first_user():
                 if not _vt(totp_secret, totp_test):
                     st.error("Codigo invalido. Verifique o app autenticador.")
 
-        if st.button(
-            "Salvar Configuracao", type="primary", width='stretch'
-        ):
+        if st.button("Salvar Configuracao", type="primary", width="stretch"):
             if not new_pass or len(new_pass) < 8:
                 st.error("A senha deve ter no minimo 8 caracteres.")
                 return
@@ -291,20 +271,14 @@ def render_setup_first_user():
 
             pw_hash = hash_password(new_pass)
             st.session_state["_setup_pw_hash"] = pw_hash
-            st.session_state["_setup_totp_secret"] = (
-                totp_secret if enable_totp else ""
-            )
-            st.session_state["_setup_totp_enabled"] = (
-                "1" if enable_totp else ""
-            )
+            st.session_state["_setup_totp_secret"] = totp_secret if enable_totp else ""
+            st.session_state["_setup_totp_enabled"] = "1" if enable_totp else ""
 
             sug = (
                 f"export ADMIN_PASSWORD_HASH='{pw_hash}'\n"
                 f"export TOTP_SECRET='{totp_secret}'\n"
                 f"export TOTP_ENABLED={'1' if enable_totp else ''}"
             )
-            st.success(
-                "Configuracao gerada! Adicione ao ambiente ou ao Streamlit Cloud Secrets:"
-            )
+            st.success("Configuracao gerada! Adicione ao ambiente ou ao Streamlit Cloud Secrets:")
             st.code(sug, language="bash")
             st.info("Apos configurar as secrets, reinicie o app.")

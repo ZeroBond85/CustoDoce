@@ -1,13 +1,12 @@
 import json
-import logging
+from services.logger import logger
 import re
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, UTC
 
 import httpx
 
 from parsers.unit_extractor import extract_unit as _extract_unit
 
-logger = logging.getLogger(__name__)
 
 CAMPANHAS_URL = "https://folheteria.clubeextra.com.br/home/sites/assets/js/campanhas.js"
 SP_OFFSET = timedelta(hours=-3)
@@ -25,25 +24,109 @@ TARGET_CITIES = [
 
 PRICE_RE = re.compile(r"(?:R\$\s*)?([1-9]\d{0,2}(?:\.\d{3})*\s*,\d{2})\b")
 STOP_WORDS = {
-    "exclusivo", "cliente", "clientes", "clube", "extra", "economize",
-    "apenas", "confira", "pagamento", "parcele", "cartão", "cartao",
-    "crédito", "credito", "débito", "debito", "dinheiro", "total",
-    "subtotal", "desconto", "descontos", "condições", "condicoes",
-    "oferta", "ofertas", "válido", "valido", "válida", "valida",
-    "válidas", "validas", "até", "ate", "supermercado", "mercado",
-    "fotos", "meramente", "ilustrativas", "www", "http", "https",
-    "sac", "ministério", "saúde", "adverte", "aleitamento",
-    "materno", "recomendado", "continuar", "amamentando", "ofereça",
-    "novos", "alimentos", "impresso", "via", "pública", "reservada",
-    "retificação", "veiculadas", "informações", "casa",
-    "0800", "telefone", "whatsapp", "facebook",
-    "instagram", "aplicativo",     "baixe", "cadastre-se", "informe", "site", "app",
-    "cpf", "caixa", "grátis", "rapido", "rápido", "fácil", "facil",
-    "economiza", "objetos", "decoração", "decoracao", "fazem",
-    "parte", "preço", "preco", "estoques", "disponibilidade",
-    "consulte", "loja", "próxima", "proxima", "mais", "próximas",
-    "próximo", "próximos", "sabor", "sabores", "sabore",
-    "aproximadamente", "embalagem", "embalagens",
+    "exclusivo",
+    "cliente",
+    "clientes",
+    "clube",
+    "extra",
+    "economize",
+    "apenas",
+    "confira",
+    "pagamento",
+    "parcele",
+    "cartão",
+    "cartao",
+    "crédito",
+    "credito",
+    "débito",
+    "debito",
+    "dinheiro",
+    "total",
+    "subtotal",
+    "desconto",
+    "descontos",
+    "condições",
+    "condicoes",
+    "oferta",
+    "ofertas",
+    "válido",
+    "valido",
+    "válida",
+    "valida",
+    "válidas",
+    "validas",
+    "até",
+    "ate",
+    "supermercado",
+    "mercado",
+    "fotos",
+    "meramente",
+    "ilustrativas",
+    "www",
+    "http",
+    "https",
+    "sac",
+    "ministério",
+    "saúde",
+    "adverte",
+    "aleitamento",
+    "materno",
+    "recomendado",
+    "continuar",
+    "amamentando",
+    "ofereça",
+    "novos",
+    "alimentos",
+    "impresso",
+    "via",
+    "pública",
+    "reservada",
+    "retificação",
+    "veiculadas",
+    "informações",
+    "casa",
+    "0800",
+    "telefone",
+    "whatsapp",
+    "facebook",
+    "instagram",
+    "aplicativo",
+    "baixe",
+    "cadastre-se",
+    "informe",
+    "site",
+    "app",
+    "cpf",
+    "caixa",
+    "grátis",
+    "rapido",
+    "rápido",
+    "fácil",
+    "facil",
+    "economiza",
+    "objetos",
+    "decoração",
+    "decoracao",
+    "fazem",
+    "parte",
+    "preço",
+    "preco",
+    "estoques",
+    "disponibilidade",
+    "consulte",
+    "loja",
+    "próxima",
+    "proxima",
+    "mais",
+    "próximas",
+    "próximo",
+    "próximos",
+    "sabor",
+    "sabores",
+    "sabore",
+    "aproximadamente",
+    "embalagem",
+    "embalagens",
 }
 HEADER_CLEANUP = re.compile(
     r"(?:exclusivo\s+cliente|clube\s+extra|extra\s+mercado|"
@@ -81,7 +164,7 @@ class ExtraFlyerScraper:
 
     @staticmethod
     def _get_today_str() -> str:
-        sp_now = datetime.now(timezone.utc) + SP_OFFSET
+        sp_now = datetime.now(UTC) + SP_OFFSET
         return sp_now.strftime("%d%m%Y")
 
     def _fetch_campanhas(self) -> dict | None:
@@ -121,11 +204,13 @@ class ExtraFlyerScraper:
                 link = c.get("link", "")
                 if link and link not in seen:
                     seen.add(link)
-                    campaigns.append({
-                        "codigo": c.get("codigo_campanha", ""),
-                        "link": link,
-                        "city": city,
-                    })
+                    campaigns.append(
+                        {
+                            "codigo": c.get("codigo_campanha", ""),
+                            "link": link,
+                            "city": city,
+                        }
+                    )
         return campaigns
 
     def _fetch_page_texts(self, campaign_link: str) -> list[str]:
@@ -198,13 +283,15 @@ class ExtraFlyerScraper:
                 if not validity:
                     validity = ExtraFlyerScraper._extract_validity(page_text)
                 unit = _extract_unit(cleaned)
-                products.append({
-                    "product": cleaned,
-                    "price": price,
-                    "unit": unit,
-                    "validity_raw": validity,
-                    "brand": "",
-                })
+                products.append(
+                    {
+                        "product": cleaned,
+                        "price": price,
+                        "unit": unit,
+                        "validity_raw": validity,
+                        "brand": "",
+                    }
+                )
                 last_valid_name = cleaned
 
         return products

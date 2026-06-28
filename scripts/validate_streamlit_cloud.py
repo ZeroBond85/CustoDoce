@@ -4,6 +4,7 @@ Streamlit Cloud free tier goes to sleep after inactivity.
 The first request (to any URL) wakes it up.
 We do a warm-up request first, then check the actual app.
 """
+
 import os
 import sys
 import time

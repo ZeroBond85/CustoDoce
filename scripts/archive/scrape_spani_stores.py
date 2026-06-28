@@ -1,4 +1,5 @@
 """Scrape Spani store pages for PDF links."""
+
 import httpx
 import re
 

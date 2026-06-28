@@ -3,6 +3,7 @@
 Gera relatório HTML consolidado da regressão full.
 Lê output do pytest --json-report, screenshots, e gera HTML.
 """
+
 import json
 from datetime import datetime
 from pathlib import Path
@@ -136,7 +137,7 @@ pre {{background:#f5f5f5;padding:10px;border-radius:4px;overflow:auto}}
 
 <div class="card">
     <h2>Timing por Teste</h2>
-    <pre>{json.dumps({(t.get("nodeid","").split("::")[-1] if "::" in t.get("nodeid","") else t.get("nodeid","")): f"{t.get('duration',0):.2f}s" for t in results.get("tests", []) if t.get("duration",0) > 0.5}, indent=2, ensure_ascii=False)[:2000]}</pre>
+    <pre>{json.dumps({(t.get("nodeid", "").split("::")[-1] if "::" in t.get("nodeid", "") else t.get("nodeid", "")): f"{t.get('duration', 0):.2f}s" for t in results.get("tests", []) if t.get("duration", 0) > 0.5}, indent=2, ensure_ascii=False)[:2000]}</pre>
 </div>
 
 <hr>
@@ -158,13 +159,15 @@ def main():
             history = []
     if not isinstance(history, list):
         history = []
-    history.append({
-        "date": datetime.now().isoformat(),
-        "passed": summary.get("passed", 0),
-        "failed": summary.get("failed", 0),
-        "total": summary.get("total", 0),
-        "duration": results.get("duration", 0),
-    })
+    history.append(
+        {
+            "date": datetime.now().isoformat(),
+            "passed": summary.get("passed", 0),
+            "failed": summary.get("failed", 0),
+            "total": summary.get("total", 0),
+            "duration": results.get("duration", 0),
+        }
+    )
     history = history[-20:]
     HISTORY_FILE.write_text(json.dumps(history, indent=2), encoding="utf-8")
     html = build_html(results, screenshots, history)

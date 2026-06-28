@@ -1,64 +1,126 @@
 """
-Classificador LLM via Groq API.
-Usa llama-3.1-8b-instant (grátis, 14k req/dia).
-Fallback silencioso se chave não configurada ou erro.
+LLM Classifier - Orquestrador com Cache, Strategy Pattern e Graceful Degradation.
+
+Pipeline (RFC Recurso 2 + 3):
+    1. Verifica cache SQLite local (get_cache)
+    2. Cache miss → itera providers [Groq → OpenRouter → HuggingFace]
+    3. Cada provider tem Circuit Breaker (3 falhas → 10 min cooldown)
+    4. Caso todos falhem → fallback seguro {match: False, provider: fallback}
+
+Compatibilidade:
+    - Mantém API antiga `classify_sync(product_text, candidates)` que retorna
+      dict com chaves {ingredient, confidence, reason}.
+    - Internamente normaliza o resultado do Provider/LLM para esta shape.
 """
 
-import json
-import logging
-import os
-from typing import Optional
+from services.logger import logger
+from parsers.llm_cache import get_cache, set_cache
+from parsers.llm_strategies import (
+    GroqStrategy,
+    OpenRouterStrategy,
+    HuggingFaceStrategy,
+    LLMResult,
+)
+import contextlib
 
-logger = logging.getLogger(__name__)
 
-_CLASSIFICATION_PROMPT = """
-Classifique o produto em UM dos ingredientes abaixo.
-Responda APENAS JSON válido: {"ingredient": "NOME EXATO", "confidence": 0-1, "reason": "breve motivo"}
-Se nenhum ingrediente encaixar, retorne: {"ingredient": null, "confidence": 0, "reason": "Nenhum ingrediente corresponde"}
+def _legacy_shape(result: LLMResult) -> dict:
+    """Bridge entre o novo schema e o antigo usado por matcher pipeline."""
+    return {
+        "ingredient": result.canonical_name if result.match else None,
+        "confidence": float(result.confidence_score) if result.match else 0.0,
+        "reason": result.reason,
+        "match": result.match,
+        "provider": result.provider,
+    }
 
-PRODUTO: "{product_text}"
-INGREDIENTES DISPONÍVEIS: {ingredients_list}
-"""
+
+def _fallback_result(reason: str = "Fallback: All LLM providers unavailable") -> dict:
+    """Retorno seguro quando todos os providers falham."""
+    return {
+        "ingredient": None,
+        "confidence": 0.0,
+        "reason": reason,
+        "match": False,
+        "provider": "fallback",
+    }
+
 
 class LLMClassifier:
-    def __init__(self):
-        self.api_key = os.environ.get("GROQ_API_KEY", "")
-        self._client = None
+    """Orquestrador de classification LLM."""
 
-    def _get_client(self):
-        if self._client is None and self.api_key:
-            from groq import Groq
-            self._client = Groq(api_key=self.api_key)
-        return self._client
+    def __init__(
+        self,
+        strategies: list | None = None,
+    ):
+        self.strategies = strategies or [
+            GroqStrategy(),
+            OpenRouterStrategy(),
+            HuggingFaceStrategy(),
+        ]
 
-    def classify_sync(self, product_text: str, candidates: list[dict]) -> Optional[dict]:
-        """Classifica produto vs candidatos. Retorna dict ou None."""
+    def classify_sync(self, product_text: str, candidates: list) -> dict | None:
+        """
+        Compat entry-point — retorna None se ai/llm_classifier está desativado
+        ou se nenhum provider tiver credencial configurada. Caso contrário
+        retorna sempre um dict (nunca crash).
+        """
         from services.config import get as get_config
+
         if not get_config("features.ai.llm_classifier", True):
             return None
-        client = self._get_client()
-        if not client:
-            logger.debug("LLMClassifier: GROQ_API_KEY não configurada")
+
+        if not candidates:
+            return _fallback_result("No candidates provided")
+
+        # If all configured providers are missing credentials, signal unavailability.
+        # Strategies that don't implement is_configured() (e.g., test mocks) are
+        # always considered "available".
+        has_config_check = [s for s in self.strategies if hasattr(s, "is_configured")]
+        if has_config_check and not any(s.is_configured() for s in has_config_check):
             return None
 
-        ing_list = "\n".join([f"- {c['canonical_name']} (alias: {', '.join(c.get('aliases',[]))})" for c in candidates])
-        prompt = _CLASSIFICATION_PROMPT.format(
-            product_text=product_text,
-            ingredients_list=ing_list,
-        )
+        # 1. Cache check
+        cached = get_cache(product_text)
+        if cached is not None:
+            return cached
 
-        try:
-            response = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.1,
-                max_tokens=150,
-                response_format={"type": "json_object"},
-            )
-            raw = response.choices[0].message.content.strip() if response.choices else ""
-            result = json.loads(raw)
-            return result
-        except Exception as e:
-            logger.warning(f"LLMClassifier error: {e}")
-            return None
+        # 2. Strategy iteration
+        for strategy in self.strategies:
+            if hasattr(strategy, "is_configured") and not strategy.is_configured():
+                continue
+            try:
+                result = strategy.classify(product_text, candidates)
+                if result is not None:
+                    shape = _legacy_shape(result)
+                    # 3. Cache successful response
+                    with contextlib.suppress(Exception):
+                        set_cache(product_text, "", shape)
+                    return shape
+            except Exception as e:
+                logger.warning(
+                    "llm_strategy_unexpected_error",
+                    provider=strategy.provider_name,
+                    error=str(e),
+                )
+                continue
 
+        # 4. Graceful degradation
+        return _fallback_result()
+
+    def flush_cache(self):
+        """Helper for cleanup routines."""
+        from parsers.llm_cache import cleanup_ttl
+
+        return cleanup_ttl()
+
+
+# ====================================================================
+# Backwards compatibility — singleton-style API for legacy callers
+# ====================================================================
+_default_classifier = LLMClassifier()
+
+
+def classify(product_text: str, candidates: list) -> dict | None:
+    """Module-level convenience wrapper, mirrors old API."""
+    return _default_classifier.classify_sync(product_text, candidates)

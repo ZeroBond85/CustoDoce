@@ -82,7 +82,14 @@ def generate_consolidated() -> str:
                 continue
             # End skip when we hit a DDL statement or empty line
             if skip_until_empty:
-                if s == "" or s.startswith("--") or s.startswith("create ") or s.startswith("alter ") or s.startswith("grant ") or s.startswith("drop "):
+                if (
+                    s == ""
+                    or s.startswith("--")
+                    or s.startswith("create ")
+                    or s.startswith("alter ")
+                    or s.startswith("grant ")
+                    or s.startswith("drop ")
+                ):
                     skip_until_empty = False
                     if not s.startswith("--") and s != "":
                         filtered.append(line)
@@ -98,7 +105,7 @@ def generate_consolidated() -> str:
             "               WHERE table_name='stores' AND column_name='scraper') THEN\n"
             "        CREATE INDEX IF NOT EXISTS idx_stores_scraper ON stores(scraper);\n"
             "    END IF;\n"
-            "END $$;"
+            "END $$;",
         )
         gen.append(cleaned)
 
@@ -429,6 +436,87 @@ VALUES ('dona_dani_ingredientes', 2, 1440, 3, 120, 10, true)
 ON CONFLICT DO NOTHING;
 """)
 
+    # ─── PHASE 15b: Generated column price_per_kg + index ──────────────
+    gen.append("""
+-- ============================================================
+-- PHASE 15b: Generated column price_per_kg for server-side sorting
+-- ============================================================
+ALTER TABLE prices ADD COLUMN IF NOT EXISTS price_per_kg NUMERIC
+GENERATED ALWAYS AS ((normalized->>'price_per_kg')::numeric) STORED;
+
+CREATE INDEX IF NOT EXISTS idx_prices_price_per_kg ON prices(price_per_kg)
+WHERE price_per_kg IS NOT NULL AND price_per_kg > 0;
+
+ALTER TABLE price_history ADD COLUMN IF NOT EXISTS price_per_kg NUMERIC
+GENERATED ALWAYS AS ((normalized->>'price_per_kg')::numeric) STORED;
+
+CREATE INDEX IF NOT EXISTS idx_history_price_per_kg ON price_history(price_per_kg)
+WHERE price_per_kg IS NOT NULL AND price_per_kg > 0;
+""")
+
+    # ─── PHASE 15c: Materialized view v_latest_prices ──────────────────
+    gen.append("""
+-- ============================================================
+-- PHASE 15c: Materialized view for latest prices per ingredient
+-- ============================================================
+CREATE MATERIALIZED VIEW IF NOT EXISTS v_latest_prices AS
+SELECT DISTINCT ON (ingredient_id, store_id)
+    id,
+    ingredient_id,
+    store_id,
+    store_name,
+    raw_product,
+    raw_price,
+    raw_unit,
+    normalized,
+    price_per_kg,
+    collected_at,
+    valid_from,
+    valid_until,
+    is_promotion,
+    tier,
+    confidence,
+    city,
+    logistics,
+    brand
+FROM prices
+WHERE valid_from <= CURRENT_DATE
+  AND valid_until >= CURRENT_DATE
+  AND price_per_kg IS NOT NULL
+  AND price_per_kg > 0
+ORDER BY ingredient_id, store_id, collected_at DESC;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_v_latest_prices_ing_store
+    ON v_latest_prices (ingredient_id, store_id);
+
+CREATE INDEX IF NOT EXISTS idx_v_latest_prices_ingredient
+    ON v_latest_prices (ingredient_id);
+
+CREATE INDEX IF NOT EXISTS idx_v_latest_prices_price_kg
+    ON v_latest_prices (price_per_kg);
+""")
+
+    # ─── PHASE 15d: Additional performance indexes ─────────────────────
+    gen.append("""
+-- ============================================================
+-- PHASE 15d: Additional performance indexes
+-- ============================================================
+CREATE INDEX IF NOT EXISTS idx_prices_store_collected
+    ON prices(store_id, collected_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_prices_promo_collected
+    ON prices(collected_at DESC) WHERE is_promotion = TRUE;
+
+CREATE INDEX IF NOT EXISTS idx_review_status_collected
+    ON review_queue(status, collected_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_flyers_store_ocr_collected
+    ON flyers(store_name, ocr_status, collected_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_ingredients_active_name
+    ON ingredients(active, canonical_name);
+""")
+
     # ─── PHASE 16: Additional cleanup functions ─────────────────────
     gen.append("""
 -- ============================================================
@@ -458,12 +546,86 @@ END;
 $$;
 """)
 
+    # ─── PHASE 17: RPC functions for REST API deployment ──────────────
+    gen.append("""
+-- ============================================================
+-- PHASE 17: RPC functions for REST API (port 443) deployment
+-- ============================================================
+
+-- 1. exec_sql — executes DDL/any SQL (returns void)
+CREATE OR REPLACE FUNCTION exec_sql(sql text)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    EXECUTE sql;
+END;
+$$;
+
+-- 2. exec_sql_query — executes SELECT and returns JSON array
+-- Used by tests/conftest.py _SchemaCursor via REST API (porta 443)
+CREATE OR REPLACE FUNCTION exec_sql_query(sql text)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    result JSON;
+BEGIN
+    EXECUTE format('SELECT COALESCE(json_agg(row_to_json(d)), ''[]''::json) FROM (%s) d', sql) INTO result;
+    RETURN result;
+END;
+$$;
+
+-- 3. cleanup_old_logs — TTL for scraping_logs
+CREATE OR REPLACE FUNCTION cleanup_old_logs(retention_days int DEFAULT 30)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    DELETE FROM scraping_logs WHERE started_at < now() - (retention_days || ' days')::interval;
+END;
+$$;
+""")
+
     gen.append("\n-- ============================================================")
     gen.append("-- Migration complete. Verify with:")
     gen.append("--   SELECT table_name FROM information_schema.tables")
-    gen.append("--   WHERE table_schema = 'public' ORDER BY table_name;")
+    gen.append("--   WHERE table_schema = 'public' ORDER by table_name;")
     gen.append("-- ============================================================")
 
+    gen.append("""
+-- ============================================================
+-- PHASE 18: Fix review_queue unique constraint
+-- ============================================================
+-- Remove duplicates before adding constraint
+DELETE FROM review_queue rq1 USING (
+    SELECT store_name, raw_product, MIN(ctid) AS keep_ctid
+    FROM review_queue
+    GROUP BY store_name, raw_product
+    HAVING COUNT(*) > 1
+) rq2
+WHERE rq1.store_name = rq2.store_name
+  AND rq1.raw_product = rq2.raw_product
+  AND rq1.ctid <> rq2.keep_ctid;
+
+ALTER TABLE review_queue ADD CONSTRAINT review_queue_store_name_raw_product_key UNIQUE (store_name, raw_product);
+""")
+    gen.append("""
+-- ============================================================
+-- PHASE 19: Final Schema Fixes for Tests
+-- ============================================================
+ALTER TABLE price_history ADD COLUMN IF NOT EXISTS logistics TEXT;
+ALTER TABLE price_history ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();
+ALTER TABLE feature_flags ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();
+ALTER TABLE scraping_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();
+ALTER TABLE flyers ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS description TEXT;
+CREATE INDEX IF NOT EXISTS idx_review_queue_store_product ON review_queue(store_name, raw_product);
+CREATE INDEX IF NOT EXISTS idx_alerts_ingredient_store_active ON alert_rules(trigger, enabled);
+CREATE INDEX IF NOT EXISTS idx_flyers_store_active ON flyers(store_name, is_active);
+""")
     return "\n".join(gen)
 
 
@@ -479,43 +641,43 @@ def _split_sql_statements(sql: str) -> list[str]:
         c = sql[i]
 
         # Line comment --
-        if not in_dollar and not in_block_comment and c == '-' and i + 1 < len(sql) and sql[i + 1] == '-':
+        if not in_dollar and not in_block_comment and c == "-" and i + 1 < len(sql) and sql[i + 1] == "-":
             in_line_comment = True
             current.append(c)
             i += 1
             continue
 
         if in_line_comment:
-            if c == '\n':
+            if c == "\n":
                 in_line_comment = False
             current.append(c)
             i += 1
             continue
 
         # Block comment /* */
-        if not in_dollar and c == '/' and i + 1 < len(sql) and sql[i + 1] == '*':
+        if not in_dollar and c == "/" and i + 1 < len(sql) and sql[i + 1] == "*":
             in_block_comment = True
             current.append(c)
             i += 1
             continue
 
         if in_block_comment:
-            if c == '*' and i + 1 < len(sql) and sql[i + 1] == '/':
+            if c == "*" and i + 1 < len(sql) and sql[i + 1] == "/":
                 in_block_comment = False
             current.append(c)
             i += 1
             continue
 
         # Dollar quote start/end (PL/pgSQL $$)
-        if c == '$' and i + 1 < len(sql) and sql[i + 1] == '$':
+        if c == "$" and i + 1 < len(sql) and sql[i + 1] == "$":
             in_dollar = not in_dollar
             current.append(c)
             i += 1
             continue
 
         # Semicolon separator (only at top level)
-        if c == ';' and not in_dollar and not in_block_comment:
-            stmt = ''.join(current).strip()
+        if c == ";" and not in_dollar and not in_block_comment:
+            stmt = "".join(current).strip()
             if stmt:
                 stmts.append(stmt)
             current = []
@@ -526,7 +688,7 @@ def _split_sql_statements(sql: str) -> list[str]:
         i += 1
 
     # Last statement
-    stmt = ''.join(current).strip()
+    stmt = "".join(current).strip()
     if stmt:
         stmts.append(stmt)
 
@@ -536,11 +698,24 @@ def _split_sql_statements(sql: str) -> list[str]:
 def main():
     parser = argparse.ArgumentParser(description="Deploy CustoDoce database schema")
     parser.add_argument("--execute", action="store_true", help="Execute SQL on Supabase")
+    parser.add_argument("--dry-run", action="store_true", help="Print SQL plan without executing")
     parser.add_argument("--output", type=str, help="Write consolidated SQL to file")
     args = parser.parse_args()
 
     sql = generate_consolidated()
     total_tables = 14  # prices, price_history, review_queue, scraping_logs, stores, flyers, ingredients, schedules, scrape_frequencies, alert_recipients, alert_rules, feature_flags, recipes, recipe_items
+
+    if args.dry_run:
+        statements_count = sum(1 for s in sql.split(";") if s.strip())
+        head = "\n".join(sql.splitlines()[:40])
+        print("DRY-RUN: would execute consolidated SQL against PROD")
+        print(f"  Total bytes: {len(sql)} | Statements (by '; ' split): ~{statements_count}")
+        print(f"  Expected tables after migration: {total_tables}")
+        print("\n--- First 40 lines ---")
+        print(head)
+        if len(sql.splitlines()) > 40:
+            print(f"... [{len(sql.splitlines()) - 40} more lines]")
+        return
 
     if args.output:
         out_path = Path(args.output)
@@ -554,6 +729,7 @@ def main():
     if args.execute:
         print("Executing migrations on Supabase...")
         import psycopg2
+
         url = os.environ.get("SUPABASE_URL", "")
         if not url:
             print("ERROR: SUPABASE_URL not set")
@@ -563,48 +739,89 @@ def main():
         if not pwd:
             print("ERROR: SUPABASE_DB_PASSWORD not set (use .env)")
             sys.exit(1)
-        try:
-            conn = psycopg2.connect(
-                host=f"db.{proj}.supabase.co", dbname="postgres",
-                user="postgres", password=pwd, port=5432, connect_timeout=10
-            )
-            cur = conn.cursor()
-        except Exception as e:
-            print(f"ERROR: Cannot connect to Supabase DB: {e}")
-            sys.exit(1)
 
-        # Split SQL respecting $$ blocks
-        statements = _split_sql_statements(sql)
-        ok, fail = 0, 0
-        for stmt in statements:
-            stmt = stmt.strip()
-            # Skip only pure-comment statements (allow comments + SQL combined)
-            if not stmt:
-                continue
-            lines = stmt.split("\n")
-            if all(line.strip().startswith("--") for line in lines if line.strip()):
-                continue
+        conn = None
+        for host, port, user in [
+            (f"db.{proj}.supabase.co", 5432, "postgres"),
+            ("aws-0-us-west-1.pooler.supabase.com", 6543, f"postgres.{proj}"),
+        ]:
             try:
-                cur.execute(stmt + ";")
-                conn.commit()
-                ok += 1
+                conn = psycopg2.connect(
+                    host=host, dbname="postgres", user=user, password=pwd, port=port, connect_timeout=10
+                )
+                print(f"  Connected to {host}:{port}")
+                break
             except Exception as e:
-                conn.rollback()
-                err = str(e)[:120]
-                print(f"  WARN: {err}")
-                fail += 1
+                print(f"  Tried {host}:{port} — {e}")
+                continue
+        used_rpc = False
+        if conn is None:
+            print("  Trying Supabase REST API via exec_sql RPC (port 443)...")
+            from supabase import create_client
 
-        cur.close()
-        conn.close()
-        print(f"\nMigration complete: {ok} OK, {fail} WARN")
-        print(f"Expected tables: {total_tables}")
+            try:
+                anon = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+                sb = create_client(url, anon)
+                sb.rpc("exec_sql_query", {"sql": "SELECT 1"}).execute()
+                print("  Connected via REST API (port 443)")
+                used_rpc = True
+                statements = _split_sql_statements(sql)
+                ok, fail = 0, 0
+                for stmt in statements:
+                    stmt = stmt.strip()
+                    if not stmt:
+                        continue
+                    lines = stmt.split("\n")
+                    if all(line.strip().startswith("--") for line in lines if line.strip()):
+                        continue
+                    try:
+                        sb.rpc("exec_sql", {"sql": stmt + ";"}).execute()
+                        ok += 1
+                    except Exception:
+                        try:
+                            sb.rpc("exec_sql_query", {"sql": stmt + ";"}).execute()
+                            ok += 1
+                        except Exception as e2:
+                            print(f"  WARN ({stmt[:80]}...): {e2}")
+                            fail += 1
+                print(f"\nMigration via RPC: {ok} OK, {fail} WARN")
+                print(f"Expected tables: {total_tables}")
+            except Exception as e:
+                print(f"  REST API failed: {e}")
+                print("ERROR: Cannot connect to Supabase DB on any port or via REST API")
+                print("TIP: Paste supabase/consolidated_migration.sql into Supabase SQL Editor")
+                sys.exit(1)
+
+        if not used_rpc:
+            cur = conn.cursor()
+            statements = _split_sql_statements(sql)
+            ok, fail = 0, 0
+            for stmt in statements:
+                stmt = stmt.strip()
+                if not stmt:
+                    continue
+                lines = stmt.split("\n")
+                if all(line.strip().startswith("--") for line in lines if line.strip()):
+                    continue
+                try:
+                    cur.execute(stmt + ";")
+                    conn.commit()
+                    ok += 1
+                except Exception as e:
+                    conn.rollback()
+                    err = str(e)[:120]
+                    print(f"  WARN: {err}")
+                    fail += 1
+            cur.close()
+            conn.close()
+            print(f"\nMigration complete: {ok} OK, {fail} WARN")
+            print(f"Expected tables: {total_tables}")
 
         # --- Post-deploy: ensure trigger function has ON CONFLICT ---
-        # psycopg2 direct connection sometimes fails silently on CREATE OR REPLACE FUNCTION
-        # Use Supabase REST API (RPC exec_sql) as a robust fallback
         from supabase import create_client
+
         try:
-            anon = os.environ.get("SUPABASE_ANON_KEY", "")
+            anon = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
             sb = create_client(url, anon)
             trigger_sql = """
 CREATE OR REPLACE FUNCTION update_history_from_prices()
@@ -636,10 +853,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 """
-            sb.rpc('exec_sql', {'sql': trigger_sql}).execute()
+            sb.rpc("exec_sql", {"sql": trigger_sql}).execute()
             print("  Trigger function verified via REST API")
-        except Exception:
-            print("  WARN: could not verify trigger function via REST API (non-critical, seed.sql covers it)")
+        except Exception as e:
+            print(f"  WARN: could not verify trigger via REST API: {e}")
+
+        print("\nMigration complete.")
         return
 
     # Default: print to stdout

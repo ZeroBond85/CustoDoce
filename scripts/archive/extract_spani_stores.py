@@ -1,4 +1,5 @@
 """Extract Spani store slugs."""
+
 import httpx
 import re
 

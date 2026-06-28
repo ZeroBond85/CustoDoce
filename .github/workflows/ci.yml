@@ -8,60 +8,126 @@ on:
   workflow_dispatch:
 
 env:
-  PYTHON_VERSION: '3.11'
+  PYTHON_VERSION: '3.12'
   PYTHONUNBUFFERED: '1'
 
 jobs:
-  test:
+  lint:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
-
-      - name: Setup Python
-        uses: actions/setup-python@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check . --output-format=github
+      - run: bandit -r admin/ dashboard/ services/ -x tests/
+      - run: pip-audit --strict
+        continue-on-error: true
 
-      - name: Install deps
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt -r requirements-dev.txt
-
-      - name: Cache Embedding Model
-        uses: actions/cache@v6
+  typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
-          path: ~/.cache/huggingface/hub/
-          key: embeddings-${{ runner.os }}-paraphrase-multilingual
-          restore-keys: embeddings-${{ runner.os }}-
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - run: pip install -r requirements-dev.txt
+      - run: mypy . --config-file pyproject.toml
 
-      - name: Pre-load Embedding Model
-        run: |
-          python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')"
+  docs-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Check docs are in sync
+        run: python scripts/sync_docs.py --check
+
+  unit:
+    needs: [lint, typecheck]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m pytest tests/unit/ tests/schema/ -q --tb=short --no-header
+
+  integration:
+    needs: [lint, typecheck]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Só roda se tiver acesso aos secrets (PR de fork não tem)
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Run integration tests
+        run: python -m pytest tests/integration/ -q --tb=short --no-header
         env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
 
-      - name: Ruff lint
-        run: ruff check . --output-format=github --exclude=scripts/archive/
-
-      - name: Bandit security
-        run: bandit -r admin/ dashboard/ services/ -x tests/
-
-      - name: Pytest
-        run: python -m pytest tests/ --tb=short -q
-
-      - name: pip-audit
-        run: pip-audit --strict
-        continue-on-error: true
-
-      - name: mypy type check
-        run: pip install types-PyYAML types-psycopg2 types-openpyxl && mypy . --ignore-missing-imports --explicit-package-bases --exclude='tests/' --exclude='scripts/archive/' | tail -5
-        continue-on-error: true
-
-      - name: App online check (com warm-up)
-        run: python scripts/validate_streamlit_cloud.py
+  deploy-check:
+    needs: [lint, typecheck]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - run: pip install -r requirements-dev.txt
+      - name: Deploy check
+        run: python scripts/deploy_check.py
         env:
-          STREAMLIT_APP_URL: https://custodoce.streamlit.app
-        continue-on-error: true
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      - name: DB schema validation
+        run: python scripts/validate_db_schema.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+  real:
+    needs: [integration]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-por poppler-utils
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Real scraper tests
+        run: python -m pytest tests/real/ -q --tb=short --no-header
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

@@ -1,10 +1,8 @@
 import io
-import logging
+from services.logger import logger
 
 from pdf2image import convert_from_bytes
 from pytesseract import image_to_string
-
-logger = logging.getLogger(__name__)
 
 
 def ocr_pdf(pdf_bytes: bytes, lang: str = "por") -> str:
@@ -34,6 +32,7 @@ def ocr_pdf(pdf_bytes: bytes, lang: str = "por") -> str:
 def ocr_image_bytes(image_bytes: bytes, lang: str = "por") -> str:
     try:
         from PIL import Image
+
         img = Image.open(io.BytesIO(image_bytes))
         text = image_to_string(img, lang=lang)
         return text.strip()

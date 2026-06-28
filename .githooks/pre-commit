@@ -1,0 +1,44 @@
+#!/bin/sh
+# Pre-commit hook: avisa se docs precisam de atualização
+# Raio-X = referência dev (tudo), README = vitrine pública (mudanças visíveis)
+
+MONITORED_ALL="services/*.py scrapers/*.py tests/* supabase/*.sql config/*.yaml .github/workflows/*.yml main.py"
+MONITORED_PUBLIC="dashboard/* config/*.yaml tests/* .github/workflows/*.yml main.py CUSTO_DOCE_RAIO_X.md"
+
+STAGED=$(git diff --cached --name-only)
+
+RAIO_X_STAGED=false;       echo "$STAGED" | grep -q "CUSTO_DOCE_RAIO_X.md"        && RAIO_X_STAGED=true
+README_STAGED=false;       echo "$STAGED" | grep -q "^README.md$"                 && README_STAGED=true
+RESUMO_STAGED=false;       echo "$STAGED" | grep -q "RAIO-X_CUSTO_DOCE_RESUMIDO"  && RESUMO_STAGED=true
+
+anything_matched() {
+  for pattern in $1; do
+    if echo "$STAGED" | grep -q "$pattern"; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+if anything_matched "$MONITORED_ALL" && [ "$RAIO_X_STAGED" = false ]; then
+  echo ""
+  echo "⚠️  AVISO: CUSTO_DOCE_RAIO_X.md pode precisar de atualização (referência dev)."
+  echo "   git add CUSTO_DOCE_RAIO_X.md + edite seção relevante + changelog"
+  echo ""
+fi
+
+if anything_matched "$MONITORED_PUBLIC" && [ "$README_STAGED" = false ]; then
+  echo ""
+  echo "👁️  AVISO: README.md pode precisar de atualização (vitrine pública)."
+  echo "   git add README.md se houver mudanças visíveis ao usuário"
+  echo ""
+fi
+
+if anything_matched "$MONITORED_PUBLIC" && [ "$RESUMO_STAGED" = false ]; then
+  echo ""
+  echo "📋  AVISO: RAIO-X_CUSTO_DOCE_RESUMIDO.md pode precisar de atualização (resumo executivo + ações)."
+  echo "   git add RAIO-X_CUSTO_DOCE_RESUMIDO.md + atualize seções e histórico"
+  echo ""
+fi
+
+exit 0
