@@ -56,11 +56,23 @@ def test_requirements_no_inline_flags() -> None:
     )
 
 
-def test_mypy_excludes_check_scripts(pyproject_content: str) -> None:
-    """pyproject.toml deve excluir check_*.py da raiz do mypy."""
-    assert '"check_*.py"' in pyproject_content, (
-        'Adicione "check_*.py" ao mypy exclude em pyproject.toml '
-        "(esses arquivos usam `supabase.create_client` que falha em CI)."
+def test_check_scripts_have_mypy_ignore() -> None:
+    """check_*.py na raiz deve ter '# mypy: ignore-errors' para evitar attr-defined errors."""
+    check_files = [
+        REPO_ROOT / "check_ingredients.py",
+        REPO_ROOT / "check_flyers.py",
+        REPO_ROOT / "check_alerts.py",
+    ]
+    missing = []
+    for path in check_files:
+        if not path.exists():
+            pytest.skip(f"{path.name} nao existe (provavelmente deletado)")
+        first_line = path.read_text(encoding="utf-8").split("\n", 1)[0]
+        if "mypy: ignore-errors" not in first_line:
+            missing.append(f"  {path.name}: primeira linha = {first_line!r}")
+    assert not missing, (
+        "check_*.py sem '# mypy: ignore-errors' na 1a linha (CI falha em attr-defined):\n"
+        + "\n".join(missing)
     )
 
 
