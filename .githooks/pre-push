@@ -1,49 +1,70 @@
-#!/usr/bin/env bash
-# pre-push hook (CustoDoce)
-# Executa ANTES do push — se falhar, o push NAO acontece.
-# Funciona em WSL (onde bash existe) + chama Python do Windows via PATH.
-#
-# Pular em emergencia: git push --no-verify
-#
-# O que roda (fast, ~30s):
-#   1. Working tree limpo
-#   2. audit_secrets --strict (historico + staged)
-#   3. ci_local.py --no-unit (config + lint + typecheck)
-#
-# Para CI completo local: python scripts/ci_local.py --all
+#!/usr/bin/env python3
+"""
+pre-push hook (CustoDoce)
+Executa ANTES do push — se falhar, o push NAO acontece.
 
-set -euo pipefail
+Usa sys.executable para garantir o MESMO Python com todos os packages.
+Funciona de qualquer shell (PowerShell, cmd, WSL bash).
 
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-cd "$REPO_ROOT"
+Pular em emergencia: git push --no-verify
+"""
+from __future__ import annotations
 
-echo "=== pre-push: validando..." >&2
+import subprocess
+import sys
+from pathlib import Path
 
-# 1. Working tree limpo
-if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
-  echo "ERRO: working tree tem mudancas nao commitadas." >&2
-  git status --short >&2
-  echo "Commit ou descarte antes de fazer push." >&2
-  exit 1
-fi
+REPO_ROOT = Path(__file__).parent.parent.resolve()
+THIS_PYTHON = sys.executable
 
-# 2. Audit de secrets (historico + staged)
-# Usa python3 (WSL) diretamente — wslpath -w produz Windows path que bash não executa
-echo "[1/2] audit_secrets..." >&2
-python3 scripts/audit_secrets.py --strict 2>&1 || {
-  echo "FALHA: secrets detectados no repo. Corrija antes de push." >&2
-  exit 1
-}
-echo "[OK] secrets: limpos" >&2
 
-# 3. CI local (config + lint + typecheck — sem pytest, mais rapido)
-echo "[2/2] ci_local.py --no-unit..." >&2
-python3 scripts/ci_local.py --no-unit 2>&1 || {
-  echo "FALHA: ci_local.py encontrou erros. Corrija antes de push." >&2
-  exit 1
-}
-echo "[OK] ci_local: limpos" >&2
+def run(cmd: list[str], capture: bool = True) -> subprocess.CompletedProcess:
+    """Executa comando usando o MESMO Python que roda este hook."""
+    print(f"  $ {' '.join(cmd)}")
+    return subprocess.run(
+        cmd,
+        cwd=REPO_ROOT,
+        capture_output=capture,
+        text=True,
+    )
 
-echo "" >&2
-echo "=== pre-push: TODOS os checks passaram. Push liberdo. ===" >&2
-exit 0
+
+def main() -> int:
+    print("=== pre-push: validando...", file=sys.stderr)
+
+    status = run(["git", "status", "--porcelain"])
+    if status.returncode != 0:
+        print(f"ERRO: git status falhou: {status.stderr}", file=sys.stderr)
+        return 1
+
+    if status.stdout.strip():
+        print("ERRO: working tree tem mudancas nao commitadas.", file=sys.stderr)
+        print(status.stdout, file=sys.stderr)
+        print("Commit ou descarte antes de fazer push.", file=sys.stderr)
+        return 1
+
+    print("[1/2] audit_secrets...", file=sys.stderr)
+    result = run([THIS_PYTHON, "scripts/audit_secrets.py", "--strict"])
+    if result.returncode != 0:
+        print("FALHA: secrets detectados no repo. Corrija antes de push.", file=sys.stderr)
+        if result.stdout:
+            print(result.stdout[:500], file=sys.stderr)
+        return 1
+    print("[OK] secrets: limpos", file=sys.stderr)
+
+    print("[2/2] ci_local.py --no-unit...", file=sys.stderr)
+    result = run([THIS_PYTHON, "scripts/ci_local.py", "--no-unit"])
+    if result.returncode != 0:
+        print("FALHA: ci_local.py encontrou erros. Corrija antes de push.", file=sys.stderr)
+        if result.stdout:
+            print(result.stdout[-1000:], file=sys.stderr)
+        return 1
+    print("[OK] ci_local: limpos", file=sys.stderr)
+
+    print("", file=sys.stderr)
+    print("=== pre-push: TODOS os checks passaram. Push liberdo. ===", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
