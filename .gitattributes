@@ -1,0 +1,29 @@
+# Normalize line endings to LF for all text files
+* text=auto
+
+# Explicit EOL for cross-platform consistency
+*.py     eol=lf
+*.md     eol=lf
+*.yaml   eol=lf
+*.yml    eol=lf
+*.toml   eol=lf
+*.json   eol=lf
+*.sh     eol=lf
+*.bash   eol=lf
+*.ini    eol=lf
+*.cfg    eol=lf
+*.txt    eol=lf
+
+# Binary files (no normalization)
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.zip  binary
+*.gz   binary
+*.npy  binary
+*.onnx binary
+*.pt   binary
+*.bin  binary
