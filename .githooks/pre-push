@@ -28,18 +28,17 @@ if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
 fi
 
 # 2. Audit de secrets (historico + staged)
-PYBIN=$(wslpath -w "$(which python 2>/dev/null)" 2>/dev/null || echo "python")
+# Usa python3 (WSL) diretamente — wslpath -w produz Windows path que bash não executa
 echo "[1/2] audit_secrets..." >&2
-$PYBIN scripts/audit_secrets.py --strict 2>&1 || {
+python3 scripts/audit_secrets.py --strict 2>&1 || {
   echo "FALHA: secrets detectados no repo. Corrija antes de push." >&2
   exit 1
 }
 echo "[OK] secrets: limpos" >&2
 
 # 3. CI local (config + lint + typecheck — sem pytest, mais rapido)
-PYBIN2=$(wslpath -w "$(which python 2>/dev/null)" 2>/dev/null || echo "python")
 echo "[2/2] ci_local.py --no-unit..." >&2
-$PYBIN2 scripts/ci_local.py --no-unit 2>&1 || {
+python3 scripts/ci_local.py --no-unit 2>&1 || {
   echo "FALHA: ci_local.py encontrou erros. Corrija antes de push." >&2
   exit 1
 }
