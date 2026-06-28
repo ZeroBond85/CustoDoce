@@ -17,7 +17,7 @@ playwright>=1.0,<2.0
 PyJWT
 msgpack>=1.2.1
 sentence-transformers>=3.0.1
-torch>=2.5 --index-url https://download.pytorch.org/whl/cpu
+torch>=2.5
 scikit-learn>=1.5,<2.0
 groq>=0.10
 optimum
