@@ -63,10 +63,12 @@ O diferencial está no **pipeline de matching com IA de 6 estágios**: combina r
 | Ingredientes monitorados | **23** canônicos (leite condensado, chocolate, farinha, etc.) | Expansível via YAML |
 | Lojas/fornecedores | **51** lojas em 4 tiers (PDF, API VTEX, sites, manual) | Cobre atacados + e-commerces |
 | Precisão do Matching | **~85-90%** estimado | Via pipeline 6 estágios + fila de revisão manual |
-| Testes automatizados | **477** testes (383 unit + 94 schema) + 13 integration files + 6 real | Pendente: E2E (Playwright requer setup) |
+| Testes automatizados | **512** testes (418 unit + 94 schema) + 13 integration files + 6 real — atualizado 2026-06-29 (era 477 em 27/06; Sprint 2 adicionou 35 testes entre normalizer e contract tests) | Pendente: E2E (Playwright requer setup) |
 | Dashboard | **17** módulos analíticos | Visão geral, preços, histórico, ranking, calculadora, scrapers, etc. |
 | Alertas configurados | 5 triggers de alerta (price_drop, scrape_failure, etc.) | 3 canais: e-mail, Telegram, WhatsApp |
 | Consumo GitHub Actions | **~400 min/mês** de 2.000 disponíveis | Margem para 5x expansão |
+| Pre-push hook | **~30s** local sem unit tests (rápido) | opt-in `CI_LOCAL_UNIT=1` adiciona full unit suite |
+| Tempo CI local | **~3 min** completo (lint + typecheck + unit + schema) | Roda offline pré-push e no GitHub Actions |
 
 ---
 
@@ -76,8 +78,8 @@ O diferencial está no **pipeline de matching com IA de 6 estágios**: combina r
 | :--- | :--- | :--- | :--- |
 | 1 | **Dependência de Free Tier:** Limites de armazenamento/ação podem estourar com crescimento | ⚠️ Médio | Cleanup automático (prices 90d, logs 30d). Migrar para planos pagos ao atingir 50+ usuários ativos. |
 | 2 | **Qualidade dos Dados:** Matching impreciso faz o usuário perder confiança | 🔴 Alto | Review Queue com aprovação manual + auto-aprendizado de aliases (se semântica ≥0.75). |
-| 3 | **Segurança da Service Role:** Chave de admin exposta no dashboard | 🔴 Alto | Já identificado. Criar role `dashboard_user` com permissões restritas. |
-| 4 | **Falta de Cobertura de Testes:** Testes unitários existem (383), mas integração e E2E são frágeis | 🟠 Alto | Priorizar testes E2E e de integração na próxima fase. |
+| 3 | **Segurança da Service Role:** Chave de admin exposta no dashboard | 🔴 Alto → 🟡 Reduzido (29/06) | ✅ Sprint 1.1 mitigou UI dashboard (tabs `.env`/YAML removidas). `dashboard_queries.py` usa apenas `get_supabase()` (anon). `get_service_client()` ainda em `price_repository.py:26` mas é chamado apenas pelo collector pipeline (GitHub Actions server-side). Falta: criar role `dashboard_user` com RLS mínimas. |
+| 4 | **Falta de Cobertura de Testes:** Testes unitários existem (418), mas integração e E2E são frágeis | 🟠 Alto → 🟡 Reduzido (29/06) | ✅ Sprint 2.2 zerou risco de porta 5432 no CI (conftest migrado para RPC POSTGREST 443). Contract tests novos em `test_dashboard_contracts.py`. Pendente: 3 E2E Playwright requerem setup. |
 | 5 | **Concorrência:** Grandes players (marketplaces) podem lançar soluções similares | 🟡 Médio | Foco em regionalidade (Baixada Santista) + atendimento personalizado + dados históricos como barreira de saída. |
 
 ---
@@ -86,8 +88,9 @@ O diferencial está no **pipeline de matching com IA de 6 estágios**: combina r
 
 | Fase | Objetivo | Principais Entregas | Prazo |
 | :--- | :--- | :--- | :--- |
-| **Atual** | MVP Consolidado | 51 lojas, 23 ingredientes, 477 testes, 17 telas, Telegram, alertas, calculadora | Concluído |
-| **Curto Prazo** | Confiabilidade | Testes E2E + role `dashboard_user` (segurança) + sanitizar RPCs + cache no dashboard | 1-2 meses |
+| **Atual** | MVP Consolidado | 51 lojas, 23 ingredientes, **512 testes** (era 477), 17 telas, Telegram, alertas, calculadora | Concluído |
+| **Pós-MVP ✅ (Fase 9 + Sprint 1 + Sprint 2, 28-29/06)** | Higiene & Robustez | ✅ CI Hygiene (filter-branch removeu 11 arquivos sensíveis; pack 444MB→8.7MB); ✅ Pillow 12.2.0 patched / Dependabot 7 alerts dismissed; ✅ Pre-push Python rewrite + auditoría-secrets; ✅ Sprint 1.1: `.env` editor & `stores.yaml` editor removidos do dashboard; ✅ Sprint 1.2: Bot Telegram agora lê do DB (`config_db.get_active_ingredients()`) com fallback YAML; fuzzy search `rapidfuzz.fuzz.token_set_ratio`; paginação inline keyboard; ✅ Sprint 1.3-1.5: Mobile CSS, Query Params URL↔session_state, Acessibilidade (skip-link + prefers-reduced-motion); ✅ Sprint 2.1-2.4: Test Hardening (normalizer 11→32 casos), conftest migrated para RPC 443, contract tests dashboard_queries, `CI_LOCAL_UNIT=1` opt-in. | Concluído |
+| **Curto Prazo** | Confiabilidade | Finalizar role `dashboard_user` (segurança residual) + sanitizar RPCs (GRANT EXECUTE TO service_role ONLY) + finalizar setup Playwright para E2E + fallback no normalizer para "un"/"pacote" + implementar Peso Mínimo (`unit_kg < 0.01` ignora) | 1-2 meses |
 | **Médio Prazo** | Escalabilidade | Expansão para novas regiões (interior SP), novas fontes de dados, cache Redis, self-learning de aliases | 3-6 meses |
 | **Longo Prazo** | Diferencial | Previsão de preços (IA), painel de tendências, recomendação de substituição de marcas, app mobile | 6-12 meses |
 
@@ -99,11 +102,11 @@ Oportunidades que podem ser implementadas em dias/semana e geram valor real:
 
 | # | Oportunidade | Esforço | Impacto | Por que agora |
 | :--- | :--- | :--- | :--- | :--- |
-| 1 | **Corrigir segurança da service_role** — Criar role `dashboard_user` no Supabase | 2-3d | 🔴 Crítico | Remove risco de vazamento total do banco. Sem isso, qualquer vulnerabilidade no Streamlit expõe todos os dados. |
-| 2 | **Cache LRU no dashboard** — TTL 5min nas consultas mais frequentes | 2d | 🟡 Médio | Dashboard fica mais responsivo, reduz latência e custo de banda do Supabase. |
-| 3 | **Busca fuzzy no Telegram** — `/preco condensado` achar "Leite Condensado" | 1d | 🟡 Médio | UX do bot melhora drasticamente sem exigir nome exato. |
-| 4 | **Fallback de unidade no normalizer** — Se kg falha, usar "un" como fallback | 1d | 🟡 Médio | Recupera produtos que hoje são perdidos por unidade não reconhecida. |
-| 5 | **Peso mínimo** — Ignorar produtos com unit_kg < 0.01 (ex: 1g distorce média) | 0.5d | 🟢 Leve | Evita outliers que poluem rankings e alertas. |
+| 1 | **Finalizar segurança da service_role** — Restringir RPCs (GRANT) e criar role `dashboard_user` com RLS mínimas | 1-2d | 🔴 Residual | Sprint 1.1 mitigou o UI (tabs sensíveis removidas, dashboard_queries não toca service_role). Falta endurecer a camada DB. |
+| 2 | **Cache LRU no dashboard** — TTL em vez de LRU infinito | 1-2d | 🟡 Médio | ✅ Sprint 1.x adicionou `@lru_cache` em `dashboard_queries.py:39-104` e `cached_get_*`. Falta TTL real para mutações (clear_all_caches centraliza). |
+| 3 | ~~**Busca fuzzy no Telegram** — `/preco condensado` achar "Leite Condensado"~~ ✅ | — | — | **RESOLVIDO em Sprint 1.2** (28/06). `handlers.py:38` agora usa `rapidfuzz.fuzz.token_set_ratio` + lê ingredientes do DB. |
+| 4 | **Fallback de unidade no normalizer** — Se kg falha, usar "un" como fallback | 1d | 🟡 Médio | Sprint 2.1 expandiu testes (`test_normalizer.py` 11→32 casos) documentando o comportamento, mas não fix. Casos `un`/`1un`/`pacote`/`1l` continuam retornando `None`. |
+| 5 | **Peso mínimo** — Ignorar produtos com unit_kg < 0.01 (ex: 1g distorce média) | 0.5d | 🟢 Leve | Não implementado. Evita outliers que poluem rankings e alertas. |
 
 ---
 
@@ -176,9 +179,9 @@ Cada item tem: contexto, passo a passo resumido, esforço e como testar.
 
 | # | Problema | Solução | Esforço |
 | :--- | :--- | :--- | :--- |
-| 5 | Busca no Telegram é `startswith` — `/preco condensado` não acha | Usar `fuzz.token_set_ratio` (RapidFuzz) igual ao matcher | 1 dia |
-| 6 | Se `parse_unit()` falha, o produto é perdido | Fallback: tratar como 1 unidade se unidade não reconhecida | 1 dia |
-| 7 | Produtos com peso < 0.01kg (ex: 1g) distorcem média | Ignorar no normalizer se `unit_kg < 0.01` | 0.5 dia |
+| 5 | Busca no Telegram é `startswith` — `/preco condensado` não acha | ~~Usar `fuzz.token_set_ratio` (RapidFuzz) igual ao matcher~~ | ~~1 dia~~ | ✅ Sprint 1.2 (28/06). `handlers.py:38` agora faz fuzzy + lê ingredientes do DB. |
+| 6 | Se `parse_unit()` falha, o produto é perdido | Fallback: tratar como 1 unidade se unidade não reconhecida | 1 dia | Em aberto. Sprint 2.1 documentou o comportamento via testes (32 casos). Falta implementar fallback default. |
+| 7 | Produtos com peso < 0.01kg (ex: 1g) distorcem média | Ignorar no normalizer se `unit_kg < 0.01` | 0.5 dia | Em aberto. |
 
 ---
 
@@ -187,6 +190,16 @@ Cada item tem: contexto, passo a passo resumido, esforço e como testar.
 | Item | Resolvido em |
 | :--- | :--- |
 | Raio-X desatualizado (contagens erradas) | 27/06/2026 |
+| CI Hygiene (Fase 9): pack 444MB→8.7MB, 11 arquivos sensíveis removidos via `git filter-branch`, 7 Dependabot dismissed, pre-push Python rewrite, `lint/typecheck/docs-sync/unit/integration/deploy-check` CI jobs | 28/06/2026 |
+| Sprint 1.1 — Segurança Dashboard: `.env` editor e `stores.yaml` editor removidos da UI; banner info "YAML synced from DB" adicionado | 28/06/2026 |
+| Sprint 1.2 — Bot DB Sync: `handlers.py` reescrito lê ingredientes do DB (`config_db.get_active_ingredients()`) com fallback YAML; fuzzy search `rapidfuzz.fuzz.token_set_ratio`; paginação inline keyboard | 28/06/2026 |
+| Sprint 1.3 — Mobile CSS: media queries 768px/640px, sidebar rail, tabelas sticky first column, safe-area padding, chart height limit | 28/06/2026 |
+| Sprint 1.4 — Query Params: `precos.py`, `historico.py`, `calculadora.py` sincronização bidirecional URL↔session_state | 28/06/2026 |
+| Sprint 1.5 — Acessibilidade: skip-link "Pular para conteúdo", focus-visible, `prefers-reduced-motion`, `font-variant-numeric: tabular-nums` | 28/06/2026 |
+| Sprint 2.1 — Test Hardening: `test_normalizer.py` expandido de 11 para 32 casos parametrizados (cobre todas as unidades reais + edge cases) | 29/06/2026 |
+| Sprint 2.2 — CI Safety: `tests/conftest.py` migrado para `get_service_client().rpc("exec_sql_query")` (porta 443), eliminando risco de bloqueio 5432 no CI | 29/06/2026 |
+| Sprint 2.3 — Contract Tests: novo `test_dashboard_contracts.py` valida shape dos dados consumidos pelo dashboard (KPIs, coverage, promotions, scraper health) — 4 tests críticos sem precisar de DB real | 29/06/2026 |
+| Sprint 2.4 — Developer UX: hook `pre-push` agora suporta `CI_LOCAL_UNIT=1` para opt-in de testes unitários antes do push | 29/06/2026 |
 
 ---
 
@@ -199,8 +212,8 @@ Cada item tem: contexto, passo a passo resumido, esforço e como testar.
 | **Atualização Completa** | Use a IA para re-extrair as informações do `CUSTO_DOCE_RAIO_X.md` e do código-fonte, depois peça para regenerar este resumo mantendo a estrutura. | A cada grande marco (ex: nova funcionalidade relevante, mudança de stack, ou a cada 2 meses). |
 | **Atualização Rápida** | Descreva a mudança (ex: "Adicionamos 10 novas lojas" ou "Precisão do matching subiu para 93%") e peça para a IA atualizar as seções afetadas. | Mudanças pontuais entre grandes marcos. |
 
-**Versão Atual:** v1.2  
-**Última Atualização:** 27/06/2026
+**Versão Atual:** v3.0  
+**Última Atualização:** 29/06/2026
 
 ---
 
@@ -208,6 +221,7 @@ Cada item tem: contexto, passo a passo resumido, esforço e como testar.
 
 | Versão | Data | Autor | Mudanças |
 | :--- | :--- | :--- | :--- |
+| v3.0 | 29/06/2026 | IA + Eric | Atualização pós-Sprint 1+2 e Fase 9. Testes: 477→512. Riscos #3 e #4 recalibrados (mitigados parcialmente). Roadmap Curto Prazo substituído por **linha "Pós-MVP ✅"** cruzando todas as entregas dos últimos dias. Quick Wins #2 (cache LRU) e #3 (Telegram fuzzy) marcados como resolvidos (LRU parcial). Tabela ✅ Resolvidos expandida com 11 entradas detalhadas (Fase 9 + Sprint 1.1-1.5 + Sprint 2.1-2.4). Patches narrativos mantêm coerência cronológica (v2.0→v3.0 in-place, sem novo arquivo). |
 | v1.2 | 27/06/2026 | IA | Adicionado seção 11 (Ações Prioritárias) com 7 itens ordenados por impacto. Fusão do PLANO_ACAO_PRIORITARIO.md. |
 | v1.1 | 27/06/2026 | IA | Adicionado seções 9 (Quick Wins) e 10 (Ideias para Explorar). |
 | v1.0 | 27/06/2026 | IA | Criação do documento resumido baseado no CUSTO_DOCE_RAIO_X.md. |

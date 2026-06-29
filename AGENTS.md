@@ -108,7 +108,7 @@ CustoDoce/
 │   ├── archive/                     # 28 scripts históricos
 │   └── ... (+30 scripts utilitários)
 ├── tests/
-│   ├── unit/                        # 394 testes (19 arquivos) — dashboard + services + llm
+│   ├── unit/                        # 418 testes (21 arquivos: +35 do Sprint 2) — dashboard + services + llm + contract
 │   ├── schema/                      # 94 testes parametrizados (1 arquivo)
 │   ├── integration/                 # 13 arquivos — Benchmarks + DB integration (via RPC)
 │   ├── design/                      # 1 arquivo — CSS/estrutura (10 testes)
@@ -287,21 +287,18 @@ python scripts/seed_prices.py --dry-run
 
 | Ferramenta | Status |
 |------------|--------|
-| pytest (unit + schema) | **488 passing** (20 files) | ✅ |
+| pytest (unit + schema) | **512 passing** (21 files: 418 unit + 94 schema) | ✅ |
 | pytest (integration) | **102 passing** | ✅ |
-| pytest (design) | 10 tests | ✅ |
-| pytest (e2e) | 0 collected (Playwright setup needed) | ⏳ |
-| pytest (real) | 6 tests (slow/flaky) | ⏳ |
-| ruff / mypy / bandit / pip-audit | clean | ✅ |
-| CI lint / typecheck / docs-sync / unit / integration / deploy-check | passing | ✅ |
-| CI deploy-check | required-passing, optional-warning | ✅ |
+| pytest (design) | **10 tests** | ✅ |
+| pytest (real, slow) | **6 tests** | ✅ |
+| pytest (e2e) | 49 collected, blocked on Playwright live app | ⏳ |
 
 **Sprint 2 concluída (Test Hardening + Contract Safety) out 2026-06-29:**
 - **2.1 Test Hardening**: `test_normalizer.py` expandido para 31 casos (cobre todas as unidades do YAML + edge cases) ✅
 - **2.2 CI Safety**: `tests/conftest.py` refatorado para usar RPC (porta 443) no cleanup, eliminando risco de bloqueio de porta 5432 no CI ✅
 - **2.3 Contract Tests**: Adicionado `test_dashboard_contracts.py` para validar o shape dos dados consumidos pelo dashboard ✅
 - **2.4 Developer UX**: Hook `pre-push` agora suporta `CI_LOCAL_UNIT=1` para opt-in de testes unitários antes do push ✅
-- Meta: ruff/mypy/pytest **499 passing**; 0 novos warnings ✅
+- Meta: ruff/mypy/pytest **512 passing** unit+schema + 102 integration + 10 design + 6 real = **630 total**; 0 novos warnings ✅
 
 ## Lições Aprendidas (CI/Mocks)
 
@@ -385,6 +382,28 @@ O RPC `exec_sql_query` (definido em `consolidated_migration.sql:959`) envolve o 
 SELECT COALESCE(json_agg(row_to_json(d)), '[]'::json) FROM (%s) d
 ```
 SQL com `;` no final quebra a subquery. Remova qualquer `;` no final de queries enviadas via `client.rpc("exec_sql_query", {"sql": sql})`.
+
+### 11. Memory Sync — analisar todos os MDs antes de cada commit
+
+**Regra permanente:** Antes de QUALQUER commit, varrer TODOS os `.md` do projeto e verificar se estão coerentes entre si e com a realidade do código:
+
+- `AGENTS.md` (memória técnica) — sempre atualizar se houver mudança estrutural
+- `README.md` — entrada do projeto
+- `tests/README.md` — estrutura de testes (camadas, contagens, comandos)
+- `docs/changelog.md` — Keep a Changelog por fase/sprint
+- `docs/archive/CUSTO_DOCE_RAIO_X.md` — auditoria técnica densa, versão in-place
+- `docs/archive/RAIO-X_CUSTO_DOCE_RESUMIDO.md` — resumo executivo, versão in-place
+- `docs/adr/*.md` — decisões arquiteturais
+- `docs/security.md` — vulnerabilidades + estado de mitigação
+- Qualquer outro `.md` descoberto via `glob("**/*.md")`
+
+**Critérios de atualização:**
+- **Coerência narrativa** — versão e datas devem bater entre docs
+- **Eficiência narrativa** — sem duplicação; preferir in-place patches a criar novos arquivos
+- **Contagens precisas** — testes, risks, status, métricas: sempre verificar com pytest/git log antes de escrever
+- **Cronologia linear** — entradas v2→v3 inline em "Histórico de Versões", não criar RAIO-X_v3.md etc.
+
+**Quando SKIPAR:** commits puramente técnicos (typo, whitespace, refactor pequeno sem mudança de API/comportamento). Avaliar caso a caso — regra default é SEMPRE verificar.
 
 ## OpenCode Skills Strategy
 

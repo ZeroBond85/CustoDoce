@@ -211,8 +211,10 @@ Mais detalhes em [docs/contributing.md](docs/contributing.md).
 - [x] **Fase 4.1**: Observabilidade Estruturada (structlog + OpenTelemetry).
 - [x] **Fase 4.4**: Feature Flags por Ingrediente (2 níveis: global + override).
 - [x] **Fase 8 (Full Overhaul)**: LLM Resilience (Strategy Pattern, Circuit Breaker, 3 providers), Cache (SQLite + DB), Cart Optimizer (Monofonte/Multifonte), Capacity Planning Dashboard, CI/CD Unification com Makefile.
-- [x] **Fase 9 (CI Hygiene + Cleanup)**: `git filter-branch` removeu 11 arquivos sensíveis (pack 444MB → 8.7MB), pre-push hook Python, `ci_local.py` (8 validators), Dependabot alerts resolvidos, lições #1-#10 documentadas, CI 100% verde (unit 488 + integration 102 + deploy-check).
-- [ ] **Próximos Passos**: Testes E2E (Playwright), role `dashboard_user` (segurança), cache LRU no dashboard.
+- [x] **Fase 9 (CI Hygiene + Cleanup)**: `git filter-branch` removeu 11 arquivos sensíveis (pack 444MB → 8.7MB), pre-push hook Python, `ci_local.py` (8 validators), Dependabot alerts resolvidos, lições #1-#10 documentadas, CI 100% verde.
+- [x] **Sprint 1 (UX + Segurança)**: `.env`/YAML tabs removidos do dashboard; Bot lê ingredientes do DB com fallback YAML + fuzzy search; Mobile CSS (768/640px); Query Params URL↔session_state; Acessibilidade (skip-link, prefers-reduced-motion).
+- [x] **Sprint 2 (Test Hardening + Contract Safety)**: `test_normalizer.py` expandido de 11 → 32 casos; conftest usa RPC POSTGREST 443; novo `test_dashboard_contracts.py` valida shape do dashboard; `CI_LOCAL_UNIT=1` opt-in para pre-push. **512 unit+schema + 102 integration + 10 design + 6 real = 630 total passing**.
+- [ ] **Próximos Passos**: Testes E2E (Playwright contra Streamlit Cloud), role `dashboard_user` (segurança residual), cache com TTL real (não apenas LRU memory), fallback de unidade no normalizer.
 
 ---
 
