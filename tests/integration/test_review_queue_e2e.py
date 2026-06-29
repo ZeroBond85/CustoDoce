@@ -5,6 +5,7 @@ Cobre: approve, reject, fuzzy match, duplicate price, trigger ON CONFLICT.
 
 Roda com: pytest tests/test_review_queue_e2e.py -v
 """
+
 import os
 import sys
 from datetime import date, datetime, UTC
@@ -37,6 +38,7 @@ pytestmark = pytest.mark.skipif(
 
 
 # real_supabase removido: usa real_supabase de tests/conftest.py
+
 
 @pytest.fixture(scope="module")
 def test_store(real_supabase):

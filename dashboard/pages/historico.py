@@ -64,7 +64,9 @@ def render_historico():
     with col3:
         valid_only = st.checkbox("Apenas pre\u00e7os v\u00e1lidos", value=False, key="hist_valid")
     with col4:
-        chart_type = st.selectbox("Tipo de Gr\u00e1fico", ["Linha", "\u00c1rea", "Barras", "Dispers\u00e3o"], key="hist_chart")
+        chart_type = st.selectbox(
+            "Tipo de Gr\u00e1fico", ["Linha", "\u00c1rea", "Barras", "Dispers\u00e3o"], key="hist_chart"
+        )
 
     _push_query_params()
 
@@ -93,7 +95,14 @@ def render_historico():
     elif chart_type == "Barras":
         fig = px.bar(df, x="collected_at", y="price_per_kg", color="store_name", title="", barmode="group")
     else:
-        fig = px.scatter(df, x="collected_at", y="price_per_kg", color="store_name", title="", hover_data=["raw_product", "raw_price", "raw_unit"])
+        fig = px.scatter(
+            df,
+            x="collected_at",
+            y="price_per_kg",
+            color="store_name",
+            title="",
+            hover_data=["raw_product", "raw_price", "raw_unit"],
+        )
 
     fig.update_layout(xaxis_title="Data", yaxis_title="R$/kg", hovermode="x unified", height=500)
     st.plotly_chart(fig, use_container_width=True)
@@ -102,7 +111,14 @@ def render_historico():
     st.subheader("Estat\u00edsticas do Per\u00edodo")
 
     stats_col = df.groupby("store_name")["price_per_kg"].agg(["mean", "min", "max", "std", "count"]).reset_index()
-    stats_col.columns = ["Loja", "M\u00e9dia R$/kg", "M\u00ednimo", "M\u00e1ximo", "Desvio Padr\u00e3o", "N\u00ba Coletas"]
+    stats_col.columns = [
+        "Loja",
+        "M\u00e9dia R$/kg",
+        "M\u00ednimo",
+        "M\u00e1ximo",
+        "Desvio Padr\u00e3o",
+        "N\u00ba Coletas",
+    ]
     stats_col = stats_col.sort_values("M\u00e9dia R$/kg")
 
     st.dataframe(stats_col, use_container_width=True)
@@ -111,14 +127,33 @@ def render_historico():
     st.subheader("Detalhamento")
 
     display_df = df[
-        ["store_name", "raw_product", "raw_price", "raw_unit", "price_per_kg", "price_per_un", "brand", "is_promotion", "valid_until", "collected_at"]
+        [
+            "store_name",
+            "raw_product",
+            "raw_price",
+            "raw_unit",
+            "price_per_kg",
+            "price_per_un",
+            "brand",
+            "is_promotion",
+            "valid_until",
+            "collected_at",
+        ]
     ].copy()
-    display_df = display_df.rename(columns={
-        "store_name": "Loja", "raw_product": "Produto", "raw_price": "Pre\u00e7o",
-        "raw_unit": "Unid.", "price_per_kg": "R$/kg", "price_per_un": "R$/un",
-        "brand": "Marca", "is_promotion": "Promoção", "valid_until": "Válido até",
-        "collected_at": "Coletado em",
-    })
+    display_df = display_df.rename(
+        columns={
+            "store_name": "Loja",
+            "raw_product": "Produto",
+            "raw_price": "Pre\u00e7o",
+            "raw_unit": "Unid.",
+            "price_per_kg": "R$/kg",
+            "price_per_un": "R$/un",
+            "brand": "Marca",
+            "is_promotion": "Promoção",
+            "valid_until": "Válido até",
+            "collected_at": "Coletado em",
+        }
+    )
 
     st.dataframe(display_df, use_container_width=True)
     st.info(f"Total: {len(df)} registros para {selected} nos \u00faltimos {days} dias")

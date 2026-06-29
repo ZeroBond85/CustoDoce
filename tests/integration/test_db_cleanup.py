@@ -55,37 +55,58 @@ class TestDbCleanup:
         old_date = today - timedelta(days=100)
 
         # Prices (trigger copia automaticamente pra price_history)
-        client.table("prices").insert({
-            "ingredient_id": self.TEST_ING, "store_id": store_id,
-            "collected_at": today.isoformat(), "raw_price": 10.0, "raw_product": "New",
-        }).execute()
-        client.table("prices").insert({
-            "ingredient_id": self.TEST_ING, "store_id": store_id,
-            "collected_at": old_date.isoformat(), "raw_price": 5.0, "raw_product": "Old",
-        }).execute()
+        client.table("prices").insert(
+            {
+                "ingredient_id": self.TEST_ING,
+                "store_id": store_id,
+                "collected_at": today.isoformat(),
+                "raw_price": 10.0,
+                "raw_product": "New",
+            }
+        ).execute()
+        client.table("prices").insert(
+            {
+                "ingredient_id": self.TEST_ING,
+                "store_id": store_id,
+                "collected_at": old_date.isoformat(),
+                "raw_price": 5.0,
+                "raw_product": "Old",
+            }
+        ).execute()
 
         # Logs
-        client.table("scraping_logs").insert({
-            "store_name": store_name, "started_at": datetime.now(UTC).isoformat(),
-        }).execute()
-        client.table("scraping_logs").insert({
-            "store_name": store_name,
-            "started_at": (datetime.now(UTC) - timedelta(days=100)).isoformat(),
-        }).execute()
+        client.table("scraping_logs").insert(
+            {
+                "store_name": store_name,
+                "started_at": datetime.now(UTC).isoformat(),
+            }
+        ).execute()
+        client.table("scraping_logs").insert(
+            {
+                "store_name": store_name,
+                "started_at": (datetime.now(UTC) - timedelta(days=100)).isoformat(),
+            }
+        ).execute()
 
         if include_flyers:
-            client.table("flyers").insert({
-                "store_name": store_name, "region": region,
-                "image_url": f"http://test.com/{unique_id}_1.png",
-                "image_hash": f"hash_{unique_id}_1",
-                "collected_at": datetime.now(UTC).isoformat(),
-            }).execute()
-            client.table("flyers").insert({
-                "store_name": store_name, "region": region,
-                "image_url": f"http://test.com/{unique_id}_2.png",
-                "image_hash": f"hash_{unique_id}_2",
-                "collected_at": (datetime.now(UTC) - timedelta(days=100)).isoformat(),
-            }).execute()
+            client.table("flyers").insert(
+                {
+                    "store_name": store_name,
+                    "region": region,
+                    "image_url": f"http://test.com/{unique_id}_1.png",
+                    "image_hash": f"hash_{unique_id}_1",
+                    "collected_at": datetime.now(UTC).isoformat(),
+                }
+            ).execute()
+            client.table("flyers").insert(
+                {
+                    "store_name": store_name,
+                    "region": region,
+                    "image_url": f"http://test.com/{unique_id}_2.png",
+                    "image_hash": f"hash_{unique_id}_2",
+                    "collected_at": (datetime.now(UTC) - timedelta(days=100)).isoformat(),
+                }
+            ).execute()
 
         return store_id, store_name
 

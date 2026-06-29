@@ -10,7 +10,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-m 'not slow and not integration' --ignore=tests/test_real_integration.py"
+addopts = "-m 'not slow and not integration' --ignore=tests/integration/test_real_integration.py"
 
 [tool.ruff]
 line-length = 120

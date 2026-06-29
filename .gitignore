@@ -61,9 +61,9 @@ data/seed_validation.json
 data/regression_*.html
 data/regression_*.json
 data/dispatch.json
-data/prices_latest.json
-data/cleanup_track.json
+data/prices_latest.jsondata/cleanup_track.json
 data/llm_cache.db
+data/test_runs/
 
 # ML/model artifacts (rebuilt by `scripts/export_onnx.py`)
 data/embedding_cache/

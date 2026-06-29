@@ -69,40 +69,59 @@ jobs:
           echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT
           echo "size=$(stat -c%s "$FILENAME" 2>/dev/null || stat -f%z "$FILENAME")" >> $GITHUB_OUTPUT
 
-      - name: Fallback to RPC-based backup if pg_dump failed
-        if: steps.dump.outcome == 'failure' || steps.dump.conclusion == 'failure'
-        run: |
-          echo "Direct pg_dump failed (port 5432 blocked). Using RPC-based backup..."
-          python << 'PYEOF'
-import os, json, gzip, datetime
-from supabase import create_client
-s = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
-tables = ['prices','price_history','review_queue','stores','ingredients','flyers','scrape_frequencies','alert_rules','feature_flags']
-backup = {}
-for t in tables:
-    try:
-        data = s.table(t).select('*').execute().data
-        backup[t] = data
-        print(f'  {t}: {len(data)} rows')
-    except Exception as e:
-        print(f'  {t}: ERROR {e}')
-ts = datetime.datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-fn = f'custodoce_backup_rpc_{ts}.json.gz'
-with gzip.open(fn, 'wt', encoding='utf-8') as f:
-    json.dump(backup, f, ensure_ascii=False, default=str)
-print(f'Wrote {fn}')
-with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-    f.write(f'filename={fn}\n')
-PYEOF
+      - name: Fallback to RPC-based backup (always runs — uses whichever worked)
+        id: rpc
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          echo "RPC-based backup (overwrites pg_dump file if it exists)..."
+          python << 'PYEOF'
+          import os, json, gzip, datetime
+          from supabase import create_client
+          s = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
+          tables = ['prices', 'price_history', 'review_queue', 'stores', 'ingredients', 'flyers', 'scrape_frequencies', 'alert_rules', 'feature_flags']
+          backup = {}
+          for t in tables:
+              try:
+                  data = s.table(t).select('*').execute().data
+                  backup[t] = data
+                  print(f'  {t}: {len(data)} rows')
+              except Exception as e:
+                  print(f'  {t}: ERROR {e}')
+          ts = datetime.datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+          fn = f'custodoce_backup_rpc_{ts}.json.gz'
+          with gzip.open(fn, 'wt', encoding='utf-8') as f:
+              json.dump(backup, f, ensure_ascii=False, default=str)
+          print(f'Wrote {fn}')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f'filename={fn}\n')
+              f.write(f'timestamp={ts}\n')
+          PYEOF
 
-      - name: Upload to GitHub Artifacts
+      - name: Discover final filename
+        id: file
+        run: |
+          # Reads whichever the steps wrote into $GITHUB_OUTPUT
+          # dump.outputs.filename — set if pg_dump succeeded
+          # rpc.outputs.filename  — always set (last writer wins)
+          FINAL="${{ steps.rpc.outputs.filename }}"
+          if [ -z "$FINAL" ]; then
+            FINAL="${{ steps.dump.outputs.filename }}"
+          fi
+          TIMESTAMP="${{ steps.rpc.outputs.timestamp }}"
+          if [ -z "$TIMESTAMP" ]; then
+            TIMESTAMP="${{ steps.dump.outputs.timestamp }}"
+          fi
+          echo "filename=$FINAL" >> $GITHUB_OUTPUT
+          echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT
+
+      - name: Upload backup to GitHub Artifacts
         uses: actions/upload-artifact@v7
+        if: hashFiles('${{ steps.file.outputs.filename }}') != ''
         with:
-          name: db-backup-${{ steps.dump.outputs.timestamp }}
-          path: ${{ steps.dump.outputs.filename }}
+          name: db-backup-${{ steps.file.outputs.timestamp }}
+          path: ${{ steps.file.outputs.filename }}
           retention-days: 14
           compression-level: 9
 

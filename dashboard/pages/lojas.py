@@ -17,7 +17,9 @@ def render_lojas():
 
     tabs = st.tabs(["📋 Lista", "➕ Adicionar/Editar"])
 
-    st.info("💡 A edição de YAML (stores.yaml) deve ser feita via git e commit. Use os formulários acima para alterações seguras.")
+    st.info(
+        "💡 A edição de YAML (stores.yaml) deve ser feita via git e commit. Use os formulários acima para alterações seguras."
+    )
 
     with tabs[0]:  # Lista
         st.subheader("Todas as Lojas")
@@ -150,5 +152,6 @@ def render_lojas():
                         st.error("Erro ao salvar loja")
                 except Exception as e:
                     st.error(f"Erro: {e}")
+
 
 __all__ = ["render_lojas"]

@@ -391,6 +391,13 @@ def _collect_generic(
                 logger.info("[%s] No products found", store_name)
                 log_scraper_run(store_name, "completed", 0, 0)
                 _check_zero_products_alert(store_name)
+                # Sprint 4: zero products (resolved ok) but informs heuristic
+                with suppress(Exception):
+                    from services.scraper_health import record_success
+
+                    record_success(
+                        store_name, items_found=0, products_matched=0, flyer_count=0, attempted_by="collector"
+                    )
                 continue
 
             matched = 0
@@ -415,6 +422,17 @@ def _collect_generic(
             logger.info("[%s] %d products, %d matched", store_name, len(raw_products), matched)
             log_scraper_run(store_name, "completed", len(raw_products), matched)
             _check_zero_products_alert(store_name)
+            # Sprint 4: success branch resets failure counter
+            with suppress(Exception):
+                from services.scraper_health import record_success
+
+                record_success(
+                    store_name,
+                    items_found=len(raw_products),
+                    products_matched=matched,
+                    flyer_count=0,
+                    attempted_by="collector",
+                )
 
         except Exception as e:
             logger.error("[%s] %s: %s", label, store_name, e)
@@ -424,6 +442,18 @@ def _collect_generic(
             with suppress(Exception):
                 send_scraper_error(store_name, str(e))
             _auto_disable_if_needed(store_name)
+            # Sprint 4: failures route through unified scraper_health
+            with suppress(Exception):
+                from services.scraper_health import record_failure
+
+                record_failure(
+                    store_name,
+                    reason=str(e),
+                    items_found=0,
+                    products_matched=0,
+                    flyer_count=0,
+                    attempted_by="collector",
+                )
 
     return all_products
 
@@ -443,7 +473,7 @@ def _collect_flyers(
     label: str,
     run_fn=None,
 ) -> list[dict]:
-    all_flyers = []
+    all_flyers: list[dict] = []
     for store in stores:
         store_name = store.get("name", "unknown")
         try:

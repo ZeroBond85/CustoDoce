@@ -132,6 +132,52 @@ class BaseWebScraper(ABC):
     def close(self):
         self._http.close()
 
+    # ─── Sprint 4: Self-Healing Hooks (Licao #15) ────────────────────
+    # Subclasses MUST call these helpers from their failure / success paths.
+    # The scraper_health module records persistence state, controls
+    # auto-disable / re-activation and is the single entry point that the
+    # heal-scrapers cron job audits (every 15 days).
+
+    @property
+    def store_name(self) -> str:
+        """Public accessor used by self-healing hooks."""
+        return self.name
+
+    def report_failure(self, reason: str, items_found: int = 0, products_matched: int = 0) -> dict:
+        """Report a single failure to services.scraper_health.
+
+        Subclasses call this from their except branches. Errors here are
+        swallowed because health-tracking must never interrupt the pipeline.
+        """
+        from contextlib import suppress
+        from services.scraper_health import record_failure
+
+        with suppress(Exception):
+            return record_failure(
+                self.store_name,
+                reason=reason,
+                items_found=items_found,
+                products_matched=products_matched,
+                flyer_count=0,
+                attempted_by="collection_runner",
+            )
+        return {"recorded": False}
+
+    def report_success(self, items_found: int, products_matched: int, flyer_count: int = 0) -> dict:
+        """Report a successful execution (resets failure counter)."""
+        from contextlib import suppress
+        from services.scraper_health import record_success
+
+        with suppress(Exception):
+            return record_success(
+                self.store_name,
+                items_found=items_found,
+                products_matched=products_matched,
+                flyer_count=flyer_count,
+                attempted_by="collection_runner",
+            )
+        return {"recorded": False}
+
     @_retry_with_backoff(max_retries=3, base_delay=1.0, max_delay=30.0)
     def fetch_search(self, query: str) -> str | None:
         search_url = self.store.get("search_url", "").format(query=quote(query))

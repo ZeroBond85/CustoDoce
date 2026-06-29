@@ -46,6 +46,17 @@ features:
     enabled: false
     banner_message: "Modo Offline — os dados exibidos podem estar desatualizados ou indisponiveis."
 
+  # Sprint 4 — Self-Healing Configuration (Lição #15)
+  # Auto-disable / re-activation per Scraper (services/scraper_health.py).
+  # CRITICAL: do not disable `required` -- AGENTS.md mandates that every
+  # scraper records failures/successes so the heal pipeline can operate.
+  self_healing:
+    enabled: true
+    required: true                  # Never set to false: enforces Lição #15.
+    threshold_failures: 3           # Consecutive failures before auto-disable.
+    heal_days: 15                   # Min idle days before attempt_heal is allowed.
+    recovery_min_items: 1           # Min successful items to reactivate a scraper.
+
   # Per-ingredient overrides
   # Format: "Ingredient Canonical Name": { feature_path: value }
   overrides:

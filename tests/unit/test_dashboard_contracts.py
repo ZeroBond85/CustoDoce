@@ -3,7 +3,7 @@ from services.dashboard_queries import (
     get_dashboard_kpis,
     get_coverage_by_ingredient,
     get_active_promotions,
-    get_scraper_health_dashboard
+    get_scraper_health_dashboard,
 )
 
 MOCK_PRICES = [
@@ -12,22 +12,22 @@ MOCK_PRICES = [
         "ingredient_id": "ing1",
         "store_id": "st1",
         "normalized": {"price_per_kg": 10.0, "price_per_un": 5.0},
-        "is_promotion": True
+        "is_promotion": True,
     },
     {
         "id": "p2",
         "ingredient_id": "ing1",
         "store_id": "st2",
         "normalized": {"price_per_kg": 12.0, "price_per_un": 6.0},
-        "is_promotion": False
+        "is_promotion": False,
     },
     {
         "id": "p3",
         "ingredient_id": "ing2",
         "store_id": "st1",
         "normalized": {"price_per_kg": 20.0, "price_per_un": 10.0},
-        "is_promotion": False
-    }
+        "is_promotion": False,
+    },
 ]
 
 MOCK_LOGS = [
@@ -37,7 +37,7 @@ MOCK_LOGS = [
         "started_at": "2026-06-01T10:00:00Z",
         "completed_at": "2026-06-01T10:01:00Z",
         "items_found": 100,
-        "items_matched": 90
+        "items_matched": 90,
     },
     {
         "store_name": "Store B",
@@ -45,8 +45,8 @@ MOCK_LOGS = [
         "started_at": "2026-06-01T11:00:00Z",
         "completed_at": "2026-06-01T11:00:30Z",
         "items_found": 0,
-        "items_matched": 0
-    }
+        "items_matched": 0,
+    },
 ]
 
 
@@ -96,15 +96,18 @@ def test_get_scraper_health_dashboard_contract(mock_get_supabase):
     if health:
         item = health[0]
         expected_keys = {
-            "store_name", "last_run", "success_rate",
-            "latency_p95_ms", "avg_items_per_run",
-            "total_runs", "error_count", "total_items",
-            "status_label", "status_color", "latency_label"
+            "store_name",
+            "last_run",
+            "success_rate",
+            "latency_p95_ms",
+            "avg_items_per_run",
+            "total_runs",
+            "error_count",
+            "total_items",
+            "status_label",
+            "status_color",
+            "latency_label",
         }
         assert expected_keys.issubset(set(item.keys()))
-        emoji_ok = (
-            "🟢" in item["status_label"]
-            or "🟡" in item["status_label"]
-            or "🔴" in item["status_label"]
-        )
+        emoji_ok = "🟢" in item["status_label"] or "🟡" in item["status_label"] or "🔴" in item["status_label"]
         assert emoji_ok, f"expected status emoji in label, got {item['status_label']}"

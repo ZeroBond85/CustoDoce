@@ -21,11 +21,11 @@ def render_config():
 
     st.title("Configuração do Sistema")
 
-    tabs = st.tabs(
-        ["🚩 Feature Flags", "📧 Alert Rules", "📬 Destinatários", "🔄 Recarregar Config"]
-    )
+    tabs = st.tabs(["🚩 Feature Flags", "📧 Alert Rules", "📬 Destinatários", "🔄 Recarregar Config"])
 
-    st.info("💡 As variáveis de ambiente (.env) são gerenciadas pelo Streamlit Cloud Secrets ou GitHub Actions Secrets. Edite-as diretamente nas plataformas. A edição de YAML (stores.yaml, ingredients.yaml) deve ser feita via git e commit.")
+    st.info(
+        "💡 As variáveis de ambiente (.env) são gerenciadas pelo Streamlit Cloud Secrets ou GitHub Actions Secrets. Edite-as diretamente nas plataformas. A edição de YAML (stores.yaml, ingredients.yaml) deve ser feita via git e commit."
+    )
 
     with tabs[0]:  # Feature Flags
         st.subheader("Feature Flags (Liga/Desliga Funcionalidades)")

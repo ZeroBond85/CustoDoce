@@ -67,9 +67,7 @@ def ensure_app_ready(page, app):
     app = wake_if_sleeping(page, app)
     # Esperar sidebar renderizar (ex: visivel primeiro item)
     try:
-        app.locator("button:has-text('Visao Geral')").first.wait_for(
-            state="visible", timeout=15000
-        )
+        app.locator("button:has-text('Visao Geral')").first.wait_for(state="visible", timeout=15000)
     except Exception:
         pass
     return app

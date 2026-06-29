@@ -15,6 +15,7 @@ Cobre:
   - pip-audit não retorna vulnerabilidades
   - SECRET GUARD coverage (sk-, gsk_, etc.)
 """
+
 from __future__ import annotations
 
 import re
@@ -44,11 +45,7 @@ def test_requirements_no_inline_flags() -> None:
         pytest.skip("requirements.txt missing")
     content = REQUIREMENTS_TXT.read_text(encoding="utf-8")
     bad_pattern = re.compile(r"--(?:index|extra-index|trusted-host|find-links)-url")
-    matches = [
-        (i + 1, line.strip())
-        for i, line in enumerate(content.splitlines())
-        if bad_pattern.search(line)
-    ]
+    matches = [(i + 1, line.strip()) for i, line in enumerate(content.splitlines()) if bad_pattern.search(line)]
     assert not matches, (
         "Inline pip flags detected (quebram pip-audit --strict):\n"
         + "\n".join(f"  linha {n}: {line}" for n, line in matches)
@@ -70,23 +67,19 @@ def test_check_scripts_have_mypy_ignore() -> None:
         first_line = path.read_text(encoding="utf-8").split("\n", 1)[0]
         if "mypy: ignore-errors" not in first_line:
             missing.append(f"  {path.name}: primeira linha = {first_line!r}")
-    assert not missing, (
-        "check_*.py sem '# mypy: ignore-errors' na 1a linha (CI falha em attr-defined):\n"
-        + "\n".join(missing)
+    assert not missing, "check_*.py sem '# mypy: ignore-errors' na 1a linha (CI falha em attr-defined):\n" + "\n".join(
+        missing
     )
 
 
 def test_ruff_per_file_ignores_scripts(pyproject_content: str) -> None:
     """ruff per-file-ignores deve incluir E741 e W292 para scripts/."""
-    section = re.search(
-        r'"scripts/\*\.py"\s*=\s*\[(.*?)\]', pyproject_content, re.DOTALL
-    )
+    section = re.search(r'"scripts/\*\.py"\s*=\s*\[(.*?)\]', pyproject_content, re.DOTALL)
     assert section, 'Faltando ruff per-file-ignores para "scripts/*.py"'
     rules = section.group(1)
     for code in ("E741", "W292"):
         assert code in rules, (
-            f"Adicione {code} à lista de ignores em scripts/*.py "
-            "(evita lint errors em diagnostics scripts)."
+            f"Adicione {code} à lista de ignores em scripts/*.py (evita lint errors em diagnostics scripts)."
         )
 
 
@@ -97,9 +90,7 @@ def test_ci_yml_referenced_files_exist() -> None:
     content = CI_YML.read_text(encoding="utf-8")
     referenced = set(re.findall(r"\b([\w/]+\.py)\b", content))
     missing = [f for f in referenced if not (REPO_ROOT / f).exists()]
-    assert not missing, (
-        f"ci.yml referencia arquivos inexistentes: {missing}"
-    )
+    assert not missing, f"ci.yml referencia arquivos inexistentes: {missing}"
 
 
 def test_githooks_have_valid_shebang() -> None:
@@ -127,9 +118,7 @@ def test_githooks_have_valid_shebang() -> None:
                 pytest.fail(f"Não consegui ler hook {hook.name}: {e}")
             if not any(first_line.startswith(s) for s in valid):
                 bad.append(f"  {hook.name}: '{first_line[:60]}'")
-    assert not bad, (
-        "Githooks com shebang inválido:\n" + "\n".join(bad)
-    )
+    assert not bad, "Githooks com shebang inválido:\n" + "\n".join(bad)
 
 
 def test_no_operational_files_tracked() -> None:
@@ -141,6 +130,7 @@ def test_no_operational_files_tracked() -> None:
         "scripts/diagnose.py",
     ]
     import shutil
+
     git_bin = shutil.which("git")
     if not git_bin:
         pytest.skip("git not available in test env")
@@ -154,9 +144,7 @@ def test_no_operational_files_tracked() -> None:
         pytest.skip("git not available in test env")
     tracked = set(result.stdout.splitlines())
     leaks = [f for f in operational if f in tracked]
-    assert not leaks, (
-        f"Arquivos operacionais estão no repo (deveriam estar no .gitignore): {leaks}"
-    )
+    assert not leaks, f"Arquivos operacionais estão no repo (deveriam estar no .gitignore): {leaks}"
 
 
 def test_gitignore_covers_known_patterns() -> None:
@@ -176,8 +164,7 @@ def test_gitignore_covers_known_patterns() -> None:
     ]
     missing = [p for p in required_patterns if p not in content]
     assert not missing, (
-        f".gitignore não cobre: {missing}. "
-        f"Se algum desses arquivos for commitado, vazará secrets/caches/modelos."
+        f".gitignore não cobre: {missing}. Se algum desses arquivos for commitado, vazará secrets/caches/modelos."
     )
 
 
@@ -237,8 +224,7 @@ def test_audit_secrets_returns_clean() -> None:
         text=True,
     )
     assert result.returncode == 0, (
-        f"audit_secrets --strict falhou:\n{result.stdout[:2000]}\n"
-        f"stderr: {result.stderr[:500]}"
+        f"audit_secrets --strict falhou:\n{result.stdout[:2000]}\nstderr: {result.stderr[:500]}"
     )
 
 
@@ -250,9 +236,7 @@ def test_ruff_lints_project() -> None:
         capture_output=True,
         text=True,
     )
-    assert result.returncode == 0, (
-        f"ruff encontrou erros:\n{result.stdout[:2000]}"
-    )
+    assert result.returncode == 0, f"ruff encontrou erros:\n{result.stdout[:2000]}"
 
 
 def test_mypy_passes() -> None:
@@ -267,7 +251,4 @@ def test_mypy_passes() -> None:
     if result.returncode == 0:
         return
     lines = [line for line in out.splitlines() if line.startswith("Found") or "error:" in line]
-    pytest.fail(
-        "mypy falhou:\n" + "\n".join(lines[:10])
-    )
-
+    pytest.fail("mypy falhou:\n" + "\n".join(lines[:10]))

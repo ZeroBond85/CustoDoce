@@ -7,6 +7,7 @@ contra Supabase real (ou com mock rico).
 
 Requer SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY no env ou .env.
 """
+
 import os
 import sys
 from pathlib import Path

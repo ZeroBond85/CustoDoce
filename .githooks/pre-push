@@ -53,7 +53,7 @@ def main() -> int:
         return 1
     print("[OK] secrets: limpos", file=sys.stderr)
 
-    print("[2/2] ci_local.py...", file=sys.stderr)
+    print("[2/3] ci_local.py...", file=sys.stderr)
     # Check if user wants to run unit tests (via env var)
     run_unit = os.environ.get("CI_LOCAL_UNIT") == "1"
     ci_args = [THIS_PYTHON, "scripts/ci_local.py"]
@@ -67,6 +67,21 @@ def main() -> int:
             print(result.stdout[-1000:], file=sys.stderr)
         return 1
     print("[OK] ci_local: limpos", file=sys.stderr)
+
+    print("[3/3] test_total_coverage (light, no integration/real)...", file=sys.stderr)
+    # Sprint 4: opt-in full pipeline via TEST_TOTAL opt-in env var.
+    # Skip by default to keep pre-push <30s. Set TEST_TOTAL=1 to enable.
+    if os.environ.get("TEST_TOTAL") == "1":
+        tt_args = [THIS_PYTHON, "scripts/test_total_coverage.py", "--skip-slow"]
+        result = run(tt_args)
+        if result.returncode != 0:
+            print("FALHA: test_total_coverage encontrou erros. Corrija antes de push.", file=sys.stderr)
+            if result.stdout:
+                print(result.stdout[-1500:], file=sys.stderr)
+            return 1
+        print("[OK] test_total_coverage: limpa", file=sys.stderr)
+    else:
+        print("[SKIP] test_total_coverage (set TEST_TOTAL=1 to enable)", file=sys.stderr)
 
     print("", file=sys.stderr)
     print("=== pre-push: TODOS os checks passaram. Push liberdo. ===", file=sys.stderr)

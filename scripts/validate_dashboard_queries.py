@@ -18,25 +18,44 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 REQUIRED_COLUMNS = {
     "prices": {
-        "store_name", "raw_product", "raw_price", "raw_unit",
-        "price_per_kg", "brand", "is_promotion",
-        "valid_until", "collected_at", "normalized",
+        "store_name",
+        "raw_product",
+        "raw_price",
+        "raw_unit",
+        "price_per_kg",
+        "brand",
+        "is_promotion",
+        "valid_until",
+        "collected_at",
+        "normalized",
     },
     "price_history": {
-        "ingredient_id", "store_name", "raw_price",
-        "price_per_kg", "collected_at",
+        "ingredient_id",
+        "store_name",
+        "raw_price",
+        "price_per_kg",
+        "collected_at",
     },
     "ingredients": {
-        "id", "canonical_name", "category", "active",
+        "id",
+        "canonical_name",
+        "category",
+        "active",
     },
     "stores": {
-        "id", "name", "tier", "is_active",
+        "id",
+        "name",
+        "tier",
+        "is_active",
     },
     "feature_flags": {
-        "key", "enabled",
+        "key",
+        "enabled",
     },
     "scraping_logs": {
-        "store_name", "status", "started_at",
+        "store_name",
+        "status",
+        "started_at",
     },
 }
 
@@ -180,6 +199,7 @@ def main():
     if not args.skip_db_check:
         print("\n>> Conexao Supabase...")
         from supabase import create_client
+
         c = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
         r = c.table("prices").select("id").limit(1).execute()
         assert r.data is not None, "Falha na conexao Supabase"

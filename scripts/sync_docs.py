@@ -38,10 +38,19 @@ _FAIL = "FAIL"
 
 
 def _count_tests() -> dict:
-    """Count tests by category using pytest --collect-only (no import needed)."""
+    """Count tests by category using pytest --collect-only (no import needed).
+
+    Counts both <Function test_> (sync tests) AND <Coroutine test_> (async tests).
+    Earlier versions only counted synchronous tests, missing 7 async helpers in
+    test_telegram_handlers.py (411 vs real 418).
+    """
     import subprocess
 
     result = {}
+    # Compiled patterns once for speed and consistency
+    sync_pat = re.compile(r"<Function\s+test_")  # sync tests
+    async_pat = re.compile(r"<Coroutine\s+test_")  # async tests
+
     for test_path, label in [
         ("tests/unit", "unit"),
         ("tests/schema", "schema"),
@@ -54,20 +63,97 @@ def _count_tests() -> dict:
             continue
         try:
             proc = subprocess.run(
-                [sys.executable, "-m", "pytest", str(full_path), "--collect-only"],
+                [
+                    sys.executable,
+                    "-m",
+                    "pytest",
+                    str(full_path),
+                    "--collect-only",
+                    "-q",
+                    "--no-header",
+                ],
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=30,
+                timeout=60,
                 cwd=str(_ROOT),
             )
-            # Count <Function test_> lines (one per test)
-            count = proc.stdout.count("<Function test_")
-            result[label] = count
+            sync_count = len(sync_pat.findall(proc.stdout))
+            async_count = len(async_pat.findall(proc.stdout))
+            result[label] = sync_count + async_count
         except Exception:
             result[label] = 0
     return result
+
+
+def _extract_actual_test_count(test_path: str) -> tuple[int, int]:
+    """Get pytest's reported total + delta vs my count.
+
+    Returns (pytest_total, my_count). Used by --check drift detection.
+    """
+    import subprocess
+
+    try:
+        proc = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                str(test_path),
+                "--collect-only",
+                "-q",
+                "--no-header",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+            cwd=str(_ROOT),
+        )
+        # Pattern: "X tests collected in N.NNs"
+        m = re.search(r"(\d+)\s+tests?\s+collected", proc.stdout)
+        pytest_total = int(m.group(1)) if m else 0
+        sync_count = len(re.findall(r"<Function\s+test_", proc.stdout))
+        async_count = len(re.findall(r"<Coroutine\s+test_", proc.stdout))
+        my_count = sync_count + async_count
+        return (pytest_total, my_count)
+    except Exception:
+        return (0, 0)
+
+
+def _check_drift() -> list[str]:
+    """Detect drift between pytest's reported total and our sync_docs count.
+
+    Returns list of drift messages. Empty = no drift.
+
+    Sources of truth compared:
+        - my_counts (from _count_tests — this script's interpretation)
+        - pytest's "X tests collected" line (ground truth)
+
+    Drift triggers a --check failure to keep AGENTS.md truthful (Sprint 4).
+    """
+    drift_msgs = []
+    my_counts = _count_tests()
+    for test_path, label in [
+        ("tests/unit", "unit"),
+        ("tests/schema", "schema"),
+        ("tests/integration", "integration"),
+        ("tests/e2e", "e2e"),
+        ("tests/real", "real"),
+    ]:
+        full = _ROOT / test_path
+        if not full.exists():
+            continue
+        pytest_total, _sync_and_async_count = _extract_actual_test_count(test_path)
+        my_count = my_counts.get(label, 0)
+        if pytest_total != _sync_and_async_count or pytest_total != my_count:
+            actual = _sync_and_async_count
+            drift_msgs.append(
+                f"  {label}: pytest reports {pytest_total}, sync_docs counted {my_count} (regex-confirmed {actual})"
+            )
+    return drift_msgs
 
 
 def _extract_pages() -> list[tuple[str, str, str]]:
@@ -142,7 +228,11 @@ def _build_agents_state() -> dict:
 
 
 def _update_agents_md(state: dict, dry_run: bool = False) -> list[str]:
-    """Update AGENTS.md with current state."""
+    """Update AGENTS.md with current state.
+
+    Robust detection of the Ferramenta/Tool status table: works whether AGENTS.md
+    uses single pytest line ("unit") or combined ("unit + schema").
+    """
     content = _AGENTS.read_text(encoding="utf-8")
     lines = content.splitlines()
 
@@ -157,22 +247,26 @@ def _update_agents_md(state: dict, dry_run: bool = False) -> list[str]:
                 lines[i] = f"<!-- Last updated: {state['updated_at']} -->"
             break
 
-    # Update test counts in Status section
     tc = state["test_counts"]
 
-    # Find the status table and replace it
+    # Find the status table — flexible regex tolerant of both
+    # "| pytest (unit) | ..." and "| pytest (unit + schema) | ..." headers
     in_status_table = False
     status_start = -1
     status_end = -1
+    status_table_re = re.compile(r"\|\s*(pytest|tool)\s*\(.*pytest", re.IGNORECASE)
+
     for i, line in enumerate(lines):
-        if "| Ferramenta" in line or "| Tool" in line:
+        stripped = line.strip()
+        is_header = "| Ferramenta" in line or "| Tool" in line or status_table_re.search(line) is not None
+        if is_header and "|---" not in stripped:
             in_status_table = True
             status_start = i
         if (
             in_status_table
             and status_start >= 0
             and i > status_start
-            and (line.strip() == "" or not line.startswith("|"))
+            and (stripped == "" or not stripped.startswith("|"))
         ):
             status_end = i
             break
@@ -181,15 +275,27 @@ def _update_agents_md(state: dict, dry_run: bool = False) -> list[str]:
         status_end = len(lines)
 
     if status_start >= 0 and status_end > status_start:
-        # Build new status table
+        # Build new status table replacing old rows (but keep header & separator)
         new_table = []
         new_table.append(lines[status_start])  # header
         if status_start + 1 < len(lines):
             new_table.append(lines[status_start + 1])  # separator
 
-        new_table.append(f"| pytest (unit) | {tc.get('unit', 0)} passing | ✅ |")
-        if tc.get("schema"):
-            new_table.append(f"| pytest (schema) | {tc['schema']} passing | ✅ |")
+        # Emit row per label, in canonical order
+        new_table.append(
+            f"| pytest (unit + schema) | {tc.get('unit', 0) + tc.get('schema', 0)} passing "
+            f"(unit: {tc.get('unit', 0)}, schema: {tc.get('schema', 0)}) | ✅ |"
+        )
+        if tc.get("integration"):
+            new_table.append(f"| pytest (integration) | {tc['integration']} passing | ✅ |")
+        if tc.get("design"):
+            new_table.append(f"| pytest (design) | {tc['design']} passing | ✅ |")
+        if tc.get("real"):
+            new_table.append(f"| pytest (real, slow) | {tc['real']} passing | ✅ |")
+        if tc.get("e2e"):
+            new_table.append(
+                f"| pytest (e2e) | {tc['e2e']} collected (blocked on Playwright live Streamlit Cloud) | ⏳ |"
+            )
 
         # Replace in lines
         lines = lines[:status_start] + new_table + lines[status_end:]
@@ -246,7 +352,10 @@ def _check_api_docs() -> list[str]:
 def run_sync(dry_run: bool = False, check: bool = False) -> bool:
     """
     Main sync logic. Returns True if in sync, False if out of sync.
-    If check=True: exits 1 if anything is out of sync.
+
+    With check=True: drift detection runs against pytest --collect-only. If the
+    source of truth (sync_docs count) disagrees with pytest's reported total,
+    --check fails. This prevents silent drift between declared and actual numbers.
     """
     issues: list[str] = []
 
@@ -259,6 +368,16 @@ def run_sync(dry_run: bool = False, check: bool = False) -> bool:
     print(f"  Dashboard pages: {state['pages_count']}")
     print(f"  API services: {', '.join(state['api_services'])}")
     print(f"  CI workflows: {', '.join(state['workflows'])}")
+
+    # Drift detection — always (visible in --dry-run; required for --check)
+    print("\nDrift detection (sync_docs counts vs pytest --collect-only)...")
+    drift = _check_drift()
+    if drift:
+        for d in drift:
+            print(f"  [DRIFT] {d}")
+            issues.append(f"Drift: {d}")
+    else:
+        print("  [OK] All test counts match pytest --collect-only")
 
     # Check API docs
     api_issues = _check_api_docs()

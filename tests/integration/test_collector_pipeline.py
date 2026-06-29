@@ -65,6 +65,7 @@ class TestCollectorPipeline:
         # Verifica que EXISTE uma row para (ingredient_id, store_id, collected_at=hoje).
         # Tolerância a dados cumulativos de runs anteriores (collected_at diferente).
         from datetime import date
+
         today_iso = date.today().isoformat()
         res = client.table("prices").select("*").eq("store_id", store["id"]).execute()
         today_rows = [r for r in res.data if r.get("collected_at", "")[:10] == today_iso]

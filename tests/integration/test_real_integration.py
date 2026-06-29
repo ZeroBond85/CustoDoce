@@ -13,10 +13,16 @@ load_dotenv()
 # Skip if no real Supabase credentials
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-pytestmark = pytest.mark.skipif(
-    not (SUPABASE_URL and SUPABASE_SERVICE_KEY and len(SUPABASE_URL) > 10),
-    reason="No real Supabase credentials configured",
-)
+# Note: skipif MUST be a list/tuple when combined with markers so the integration
+# marker propagates to every test in this module even on CI gating.
+pytestmark = [
+    pytest.mark.skipif(
+        not (SUPABASE_URL and SUPABASE_SERVICE_KEY and len(SUPABASE_URL) > 10),
+        reason="No real Supabase credentials configured",
+    ),
+    pytest.mark.integration,
+    pytest.mark.real,
+]
 
 
 def test_real_ingredients_schema():

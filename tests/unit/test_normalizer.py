@@ -16,12 +16,28 @@ from parsers.normalizer import normalize_price
         (3.5, "100g", {"qty": 1, "unit_kg": 0.1, "total_kg": 0.1, "price_per_kg": 35.0, "price_per_un": 3.5}),
         (2.0, "30g", {"qty": 1, "unit_kg": 0.03, "total_kg": 0.03, "price_per_kg": 66.67, "price_per_un": 2.0}),
         # ── Caixa/multipack ────────────────────────────────────
-        (42.90, "cx 12x395g", {"qty": 12, "unit_kg": 0.395, "total_kg": 4.74, "price_per_kg": 9.05, "price_per_un": 3.58}),
-        (15.0, "12un 395g", {"qty": 12, "unit_kg": 0.395, "total_kg": 4.74, "price_per_kg": 3.16, "price_per_un": 1.25}),
+        (
+            42.90,
+            "cx 12x395g",
+            {"qty": 12, "unit_kg": 0.395, "total_kg": 4.74, "price_per_kg": 9.05, "price_per_un": 3.58},
+        ),
+        (
+            15.0,
+            "12un 395g",
+            {"qty": 12, "unit_kg": 0.395, "total_kg": 4.74, "price_per_kg": 3.16, "price_per_un": 1.25},
+        ),
         (30.0, "cx com 6x500g", {"qty": 6, "unit_kg": 0.5, "total_kg": 3.0, "price_per_kg": 10.0, "price_per_un": 5.0}),
-        (50.0, "pacote com 10x100g", {"qty": 10, "unit_kg": 0.1, "total_kg": 1.0, "price_per_kg": 50.0, "price_per_un": 5.0}),
+        (
+            50.0,
+            "pacote com 10x100g",
+            {"qty": 10, "unit_kg": 0.1, "total_kg": 1.0, "price_per_kg": 50.0, "price_per_un": 5.0},
+        ),
         (36.0, "cx 24x200g", {"qty": 24, "unit_kg": 0.2, "total_kg": 4.8, "price_per_kg": 7.5, "price_per_un": 1.5}),
-        (120.0, "fardo 30x200ml", {"qty": 30, "unit_kg": 0.2, "total_kg": 6.0, "price_per_kg": 20.0, "price_per_un": 4.0}),
+        (
+            120.0,
+            "fardo 30x200ml",
+            {"qty": 30, "unit_kg": 0.2, "total_kg": 6.0, "price_per_kg": 20.0, "price_per_un": 4.0},
+        ),
         # ── Lata / pote ────────────────────────────────────────
         (20.0, "lata 1kg", {"qty": 1, "unit_kg": 1.0, "total_kg": 1.0, "price_per_kg": 20.0, "price_per_un": 20.0}),
         (8.90, "lata 300g", {"qty": 1, "unit_kg": 0.3, "total_kg": 0.3, "price_per_kg": 29.67, "price_per_un": 8.9}),

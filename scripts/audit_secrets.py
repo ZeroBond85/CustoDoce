@@ -39,7 +39,10 @@ HIGH_CONFIDENCE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("stripe_key", re.compile(r"sk_(?:live|test)_[A-Za-z0-9]{20,}")),
     ("pem_private_key", re.compile(r"-----BEGIN (?:RSA|EC|OPENSSH|PRIVATE) (?:PRIVATE )?KEY-----")),
     ("google_service_account", re.compile(r'"type"\s*:\s*"service_account"')),
-    ("supabase_service_role", re.compile(r"eyJhbGciOi[A-Za-z0-9_\-]{50,}\.eyJ[A-Za-z0-9_\-]{50,}\.[A-Za-z0-9_\-]{20,}")),
+    (
+        "supabase_service_role",
+        re.compile(r"eyJhbGciOi[A-Za-z0-9_\-]{50,}\.eyJ[A-Za-z0-9_\-]{50,}\.[A-Za-z0-9_\-]{20,}"),
+    ),
 )
 
 

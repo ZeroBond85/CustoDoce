@@ -254,6 +254,7 @@ def _cleanup_test_data():
     if _has_real_db():
         try:
             from services.supabase_client import get_service_client
+
             client = get_service_client()
             cleanups = [
                 "prices",

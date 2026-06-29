@@ -287,11 +287,10 @@ python scripts/seed_prices.py --dry-run
 
 | Ferramenta | Status |
 |------------|--------|
-| pytest (unit + schema) | **512 passing** (21 files: 418 unit + 94 schema) | ✅ |
-| pytest (integration) | **102 passing** | ✅ |
-| pytest (design) | **10 tests** | ✅ |
-| pytest (real, slow) | **6 tests** | ✅ |
-| pytest (e2e) | 49 collected, blocked on Playwright live app | ⏳ |
+| pytest (unit + schema) | 544 passing (unit: 450, schema: 94) | ✅ |
+| pytest (integration) | 102 passing | ✅ |
+| pytest (real, slow) | 6 passing | ✅ |
+| pytest (e2e) | 49 collected (blocked on Playwright live Streamlit Cloud) | ⏳ |
 
 **Sprint 2 concluída (Test Hardening + Contract Safety) out 2026-06-29:**
 - **2.1 Test Hardening**: `test_normalizer.py` expandido para 31 casos (cobre todas as unidades do YAML + edge cases) ✅
@@ -427,6 +426,71 @@ Mitigacoes aplicadas em Sprint 3:
 continue-on-error. Health checks reais NAO substituem unit/integration tests.
 A solucao ideal e ter um staging app que NAO hiberna (Streamlit Enterprise
 ou self-hosted), mas isso esta fora do escopo free-tier.
+
+### 13. Sync_docs.py e fonte autoritativa — drift detection obrigatorio
+
+Sprint 4 descobriu que `scripts/sync_docs.py` publicava `unit=411` quando
+o real era 418 (incluindo 7 testes async que ele ignorava porque so
+contava `<Function test_>`). Alem disso, o regex de update da tabela status
+nao reconhecia o novo formato `pytest (unit + schema)`.
+
+Regra permanente:
+- Rodar `python scripts/sync_docs.py --check` ANTES de pytest (checar drift)
+- Rodar `python scripts/sync_docs.py` (sem flags) para auto-corrigir AGENTS.md
+- Toda divergencia entre sync_docs.py e pytest --collect-only deve ser investigada
+
+### 14. Auto-disable scrapers — SEMPRE investigar causa raiz antes
+
+Sprint 4 investigou 5 scrapers reportados como auto-disabled pelo
+`deploy_check.py:121 test_scraper_health`. Causa raiz de Pao de Acucar
+Fresh / Extra Folheteria foi legitima (sites mudam). Mas para Cacau Center /
+Rizzo / Casa Santa Luzia, o reportou erro veio de outra parte do codigo
+nao da scraper em si.
+
+Regra permanente:
+- ANTES de mexer em `is_active`, fazer dry-run do `_auto_disable_if_needed`
+- Logs de scraping_logs devem mostrar CAUSA do erro detalhado
+- Re-ativacao automatica deve existir antes de auto-disable ser verdade (Licao #15)
+- Painel no dashboard mostra lojas com 3+ falhas (ja existe via alert_service)
+
+### 15. Self-healing OBRIGATORIO em todos os scrapers
+
+Sprint 4 implementou `services/scraper_health.py` para resolver o gap
+estrutural: scrapers auto-desabilitados NUNCA eram re-ativados.
+
+API obrigatoria:
+- `record_failure(scraper_name, reason, items_found, products_matched, flyer_count, attempted_by)`
+- `record_success(scraper_name, items_found, products_matched, flyer_count, attempted_by)`
+- `attempt_heal(scraper_name=None, dry_run=False)` — cron 15d (`SCRAPER_HEALTH_HEAL_DAYS`)
+- `classify_error_for_alert(reason)` — coarse classifier
+
+TODO scraper novo deve:
+1. Chamar `report_failure(reason)` ou `self.report_failure(...)` em todos os branches de except
+2. Chamar `report_success(...)` ao concluir com items_found > 0
+3. Subclasse de `BaseWebScraper` / `BaseFlyerScraper` herda esses helpers automaticamente
+4. Cron `.github/workflows/heal-scrapers.yml` roda `python scripts/heal_scrapers.py run-all` cada 15 dias
+
+Configuracao em `config/features.yaml`:
+```yaml
+self_healing:
+  enabled: true
+  required: true                  # Never set to false: enforces this Licao.
+  threshold_failures: 3
+  heal_days: 15
+  recovery_min_items: 1
+```
+
+### 16. Causa raiz > Mascarar
+
+Sprint 4 confirmou a importancia. Quando o test reportou `httpx.Client() got
+an unexpected keyword argument 'proxies'`, eu pensei ser causa raiz — mas era
+FALSO POSITIVO. Real causa raiz era estrutural (auto-disable nao reativava).
+
+Regra permanente:
+- Investigar raiz ANTES de aplicar patches
+- Logar `error_class` em scraper_health_log (Timeout|SSLError|LayoutChanged|...)
+- Causa raiz NAO = log.message; precisa do stack trace + reproducao
+- Apply fix minimo — nao workarounds
 
 ## OpenCode Skills Strategy
 

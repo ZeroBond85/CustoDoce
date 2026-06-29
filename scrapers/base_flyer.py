@@ -35,6 +35,50 @@ class BaseFlyerScraper(ABC):
     def close(self):
         self._http.close()
 
+    # ─── Sprint 4: Self-Healing Hooks (Licao #15) ────────────────────
+    # Symmetric with BaseWebScraper.report_failure / report_success.
+    # Subclasses MUST call these helpers from their failure / success paths.
+
+    @property
+    def store_name(self) -> str:
+        """Public accessor used by self-healing hooks."""
+        return self.name
+
+    def report_failure(self, reason: str, items_found: int = 0, flyer_count: int = 0) -> dict:
+        """Record a failure to services.scraper_health.
+
+        Flyer scrapers care mostly about flyer_count / items_found (0 in
+        most flyer-only paths). Errors swallowing is intentional.
+        """
+        from contextlib import suppress
+        from services.scraper_health import record_failure
+
+        with suppress(Exception):
+            return record_failure(
+                self.store_name,
+                reason=reason,
+                items_found=items_found,
+                products_matched=0,
+                flyer_count=flyer_count,
+                attempted_by="flyer_runner",
+            )
+        return {"recorded": False}
+
+    def report_success(self, items_found: int, flyer_count: int, products_matched: int = 0) -> dict:
+        """Record a successful execution (resets failure counter)."""
+        from contextlib import suppress
+        from services.scraper_health import record_success
+
+        with suppress(Exception):
+            return record_success(
+                self.store_name,
+                items_found=items_found,
+                products_matched=products_matched,
+                flyer_count=flyer_count,
+                attempted_by="flyer_runner",
+            )
+        return {"recorded": False}
+
     def _md5_path(self) -> Path:
         return self.cache_dir / f"{self.name.lower().replace(' ', '_')}_md5.txt"
 

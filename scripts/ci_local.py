@@ -22,6 +22,7 @@ Validações de config (só neste script):
   - Todos os arquivos em .github/workflows/*.yml existem
   - hooks válidos (sem syntax errors)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -101,6 +102,7 @@ def job(name: str, ok: bool, details: str = "") -> bool:
 
 # ─── Config Validations (antes de qualquer outra coisa) ────────────────────────
 
+
 def validate_requirements_no_inline_flags() -> tuple[bool, str]:
     """requirements.txt não pode ter --index-url/--extra-index-url inline."""
     if not REQUIREMENTS_TXT.exists():
@@ -140,7 +142,7 @@ def validate_pyproject_ruff_per_file_ignores() -> tuple[bool, str]:
             if code not in ignores:
                 missing.append(code)
         if missing:
-            return False, f'scripts/*.py ignora: faltam {missing} em pyproject.toml'
+            return False, f"scripts/*.py ignora: faltam {missing} em pyproject.toml"
     return True, ""
 
 
@@ -208,9 +210,13 @@ def validate_hooks_syntax() -> tuple[bool, str]:
                 continue
             first_line = content.splitlines()[0] if content else ""
             valid_shebangs = {
-                "#!/usr/bin/env bash", "#!/bin/bash", "#!/bash",
-                "#!/usr/bin/env python3", "#!/usr/bin/env python",
-                "#!/usr/bin/python3", "#!/usr/bin/python",
+                "#!/usr/bin/env bash",
+                "#!/bin/bash",
+                "#!/bash",
+                "#!/usr/bin/env python3",
+                "#!/usr/bin/env python",
+                "#!/usr/bin/python3",
+                "#!/usr/bin/python",
             }
             if not any(first_line.startswith(s) for s in valid_shebangs):
                 errors.append(f"{hook.name}: shebang inválido '{first_line}'")
@@ -222,6 +228,7 @@ def validate_hooks_syntax() -> tuple[bool, str]:
 def validate_ci_env_vars() -> tuple[bool, str]:
     """Verifica se as env vars necessárias para CI estão configuradas localmente."""
     import os
+
     missing_required = []
     missing_optional = []
     for var, desc in CI_ENV_REQUIRED.items():
@@ -264,6 +271,7 @@ def run_config_validation() -> bool:
 
 
 # ─── CI Jobs ──────────────────────────────────────────────────────────────────
+
 
 def run_lint() -> bool:
     """ruff + bandit + pip-audit."""
@@ -319,6 +327,7 @@ def run_unit() -> bool:
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="CI local antes do push")

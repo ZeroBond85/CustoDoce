@@ -90,9 +90,9 @@ class TestUpsertPriceRpc:
         assert result.data, f"RPC returned no data: {result}"
 
         # Clean price_history from trigger copy before second upsert (via Supabase REST, not raw SQL — exec_sql_query supports SELECT only)
-        client.table("price_history").delete().eq("ingredient_id", self.TEST_INGREDIENT).eq("store_id", self.TEST_STORE).eq(
-            "collected_at", self.TODAY
-        ).execute()
+        client.table("price_history").delete().eq("ingredient_id", self.TEST_INGREDIENT).eq(
+            "store_id", self.TEST_STORE
+        ).eq("collected_at", self.TODAY).execute()
 
         # Update same key → should update, not duplicate
         result2 = client.rpc(

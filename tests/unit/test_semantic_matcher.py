@@ -10,8 +10,7 @@ def mock_matcher():
         matcher = SemanticMatcher()
         matcher._model = MagicMock()
         matcher._model.encode.side_effect = lambda text: (
-            np.array([1.0, 0.0, 0.0]) if "leite" in text.lower()
-            else np.array([0.0, 1.0, 0.0])
+            np.array([1.0, 0.0, 0.0]) if "leite" in text.lower() else np.array([0.0, 1.0, 0.0])
         )
         matcher._loaded = True
         yield matcher
@@ -23,8 +22,7 @@ def mock_matcher_full():
     matcher = SemanticMatcher()
     matcher._model = MagicMock()
     matcher._model.encode.side_effect = lambda text: (
-        np.array([1.0, 0.0, 0.0]) if "leite" in text.lower()
-        else np.array([0.0, 1.0, 0.0])
+        np.array([1.0, 0.0, 0.0]) if "leite" in text.lower() else np.array([0.0, 1.0, 0.0])
     )
     matcher._loaded = True
     with (
