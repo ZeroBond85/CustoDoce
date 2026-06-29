@@ -87,5 +87,14 @@ def render_sidebar():
                     st.rerun()
 
 
+def render_skip_link():
+    st.markdown(
+        '<a href="#main-content" class="skip-link" tabindex="1">Pular para conte\u00fado</a>'
+        '<div id="main-content"></div>',
+        unsafe_allow_html=True,
+    )
+
+
 def page_container(content_fn):
+    render_skip_link()
     content_fn()

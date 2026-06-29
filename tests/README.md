@@ -5,7 +5,7 @@ Este projeto utiliza uma estratégia de testes em múltiplas camadas para garant
 ## 🧪 Camadas de Teste
 
 ### 1. Testes Unitários (`tests/unit/`)
-**Quantidade**: 383 testes (19 arquivos)
+**Quantidade**: 394 testes (19 arquivos)
 **Objetivo**: Validar a lógica pura de cada componente isoladamente, utilizando mocks para dependências externas.
 - **Normalizer**: Testes de conversão de unidades (ex: `cx 12x395g` $\rightarrow$ `4.74kg`).
 - **Matcher**: Testes de precisão do matching (exato, alias, fuzzy, fuzzy ≥80%).
@@ -66,6 +66,12 @@ python -m pytest tests/real/ -v
 
 ---
 
+### 6. Smoke Test de Queries (`scripts/validate_dashboard_queries.py`)
+**Quantidade**: 10 checks (roda no CI pós-deploy)
+**Objetivo**: Validar que as 10 queries principais do dashboard funcionam contra o Supabase real e retornam as colunas esperadas pelos `column_config` das páginas. Pega schema mismatch antes do usuário ver erro 500.
+
+---
+
 ## 🛡️ Checklist de Qualidade (CI/CD)
 
 Cada commit deve passar pelas seguintes validações antes do merge:
@@ -75,6 +81,7 @@ Cada commit deve passar pelas seguintes validações antes do merge:
 3. **Security**: `bandit -r .` e `pip-audit` (Zero vulnerabilidades)
 4. **Unit/Schema**: 100% de passagem nos testes rápidos.
 5. **Integration**: 100% de passagem contra o banco de staging/prod.
+6. **Smoke Queries**: `scripts/validate_dashboard_queries.py` — 10/10 checks contra Supabase real (roda no deploy-check).
 
 ## 📜 Regras de Ouro para Novos Testes
 - **Mocks Cirúrgicos**: Use `unittest.mock` para APIs externas.

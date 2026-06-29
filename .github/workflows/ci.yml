@@ -117,6 +117,33 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      - name: Dashboard query smoke test (real DB)
+        run: python scripts/validate_dashboard_queries.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+  e2e-smoke:
+    needs: [deploy-check]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - run: pip install -r requirements.txt -r requirements-dev.txt -r tests/requirements-test.txt
+      - name: Install Playwright browsers
+        run: python -m playwright install chromium
+      - name: Warmup Streamlit Cloud
+        run: python scripts/warmup_streamlit.py https://custodoce.streamlit.app
+      - name: E2E smoke — tab navigation + calculadora
+        run: python -m pytest tests/e2e/test_e2e_real.py -k "test_tab_navigates_without_error or test_calculadora" -v --tb=short --no-header
+        env:
+          STREAMLIT_URL: https://custodoce.streamlit.app
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
 
   real:
     needs: [integration]

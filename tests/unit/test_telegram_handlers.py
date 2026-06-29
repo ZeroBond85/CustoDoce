@@ -22,6 +22,8 @@ from telegram_bot.handlers import (
 def mock_update():
     update = MagicMock(spec=Update)
     update.message = AsyncMock()
+    update.effective_chat = MagicMock()
+    update.effective_chat.id = 12345
     return update
 
 
@@ -29,6 +31,7 @@ def mock_update():
 def mock_context():
     context = MagicMock(spec=ContextTypes.DEFAULT_TYPE)
     context.args = []
+    context.bot = AsyncMock()
     return context
 
 
@@ -75,9 +78,9 @@ class TestTelegramHandlers:
                 {"canonical_name": "Chocolate", "category": "chocolates"},
             ]
             await lista_command(mock_update, mock_context)
-            mock_update.message.reply_text.assert_called_once()
-            args, kwargs = mock_update.message.reply_text.call_args
-            msg = args[0]
+            mock_context.bot.send_message.assert_called_once()
+            args, kwargs = mock_context.bot.send_message.call_args
+            msg = kwargs.get("text", args[0] if args else "")
             assert "LACTEOS" in msg
             assert "CHOCOLATES" in msg
             assert "Leite Condensado" in msg

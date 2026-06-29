@@ -3,7 +3,6 @@ Dashboard Page: Configuração
 """
 
 import streamlit as st
-from pathlib import Path
 
 from services.config import get, reload as reload_config
 from services.config_db import (
@@ -23,45 +22,12 @@ def render_config():
     st.title("Configuração do Sistema")
 
     tabs = st.tabs(
-        ["🔐 Secrets (.env)", "🚩 Feature Flags", "📧 Alert Rules", "📬 Destinatários", "🔄 Recarregar Config"]
+        ["🚩 Feature Flags", "📧 Alert Rules", "📬 Destinatários", "🔄 Recarregar Config"]
     )
 
-    with tabs[0]:  # Secrets
-        st.subheader("Variáveis de Ambiente (.env)")
-        st.warning("⚠️ Alterações aqui sobrescrevem o arquivo .env. Valores sensíveis são mascarados na exibição.")
+    st.info("💡 As variáveis de ambiente (.env) são gerenciadas pelo Streamlit Cloud Secrets ou GitHub Actions Secrets. Edite-as diretamente nas plataformas. A edição de YAML (stores.yaml, ingredients.yaml) deve ser feita via git e commit.")
 
-        env_path = Path(".env")
-        if env_path.exists():
-            with open(env_path, encoding="utf-8") as f:
-                env_content = f.read()
-        else:
-            env_content = ""
-
-        # Parse para exibir mascarado
-        lines = env_content.strip().split("\n")
-        display_lines = []
-        for line in lines:
-            if "=" in line and not line.strip().startswith("#"):
-                key, val = line.split("=", 1)
-                if any(s in key.upper() for s in ["PASSWORD", "SECRET", "KEY", "TOKEN"]):
-                    val = "•" * min(len(val), 20) if val else ""
-                    display_lines.append(f"{key}={val}")
-                else:
-                    display_lines.append(line)
-            else:
-                display_lines.append(line)
-
-        edited = st.text_area("Arquivo .env", "\n".join(display_lines), height=400)
-
-        if st.button("💾 Salvar .env", type="primary"):
-            try:
-                with open(env_path, "w", encoding="utf-8") as f:
-                    f.write(edited)
-                st.success(".env salvo! Reinicie a aplicação para aplicar.")
-            except Exception as e:
-                st.error(f"Erro: {e}")
-
-    with tabs[1]:  # Feature Flags
+    with tabs[0]:  # Feature Flags
         st.subheader("Feature Flags (Liga/Desliga Funcionalidades)")
 
         flags = get_all_feature_flags()
@@ -96,7 +62,7 @@ def render_config():
                 st.success("Flag adicionada!")
                 st.rerun()
 
-    with tabs[2]:  # Alert Rules
+    with tabs[1]:  # Alert Rules
         st.subheader("Regras de Alerta")
 
         rules = get_all_alert_rules()
@@ -127,7 +93,7 @@ def render_config():
                 st.success("Regra criada!")
                 st.rerun()
 
-    with tabs[3]:  # Recipients
+    with tabs[2]:  # Recipients
         st.subheader("Destinatários de Alertas")
 
         recipients = get_all_recipients()
@@ -156,7 +122,7 @@ def render_config():
                 st.success("Destinatário adicionado!")
                 st.rerun()
 
-    with tabs[4]:  # Reload
+    with tabs[3]:  # Reload
         st.subheader("Recarregar Configuração")
         st.markdown("Força recarregamento de configs YAML e variáveis de ambiente.")
 

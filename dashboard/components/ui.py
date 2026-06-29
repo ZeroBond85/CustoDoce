@@ -213,6 +213,71 @@ div[data-testid="stDataFrame"] table {
     .cd-price-mini-card .price {
         font-size: 1.1rem !important;
     }
+
+    /* Sidebar compact on tablet */
+    div[data-testid="stSidebar"] .stButton>button {
+        font-size: 0.75rem !important;
+        padding: 0.35rem 0.5rem !important;
+        min-height: 32px;
+    }
+    div[data-testid="stSidebar"] > section {
+        padding: 0 !important;
+    }
+    div[data-testid="stSidebar"] img {
+        max-width: 160px !important;
+    }
+
+    /* Tables: first column sticky */
+    div[data-testid="stDataFrame"] table td:first-child,
+    div[data-testid="stDataFrame"] table th:first-child {
+        position: sticky;
+        left: 0;
+        background: var(--cd-bg-card, #FFF);
+        z-index: 1;
+    }
+    div[data-testid="stDataFrame"] table th:first-child {
+        z-index: 2;
+    }
+
+    /* Stack KPIs narrower */
+    div[data-testid="column"] {
+        min-width: 0 !important;
+    }
+
+    /* Padding for safe area */
+    .stApp {
+        padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+}
+
+@media (max-width: 640px) {
+    .cd-card { padding: 0.65rem; }
+    .cd-metric .value { font-size: 1.1rem; }
+    div[data-testid="stMetric"] div[data-testid="stMetricValue"] { font-size: 1.1rem; }
+    div[data-testid="stMetric"] { padding: 0.5rem 0.75rem; }
+
+    /* Single column KPIs on phone */
+    .cd-kpi-row > * {
+        flex: 0 0 100% !important;
+    }
+
+    /* Sidebar: tighter padding */
+    div[data-testid="stSidebar"] .stButton>button {
+        font-size: 0.7rem !important;
+        padding: 0.25rem 0.4rem !important;
+    }
+    div[data-testid="stSidebar"] img {
+        max-width: 120px !important;
+    }
+
+    /* Chart height reduction */
+    .js-plotly-plot .plot-container {
+        max-height: 300px;
+    }
+
+    h1, h2, h3 {
+        word-break: break-word;
+    }
 }
 
 .cd-flyer-grid {
@@ -275,14 +340,62 @@ div[data-testid="stDataFrame"] table {
     margin-top: 1rem;
 }
 
-.stButton>button:focus-visible {
+/* ── Accessibility ─────────────────────────── */
+.skip-link {
+    position: fixed;
+    top: -100%;
+    left: 8px;
+    z-index: 99999;
+    background: var(--cd-text);
+    color: #FFF !important;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0 0 var(--cd-radius-sm) var(--cd-radius-sm);
+    font-weight: 700;
+    font-size: 0.875rem;
+    text-decoration: none;
+    transition: top 0.15s ease;
+}
+.skip-link:focus {
+    top: 0;
     outline: 2px solid var(--cd-orange);
     outline-offset: 2px;
+}
+
+.stButton>button:focus-visible,
+div[data-testid="stSelectbox"]:focus-within,
+div[data-testid="stCheckbox"]:focus-within {
+    outline: 2px solid var(--cd-orange) !important;
+    outline-offset: 2px !important;
 }
 
 div[data-testid="stSidebar"] .stButton>button:focus-visible {
     outline: 2px solid #FFF !important;
     outline-offset: 2px;
+}
+
+.stButton>button {
+    min-height: 38px;
+}
+
+/* ── Reduced Motion ────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    .cd-card:hover {
+        transform: none !important;
+    }
+    .cd-flyer-card:hover {
+        transform: none !important;
+    }
+}
+
+/* ── Tabular Numbers (price alignment) ──────── */
+.cd-metric .value,
+div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
+    font-variant-numeric: tabular-nums;
 }
 
 /* ── Calculator ────────────────────────────── */

@@ -150,6 +150,23 @@ python scripts/audit_secrets.py --strict
 
 
 
+## Dashboard Security (Sprint 1.1)
+
+Em 2026-06-28, duas superfícies de exposição foram removidas do dashboard:
+
+### Tabs de edição removidas
+- **`config.py`**: Tab ".env Editor" removida (exibia variáveis de ambiente como `SUPABASE_SERVICE_ROLE_KEY` na UI). Substituída por info + link para Secrets do Streamlit/GitHub.
+- **`lojas.py`**: Tab "Formulário YAML" removida (permitia edição raw de `stores.yaml` via textarea). Substituída por CRUD via DB com permissões RLS.
+- **`ingredientes.py`**: Banner informativo adicionado sobre a sincronização YAML → DB (sem expor conteúdo do arquivo).
+
+### Pre-commit hook (`.githooks/pre-commit`)
+Bloqueia commits que contenham padrões de secrets no staged files:
+`sk-*`, `gsk_*`, `sk-or-*`, `sk-or-v1-*`, `sk-proj-*`, `hf_*`, `github_pat_*`, `nvapi-*`, `mOns*`, `AQ.*`.
+
+### Monitoramento ativo
+- **`scripts/validate_dashboard_queries.py`**: roda no CI pós-deploy para verificar que as queries do dashboard não expõem colunas sensíveis e retornam o schema esperado.
+- **`scripts/audit_secrets.py --strict`**: varre histórico do git por chaves vazadas (roda no pre-push hook).
+
 ## Auditoria
 
 `scripts/db_audit.py` roda a cada deploy para verificar:

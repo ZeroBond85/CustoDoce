@@ -89,6 +89,11 @@ Após concluir o setup, siga esta sequência para validar o sistema:
 2. **Banco**: Verifique no Supabase Table Editor se a tabela `prices` contém dados.
 3. **Bot**: Envie `/status` para o seu bot no Telegram.
 4. **Dashboard**: Acesse a URL do Streamlit e faça login com a `ADMIN_PASSWORD`.
+5. **Smoke Test**: Rode o validador de queries do dashboard contra o Supabase real:
+   ```bash
+   python scripts/validate_dashboard_queries.py
+   ```
+   Deve retornar **10/10 checks passando**. Este script roda automaticamente no CI pós-deploy (`ci.yml > deploy-check`).
 
 ## ⚠️ Notas Importantes
 - **Sincronização de Schema**: Sempre que alterar migrations (arquivos `supabase/`), execute a migração via `scripts/deploy_database.py --execute`. Use `--dry-run` primeiro para validar.

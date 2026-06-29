@@ -209,11 +209,29 @@ class TestE2EReal:
             check_for_errors(app, "revisao_approve")
 
     def test_calculadora(self, logged_in_app):
-        """Calculadora carrega sem erro"""
+        """Calculadora carrega sem erro e tabs trocam via selectbox"""
         app = logged_in_app
         app.locator("button:has-text('Calculadora')").first.click()
         app.wait_for_timeout(3000)
         check_for_errors(app, "calculadora")
+
+        # Trocar tabs via selectbox (antes st.tabs, agora st.selectbox)
+        select = app.locator("select, [data-testid='stSelectbox'] select").first
+        if select.count() > 0:
+            # Modo Completo (index 1)
+            select.select_option(index=1)
+            app.wait_for_timeout(2000)
+            check_for_errors(app, "calculadora_tab_completo")
+
+            # Receitas Salvas (index 2)
+            select.select_option(index=2)
+            app.wait_for_timeout(2000)
+            check_for_errors(app, "calculadora_tab_receitas")
+
+            # Voltar para Modo Simples (index 0)
+            select.select_option(index=0)
+            app.wait_for_timeout(2000)
+            check_for_errors(app, "calculadora_tab_simples")
 
     def test_diagnostico(self, logged_in_app):
         """Diagnóstico carrega sem erro"""

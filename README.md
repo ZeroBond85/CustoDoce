@@ -12,10 +12,15 @@ Sistema automatizado de busca e comparação de preços de ingredientes para con
 - 🔍 **Coleta Automatizada**: Varredura 2x/dia de PDFs de atacados, APIs VTEX, sites de e-commerce e agregadores.
 - 🤖 **Inteligência de Matching**: Pipeline multi-estágio (Exato → Alias → Fuzzy → Semantic Embeddings → LLM Groq → Review Queue).
 - 📊 **Dashboard Analítico**: 17 módulos especializados incluindo visão geral, histórico de preços, ranking de fontes, insights de outliers e health de scrapers.
-- 📱 **Telegram Bot**: Consultas instantâneas via `/preco <ingrediente>`, lista de monitorados e status do sistema.
+- 📱 **Telegram Bot**: Consultas instantâneas via `/preco <ingrediente>`, lista de monitorados e status do sistema, com fuzzy search e paginação inline.
 - 🧮 **Calculadora de Receitas**: Cálculo de custo real baseado nos preços atuais do banco, com salvamento de receitas e cenários de margem.
 - 📧 **Relatórios Diários**: Envio automático de resumo de melhores preços via Gmail SMTP.
 - ⚙️ **Configuração Declarativa**: Controle de funcionalidades via `config/features.yaml` sem necessidade de alteração de código.
+- 📱 **Responsivo**: CSS adaptativo para mobile (640px/768px/1280px), tabelas com sticky columns, sidebar compacta.
+- ♿ **Acessibilidade**: Skip-link "Pular para conteúdo", focus-visible, `prefers-reduced-motion`, `tabular-nums` em métricas.
+- 🔗 **Query Params**: Sincronização URL ↔ session_state nas páginas Preços, Histórico e Calculadora (sem loop de rerender).
+- 🔒 **Segurança**: Tabs de edição `.env` e YAML removidas do dashboard (config.py, lojas.py); banner info de sync YAML→DB.
+- ✅ **Smoke Test Real**: `scripts/validate_dashboard_queries.py` valida 10 queries contra Supabase real no CI pós-deploy (pega schema mismatch antes do usuário ver).
 - 🛠️ **Infraestrutura Robusta**: CI/CD com 7 jobs, validação de schema via RPC, ONNX para performance de ML e rate limiting.
 
 ## 📋 REGRAS DE NEGÓCIO

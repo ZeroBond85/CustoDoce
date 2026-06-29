@@ -4,7 +4,6 @@ Dashboard Page: Lojas
 
 import streamlit as st
 import pandas as pd
-import yaml
 
 from services.dashboard_queries import cached_get_all_stores, cached_get_all_schedules
 from services.config_db import upsert_store
@@ -16,7 +15,9 @@ def render_lojas():
 
     st.title("Gerenciamento de Lojas")
 
-    tabs = st.tabs(["📋 Lista", "➕ Adicionar/Editar", "🔧 Formulário YAML"])
+    tabs = st.tabs(["📋 Lista", "➕ Adicionar/Editar"])
+
+    st.info("💡 A edição de YAML (stores.yaml) deve ser feita via git e commit. Use os formulários acima para alterações seguras.")
 
     with tabs[0]:  # Lista
         st.subheader("Todas as Lojas")
@@ -149,23 +150,5 @@ def render_lojas():
                         st.error("Erro ao salvar loja")
                 except Exception as e:
                     st.error(f"Erro: {e}")
-
-    with tabs[2]:  # YAML
-        st.subheader("Editar stores.yaml Diretamente")
-
-        with open("config/stores.yaml", encoding="utf-8") as f:
-            yaml_content = f.read()
-
-        edited = st.text_area("stores.yaml", yaml_content, height=500)
-
-        if st.button("Salvar YAML", type="primary"):
-            try:
-                yaml.safe_load(edited)  # Validate
-                with open("config/stores.yaml", "w", encoding="utf-8") as f:
-                    f.write(edited)
-                st.success("YAML salvo! Recarregue a página para ver as mudanças.")
-            except yaml.YAMLError as e:
-                st.error(f"YAML inválido: {e}")
-
 
 __all__ = ["render_lojas"]

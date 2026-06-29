@@ -20,7 +20,8 @@ e São Paulo Capital. Infraestrutura 100% gratuita.
 graph LR
     GH[GitHub Actions<br/>Cron 2x/dia] -->|Scrape + Normalize| SU[Supabase PostgreSQL]
     ST[Streamlit Dashboard] -->|Query| SU
-    TG[Telegram Bot] -->|Dispatch| GH
+    TG[Telegram Bot] -->|/preco /lista /status| SU
+    TG -->|/scrape| GH
     SU -->|Email Report| GM[Gmail SMTP]
 ```
 
@@ -80,7 +81,7 @@ CustoDoce/
 │   ├── login_page.py, components/ (ui.py, layout.py)
 │   └── pages/                       # 17 módulos (visao_geral, precos, historico, etc.)
 ├── telegram_bot/
-│   └── handlers.py                  # /preco, /lista, /status
+│   └── handlers.py                  # /preco, /lista, /status — lê do DB (config_db), fallback YAML; fuzzy search (RapidFuzz); paginação inline keyboard
 ├── admin/app.py                     # 107 linhas — importa 17 pages + sidebar + login
 ├── supabase/
 │   ├── seed.sql, consolidated_migration.sql
@@ -248,6 +249,12 @@ python -c "from parsers.normalizer import normalize_price; print(normalize_price
 # Testar matcher
 python -c "from parsers.matcher import match_ingredient; ing = [{'canonical':'Leite Condensado','aliases':[]}]; print(match_ingredient('Leite Condensado Moça 12un', ing))"
 
+# Testar bot handler manualmente
+python -c "from telegram_bot.handlers import lista_command, preco_command; import asyncio; print(asyncio.run(lista_command(None, None)))"
+
+# Verificar query params sync
+python -c "from dashboard.pages.precos import render_precos; from dashboard.pages.historico import render_historico; print('OK')"
+
 # Schema validation (via REST API, precisa .env com credenciais)
 python scripts/validate_db_schema.py
 
@@ -280,7 +287,7 @@ python scripts/seed_prices.py --dry-run
 
 | Ferramenta | Status |
 |------------|--------|
-| pytest (unit + schema) | **488 passing** | ✅ |
+| pytest (unit + schema) | **488 passing** (20 files) | ✅ |
 | pytest (integration) | **102 passing** | ✅ |
 | pytest (design) | 10 tests | ✅ |
 | pytest (e2e) | 0 collected (Playwright setup needed) | ⏳ |
@@ -288,6 +295,14 @@ python scripts/seed_prices.py --dry-run
 | ruff / mypy / bandit / pip-audit | clean | ✅ |
 | CI lint / typecheck / docs-sync / unit / integration / deploy-check | passing | ✅ |
 | CI deploy-check | required-passing, optional-warning | ✅ |
+
+**Sprint 1 concluída (UX + Segurança + Bot DB Sync + Query Params) out 2026-06-28:**
+- **1.1 Segurança**: Tabs `.env` (config.py) e YAML (lojas.py) removidas; banner info em ingredientes.py ✅
+- **1.2 Bot DB Sync**: `handlers.py` reescrito — lê ingredientes ativos do DB (`config_db.get_active_ingredients()`) com fallback YAML; fuzzy search `rapidfuzz.fuzz.token_set_ratio`; paginação inline keyboard ✅
+- **1.3 Mobile CSS**: Media queries 768px/640px; sidebar rail; tabelas sticky first column; safe-area padding; chart height limit ✅
+- **1.4 Query Params**: `precos.py`, `historico.py`, `calculadora.py` — sincronização bidirecional (URL ↔ session_state) sem loop de rerender ✅
+- **1.5 Acessibilidade**: Skip-link "Pular para conteúdo"; focus-visible em selectbox/checkbox; `prefers-reduced-motion` desliga animações; `font-variant-numeric: tabular-nums` em métricas ✅
+- Meta: ruff/mypy/pytest **488 passing**; 0 novos warnings ✅
 
 ## Lições Aprendidas (CI/Mocks)
 

@@ -10,14 +10,32 @@ from services.price_service import upsert_recipe, upsert_recipe_item
 from dashboard.components.ui import inject_css
 
 
+def _sync_calc_query_params():
+    qp = st.query_params
+    if not qp:
+        return
+    if "tab" in qp and "calc_tab" not in st.session_state:
+        st.session_state["calc_tab"] = int(qp["tab"])
+
+
+def _push_calc_query_params():
+    tab = st.session_state.get("calc_tab", 0)
+    st.query_params.from_dict({"tab": str(tab)})
+
+
 def render_calculadora():
     inject_css()
+    _sync_calc_query_params()
 
     st.title("🧮 Calculadora de Receitas")
 
-    tabs = st.tabs(["📝 Modo Simples", "🔧 Modo Completo", "📚 Receitas Salvas"])
+    tab_names = ["📝 Modo Simples", "🔧 Modo Completo", "📚 Receitas Salvas"]
+    tab_index = st.session_state.get("calc_tab", 0)
+    tab_index = st.selectbox("Seção", tab_names, index=tab_index, key="calc_tab", label_visibility="collapsed")
 
-    with tabs[0]:  # Modo Simples
+    _push_calc_query_params()
+
+    if tab_index == 0:  # Modo Simples
         st.subheader("Cálculo Rápido de Custo")
 
         ingredients = get_active_ingredients()
@@ -105,7 +123,7 @@ def render_calculadora():
                 else:
                     st.error("Digite um nome para a receita")
 
-    with tabs[1]:  # Modo Completo
+    elif tab_index == 1:  # Modo Completo
         st.subheader("Cálculo Detalhado com Top 3 Lojas")
 
         ingredients = get_active_ingredients()
@@ -211,7 +229,7 @@ def render_calculadora():
                     else:
                         st.error("Nome da receita obrigatório")
 
-    with tabs[2]:  # Receitas Salvas
+    elif tab_index == 2:  # Receitas Salvas
         st.subheader("Receitas Cadastradas")
 
         from services.supabase_client import get_supabase

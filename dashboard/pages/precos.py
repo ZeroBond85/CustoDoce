@@ -1,7 +1,3 @@
-"""
-Dashboard Page: Preços
-"""
-
 import streamlit as st
 import pandas as pd
 
@@ -15,12 +11,35 @@ from services.dashboard_queries import (
 from dashboard.components.ui import inject_css
 
 
+def _sync_query_params():
+    qp = st.query_params
+    if not qp:
+        return
+    for key, widget_key in [("ingredient", "precos_ingredient"), ("store", "precos_store"), ("tier", "precos_tier")]:
+        if key in qp and widget_key not in st.session_state:
+            st.session_state[widget_key] = qp[key]
+
+
+def _push_query_params():
+    ing = st.session_state.get("precos_ingredient", "")
+    store = st.session_state.get("precos_store", "Todas")
+    tier = st.session_state.get("precos_tier", "Todos")
+    qp = {}
+    if ing:
+        qp["ingredient"] = ing
+    if store and store != "Todas":
+        qp["store"] = store
+    if tier and tier != "Todos":
+        qp["tier"] = str(tier)
+    st.query_params.from_dict(qp)
+
+
 def render_precos():
     inject_css()
+    _sync_query_params()
 
-    st.title("Preços")
+    st.title("Pre\u00e7os")
 
-    # Filtros
     col1, col2, col3 = st.columns(3)
 
     ingredients = get_active_ingredients()
@@ -38,13 +57,13 @@ def render_precos():
     with col3:
         tier_filter = st.selectbox("Tier", ["Todos", 1, 2, 3, 4], key="precos_tier")
 
-    # Buscar preços
+    _push_query_params()
+
     prices = get_latest_prices_cached(valid_only=True, limit=5000)
 
-    # Filtrar
     df = pd.DataFrame(prices)
     if df.empty:
-        st.info("Nenhum preço encontrado.")
+        st.info("Nenhum pre\u00e7o encontrado.")
         return
 
     df = df[df["ingredient_id"] == selected_ingredient]
@@ -57,11 +76,8 @@ def render_precos():
 
     df["price_per_kg"] = df.apply(extract_ppk, axis=1)
     df["price_per_un"] = df.apply(extract_pun, axis=1)
-
-    # Ordenar por R$/kg
     df = df.sort_values("price_per_kg")
 
-    # Exibir
     st.dataframe(
         df[
             [
@@ -81,7 +97,7 @@ def render_precos():
         column_config={
             "store_name": "Loja",
             "raw_product": "Produto",
-            "raw_price": "Preço",
+            "raw_price": "Pre\u00e7o",
             "raw_unit": "Unidade",
             "price_per_kg": "R$/kg",
             "price_per_un": "R$/un",
@@ -92,7 +108,7 @@ def render_precos():
         },
     )
 
-    st.info(f"Total: {len(df)} preços para {selected_ingredient}")
+    st.info(f"Total: {len(df)} pre\u00e7os para {selected_ingredient}")
 
 
 __all__ = ["render_precos"]

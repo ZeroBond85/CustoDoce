@@ -134,6 +134,7 @@ PR só é mergeado se todos passarem:
 - ✅ Bandit (0 issues, exceto `nosec` marcados)
 - ✅ pytest unit (488 testes passando)
 - ⚠️ pytest integration (só se tiver credenciais)
+- ✅ `scripts/validate_dashboard_queries.py` — smoke test de queries contra Supabase real (roda no deploy-check)
 
 ### 4. Code Review
 
@@ -147,7 +148,7 @@ PR só é mergeado se todos passarem:
 
 ```
 tests/
-├── unit/           # 383 testes mockados (19 arquivos)
+├── unit/           # 394 testes mockados (19 arquivos)
 ├── schema/         # 94 testes de DB via RPC (parametrizados, 1 arquivo)
 ├── integration/    # 13 arquivos (precisa credenciais DB)
 ├── e2e/            # 3 arquivos (Playwright, require setup)

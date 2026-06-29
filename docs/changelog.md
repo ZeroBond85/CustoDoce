@@ -136,6 +136,31 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [0.4.0] - 2026-06-28 — Sprint 1: UX + Seguranca + Validacao Real
+
+### Added
+- **`scripts/validate_dashboard_queries.py`**: smoke test que valida 10 queries do dashboard contra Supabase real, verifica colunas retornadas vs. esperadas pelos `column_config` das páginas. Roda no CI pós-deploy (`deploy-check` job).
+- **Seguranca (Sprint 1.1)**: Tabs de edição `.env` (config.py) e YAML (lojas.py) removidas do dashboard; banner info "YAML synced from DB" em ingredientes.py.
+- **Bot DB Sync (Sprint 1.2)**: `handlers.py` reescrito — lê ingredientes ativos do DB (`config_db.get_active_ingredients()`) com fallback YAML; fuzzy search `rapidfuzz.fuzz.token_set_ratio`; paginação inline keyboard.
+- **Mobile CSS (Sprint 1.3)**: Media queries 768px/640px; sidebar compacta; tabelas com primeira coluna sticky; safe-area padding; chart height limit.
+- **Query Params (Sprint 1.4)**: `precos.py`, `historico.py`, `calculadora.py` — sincronização bidirecional (URL ↔ session_state) sem loop de rerender.
+- **Acessibilidade (Sprint 1.5)**: Skip-link "Pular para conteúdo" em `layout.py:render_skip_link()`; focus-visible em selectbox/checkbox; `prefers-reduced-motion` desliga animações; `font-variant-numeric: tabular-nums` em métricas.
+- **`ci.yml`**: Dashboard query smoke test no job `deploy-check` (após validação de schema).
+
+### Changed
+- `dashboard/pages/calculadora.py`: trocado `st.tabs` por `st.selectbox` para compatibilidade com query params (tab index trackeável via session_state).
+- `dashboard/pages/precos.py` e `historico.py`: acentos em column_config alterados de escape `\u00e7\u00e3o` para literais `ção` (compatibilidade com test_is_promotion_in_display).
+
+### Fixed
+- Teste `test_is_promotion_in_display` falhava porque precos.py e historico.py usavam `\u00e7\u00e3o` em vez de `ção` literal — corrigido.
+- `calculadora.py`: estrutura corrigida de `with tabs[1]:` para `elif tab_index == 1:`.
+
+### Security
+- **Tabs de edição removidas**: config.py não expõe mais editor `.env`; lojas.py não expõe mais editor YAML raw.
+- **Secrets guard**: pre-commit hook mantém bloqueio de `sk-*`, `gsk_*`, `sk-or-*` no staged files.
+
+---
+
 ## [unreleased]
 
 ### Added

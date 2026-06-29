@@ -18,6 +18,8 @@ def render_ingredientes():
 
     st.title("Ingredientes")
 
+    st.info("💡 Os ingredientes são salvos no YAML (fonte para scrapers) e sincronizados com o DB automaticamente.")
+
     tabs = st.tabs(
         ["📋 Lista", "➕ Adicionar/Editar", "🧪 Testar Normalizer", "🔍 Testar Matcher", "➕ Sugerir Aliases"]
     )
