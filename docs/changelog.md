@@ -164,23 +164,19 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ## [unreleased]
 
 ### Added
-- **`scripts/ci_local.py`**: validador `ci-env-vars` verifica que as env vars usadas no CI (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GROQ_API_KEY`) estão configuradas localmente antes do push.
-- **`AGENTS.md`**: Lição #8: `get_supabase()` fallback para service_role key; Lição #9: `SUPABASE_ANON_KEY` nos jobs CI; Lição #10: `exec_sql_query` sem trailing semicolons.
-- **OpenCode Skills Overhaul**:
-  - Global skills: `scraping-resilience`, `code-quality-pro`, `test-architect`, `telegram-bot`, `docs-writer`, `sql-optimizer` aprimoradas
-  - 7 overlays locais em `.opencode/skills/` com contexto CustoDoce
-  - `AGENTS.md` + `README.md` com seção "OpenCode Skills Strategy"
+- **`tests/unit/test_dashboard_contracts.py`**: novos contract tests para `services/dashboard_queries`. Validam o shape dos dados retornados por `get_dashboard_kpis`, `get_coverage_by_ingredient`, `get_active_promotions` e `get_scraper_health_dashboard`. Garante que o dashboard recebe chaves esperadas (`price_per_kg`, `is_promotion`, `status_label`, `latency_label`, etc.) sem precisar de DB real.
+- **`.githooks/pre-push`**: nova opt-in `CI_LOCAL_UNIT=1` permite rodar testes unitários como parte do push hook. Default continua `--no-unit` (rápido).
+- **`AGENTS.md`**: adicionado "Sprint 2 (Test Hardening + Contract Safety)" ao Status Atual com detalhamento dos 4 marcos.
 
 ### Changed
-- `docs/contributing.md` — adicionada seção "AI-Assisted Development (OpenCode Skills)" com quick reference
+- **`tests/unit/test_normalizer.py`**: expandido de 11 para 31 casos parametrizados. Cobre todas as unidades reais (g/kg, cx/pacote/fardo, lata/pote/barra, ml/l), variantes decimais (vírgula/ponto) e edge cases (0, negativo, string inválida, vazio, None).
+- **`tests/conftest.py`**: cleanup agora usa `get_service_client().rpc("exec_sql_query")` (porta 443) em vez de `psycopg2.connect` (porta 5432 bloqueada no CI).
 
 ### Fixed
-- **`services/supabase_client.py::get_supabase()`**: fallback para `SUPABASE_SERVICE_ROLE_KEY` quando `SUPABASE_ANON_KEY` não está configurada
-- **`.github/workflows/ci.yml`**: `SUPABASE_ANON_KEY` adicionado aos jobs `integration`, `deploy-check` e `real`
-- **`scripts/validate_db_schema.py`**: removidos trailing semicolons das SQL queries que quebravam o RPC `exec_sql_query`
+- Risco residual de falha do CI por porta 5432 bloqueada — eliminado completamente do conftest.
 
-### Removed
-- `CUSTO_DOCE_RAIO_X.md` e `RAIO-X_CUSTO_DOCE_RESUMIDO.md` arquivados em `docs/archive/` (análises estáticas desatualizadas)
+### Metrics
+- ruff/mypy/pytest: **499 passing** (vs 488 pré-Sprint 2); 0 novos warnings.
 
 ---
 

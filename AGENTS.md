@@ -296,13 +296,12 @@ python scripts/seed_prices.py --dry-run
 | CI lint / typecheck / docs-sync / unit / integration / deploy-check | passing | ✅ |
 | CI deploy-check | required-passing, optional-warning | ✅ |
 
-**Sprint 1 concluída (UX + Segurança + Bot DB Sync + Query Params) out 2026-06-28:**
-- **1.1 Segurança**: Tabs `.env` (config.py) e YAML (lojas.py) removidas; banner info em ingredientes.py ✅
-- **1.2 Bot DB Sync**: `handlers.py` reescrito — lê ingredientes ativos do DB (`config_db.get_active_ingredients()`) com fallback YAML; fuzzy search `rapidfuzz.fuzz.token_set_ratio`; paginação inline keyboard ✅
-- **1.3 Mobile CSS**: Media queries 768px/640px; sidebar rail; tabelas sticky first column; safe-area padding; chart height limit ✅
-- **1.4 Query Params**: `precos.py`, `historico.py`, `calculadora.py` — sincronização bidirecional (URL ↔ session_state) sem loop de rerender ✅
-- **1.5 Acessibilidade**: Skip-link "Pular para conteúdo"; focus-visible em selectbox/checkbox; `prefers-reduced-motion` desliga animações; `font-variant-numeric: tabular-nums` em métricas ✅
-- Meta: ruff/mypy/pytest **488 passing**; 0 novos warnings ✅
+**Sprint 2 concluída (Test Hardening + Contract Safety) out 2026-06-29:**
+- **2.1 Test Hardening**: `test_normalizer.py` expandido para 31 casos (cobre todas as unidades do YAML + edge cases) ✅
+- **2.2 CI Safety**: `tests/conftest.py` refatorado para usar RPC (porta 443) no cleanup, eliminando risco de bloqueio de porta 5432 no CI ✅
+- **2.3 Contract Tests**: Adicionado `test_dashboard_contracts.py` para validar o shape dos dados consumidos pelo dashboard ✅
+- **2.4 Developer UX**: Hook `pre-push` agora suporta `CI_LOCAL_UNIT=1` para opt-in de testes unitários antes do push ✅
+- Meta: ruff/mypy/pytest **499 passing**; 0 novos warnings ✅
 
 ## Lições Aprendidas (CI/Mocks)
 
@@ -478,10 +477,10 @@ git config core.fileMode false         # permissoes nao travam em Windows
 
 **Pre-push hook (`.githooks/pre-push`):**
 - Valida: working tree limpo + audit_secrets --strict + ruff + mypy
+- **Opt-in Unit Tests**: execute `set CI_LOCAL_UNIT=1` (cmd) ou `$env:CI_LOCAL_UNIT="1"` (ps) para rodar unit tests no push.
 - Se qualquer um falhar: push NAO acontece
 - Pular (emergencia): `git push --no-verify` (NAO recomendado)
 
 **Scripts de seguranca:**
 - `scripts/audit_secrets.py --strict` — varre historico por chaves
 - `scripts/install_hooks.sh` — instala/re-instala hooks (shell-based, run apos clone via WSL)
-- `Makefile` — targets consolidados para Windows

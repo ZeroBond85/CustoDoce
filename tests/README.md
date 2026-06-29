@@ -5,14 +5,16 @@ Este projeto utiliza uma estratégia de testes em múltiplas camadas para garant
 ## 🧪 Camadas de Teste
 
 ### 1. Testes Unitários (`tests/unit/`)
-**Quantidade**: 394 testes (19 arquivos)
+**Quantidade**: ~500 testes (20 arquivos)
 **Objetivo**: Validar a lógica pura de cada componente isoladamente, utilizando mocks para dependências externas.
-- **Normalizer**: Testes de conversão de unidades (ex: `cx 12x395g` $\rightarrow$ `4.74kg`).
+- **Normalizer**: Testes de conversão de unidades (ex: `cx 12x395g` $\rightarrow$ `4.74kg`). **31 casos parametrizados** cobrindo todas as unidades reais (g/kg, cx/pacote/fardo, lata/pote/barra, ml/l) + edge cases.
 - **Matcher**: Testes de precisão do matching (exato, alias, fuzzy, fuzzy ≥80%).
 - **LLM**: Cache, Strategy Pattern (Groq/OpenRouter/HF), Classifier.
 - **Services**: Validação de payloads de RPC e lógica de negócio.
 - **Dashboard**: Testes de renderização de componentes e handlers de página.
 - **Cart Optimizer**: Monofonte/Multifonte.
+- **Contract Tests** (`test_dashboard_contracts.py`): validam o **shape dos dados retornados** pelas funções de `services/dashboard_queries.py` consumidas pelo dashboard (`get_dashboard_kpis`, `get_coverage_by_ingredient`, `get_active_promotions`, `get_scraper_health_dashboard`). Garante chaves críticas (`price_per_kg`, `is_promotion`, `status_label`, `latency_label`) sem precisar de DB real.
+- **CI Infrastructure** (`test_ci_infrastructure.py`): 13 testes sem mock que validam config CI real (CATCH-BEFORE-PUSH). Não passam se `requirements.txt` tem `--index-url` inline, ou se pyproject.toml excludes de check_*.py somem, etc.
 
 ### 2. Testes de Schema (`tests/schema/`)
 **Quantidade**: 94 testes parametrizados
@@ -69,6 +71,24 @@ python -m pytest tests/real/ -v
 ### 6. Smoke Test de Queries (`scripts/validate_dashboard_queries.py`)
 **Quantidade**: 10 checks (roda no CI pós-deploy)
 **Objetivo**: Validar que as 10 queries principais do dashboard funcionam contra o Supabase real e retornam as colunas esperadas pelos `column_config` das páginas. Pega schema mismatch antes do usuário ver erro 500.
+
+---
+
+## 🔄 Conexão com DB nos Testes
+
+Todas as operações de DB em testes passam pela **porta 443** (REST API), nunca pela 5432 (TCP direto), porque GitHub Actions **bloqueia a porta 5432**. O fixture `db_conn` em `tests/conftest.py` encapsula `client.rpc("exec_sql_query", {"sql": ...})` por trás de uma interface psycopg2-like (`_SchemaCursor`/`_SchemaConn`), mantendo os testes legíveis sem abrir exceções de rede no CI.
+
+```python
+# ✅ CERTO (funciona via 443 em CI):
+def test_x(db_conn):
+    cur = db_conn.cursor()
+    cur.execute("SELECT 1 FROM prices LIMIT 1")
+    assert cur.fetchone() is not None
+
+# ❌ ERRADO (bloqueado no CI):
+import psycopg2
+psycopg2.connect(host="db.fqdn.supabase.co", port=5432)  # timeout
+```
 
 ---
 

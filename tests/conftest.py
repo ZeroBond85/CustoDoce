@@ -253,34 +253,20 @@ def _cleanup_test_data():
     yield
     if _has_real_db():
         try:
-            import psycopg2
-
-            url = os.environ["SUPABASE_URL"]
-            pwd = os.environ["SUPABASE_DB_PASSWORD"]
-            proj = url.split("//")[1].split(".")[0]
-            conn = psycopg2.connect(
-                host=f"db.{proj}.supabase.co",
-                dbname="postgres",
-                user="postgres",
-                password=pwd,
-                port=5432,
-                connect_timeout=5,
-            )
-            cur = conn.cursor()
+            from services.supabase_client import get_service_client
+            client = get_service_client()
             cleanups = [
-                ("prices", "ingredient_id"),
-                ("price_history", "ingredient_id"),
-                ("review_queue", "store_name"),
-                ("scraping_logs", "store_name"),
-                ("flyers", "store_name"),
+                "prices",
+                "price_history",
+                "review_queue",
+                "scraping_logs",
+                "flyers",
             ]
-            for table, col in cleanups:
+            for table in cleanups:
                 try:
-                    cur.execute(f"DELETE FROM {table} WHERE {col} LIKE '_test_%';")  # noqa: S608
+                    sql = f"DELETE FROM {table} WHERE store_name LIKE '_test_%' OR raw_product LIKE '_test_%' OR ingredient_id LIKE '_test_%'"  # noqa: S608
+                    client.rpc("exec_sql_query", {"sql": sql}).execute()
                 except Exception:
-                    conn.rollback()
-            conn.commit()
-            cur.close()
-            conn.close()
+                    pass
         except Exception:
-            pass  # fallback gracioso se porta 5432 estiver bloqueada
+            pass  # fallback gracioso se RPC falhar

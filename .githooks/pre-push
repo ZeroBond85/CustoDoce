@@ -10,6 +10,7 @@ Pular em emergencia: git push --no-verify
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -21,7 +22,7 @@ THIS_PYTHON = sys.executable
 def run(cmd: list[str], capture: bool = True) -> subprocess.CompletedProcess:
     """Executa comando usando o MESMO Python que roda este hook."""
     print(f"  $ {' '.join(cmd)}")
-    return subprocess.run(
+    return subprocess.run(  # noqa: S603 - hook runs only known commands
         cmd,
         cwd=REPO_ROOT,
         capture_output=capture,
@@ -52,8 +53,14 @@ def main() -> int:
         return 1
     print("[OK] secrets: limpos", file=sys.stderr)
 
-    print("[2/2] ci_local.py --no-unit...", file=sys.stderr)
-    result = run([THIS_PYTHON, "scripts/ci_local.py", "--no-unit"])
+    print("[2/2] ci_local.py...", file=sys.stderr)
+    # Check if user wants to run unit tests (via env var)
+    run_unit = os.environ.get("CI_LOCAL_UNIT") == "1"
+    ci_args = [THIS_PYTHON, "scripts/ci_local.py"]
+    if not run_unit:
+        ci_args.append("--no-unit")
+
+    result = run(ci_args)
     if result.returncode != 0:
         print("FALHA: ci_local.py encontrou erros. Corrija antes de push.", file=sys.stderr)
         if result.stdout:
