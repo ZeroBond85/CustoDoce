@@ -405,6 +405,29 @@ SQL com `;` no final quebra a subquery. Remova qualquer `;` no final de queries 
 
 **Quando SKIPAR:** commits puramente técnicos (typo, whitespace, refactor pequeno sem mudança de API/comportamento). Avaliar caso a caso — regra default é SEMPRE verificar.
 
+
+
+### 12. Streamlit Cloud E2E flakiness — use continue-on-error
+
+Streamlit Cloud hiberna apps apos ~60s idle. Testes E2E (Playwright contra
+`https://custodoce.streamlit.app`) que rodam muitos tabs em serie podem pegar
+o app hibernando no meio. Sintoma: `locator(...).wait_for` timeout porque
+botoes nao renderizam (app mostra dialog 'Yes, get this app back up!').
+
+Mitigacoes aplicadas em Sprint 3:
+- `tests/e2e/test_e2e_real.py::wake_if_sleeping()` detecta e acorda o app
+- `tests/e2e/test_e2e_real.py::ensure_app_ready()` combina wake + wait_for
+  pelo botao 'Visao Geral' (sidebar renderizada)
+- `.github/workflows/ci.yml::e2e-smoke` usa `continue-on-error: true` para
+  NAO BLOQUEAR merges quando infra externa (Streamlit Cloud) hiberna
+- Warmup estendido: 3 chamadas 10s delay para manter app awake durante o
+  suite (mas nao elimina completamente a flakiness)
+
+**Regra permanente**: E2E contra infra externa que hiberna = sempre
+continue-on-error. Health checks reais NAO substituem unit/integration tests.
+A solucao ideal e ter um staging app que NAO hiberna (Streamlit Enterprise
+ou self-hosted), mas isso esta fora do escopo free-tier.
+
 ## OpenCode Skills Strategy
 
 Este projeto usa **duas camadas de skills OpenCode**:
