@@ -111,11 +111,13 @@ Para configurar o sistema do zero, siga o [Guia de Deployment detalhado](docs/de
 | **Flyers** | Galeria de encartes. | Navegue pelos PDFs coletados. | Validar extração de OCR. |
 | **Revisão** | Fila de aprovação. | Analise itens com confiança $< 80\%$. | Aprovar ou Rejeitar match. |
 | **Fontes & Ofertas** | Ranking de lojas. | Compare quem tem o melhor preço médio. | Detectar promoções reais. |
+| **Promoções** | Ofertas ativas. | Visualize produtos com maior desconto. | Identificar oportunidades de compra. |
 | **Ranking** | Comparativo direto. | Selecione 2 ou mais lojas para comparar. | Identificar a loja mais barata. |
 | **Insights** | Análise de outliers. | Verifique a lista de "anomalias". | Validar se o preço é erro ou oferta. |
 | **Lojas** | Gestão de lojas. | Edite tiers e status de ativação. | Ativar/Desativar lojas. |
 | **Ingredientes** | Gestão de canônicos. | Adicione aliases ou termos de busca. | Refinar a precisão do matching. |
 | **Calculadora** | Custos de receitas. | Crie sua receita e adicione itens. | Calcular custo e preço de venda. |
+| **Capacity Planning** | Planejamento de capacidade. | Analise a frequência de coleta por loja. | Otimizar janelas de scraping. |
 | **Scrapers** | Gatilhos de coleta. | Clique em "Run Scraper" para forçar coleta. | Monitorar logs em tempo real. |
 | **Scraper Health** | Monitoramento. | Verifique a taxa de sucesso por loja. | Diagnosticar falhas de conexão. |
 | **Relatórios** | Gestão de e-mails. | Configure o template do HTML. | Testar envio de e-mail. |
@@ -204,6 +206,7 @@ Mais detalhes em [docs/contributing.md](docs/contributing.md).
 - [x] **Fase 4.1**: Observabilidade Estruturada (structlog + OpenTelemetry).
 - [x] **Fase 4.4**: Feature Flags por Ingrediente (2 níveis: global + override).
 - [x] **Fase 8 (Full Overhaul)**: LLM Resilience (Strategy Pattern, Circuit Breaker, 3 providers), Cache (SQLite + DB), Cart Optimizer (Monofonte/Multifonte), Capacity Planning Dashboard, CI/CD Unification com Makefile.
+- [x] **Fase 9 (CI Hygiene + Cleanup)**: `git filter-branch` removeu 11 arquivos sensíveis (pack 444MB → 8.7MB), pre-push hook Python, `ci_local.py` (8 validators), Dependabot alerts resolvidos, lições #1-#10 documentadas, CI 100% verde (unit 488 + integration 102 + deploy-check).
 - [ ] **Próximos Passos**: Testes E2E (Playwright), role `dashboard_user` (segurança), cache LRU no dashboard.
 
 ---

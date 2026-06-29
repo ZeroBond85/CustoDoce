@@ -18,9 +18,9 @@ Para operar o sistema, você precisará de contas gratuitas nas seguintes plataf
 ### 1. Banco de Dados (Supabase)
 1. Crie um novo projeto no Supabase chamado `custodoce`.
 2. Escolha a região **South America (São Paulo)**.
-3. Vá ao **SQL Editor** e execute o arquivo `supabase/seed.sql`. Isso criará:
-   - Tabelas: `prices`, `price_history`, `review_queue`, `stores`, `scraping_logs`, `ingredients`.
-   - Functions RPC: `upsert_price_rpc`, `cleanup_old_prices`, etc.
+3. Vá ao **SQL Editor** e execute o arquivo `supabase/consolidated_migration.sql`. Isso criará:
+   - Tabelas: `prices`, `price_history`, `review_queue`, `stores`, `scraping_logs`, `ingredients`, `scrape_frequencies`, `feature_flags`, `alert_rules`, `alert_recipients`, `flyers`, `schedules`, `recipes`, `recipe_items`, `llm_match_cache`.
+   - Functions RPC: `upsert_price_rpc`, `cleanup_old_prices`, `exec_sql_query`, etc.
    - Triggers: `update_history_from_prices`.
 4. Em **Settings $\rightarrow$ API**, anote:
    - `Project URL`
@@ -91,5 +91,5 @@ Após concluir o setup, siga esta sequência para validar o sistema:
 4. **Dashboard**: Acesse a URL do Streamlit e faça login com a `ADMIN_PASSWORD`.
 
 ## ⚠️ Notas Importantes
-- **Sincronização de Schema**: Sempre que alterar o arquivo `supabase/seed.sql`, execute a migração via `scripts/deploy_database.py --execute`.
+- **Sincronização de Schema**: Sempre que alterar migrations (arquivos `supabase/`), execute a migração via `scripts/deploy_database.py --execute`. Use `--dry-run` primeiro para validar.
 - **Tiers de Lojas**: Se adicionar uma loja nova ao `stores.yaml`, execute `python scripts/sync_all_store_fields.py` para atualizar o banco de dados.

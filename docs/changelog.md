@@ -139,36 +139,23 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ## [unreleased]
 
 ### Added
-
-#### OpenCode Skills Overhaul
-- **Global skills (6 improved)**: `scraping-resilience` (+Fallback Chain + Error Types), `code-quality-pro` (+Security & Supply Chain), `test-architect` (+Test Data/Contracts + CI Integration), `telegram-bot` (+Deduplication Pattern for cron), `docs-writer` (+Decision Panel template), `sql-optimizer` (+Partitioning Strategy + Materialized Views)
-- **CustoDoce local overlays (7 created)**: `.opencode/skills/` com injeção de contexto do projeto:
-  - `telegram-bot` — comandos `/preco /lista /status`, REST 443, dedup cron
-  - `docs-writer` — AGENTS.md, ADRs, runbooks, sync_docs.py
-  - `sql-optimizer` — tabela `prices`, RPCs, índices, migration workflow
-  - `streamlit` — 17 pages, login gate, kpi_card, column_config
-  - `api-design` — Supabase REST/RPC real, auth boundaries, RPC naming
-  - `github-actions` — 7 workflows + free-tier math (818 min/mês)
-  - `project-doc-sync` — cobertura do `sync_docs.py`
-- `AGENTS.md` + `README.md` documentam a estratégia de 2 camadas (global + local)
-- Backups `.bak` preservados para as 6 skills globais alteradas
+- **`scripts/ci_local.py`**: validador `ci-env-vars` verifica que as env vars usadas no CI (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GROQ_API_KEY`) estão configuradas localmente antes do push.
+- **`AGENTS.md`**: Lição #8: `get_supabase()` fallback para service_role key; Lição #9: `SUPABASE_ANON_KEY` nos jobs CI; Lição #10: `exec_sql_query` sem trailing semicolons.
+- **OpenCode Skills Overhaul**:
+  - Global skills: `scraping-resilience`, `code-quality-pro`, `test-architect`, `telegram-bot`, `docs-writer`, `sql-optimizer` aprimoradas
+  - 7 overlays locais em `.opencode/skills/` com contexto CustoDoce
+  - `AGENTS.md` + `README.md` com seção "OpenCode Skills Strategy"
 
 ### Changed
-- `README.md` — adicionada seção "OpenCode Skills Strategy" com tabela de skills globais + overlays
-- `AGENTS.md` — adicionada seção "OpenCode Skills Strategy" com 17 globais + 7 overlays
 - `docs/contributing.md` — adicionada seção "AI-Assisted Development (OpenCode Skills)" com quick reference
 
 ### Fixed
-- Garantia de não-perda: overlays são arquivos novos (não patches), backups `.bak` mantidos, descoberta em camadas preservada
-- **`services/supabase_client.py::get_supabase()`**: fallback para `SUPABASE_SERVICE_ROLE_KEY` quando `SUPABASE_ANON_KEY` não está configurada. Antes, qualquer serviço que chamasse `get_supabase()` (config_db.py, dashboard_queries.py, etc.) falhava com 401 no CI, onde `SUPABASE_ANON_KEY` não está nas Secrets.
+- **`services/supabase_client.py::get_supabase()`**: fallback para `SUPABASE_SERVICE_ROLE_KEY` quando `SUPABASE_ANON_KEY` não está configurada
+- **`.github/workflows/ci.yml`**: `SUPABASE_ANON_KEY` adicionado aos jobs `integration`, `deploy-check` e `real`
+- **`scripts/validate_db_schema.py`**: removidos trailing semicolons das SQL queries que quebravam o RPC `exec_sql_query`
 
-### Added
-- **`scripts/ci_local.py`**: validador `ci-env-vars` verifica que as env vars usadas no CI (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GROQ_API_KEY`) estão configuradas localmente antes do push.
-- **`AGENTS.md`**: Lição #8: `get_supabase()` fallback para service_role key; Lição #9: `SUPABASE_ANON_KEY` nos jobs CI; Lição #10: `exec_sql_query` sem trailing semicolons.
-
-### Fixed
-- **`.github/workflows/ci.yml`**: `SUPABASE_ANON_KEY` adicionado aos jobs `integration`, `deploy-check` e `real` — resolve 401 "Invalid API key" nos testes de integração quando `get_supabase()` não encontrava a env var.
-- **`scripts/validate_db_schema.py`**: removidos trailing semicolons das SQL queries que quebravam o RPC `exec_sql_query` (o RPC envolve o SQL em subquery, e `;` no final é sintaxe inválida).
+### Removed
+- `CUSTO_DOCE_RAIO_X.md` e `RAIO-X_CUSTO_DOCE_RESUMIDO.md` arquivados em `docs/archive/` (análises estáticas desatualizadas)
 
 ---
 

@@ -70,7 +70,12 @@ CustoDoce/
 │   ├── alert_service.py             # Alertas proativos (ex: ingrediente sem preço > 48h)
 │   ├── logger.py                    # Structured Logging (structlog)
 │   ├── otel.py                      # Tracing (OpenTelemetry)
-│   └── dashboard_queries.py         # Query cache + extract_ppk/pun (single source)
+│   ├── dashboard_queries.py         # Query cache + extract_ppk/pun (single source)
+│   ├── flyer_service.py             # Gerenciamento de flyers (PDFs)
+│   ├── import_service.py            # Importação de dados externos
+│   ├── maintenance_service.py       # Tarefas de manutenção programadas
+│   ├── recipe_service.py            # Cálculo de receitas e ingredientes
+│   └── types.py                     # Type hints e aliases compartilhados
 ├── dashboard/
 │   ├── login_page.py, components/ (ui.py, layout.py)
 │   └── pages/                       # 17 módulos (visao_geral, precos, historico, etc.)
@@ -100,13 +105,13 @@ CustoDoce/
 │   ├── full_prod_validation.py      # Validador multi-fase (0-6)
 │   ├── validation_phases/           # 7 módulos (phase0_static → phase6_health)
 │   ├── archive/                     # 28 scripts históricos
-│   └── ... (+20 scripts utilitários)
+│   └── ... (+30 scripts utilitários)
 ├── tests/
-│   ├── unit/                        # 383 testes (18 arquivos) — dashboard + services + llm
+│   ├── unit/                        # 394 testes (19 arquivos) — dashboard + services + llm
 │   ├── schema/                      # 94 testes parametrizados (1 arquivo)
-│   ├── integration/                 # 12 arquivos — Benchmarks + DB integration (via RPC)
+│   ├── integration/                 # 13 arquivos — Benchmarks + DB integration (via RPC)
 │   ├── design/                      # 1 arquivo — CSS/estrutura (10 testes)
-│   ├── e2e/                         # 3 arquivos — Playwright E2E (0 collected sem setup)
+│   ├── e2e/                         # 3 arquivos — Playwright E2E (requer setup)
 │   └── real/                        # 2 arquivos — Scrapers reais (6 testes, slow/flaky)
 ├── main.py                          # Orquestrador: collect + cleanup + intelligence loop
 ├── pyproject.toml                   # Ruff (120 chars), mypy (3.12), pytest config
@@ -267,7 +272,7 @@ python scripts/seed_prices.py --dry-run
 - `git filter-branch` removed 11 sensitive files from 190 commits; pack 444MB → 8.7MB ✅
 - 7 Dependabot alerts dismissed (Pillow 12.2.0 patched; `pip-audit --strict` clean) ✅
 - Smart pre-push hook (Python + `sys.executable`) replaces bash + wslpath ✅
-- `scripts/ci_local.py` — 7 config validators + 13 `tests/unit/test_ci_infrastructure.py` infra tests ✅
+- `scripts/ci_local.py` — 8 config validators + 13 `tests/unit/test_ci_infrastructure.py` infra tests ✅
 - `.gitattributes` (LF), `.gitignore` (`scripts/diagnose.py`), `data/prices_latest.json` removed ✅
 - `check_ingredients.py` etc. use `# mypy: ignore-errors` (per-file directive) ✅
 - 3 integration tests refactored from `psycopg2` to `exec_sql_query` RPC (porta 443) ✅
@@ -281,7 +286,7 @@ python scripts/seed_prices.py --dry-run
 | pytest (e2e) | 0 collected (Playwright setup needed) | ⏳ |
 | pytest (real) | 6 tests (slow/flaky) | ⏳ |
 | ruff / mypy / bandit / pip-audit | clean | ✅ |
-| CI lint / typecheck / docs-sync / unit / integration | passing | ✅ |
+| CI lint / typecheck / docs-sync / unit / integration / deploy-check | passing | ✅ |
 | CI deploy-check | required-passing, optional-warning | ✅ |
 
 ## Lições Aprendidas (CI/Mocks)
@@ -463,5 +468,5 @@ git config core.fileMode false         # permissoes nao travam em Windows
 
 **Scripts de seguranca:**
 - `scripts/audit_secrets.py --strict` — varre historico por chaves
-- `scripts/install_hooks.sh` — instala/re-instala hooks (run apos clone)
+- `scripts/install_hooks.sh` — instala/re-instala hooks (shell-based, run apos clone via WSL)
 - `Makefile` — targets consolidados para Windows

@@ -5,7 +5,7 @@ Este projeto utiliza uma estratégia de testes em múltiplas camadas para garant
 ## 🧪 Camadas de Teste
 
 ### 1. Testes Unitários (`tests/unit/`)
-**Quantidade**: 383 testes (18 arquivos)
+**Quantidade**: 383 testes (19 arquivos)
 **Objetivo**: Validar a lógica pura de cada componente isoladamente, utilizando mocks para dependências externas.
 - **Normalizer**: Testes de conversão de unidades (ex: `cx 12x395g` $\rightarrow$ `4.74kg`).
 - **Matcher**: Testes de precisão do matching (exato, alias, fuzzy, fuzzy ≥80%).
@@ -22,7 +22,7 @@ Este projeto utiliza uma estratégia de testes em múltiplas camadas para garant
 - Testa a execução de functions RPC essenciais.
 
 ### 3. Testes de Integração (`tests/integration/`)
-**Quantidade**: 12 arquivos (~100 testes)
+**Quantidade**: 13 arquivos (~102 testes)
 **Objetivo**: Validar a comunicação real entre o Python e o Supabase (via RPC).
 - **upsert_price_rpc**: Testa a inserção e deduplicação real de preços.
 - **Review Queue**: Testa o fluxo completo de aprovação/rejeição.
@@ -30,7 +30,7 @@ Este projeto utiliza uma estratégia de testes em múltiplas camadas para garant
 - **Feature Flags**: Testa override por ingrediente.
 
 ### 4. Testes E2E (`tests/e2e/`)
-**Quantidade**: 3 arquivos (0 collected — requer Playwright setup)
+**Quantidade**: 3 arquivos (requer Playwright setup)
 **Objetivo**: Validar a interface do usuário (UI) via Playwright.
 - Fluxo de login e autenticação.
 - Navegação entre as 17 abas do dashboard.

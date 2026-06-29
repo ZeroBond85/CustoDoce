@@ -11,7 +11,7 @@ Guia para criar e operar um ambiente de staging isolado antes de promotionar par
 │                      │     │                       │
 │  • DB separado       │     │  • DB produção         │
 │  • 500MB free tier   │     │  • 500MB free tier     │
-│  •苟.苟苟苟苟苟苟苟苟苟苟苟苟   │  •苟苟苟苟苟苟苟苟苟苟苟苟苟苟   │
+│  • Schema independente │    │  • Schema locked       │
 │  • Testes E2E        │     │  • App Streamlit       │
 │  • Validação de PR   │     │  • Produção real       │
 └─────────────────────┘     └─────────────────────┘
@@ -60,11 +60,11 @@ python scripts/deploy_database.py --execute --env staging
 # Sync stores do YAML → staging
 python scripts/sync_all_store_fields.py --dry-run
 
-# Seed ingredientes
-python scripts/seed_config_db.py --dry-run
+# Seed ingredientes (usa env var STAGING_SUPABASE_URL/KEY)
+STAGING_SUPABASE_URL=... STAGING_SUPABASE_SERVICE_ROLE_KEY=... python scripts/seed_config_db.py --dry-run
 
 # Seed preços sintéticos (opcional)
-python scripts/seed_prices.py --dry-run
+STAGING_SUPABASE_URL=... STAGING_SUPABASE_SERVICE_ROLE_KEY=... python scripts/seed_prices.py --dry-run
 ```
 
 ## Workflow CI/CD Staging
@@ -130,17 +130,17 @@ CUSTODOCE_ENV = "staging"
 ## Testar Migration antes de Produção
 
 ```bash
-# 1. Backup staging
-pg_dump -h db.staging.supabase.co -U postgres -d postgres -Fc > staging_backup.sql
+# 1. Backup via Supabase Dashboard
+# Project > Database > Backups > Restore
 
-# 2. Gerar diff do schema
+# 2. Gerar diff do schema (via RPC 443)
 python scripts/check_schema_diff.py --from staging --to prod > diff.sql
 
-# 3. Aplicar no staging primeiro
-psql -h db.staging.supabase.co -U postgres -d postgres -f migration.sql
+# 3. Aplicar no staging primeiro (via RPC 443)
+python scripts/deploy_database.py --execute
 
-# 4. Validar
-python scripts/validate_db_schema.py --env staging
+# 4. Validar (via RPC 443)
+python scripts/validate_db_schema.py
 
 # 5. Se OK, aplicar em produção
 python scripts/deploy_database.py --execute
@@ -154,8 +154,8 @@ Se algo falhar em produção:
 # Restaurar de backup (supabase dashboard)
 # Project > Database > Backups > Restore
 
-# Ou via pg_dump local
-gunzip -c custodoce_backup_YYYYMMDD_HHMMSS.sql.gz | psql -h db.supabase.co -U postgres
+# Ou via REST API (porta 443, NÃO use psql/porta 5432)
+# Suporte Supabase restaura diretamente do dashboard
 ```
 
 ## Monitoramento
