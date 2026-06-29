@@ -36,56 +36,10 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-@pytest.fixture(scope="module")
-def db_conn():
-    """Conexao direta via psycopg2 para testes que precisam de SQL."""
-    import psycopg2
-
-    url = os.environ["SUPABASE_URL"]
-    pwd = os.environ["SUPABASE_DB_PASSWORD"]
-    proj = url.split("//")[1].split(".")[0]
-    conn = psycopg2.connect(
-        host=f"db.{proj}.supabase.co",
-        dbname="postgres",
-        user="postgres",
-        password=pwd,
-        port=5432,
-        connect_timeout=10,
-    )
-    yield conn
-    conn.close()
+# db_conn removido: usa fixture db_conn de tests/conftest.py (REST via exec_sql_query RPC, porta 443)
 
 
-@pytest.fixture(scope="module")
-def supabase_client():
-    """Cliente Supabase Python (service role)."""
-    import importlib
-    import importlib.util
-
-    # Fix linebreaks from .env — JWT keys should have no whitespace
-    for key in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY"):
-        val = os.environ.get(key, "")
-        if val:
-            cleaned = val.replace("\n", "").replace("\r", "").replace(" ", "").strip()
-            os.environ[key] = cleaned
-
-    if not os.environ.get("SUPABASE_SERVICE_ROLE_KEY"):
-        anon = os.environ.get("SUPABASE_ANON_KEY", "")
-        if anon:
-            os.environ["SUPABASE_SERVICE_ROLE_KEY"] = anon
-
-    # Reload real module (test_dashboard_full.py may have replaced sys.modules with MagicMock)
-    real_path = Path(__file__).resolve().parent.parent.parent / "services" / "supabase_client.py"
-    spec = importlib.util.spec_from_file_location("services.supabase_client", str(real_path))
-    sc = importlib.util.module_from_spec(spec)
-    sys.modules["services.supabase_client"] = sc
-    spec.loader.exec_module(sc)
-
-    sc._supabase_client = None
-    sc._service_client = None
-
-    return sc.get_service_client()
-
+# real_supabase removido: usa real_supabase de tests/conftest.py
 
 # ── RPC upsert_price_rpc ──────────────────────────────────────────
 
@@ -102,9 +56,9 @@ class TestUpsertPriceRpc:
         client.table("price_history").delete().eq("ingredient_id", self.TEST_INGREDIENT).execute()
         client.table("stores").delete().eq("id", self.TEST_STORE).execute()
 
-    def test_rpc_upsert_insert_and_update(self, supabase_client, db_conn):
+    def test_rpc_upsert_insert_and_update(self, real_supabase, db_conn):
         """Insert + update (upsert) via RPC."""
-        client = supabase_client
+        client = real_supabase
         self._cleanup(client)
 
         # Insert
@@ -135,14 +89,10 @@ class TestUpsertPriceRpc:
 
         assert result.data, f"RPC returned no data: {result}"
 
-        # Clean price_history from trigger copy before second upsert
-        cur = db_conn.cursor()
-        cur.execute(
-            "DELETE FROM price_history WHERE ingredient_id = %s AND store_id = %s AND collected_at = %s;",
-            (self.TEST_INGREDIENT, self.TEST_STORE, self.TODAY),
-        )
-        db_conn.commit()
-        cur.close()
+        # Clean price_history from trigger copy before second upsert (via Supabase REST, not raw SQL — exec_sql_query supports SELECT only)
+        client.table("price_history").delete().eq("ingredient_id", self.TEST_INGREDIENT).eq("store_id", self.TEST_STORE).eq(
+            "collected_at", self.TODAY
+        ).execute()
 
         # Update same key → should update, not duplicate
         result2 = client.rpc(
@@ -254,5 +204,5 @@ class TestIndexes:
 
 # ── Approve review item (end-to-end) ──────────────────────────────
 # NOTE: Full approve/reject E2E tests are in test_review_queue_e2e.py
-# (test_dashboard_full.py poisons sys.modules["services.supabase_client"] with
+# (test_dashboard_full.py poisons sys.modules["services.real_supabase"] with
 # a MagicMock at import time, making module reload unreliable in this file.)

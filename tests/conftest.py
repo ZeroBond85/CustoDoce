@@ -213,6 +213,12 @@ def real_supabase():
     return sc.get_service_client()
 
 
+@pytest.fixture(scope="session")
+def supabase_client(real_supabase):
+    """Alias semantico de real_supabase — para tests que esperam este nome."""
+    return real_supabase
+
+
 # ── Auto-skip markers ──────────────────────────────────────────
 def pytest_configure(config):
     # Registra markers para evitar warnings do pytest

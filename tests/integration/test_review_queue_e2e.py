@@ -5,12 +5,10 @@ Cobre: approve, reject, fuzzy match, duplicate price, trigger ON CONFLICT.
 
 Roda com: pytest tests/test_review_queue_e2e.py -v
 """
-
-import contextlib
 import os
 import sys
-from pathlib import Path
 from datetime import date, datetime, UTC
+from pathlib import Path
 
 import pytest
 
@@ -35,67 +33,15 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-@pytest.fixture(scope="module")
-def db_conn():
-    import psycopg2
+# db_conn removido: usa fixture db_conn de tests/conftest.py (REST via exec_sql_query RPC, porta 443)
 
-    url = os.environ["SUPABASE_URL"]
-    pwd = os.environ["SUPABASE_DB_PASSWORD"]
-    proj = url.split("//")[1].split(".")[0]
-    conn = psycopg2.connect(
-        host=f"db.{proj}.supabase.co",
-        dbname="postgres",
-        user="postgres",
-        password=pwd,
-        port=5432,
-        connect_timeout=10,
-    )
-    yield conn
-    conn.close()
 
+# real_supabase removido: usa real_supabase de tests/conftest.py
 
 @pytest.fixture(scope="module")
-def real_supabase_client():
-    import importlib
-    import importlib.util
-
-    for key in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY"):
-        val = os.environ.get(key, "")
-        if val:
-            os.environ[key] = val.replace("\n", "").replace("\r", "").replace(" ", "").strip()
-    if not os.environ.get("SUPABASE_SERVICE_ROLE_KEY"):
-        anon = os.environ.get("SUPABASE_ANON_KEY", "")
-        if anon:
-            os.environ["SUPABASE_SERVICE_ROLE_KEY"] = anon
-
-    saved = {}
-    for mod_name in list(sys.modules):
-        if mod_name.startswith("services.") or mod_name == "services":
-            saved[mod_name] = sys.modules.pop(mod_name)
-
-    real_path = Path(__file__).resolve().parent.parent.parent / "services" / "supabase_client.py"
-    spec = importlib.util.spec_from_file_location("services.supabase_client", str(real_path))
-    sc = importlib.util.module_from_spec(spec)
-    sys.modules["services.supabase_client"] = sc
-    spec.loader.exec_module(sc)
-
-    # Reload all services modules that may have cached the mocked supabase_client
-    for mod_name in list(sys.modules):
-        if mod_name.startswith("services.") and mod_name != "services.supabase_client":
-            mod = sys.modules[mod_name]
-            if hasattr(mod, "__file__") and mod.__file__:
-                with contextlib.suppress(Exception):
-                    importlib.reload(mod)
-
-    sc._supabase_client = None
-    sc._service_client = None
-    return sc.get_service_client()
-
-
-@pytest.fixture(scope="module")
-def test_store(real_supabase_client):
+def test_store(real_supabase):
     """Cria loja de teste temporária."""
-    client = real_supabase_client
+    client = real_supabase
     store_id = "_test_review_queue_store"
     client.table("stores").delete().eq("id", store_id).execute()
     client.table("stores").insert(
@@ -110,9 +56,9 @@ def test_store(real_supabase_client):
 
 
 @pytest.fixture(scope="module")
-def test_ingredient(real_supabase_client):
+def test_ingredient(real_supabase):
     """Pega um ingrediente real existente."""
-    client = real_supabase_client
+    client = real_supabase
     result = client.table("ingredients").select("id, canonical_name").eq("active", True).limit(1).execute()
     assert result.data, "No active ingredients in DB"
     return result.data[0]
@@ -129,13 +75,10 @@ class TestTriggerOnConflict:
 
     def _cleanup(self, client, db_conn):
         client.table("prices").delete().eq("ingredient_id", self.TEST_ING).execute()
-        cur = db_conn.cursor()
-        cur.execute("DELETE FROM price_history WHERE ingredient_id = %s;", (self.TEST_ING,))
-        db_conn.commit()
-        cur.close()
+        client.table("price_history").delete().eq("ingredient_id", self.TEST_ING).execute()
 
-    def test_insert_then_update_no_23505(self, real_supabase_client, db_conn):
-        client = real_supabase_client
+    def test_insert_then_update_no_23505(self, real_supabase, db_conn):
+        client = real_supabase
         self._cleanup(client, db_conn)
         today = date.today().isoformat()
 
@@ -166,14 +109,15 @@ class TestTriggerOnConflict:
         ).execute()
         assert r1.data, f"First RPC failed: {r1}"
 
-        # Clean price_history from trigger copy before second upsert
-        cur = db_conn.cursor()
-        cur.execute(
-            "DELETE FROM price_history WHERE ingredient_id = %s AND store_id = %s AND collected_at = %s;",
-            (self.TEST_ING, self.TEST_STORE_ID, today),
+        # Clean price_history from trigger copy before second upsert (via REST - exec_sql_query é SELECT-only)
+        (
+            client.table("price_history")
+            .delete()
+            .eq("ingredient_id", self.TEST_ING)
+            .eq("store_id", self.TEST_STORE_ID)
+            .eq("collected_at", today)
+            .execute()
         )
-        db_conn.commit()
-        cur.close()
 
         # Update same key — this was failing with 23505 before PHASE 15 fix
         r2 = client.rpc(
@@ -208,20 +152,21 @@ class TestTriggerOnConflict:
         assert check.data[0]["raw_price"] == 15.00
 
         # Verify 1 row in price_history (from trigger)
-        cur = db_conn.cursor()
-        cur.execute(
-            "SELECT COUNT(*) FROM price_history WHERE ingredient_id = %s AND store_id = %s;",
-            (self.TEST_ING, self.TEST_STORE_ID),
+        res = (
+            client.table("price_history")
+            .select("id", count="exact")
+            .eq("ingredient_id", self.TEST_ING)
+            .eq("store_id", self.TEST_STORE_ID)
+            .execute()
         )
-        count = cur.fetchone()[0]
-        cur.close()
+        count = res.count or 0
         assert count == 1, f"Expected 1 price_history row (from trigger), got {count}"
 
         self._cleanup(client, db_conn)
 
-    def test_insert_then_update_without_cleanup(self, real_supabase_client, db_conn):
+    def test_insert_then_update_without_cleanup(self, real_supabase, db_conn):
         """Real ON CONFLICT test: update without cleaning price_history first."""
-        client = real_supabase_client
+        client = real_supabase
         self._cleanup(client, db_conn)
         today = date.today().isoformat()
 
@@ -252,13 +197,14 @@ class TestTriggerOnConflict:
         ).execute()
         assert r1.data, f"First RPC failed: {r1}"
 
-        # Verify price_history has 1 row from trigger
-        cur = db_conn.cursor()
-        cur.execute(
-            "SELECT COUNT(*) FROM price_history WHERE ingredient_id = %s AND store_id = %s;",
-            (self.TEST_ING, self.TEST_STORE_ID),
-        )
-        count_before = cur.fetchone()[0]
+        # Verify price_history has 1 row from trigger (via Supabase REST)
+        count_before = (
+            client.table("price_history")
+            .select("id", count="exact")
+            .eq("ingredient_id", self.TEST_ING)
+            .eq("store_id", self.TEST_STORE_ID)
+            .execute()
+        ).count or 0
         assert count_before == 1, f"Expected 1 price_history row after insert, got {count_before}"
 
         # Update WITHOUT cleaning price_history — this is the real ON CONFLICT test
@@ -293,13 +239,14 @@ class TestTriggerOnConflict:
         assert len(check.data) == 1
         assert check.data[0]["raw_price"] == 20.00
 
-        # Verify price_history still has 1 row (ON CONFLICT DO UPDATE, not duplicate)
-        cur.execute(
-            "SELECT COUNT(*) FROM price_history WHERE ingredient_id = %s AND store_id = %s;",
-            (self.TEST_ING, self.TEST_STORE_ID),
-        )
-        count_after = cur.fetchone()[0]
-        cur.close()
+        # Verify price_history still has 1 row (ON CONFLICT DO UPDATE, not duplicate) — via Supabase REST
+        count_after = (
+            client.table("price_history")
+            .select("id", count="exact")
+            .eq("ingredient_id", self.TEST_ING)
+            .eq("store_id", self.TEST_STORE_ID)
+            .execute()
+        ).count or 0
         assert count_after == 1, f"Expected 1 price_history row (ON CONFLICT DO UPDATE), got {count_after}"
 
         self._cleanup(client, db_conn)
@@ -313,16 +260,13 @@ class TestApproveReviewItem:
 
     def _cleanup(self, client, db_conn):
         client.table("review_queue").delete().eq("store_name", "Approve Test Store").execute()
-        cur = db_conn.cursor()
-        cur.execute("DELETE FROM price_history WHERE store_id = %s;", (self.TEST_STORE_ID,))
-        cur.execute("DELETE FROM prices WHERE store_id = %s AND source = 'approve_test';", (self.TEST_STORE_ID,))
-        db_conn.commit()
-        cur.close()
+        client.table("price_history").delete().eq("store_id", self.TEST_STORE_ID).execute()
+        client.table("prices").delete().eq("store_id", self.TEST_STORE_ID).eq("source", "approve_test").execute()
 
-    def test_approve_with_uuid(self, real_supabase_client, db_conn, test_store, test_ingredient):
+    def test_approve_with_uuid(self, real_supabase, db_conn, test_store, test_ingredient):
         from services.price_service import approve_review_item
 
-        client = real_supabase_client
+        client = real_supabase
 
         # Explicit cleanup of specific product to avoid conflict
         client.table("review_queue").delete().eq("raw_product", "Test Approve UUID 200g").execute()
@@ -363,10 +307,10 @@ class TestApproveReviewItem:
 
         self._cleanup(client, db_conn)
 
-    def test_approve_with_exact_name(self, real_supabase_client, db_conn, test_store, test_ingredient):
+    def test_approve_with_exact_name(self, real_supabase, db_conn, test_store, test_ingredient):
         from services.price_service import approve_review_item
 
-        client = real_supabase_client
+        client = real_supabase
 
         # Explicit cleanup
         client.table("review_queue").delete().eq("raw_product", "Test Approve Name 500g").execute()
@@ -398,10 +342,10 @@ class TestApproveReviewItem:
 
         self._cleanup(client, db_conn)
 
-    def test_approve_with_fuzzy_name(self, real_supabase_client, db_conn, test_store, test_ingredient):
+    def test_approve_with_fuzzy_name(self, real_supabase, db_conn, test_store, test_ingredient):
         from services.price_service import approve_review_item
 
-        client = real_supabase_client
+        client = real_supabase
 
         # Explicit cleanup
         client.table("review_queue").delete().eq("raw_product", "Test Approve Fuzzy 1kg").execute()
@@ -435,10 +379,10 @@ class TestApproveReviewItem:
 
         self._cleanup(client, db_conn)
 
-    def test_approve_duplicate_price_no_23505(self, real_supabase_client, db_conn, test_store, test_ingredient):
+    def test_approve_duplicate_price_no_23505(self, real_supabase, db_conn, test_store, test_ingredient):
         from services.price_service import approve_review_item
 
-        client = real_supabase_client
+        client = real_supabase
         today = date.today().isoformat()
 
         # Explicit cleanup
@@ -470,14 +414,15 @@ class TestApproveReviewItem:
             },
         ).execute()
 
-        # Clean price_history from trigger copy
-        cur = db_conn.cursor()
-        cur.execute(
-            "DELETE FROM price_history WHERE ingredient_id = %s AND store_id = %s AND collected_at = %s;",
-            (test_ingredient["id"], test_store["id"], today),
+        # Clean price_history from trigger copy (via Supabase REST; exec_sql_query é SELECT-only)
+        (
+            client.table("price_history")
+            .delete()
+            .eq("ingredient_id", test_ingredient["id"])
+            .eq("store_id", test_store["id"])
+            .eq("collected_at", today)
+            .execute()
         )
-        db_conn.commit()
-        cur.close()
 
         # Now create a review item for the SAME ingredient/store/date
         review = (
@@ -523,10 +468,10 @@ class TestApproveReviewItem:
 class TestRejectReviewItem:
     """Testa reject_review_item contra banco real."""
 
-    def test_reject_sets_status(self, real_supabase_client, test_store):
+    def test_reject_sets_status(self, real_supabase, test_store):
         from services.price_service import reject_review_item
 
-        client = real_supabase_client
+        client = real_supabase
 
         review = (
             client.table("review_queue")
@@ -562,10 +507,10 @@ class TestRejectReviewItem:
 class TestAddAlias:
     """Testa add_alias_to_ingredient contra banco real."""
 
-    def test_add_alias_to_existing_ingredient(self, real_supabase_client, test_ingredient):
+    def test_add_alias_to_existing_ingredient(self, real_supabase, test_ingredient):
         from services.config_db import add_alias_to_ingredient
 
-        client = real_supabase_client
+        client = real_supabase
 
         # Get current aliases
         ing = client.table("ingredients").select("aliases").eq("id", test_ingredient["id"]).execute()
