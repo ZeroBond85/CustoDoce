@@ -355,6 +355,18 @@ key = os.environ.get("SUPABASE_ANON_KEY") or os.environ.get("SUPABASE_SERVICE_RO
 - `get_service_client()` SEMPRE prefere `SUPABASE_SERVICE_ROLE_KEY` (inalterado).
 - `ci_local.py` valida que `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GROQ_API_KEY` estão presentes localmente antes do push.
 
+### 9. `SUPABASE_ANON_KEY` deve ser passado explicitamente nos jobs CI
+
+`get_supabase()` tem fallback para `SUPABASE_SERVICE_ROLE_KEY`, mas alguns jobs CI (integration, deploy-check, real) precisam de `SUPABASE_ANON_KEY` explicitamente no `step.env`. A secret existe no GitHub mas precisa ser mapeada no workflow — mesmo que `get_supabase()` funcione localmente sem ela (via fallback). Sempre adicionar `SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}` junto das demais env vars do Supabase.
+
+### 10. `exec_sql_query` RPC — sem trailing semicolons
+
+O RPC `exec_sql_query` (definido em `consolidated_migration.sql:959`) envolve o SQL submetido em:
+```sql
+SELECT COALESCE(json_agg(row_to_json(d)), '[]'::json) FROM (%s) d
+```
+SQL com `;` no final quebra a subquery. Remova qualquer `;` no final de queries enviadas via `client.rpc("exec_sql_query", {"sql": sql})`.
+
 ## OpenCode Skills Strategy
 
 Este projeto usa **duas camadas de skills OpenCode**:

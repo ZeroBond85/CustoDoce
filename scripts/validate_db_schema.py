@@ -147,7 +147,7 @@ def run_query(client, sql):
 
 def validate_tables(client):
     print("=== TABLES ===")
-    sql = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name;"
+    sql = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name"
     db_tables = {r["table_name"] for r in run_query(client, sql)} if run_query(client, sql) is not None else set()
 
     ok = 0
@@ -168,7 +168,7 @@ def validate_columns(client):
     print("\n=== COLUMNS ===")
     ok, total = 0, 0
     for table, expected in EXPECTED_COLUMNS.items():
-        sql = f"SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = {repr(table)} ORDER BY ordinal_position;"  # noqa: S608
+        sql = f"SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = {repr(table)} ORDER BY ordinal_position"  # noqa: S608
         db_cols = {r["column_name"] for r in run_query(client, sql)} if run_query(client, sql) is not None else set()
         for col in expected:
             total += 1
@@ -186,7 +186,7 @@ def validate_constraints(client):
     for table, names in EXPECTED_CONSTRAINTS.items():
         for cname in names:
             total += 1
-            sql = f"SELECT 1 FROM pg_constraint WHERE conrelid = {repr(table)}::regclass AND conname = {repr(cname)};"  # noqa: S608
+            sql = f"SELECT 1 FROM pg_constraint WHERE conrelid = {repr(table)}::regclass AND conname = {repr(cname)}"  # noqa: S608
             if run_query(client, sql):
                 print(f"  ✅ {table}: {cname}")
                 ok += 1
@@ -199,7 +199,7 @@ def validate_indexes(client):
     print("\n=== INDEXES ===")
     ok = 0
     for idx in EXPECTED_INDEXES:
-        sql = f"SELECT 1 FROM pg_indexes WHERE indexname = {repr(idx)};"  # noqa: S608
+        sql = f"SELECT 1 FROM pg_indexes WHERE indexname = {repr(idx)}"  # noqa: S608
         if run_query(client, sql):
             print(f"  ✅ {idx}")
             ok += 1
@@ -212,7 +212,7 @@ def validate_functions(client):
     print("\n=== FUNCTIONS ===")
     ok = 0
     for fn in EXPECTED_FUNCTIONS:
-        sql = f"SELECT 1 FROM pg_proc WHERE proname = {repr(fn)};"  # noqa: S608
+        sql = f"SELECT 1 FROM pg_proc WHERE proname = {repr(fn)}"  # noqa: S608
         if run_query(client, sql):
             print(f"  ✅ {fn}()")
             ok += 1

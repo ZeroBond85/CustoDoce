@@ -164,7 +164,11 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ### Added
 - **`scripts/ci_local.py`**: validador `ci-env-vars` verifica que as env vars usadas no CI (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GROQ_API_KEY`) estão configuradas localmente antes do push.
-- **`AGENTS.md`**: Lição #8: `get_supabase()` fallback para service_role key.
+- **`AGENTS.md`**: Lição #8: `get_supabase()` fallback para service_role key; Lição #9: `SUPABASE_ANON_KEY` nos jobs CI; Lição #10: `exec_sql_query` sem trailing semicolons.
+
+### Fixed
+- **`.github/workflows/ci.yml`**: `SUPABASE_ANON_KEY` adicionado aos jobs `integration`, `deploy-check` e `real` — resolve 401 "Invalid API key" nos testes de integração quando `get_supabase()` não encontrava a env var.
+- **`scripts/validate_db_schema.py`**: removidos trailing semicolons das SQL queries que quebravam o RPC `exec_sql_query` (o RPC envolve o SQL em subquery, e `;` no final é sintaxe inválida).
 
 ---
 
