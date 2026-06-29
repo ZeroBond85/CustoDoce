@@ -25,7 +25,7 @@ def get_supabase() -> Client:
     if _supabase_client is None:
         _ensure_env_loaded()
         url = os.environ.get("SUPABASE_URL")
-        key = os.environ.get("SUPABASE_ANON_KEY")
+        key = os.environ.get("SUPABASE_ANON_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
         if not url or not key:
             raise ValueError(
                 "Supabase URL and key must be set in environment variables. "

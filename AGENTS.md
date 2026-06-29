@@ -339,6 +339,22 @@ Padrões: `sk-*`, `gsk_*`, `sk-or-*`, `sk-or-v1-*`, `sk-proj-*`, `hf_*`, `github
 
 Para torch CPU em CI: use `PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu` (preserva PyPI como primary). `PIP_INDEX_URL` SUBSTITUI PyPI e quebra `ruff`/`mypy` install.
 
+### 8. `get_supabase()` deve ter fallback se `SUPABASE_ANON_KEY` faltar
+
+`get_supabase()` (serviços/supabase_client.py:28) só lia `SUPABASE_ANON_KEY`. Se essa env var não está nas Secrets do CI, qualquer serviço que chame `get_supabase()` (config_db.py, dashboard_queries.py, etc.) falha com 401 mesmo que `SUPABASE_SERVICE_ROLE_KEY` exista.
+
+```python
+# ❌ ERRADO (quebra no CI se SUPABASE_ANON_KEY não configurada):
+key = os.environ.get("SUPABASE_ANON_KEY")
+
+# ✅ CERTO (fallback para service_role — sempre presente no CI):
+key = os.environ.get("SUPABASE_ANON_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+```
+
+- `get_supabase()` agora prefere `SUPABASE_ANON_KEY` mas aceita `SUPABASE_SERVICE_ROLE_KEY` como fallback.
+- `get_service_client()` SEMPRE prefere `SUPABASE_SERVICE_ROLE_KEY` (inalterado).
+- `ci_local.py` valida que `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GROQ_API_KEY` estão presentes localmente antes do push.
+
 ## OpenCode Skills Strategy
 
 Este projeto usa **duas camadas de skills OpenCode**:

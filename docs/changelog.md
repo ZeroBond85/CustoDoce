@@ -160,6 +160,11 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ### Fixed
 - Garantia de não-perda: overlays são arquivos novos (não patches), backups `.bak` mantidos, descoberta em camadas preservada
+- **`services/supabase_client.py::get_supabase()`**: fallback para `SUPABASE_SERVICE_ROLE_KEY` quando `SUPABASE_ANON_KEY` não está configurada. Antes, qualquer serviço que chamasse `get_supabase()` (config_db.py, dashboard_queries.py, etc.) falhava com 401 no CI, onde `SUPABASE_ANON_KEY` não está nas Secrets.
+
+### Added
+- **`scripts/ci_local.py`**: validador `ci-env-vars` verifica que as env vars usadas no CI (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `GROQ_API_KEY`) estão configuradas localmente antes do push.
+- **`AGENTS.md`**: Lição #8: `get_supabase()` fallback para service_role key.
 
 ---
 

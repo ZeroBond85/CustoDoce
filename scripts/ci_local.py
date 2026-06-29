@@ -25,6 +25,7 @@ Validações de config (só neste script):
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -37,6 +38,37 @@ PYPROJECT_TOML = REPO_ROOT / "pyproject.toml"
 CI_WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 HOOKS_DIR = REPO_ROOT / ".githooks"
 GITIGNORE = REPO_ROOT / ".gitignore"
+
+# Carrega .env se existir (para ambiente local)
+_dotenv = REPO_ROOT / ".env"
+if _dotenv.exists():
+    with open(_dotenv, encoding="utf-8") as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and "=" in _line and not _line.startswith("#"):
+                _k, _v = _line.split("=", 1)
+                _v = _v.strip("'\"").strip()
+                os.environ.setdefault(_k.strip(), _v)
+
+# Env vars esperadas pela CI — required vs optional
+CI_ENV_REQUIRED = {
+    "SUPABASE_URL": "URL do projeto Supabase (usado em integration/deploy-check)",
+    "SUPABASE_SERVICE_ROLE_KEY": "Chave service_role (REST anon + RPC em integration tests)",
+    "GROQ_API_KEY": "API key Groq (LLM classifier — necessária para testes de IA)",
+}
+CI_ENV_OPTIONAL = {
+    "SUPABASE_ANON_KEY": "Chave anon (opcional — get_supabase() faz fallback para service_role)",
+    "SUPABASE_DB_PASSWORD": "Senha direta do DB (porta 5432 — raramente usada em CI)",
+    "TELEGRAM_TOKEN": "Token do bot Telegram (opcional — usado em e2e/real)",
+    "TELEGRAM_CHAT_ID": "Chat ID do Telegram (opcional)",
+    "GMAIL_USER": "Usuário Gmail SMTP (opcional — relatório diário)",
+    "GMAIL_APP_PASSWORD": "Senha de app Gmail (opcional)",
+    "ALERT_EMAIL_TO": "Destinatário de alertas (opcional)",
+    "SMTP_HOST": "Host SMTP alternativo (opcional)",
+    "SMTP_USER": "Usuário SMTP (opcional)",
+    "SMTP_PASSWORD": "Senha SMTP (opcional)",
+    "AUTH_SECRET_KEY": "Chave de autenticação do dashboard (opcional em CI)",
+}
 
 
 def run(cmd: str, cwd: Path = REPO_ROOT, capture: bool = True) -> subprocess.CompletedProcess:
@@ -187,6 +219,29 @@ def validate_hooks_syntax() -> tuple[bool, str]:
     return True, ""
 
 
+def validate_ci_env_vars() -> tuple[bool, str]:
+    """Verifica se as env vars necessárias para CI estão configuradas localmente."""
+    import os
+    missing_required = []
+    missing_optional = []
+    for var, desc in CI_ENV_REQUIRED.items():
+        if not os.environ.get(var):
+            missing_required.append(f"  {var} — {desc}")
+    for var, desc in CI_ENV_OPTIONAL.items():
+        if not os.environ.get(var):
+            missing_optional.append(f"  {var} — {desc}")
+    parts = []
+    if missing_required:
+        parts.append("FALTAM (required — vão falhar no CI):\n" + "\n".join(missing_required))
+    if missing_optional:
+        parts.append("Ausentes (optional — warning):\n" + "\n".join(missing_optional[:5]))
+        if len(missing_optional) > 5:
+            parts[-1] += f"\n  ... e mais {len(missing_optional) - 5} opcionais"
+    if parts:
+        return len(missing_required) == 0, "\n\n".join(parts)
+    return True, "Todas as env vars CI estão configuradas"
+
+
 def run_config_validation() -> bool:
     """Executa todas as validações de configuração."""
     print("\n=== [config-validate] Validando config do projeto ===")
@@ -198,6 +253,7 @@ def run_config_validation() -> bool:
         ("gitignore-diagnose", validate_gitignore_has_diagnose),
         ("no-operational-data-tracked", validate_no_untracked_json_in_data),
         ("hooks-syntax", validate_hooks_syntax),
+        ("ci-env-vars", validate_ci_env_vars),
     ]
     all_ok = True
     for name, fn in checks:
