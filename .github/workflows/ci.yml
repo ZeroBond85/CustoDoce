@@ -137,8 +137,13 @@ jobs:
       - run: pip install -r requirements.txt -r requirements-dev.txt -r tests/requirements-test.txt
       - name: Install Playwright browsers
         run: python -m playwright install chromium
-      - name: Warmup Streamlit Cloud
-        run: python scripts/warmup_streamlit.py https://custodoce.streamlit.app
+      - name: Warmup Streamlit Cloud (keep alive during E2E)
+        run: |
+          for attempt in 1 2 3; do
+            echo "=== Warmup attempt ${attempt} ==="
+            python scripts/warmup_streamlit.py https://custodoce.streamlit.app
+            sleep 10
+          done
       - name: E2E smoke — tab navigation + calculadora
         run: python -m pytest tests/e2e/test_e2e_real.py -k "test_tab_navigates_without_error or test_calculadora" -v --tb=short --no-header
         env:

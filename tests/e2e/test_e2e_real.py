@@ -45,11 +45,30 @@ def get_app(page):
     return page
 
 
+def wake_if_sleeping(page, app):
+    """Streamlit Cloud hiberna apos ~60s idle. Detecta o dialog 'gone to sleep'
+    e acorda o app cliccando no botao 'Yes, get this app back up!'.
+    Retorna app frame atualizado."""
+    sleep_dialog = app.locator("text=gone to sleep")
+    if sleep_dialog.count() > 0 and sleep_dialog.first.is_visible():
+        wake_btn = app.locator("button:has-text('Yes, get this app back up')")
+        if wake_btn.count() > 0:
+            wake_btn.first.click()
+            page.wait_for_timeout(8000)
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(5000)
+            return get_app(page)
+    return app
+
+
 def login_to_app(page):
     """Faz login completo no Streamlit Cloud + dashboard."""
     page.wait_for_load_state("networkidle")
     page.wait_for_timeout(5000)
     app = get_app(page)
+
+    # Streamlit Cloud pode hibernar entre testes -> acordar se necessario
+    app = wake_if_sleeping(page, app)
 
     # Streamlit Cloud password gate (if present)
     pw_input = app.locator("input[type='password']")
@@ -132,6 +151,17 @@ def logged_in_app(browser):
     page.close()
 
 
+@pytest.fixture
+def logged_in_app_and_page(browser):
+    """Retorna (app, page) para testes que precisam acordar Streamlit Cloud
+    ou tirar screenshots."""
+    page = browser.new_page(viewport={"width": 1280, "height": 800})
+    page.goto(BASE_URL, timeout=120000)
+    app = login_to_app(page)
+    yield app, page
+    page.close()
+
+
 class TestE2EReal:
     """D1 — Playwright E2E contra Streamlit Cloud"""
 
@@ -166,18 +196,35 @@ class TestE2EReal:
             browser.close()
 
     @pytest.mark.parametrize("page_id,label,expected", PAGES)
-    def test_tab_navigates_without_error(self, logged_in_app, page_id, label, expected):
-        """Cada aba navega sem erro"""
-        app = logged_in_app
+    def test_tab_navigates_without_error(self, logged_in_app_and_page, page_id, label, expected):
+        """Cada aba navega sem erro."""
+        app, page = logged_in_app_and_page
+        # Acordar Streamlit Cloud caso tenha hibernado entre tests
+        app = wake_if_sleeping(page, app)
+        # Esperar botao com timeout reduzido para fail-fast (default 30s)
         btn = app.locator(f"button:has-text('{label}')")
-        assert btn.count() > 0, f"Botão '{label}' não encontrado"
+        try:
+            btn.first.wait_for(state="visible", timeout=8000)
+        except Exception:
+            # Screenshot antes de falhar
+            report_dir = Path("data/regression_screenshots")
+            report_dir.mkdir(parents=True, exist_ok=True)
+            ts = os.urandom(4).hex()
+            with open(report_dir / f"missing_{page_id}_{ts}.png", "wb") as f:
+                f.write(page.screenshot())
+            pytest.fail(
+                f"Botão '{label}' não encontrado (timeout 8s). "
+                f"Screenshot salvo em data/regression_screenshots/missing_{page_id}_{ts}.png"
+            )
         btn.first.click()
-        app.wait_for_timeout(3000)
+        app.wait_for_timeout(2500)
         check_for_errors(app, f"tab_{page_id}")
 
-    def test_precos_filter(self, logged_in_app):
-        """Preços: seleciona ingrediente"""
-        app = logged_in_app
+    def test_precos_filter(self, logged_in_app_and_page):
+        """Preços: seleciona ingrediente."""
+        app, page = logged_in_app_and_page
+        app = wake_if_sleeping(page, app)
+        app.locator("button:has-text('Precos')").first.wait_for(state="visible", timeout=8000)
         app.locator("button:has-text('Precos')").first.click()
         app.wait_for_timeout(2000)
         check_for_errors(app, "precos")
@@ -192,9 +239,11 @@ class TestE2EReal:
             app.wait_for_timeout(1000)
         check_for_errors(app, "precos_filter")
 
-    def test_revisao_if_pending(self, logged_in_app):
-        """Revisão: se houver itens pendentes"""
-        app = logged_in_app
+    def test_revisao_if_pending(self, logged_in_app_and_page):
+        """Revisão: se houver itens pendentes."""
+        app, page = logged_in_app_and_page
+        app = wake_if_sleeping(page, app)
+        app.locator("button:has-text('Revisao')").first.wait_for(state="visible", timeout=8000)
         app.locator("button:has-text('Revisao')").first.click()
         app.wait_for_timeout(3000)
         check_for_errors(app, "revisao")
@@ -208,9 +257,11 @@ class TestE2EReal:
                 app.wait_for_timeout(2000)
             check_for_errors(app, "revisao_approve")
 
-    def test_calculadora(self, logged_in_app):
-        """Calculadora carrega sem erro e tabs trocam via selectbox"""
-        app = logged_in_app
+    def test_calculadora(self, logged_in_app_and_page):
+        """Calculadora carrega sem erro e tabs trocam via selectbox."""
+        app, page = logged_in_app_and_page
+        app = wake_if_sleeping(page, app)
+        app.locator("button:has-text('Calculadora')").first.wait_for(state="visible", timeout=8000)
         app.locator("button:has-text('Calculadora')").first.click()
         app.wait_for_timeout(3000)
         check_for_errors(app, "calculadora")
@@ -233,9 +284,11 @@ class TestE2EReal:
             app.wait_for_timeout(2000)
             check_for_errors(app, "calculadora_tab_simples")
 
-    def test_diagnostico(self, logged_in_app):
-        """Diagnóstico carrega sem erro"""
-        app = logged_in_app
+    def test_diagnostico(self, logged_in_app_and_page):
+        """Diagnóstico carrega sem erro."""
+        app, page = logged_in_app_and_page
+        app = wake_if_sleeping(page, app)
+        app.locator("button:has-text('Diagnostico')").first.wait_for(state="visible", timeout=8000)
         app.locator("button:has-text('Diagnostico')").first.click()
         app.wait_for_timeout(2000)
         check_for_errors(app, "diagnostico")
