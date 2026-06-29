@@ -61,6 +61,20 @@ def wake_if_sleeping(page, app):
     return app
 
 
+def ensure_app_ready(page, app):
+    """Garante que o app esta acordado + sidebar renderizada.
+    Reutilizavel antes de cada teste."""
+    app = wake_if_sleeping(page, app)
+    # Esperar sidebar renderizar (ex: visivel primeiro item)
+    try:
+        app.locator("button:has-text('Visao Geral')").first.wait_for(
+            state="visible", timeout=15000
+        )
+    except Exception:
+        pass
+    return app
+
+
 def login_to_app(page):
     """Faz login completo no Streamlit Cloud + dashboard."""
     page.wait_for_load_state("networkidle")

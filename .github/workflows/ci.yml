@@ -127,7 +127,10 @@ jobs:
     needs: [deploy-check]
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: github.event_name != 'pull_request'
+    # E2E contra Streamlit Cloud e flaky por sleep mode (~60s idle). Roda em
+    # push + PR mas falhas do Streamlit Cloud NAO BLOQUEIAM merge (continue-on-error).
+    # Para validar E2E em condicoes ideais, dispare via workflow_dispatch.
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
