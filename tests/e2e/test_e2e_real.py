@@ -82,29 +82,39 @@ def ensure_app_ready(page, app):
 
 
 def login_to_app(page):
-    """Faz login completo no Streamlit Cloud + dashboard."""
-    page.wait_for_load_state("networkidle")
-    page.wait_for_timeout(5000)
-    app = get_app(page)
+    """Faz login completo no Streamlit Cloud + dashboard.
 
-    # Streamlit Cloud pode hibernar entre testes -> acordar se necessario
+    Espera ativamente pelo conteudo renderizar (ate 45s), evitando race
+    condition de cold start onde o password input pode demorar >5s para
+    aparecer (Streamlight importa modulos, conecta Supabase etc).
+    """
+    page.wait_for_load_state("networkidle")
+
+    # Poll for either password input (need login) or sidebar (already logged in)
+    pw_input = page.locator("input[type='password']")
+    sidebar = page.locator("button:has-text('Visao Geral')")
+    for _ in range(45):
+        if pw_input.count() > 0 and pw_input.first.is_visible():
+            break
+        if sidebar.count() > 0 and sidebar.first.is_visible():
+            return ensure_app_ready(page, get_app(page))
+        page.wait_for_timeout(1000)
+
+    app = get_app(page)
     app = wake_if_sleeping(page, app)
 
-    # Streamlit Cloud password gate (if present)
-    pw_input = app.locator("input[type='password']")
-    if pw_input.count() > 0:
+    # Password gate — tenta login se houver campo de senha
+    if pw_input.count() > 0 and pw_input.first.is_visible():
         pw_input.first.fill(ADMIN_PASSWORD)
         entrar = app.locator("button:has-text('Entrar')")
         if entrar.count() > 0:
             entrar.first.click()
             page.wait_for_timeout(3000)
             page.wait_for_load_state("networkidle")
-            page.wait_for_timeout(3000)
-            app = get_app(page)
 
-    # Dashboard password gate (if present)
+    # Segundo password gate (Streamlit Cloud + dashboard podem ter 2 gates)
     pw_input2 = app.locator("input[type='password']")
-    if pw_input2.count() > 0:
+    if pw_input2.count() > 0 and pw_input2.first.is_visible():
         pw_input2.first.fill(ADMIN_PASSWORD)
         entrar2 = app.locator("button:has-text('Entrar')")
         if entrar2.count() > 0:
@@ -112,8 +122,9 @@ def login_to_app(page):
             page.wait_for_timeout(3000)
             page.wait_for_load_state("networkidle")
             page.wait_for_timeout(5000)
-            app = get_app(page)
 
+    app = get_app(page)
+    app = ensure_app_ready(page, app)
     return app
 
 

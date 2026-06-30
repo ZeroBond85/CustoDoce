@@ -10,6 +10,7 @@ Testa:
 - Nenhuma página referenciada em PAGE_FUNCTIONS está faltando
 - render_login() é chamado sem argumento
 """
+
 import inspect
 from types import FunctionType
 
@@ -35,6 +36,7 @@ def test_all_page_modules_import():
         calculadora,
         diagnostico,
     )
+
     assert visao_geral
     assert precos
     assert historico
@@ -61,6 +63,7 @@ def test_render_login_signature():
     render_login(ADMIN_PASSWORD) mas função espera 0 args).
     """
     from dashboard.login_page import render_login
+
     sig = inspect.signature(render_login)
     # Nenhum parâmetro obrigatório
     assert len([p for p in sig.parameters.values() if p.default is inspect.Parameter.empty]) == 0, (
@@ -71,6 +74,7 @@ def test_render_login_signature():
 def test_login_page_import():
     """login_page importa sem erro."""
     from dashboard import login_page
+
     assert hasattr(login_page, "render_login")
     assert callable(login_page.render_login)
 
@@ -92,9 +96,7 @@ def test_all_page_functions_have_zero_required_args():
     for key, fn in PAGE_FUNCTIONS.items():
         sig = inspect.signature(fn)
         required = [p for p in sig.parameters.values() if p.default is inspect.Parameter.empty]
-        assert len(required) == 0, (
-            f"{key} ({fn.__name__}) tem {len(required)} parametros obrigatorios: {sig}"
-        )
+        assert len(required) == 0, f"{key} ({fn.__name__}) tem {len(required)} parametros obrigatorios: {sig}"
 
 
 def test_main_does_not_call_render_login_with_args():
@@ -124,16 +126,28 @@ def test_no_page_function_called_directly_with_args():
     Se alguém adicionar render_precos(algo) direto, isso falha.
     """
     import ast
+
     with open("admin/app.py") as f:
         tree = ast.parse(f.read())
 
     page_fn_names = {
-        "render_visao_geral", "render_precos", "render_historico",
-        "render_flyers", "render_revisao", "render_fontes",
-        "render_ranking", "render_insights", "render_lojas",
-        "render_ingredientes", "render_alertas", "render_scrapers",
-        "render_scraper_health", "render_relatorios", "render_config",
-        "render_calculadora", "render_diagnostico",
+        "render_visao_geral",
+        "render_precos",
+        "render_historico",
+        "render_flyers",
+        "render_revisao",
+        "render_fontes",
+        "render_ranking",
+        "render_insights",
+        "render_lojas",
+        "render_ingredientes",
+        "render_alertas",
+        "render_scrapers",
+        "render_scraper_health",
+        "render_relatorios",
+        "render_config",
+        "render_calculadora",
+        "render_diagnostico",
     }
 
     for node in ast.walk(tree):

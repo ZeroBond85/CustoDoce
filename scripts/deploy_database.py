@@ -626,6 +626,22 @@ CREATE INDEX IF NOT EXISTS idx_review_queue_store_product ON review_queue(store_
 CREATE INDEX IF NOT EXISTS idx_alerts_ingredient_store_active ON alert_rules(trigger, enabled);
 CREATE INDEX IF NOT EXISTS idx_flyers_store_active ON flyers(store_name, is_active);
 """)
+    # ─── PHASE 20: LLM Match Cache (004_add_llm_match_cache.sql) ──────────────
+    llm_cache_path = REPO_ROOT / "supabase" / "004_add_llm_match_cache.sql"
+    if llm_cache_path.exists():
+        gen.append("\n-- ============================================================")
+        gen.append("-- PHASE 20: LLM Match Cache (004_add_llm_match_cache.sql)")
+        gen.append("-- ============================================================")
+        gen.append(llm_cache_path.read_text(encoding="utf-8"))
+
+    # ─── PHASE 21: Scraper Health Log (005_add_scraper_health_log.sql) ─────
+    health_log_path = REPO_ROOT / "supabase" / "005_add_scraper_health_log.sql"
+    if health_log_path.exists():
+        gen.append("\n-- ============================================================")
+        gen.append("-- PHASE 21: Scraper Health Log (005_add_scraper_health_log.sql)")
+        gen.append("============================================================")
+        gen.append(health_log_path.read_text(encoding="utf-8"))
+
     return "\n".join(gen)
 
 
@@ -703,7 +719,7 @@ def main():
     args = parser.parse_args()
 
     sql = generate_consolidated()
-    total_tables = 14  # prices, price_history, review_queue, scraping_logs, stores, flyers, ingredients, schedules, scrape_frequencies, alert_recipients, alert_rules, feature_flags, recipes, recipe_items
+    total_tables = 16  # prices, price_history, review_queue, scraping_logs, stores, flyers, ingredients, schedules, scrape_frequencies, alert_recipients, alert_rules, feature_flags, recipes, recipe_items, llm_match_cache, scraper_health_log
 
     if args.dry_run:
         statements_count = sum(1 for s in sql.split(";") if s.strip())

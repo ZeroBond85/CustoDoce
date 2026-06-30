@@ -287,10 +287,10 @@ python scripts/seed_prices.py --dry-run
 
 | Ferramenta | Status |
 |------------|--------|
-| pytest (unit + schema) | 544 passing (unit: 450, schema: 94) | ✅ |
+| pytest (unit + schema) | 551 passing (unit: 457, schema: 94) | ✅ |
 | pytest (integration) | 102 passing | ✅ |
 | pytest (real, slow) | 6 passing | ✅ |
-| pytest (e2e) | 49 collected (blocked on Playwright live Streamlit Cloud) | ⏳ |
+| pytest (e2e) | 50 collected (blocked on Playwright live Streamlit Cloud) | ⏳ |
 
 **Sprint 2 concluída (Test Hardening + Contract Safety) out 2026-06-29:**
 - **2.1 Test Hardening**: `test_normalizer.py` expandido para 31 casos (cobre todas as unidades do YAML + edge cases) ✅

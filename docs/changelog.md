@@ -5,6 +5,20 @@ Todos os cambios_notáveis deste projeto são documentados aqui.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.2.2] - 2026-06-30
+
+### Fixed
+
+#### Sprint 6 — Migration Sync + httpx Pin + E2E Login Timing
+
+- **`tests/e2e/test_e2e_real.py::login_to_app`**: Race condition de cold start — `page.wait_for_timeout(5000)` substituído por polling ativo (até 45s) que espera `input[type='password']` ou `button:has-text('Visao Geral')` aparecer. Adicionada chamada a `ensure_app_ready()` no fim do login para garantir sidebar visível.
+- **`requirements.txt`**: `httpx>=0.28` → `httpx>=0.28,<1.0` (prevenir breaking change httpx 1.x que removeu `proxies=`).
+- **`scripts/deploy_database.py`**: Incluídas migrations `004_add_llm_match_cache.sql` (Phase 20) e `005_add_scraper_health_log.sql` (Phase 21) que estavam ausentes do consolidated SQL.
+
+### Changed
+
+- **`scripts/deploy_database.py`**: expected_tables atualizado de 14 → 16.
+
 ## [0.2.1] - 2026-06-29
 
 ### Fixed

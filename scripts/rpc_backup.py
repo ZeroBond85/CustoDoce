@@ -4,6 +4,7 @@ Fallback quando pg_dump falha (porta 5432 bloqueada no CI).
 Usage:
     python scripts/rpc_backup.py
 """
+
 import json
 import gzip
 import datetime
@@ -18,8 +19,14 @@ def run_backup():
     s = create_client(url, key)
 
     tables = [
-        "prices", "price_history", "review_queue", "stores",
-        "ingredients", "flyers", "scrape_frequencies", "alert_rules",
+        "prices",
+        "price_history",
+        "review_queue",
+        "stores",
+        "ingredients",
+        "flyers",
+        "scrape_frequencies",
+        "alert_rules",
         "feature_flags",
     ]
     backup = {}

@@ -3,6 +3,7 @@
 Streamlit Cloud is now an SPA (React) — HTTP requests only get the shell
 HTML (<div id='root'></div>). Real warmup needs a browser that runs JS.
 """
+
 import os
 import sys
 import time
