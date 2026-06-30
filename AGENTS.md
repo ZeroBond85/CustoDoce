@@ -289,8 +289,25 @@ python scripts/seed_prices.py --dry-run
 |------------|--------|
 | pytest (unit + schema) | 551 passing (unit: 457, schema: 94) | ✅ |
 | pytest (integration) | 102 passing | ✅ |
+| pytest (design) | 10 passing | ✅ |
 | pytest (real, slow) | 6 passing | ✅ |
 | pytest (e2e) | 50 collected (blocked on Playwright live Streamlit Cloud) | ⏳ |
+
+**Sprint 5 concluída (CI Hardening + Real E2E Cloud Validation) out 2026-06-29:**
+- `admin/app.py:` TypeError FASE 8 — `render_login(ADMIN_PASSWORD)` → `render_login()` ✅
+- `backup.yml:` PYEOF indentado extraído para `scripts/rpc_backup.py`; RPC backup nunca rodou ✅
+- `warmup_streamlit.py:` reescrito de HTTP (inútil — SPA React) para Playwright headless ✅
+- CI e2e-smoke migrado para localhost, sem `continue-on-error`; cloud E2E mensal ✅
+- `tests/unit/test_app_wiring.py:` 7 testes AST + imports (pega TypeError sem Streamlit) ✅
+- 14 workflows auditados — 0 hashFiles, 0 PYEOF, 0 failure() em continue-on-error ✅
+
+**Sprint 6 concluída (Migration Sync + httpx Pin + E2E Login Timing) out 2026-06-30:**
+- `deploy_database.py:` incluídas migrations 004 (llm_match_cache) e 005 (scraper_health_log) ✅
+- `requirements.txt:` httpx pinado `<1.0` (previne breaking change 1.x que removeu `proxies=`) ✅
+- `tests/e2e/test_e2e_real.py::login_to_app:` race condition cold start — fixed 5s → polling 45s ✅
+- `scripts/deploy_database.py:` expected_tables 14 → 16; all migrations auto-descobertas via glob ✅
+- `test_total_coverage.py:` 8/8 PASS (ruff, format, mypy, unit, schema, design, sync_docs, audit) ✅
+- Meta: ruff ✅, mypy ✅, pytest **709 total** passing (unit+schema+integration+e2e+real+design); 0 novos warnings ✅
 
 **Sprint 2 concluída (Test Hardening + Contract Safety) out 2026-06-29:**
 - **2.1 Test Hardening**: `test_normalizer.py` expandido para 31 casos (cobre todas as unidades do YAML + edge cases) ✅
@@ -570,6 +587,74 @@ Testes E2E contra cloud:
 - CI (push/PR) usa **localhost:8501** — rápido, confiável, sem cold start
 - Schedule (mensal) testa **cloud real** com Playwright
 - `ensure_app_ready()` adapta retries: 6×30s para cloud, 3×15s para localhost
+
+### 21. `page.wait_for_timeout()` é frágil para cold start E2E — use polling
+
+Streamlit cold start pode levar >30s no CI (imports pesados, conexão Supabase).
+`login_to_app()` usava `networkidle` + `page.wait_for_timeout(5000)` e depois
+verificava `pw_input.count() > 0`. Se o input ainda não tinha sido renderizado,
+o count era 0 e o login **todo era pulado** — 17/17 testes E2E falhavam.
+
+```python
+# ❌ ERRADO (race condition com cold start):
+page.wait_for_load_state("networkidle")
+page.wait_for_timeout(5000)
+pw_input = app.locator("input[type='password']")
+if pw_input.count() > 0:  # Pode ser 0 se cold start >5s!
+    ...login...
+
+# ✅ CERTO (polling ativo até 45s):
+pw_input = page.locator("input[type='password']")
+sidebar = page.locator("button:has-text('Visao Geral')")
+for _ in range(45):
+    if pw_input.count() > 0 and pw_input.first.is_visible():
+        break
+    if sidebar.count() > 0 and sidebar.first.is_visible():
+        return app  # já logado
+    page.wait_for_timeout(1000)
+```
+
+Sempre usar polling para elementos que dependem de renderização assíncrona
+(WebSocket, SPA, cold start). Timeout fixo é frágil.
+
+### 22. `httpx>=0.28` pode resolver para 1.x — sempre pin upper bound
+
+httpx 1.0 removeu o parâmetro `proxies=` (renomeado para `proxy=`).
+Se `requirements.txt` especifica `httpx>=0.28`, um `pip install` futuro pode
+pegar 1.x e quebrar todo código que usa `httpx.Client(proxies=...)`.
+
+```txt
+# ❌ ERRADO (quebra quando 1.x é lançado):
+httpx>=0.28
+
+# ✅ CERTO (preserva compatibilidade):
+httpx>=0.28,<1.0
+```
+
+Regra permanente: sempre pin upper bound em bibliotecas de rede (httpx, requests,
+aiohttp) que têm histórico de breaking changes. Não confiar em `>=X.Y` para
+bibliotecas ativas.
+
+### 23. Migration SQL nova precisa ser incluída em `deploy_database.py`
+
+O script `scripts/deploy_database.py::generate_consolidated()` é a fonte
+autoritativa de migrações. Se uma migration SQL for criada em
+`supabase/004_add_*.sql` mas NÃO adicionada ao `generate_consolidated()`,
+ela nunca será executada pelo `--execute` nem aparecerá no consolidated output.
+
+```python
+# ❌ ERRADO (migration órfã — deploy não sabe dela):
+# supabase/005_add_scraper_health_log.sql existe mas não é referenciado
+
+# ✅ CERTO: adicionar ao final de generate_consolidated():
+health_log_path = REPO_ROOT / "supabase" / "005_add_scraper_health_log.sql"
+if health_log_path.exists():
+    gen.append(health_log_path.read_text(encoding="utf-8"))
+```
+
+Regra permanente: toda migration SQL nova DEVE ser adicionada ao
+`generate_consolidated()`. Se a migration cria uma nova tabela, atualizar
+`total_tables` no comentário do script.
 
 ## OpenCode Skills Strategy
 
