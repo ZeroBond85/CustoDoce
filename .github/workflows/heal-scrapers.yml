@@ -77,7 +77,7 @@ jobs:
         if: always()
         continue-on-error: true
         run: |
-          python -c "import os, httpx; token = os.environ.get('TELEGRAM_TOKEN', ''); chat_id = os.environ.get('TELEGRAM_CHAT_ID', ''); msg = 'ℹ️ Heal-scrapers cron executou — detalhes no run:\nhttps://github.com/ZeroBond85/CustoDoce/actions/runs/' + os.environ.get('GITHUB_RUN_ID', ''); r = httpx.post(f'https://api.telegram.org/bot{token}/sendMessage', json={'chat_id': chat_id, 'text': msg, 'parse_mode': 'Markdown'}, timeout=10) if token and chat_id else print('Telegram not configured')"
+          python -c "import os, httpx; token = os.environ.get('TELEGRAM_TOKEN', ''); chat_id = os.environ.get('TELEGRAM_CHAT_ID', ''); repo = os.environ.get('GITHUB_REPOSITORY', ''); msg = 'ℹ️ Heal-scrapers cron executou — detalhes no run:\nhttps://github.com/' + repo + '/actions/runs/' + os.environ.get('GITHUB_RUN_ID', ''); r = httpx.post(f'https://api.telegram.org/bot{token}/sendMessage', json={'chat_id': chat_id, 'text': msg, 'parse_mode': 'Markdown'}, timeout=10) if token and chat_id else print('Telegram not configured')"
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

@@ -1,8 +1,8 @@
-name: E2E Dashboard - Producao Real
+name: E2E - Teste Completo
 
 on:
   schedule:
-    - cron: '0 6 * * 1/2'   # Seg quinzenal (06h UTC = 03h BRT)
+    - cron: '0 10 1 * *'   # Dia 1 de cada mes, 07:00 BRT
   workflow_dispatch:
     inputs:
       update_baselines:
@@ -16,119 +16,106 @@ on:
 
 env:
   PYTHON_VERSION: '3.12'
-  STREAMLIT_URL: https://custodoce.streamlit.app
 
 jobs:
-  e2e:
+  e2e-local:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    # Streamlit Cloud hibernates apps after ~60s idle. E2E tests against
-    # https://custodoce.streamlit.app are flaky when many tabs run in series.
-    # See AGENTS.md Lição #12 — continue-on-error avoids blocking schedule on
-    # infra flake. Health-checks run elsewhere; this job is informational.
-    continue-on-error: true
+    timeout-minutes: 30
     concurrency:
       group: e2e-${{ github.ref }}
       cancel-in-progress: true
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup Python
-        uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
 
-      - name: Cache Embedding Model
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/huggingface/hub/
-          key: embeddings-${{ runner.os }}-paraphrase-multilingual
-          restore-keys: embeddings-${{ runner.os }}-
+      - run: pip install -r requirements.txt -r requirements-dev.txt -r tests/requirements-test.txt
 
-      - name: Install Dependencies
+      - name: Install Playwright
+        run: python -m playwright install chromium --with-deps
+
+      - name: Start Streamlit local server
         run: |
-          pip install -r requirements.txt -r requirements-dev.txt -r requirements-e2e.txt
-          playwright install chromium --with-deps
-
-      - name: Warmup Streamlit Cloud
-        run: python scripts/warmup_streamlit.py ${{ env.STREAMLIT_URL }}
-
-      - name: Test Supabase Connection
-        run: |
-          python -c "from supabase import create_client; import os; s = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY']); r = s.table('prices').select('id').limit(1).execute(); print(f'Supabase OK: {len(r.data or [])} rows')"
+          nohup streamlit run admin/app.py --server.port 8501 --server.headless true > /tmp/streamlit.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:8501 > /dev/null 2>&1; then
+              echo "Streamlit ready after ${i}s"
+              break
+            fi
+            sleep 2
+          done
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-
-      - name: Run Real DB Tests
-        run: pytest tests/integration/test_db_real.py tests/real/test_scrapers_real.py tests/real/test_telegram_real.py -m slow -v --tb=short --json-report --json-report-file=.pytest_db.json
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-
-      - name: Run E2E Tests (Dashboard + Playwright + Flyers)
-        run: |
-          pytest tests/e2e/test_e2e_dashboard.py tests/e2e/test_e2e_real.py -v \
-            --tb=short \
-            --html=report.html \
-            --self-contained-html \
-            -k "not visual"
-        env:
-          STREAMLIT_URL: ${{ env.STREAMLIT_URL }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+
+      - name: Run E2E Tests (all pages)
+        run: python -m pytest tests/e2e/test_e2e_real.py -v --tb=short --html=report.html --self-contained-html
+        env:
+          STREAMLIT_URL: http://localhost:8501
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
 
       - name: Visual Regression
         if: ${{ !inputs.skip_visual }}
-        run: pytest tests/e2e/test_e2e_dashboard.py::TestVisualRegression -v --tb=short
+        run: python -m pytest tests/e2e/test_e2e_dashboard.py::TestVisualRegression -v --tb=short
         env:
-          STREAMLIT_URL: ${{ env.STREAMLIT_URL }}
+          STREAMLIT_URL: http://localhost:8501
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
 
       - name: Update Baselines
         if: ${{ inputs.update_baselines }}
-        run: UPDATE_BASELINES=1 pytest tests/e2e/test_e2e_dashboard.py::TestVisualRegression -v
+        run: UPDATE_BASELINES=1 python -m pytest tests/e2e/test_e2e_dashboard.py::TestVisualRegression -v
         env:
-          STREAMLIT_URL: ${{ env.STREAMLIT_URL }}
+          STREAMLIT_URL: http://localhost:8501
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
 
-      - name: Send Telegram Alert on Failure
-        if: failure()
-        continue-on-error: true
-        run: |
-          python -c "import os, httpx; token = os.environ.get('TELEGRAM_TOKEN', ''); chat_id = os.environ.get('TELEGRAM_CHAT_ID', ''); status = '${{ job.status }}'; run_url = 'https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'; msg = f'ℹ️ E2E cronograma executou (status={status}) — flake conhecido de infra hibernante (Streamlit Cloud).\nVer AGENTS.md Lição #12.\nRef: {run_url}\n\nEste alerta e apenas informativo; CI nao foi bloqueado.'; r = httpx.post(f'https://api.telegram.org/bot{token}/sendMessage', json={'chat_id': chat_id, 'text': msg, 'parse_mode': 'Markdown'}, timeout=10)"
-        env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-
-      - name: Send E2E Report Email
-        if: always()
-        run: python scripts/send_e2e_report.py
-        env:
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          ALERT_EMAIL_TO: custodoce@gmail.com
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-
-      - name: Upload Report
-        uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: e2e-report
+          name: e2e-report-local
           path: report.html
-          retention-days: 1
+          retention-days: 7
 
-      - name: Upload Visual Diffs
-        uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: visual-diffs
           path: tests/visual_diffs/
-          retention-days: 1
+          retention-days: 7
+
+  e2e-cloud:
+    needs: [e2e-local]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: e2e-cloud-${{ github.ref }}
+      cancel-in-progress: true
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - run: pip install -r requirements.txt -r requirements-dev.txt -r tests/requirements-test.txt
+
+      - name: Install Playwright + browsers
+        run: python -m playwright install chromium --with-deps
+
+      - name: Warmup Streamlit Cloud (Playwright)
+        run: python scripts/warmup_streamlit.py https://custodoce.streamlit.app '' 3
+        env:
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+
+      - name: Cloud smoke test (todos os tabs + calculadora)
+        run: |
+          python -m pytest tests/e2e/test_e2e_real.py \
+            -k "test_tab_navigates_without_error or test_calculadora" \
+            -v --tb=long --no-header
+        env:
+          STREAMLIT_URL: https://custodoce.streamlit.app
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}

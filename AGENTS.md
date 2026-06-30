@@ -406,26 +406,28 @@ SQL com `;` no final quebra a subquery. Remova qualquer `;` no final de queries 
 
 
 
-### 12. Streamlit Cloud E2E flakiness — use continue-on-error
+### 12. Streamlit Cloud E2E flakiness — use continue-on-error + warmup agressivo
 
 Streamlit Cloud hiberna apps apos ~60s idle. Testes E2E (Playwright contra
 `https://custodoce.streamlit.app`) que rodam muitos tabs em serie podem pegar
 o app hibernando no meio. Sintoma: `locator(...).wait_for` timeout porque
 botoes nao renderizam (app mostra dialog 'Yes, get this app back up!').
 
-Mitigacoes aplicadas em Sprint 3:
+Mitigacoes aplicadas (Sprint 3 + hotfix):
+- `scripts/warmup_streamlit.py`: 12 tentativas com backoff exponencial (3min total)
 - `tests/e2e/test_e2e_real.py::wake_if_sleeping()` detecta e acorda o app
-- `tests/e2e/test_e2e_real.py::ensure_app_ready()` combina wake + wait_for
-  pelo botao 'Visao Geral' (sidebar renderizada)
-- `.github/workflows/ci.yml::e2e-smoke` usa `continue-on-error: true` para
-  NAO BLOQUEAR merges quando infra externa (Streamlit Cloud) hiberna
-- Warmup estendido: 3 chamadas 10s delay para manter app awake durante o
-  suite (mas nao elimina completamente a flakiness)
+- `tests/e2e/test_e2e_real.py::ensure_app_ready()` retry loop 3x com reload
+  ate sidebar renderizar (antes tentava 1x e silenciava timeout)
+- `.github/workflows/ci.yml::e2e-smoke`: warmup 6 rounds (antes 3 rounds)
+  com `continue-on-error: true` para NAO BLOQUEAR merges
+- `.github/workflows/e2e.yml`: warmup 5 rounds (antes 1 round)
+- `ci.yml` e2e-smoke step detecta "gone to sleep" no body HTTP e continua
+  tentando ate 200/303
 
 **Regra permanente**: E2E contra infra externa que hiberna = sempre
-continue-on-error. Health checks reais NAO substituem unit/integration tests.
-A solucao ideal e ter um staging app que NAO hiberna (Streamlit Enterprise
-ou self-hosted), mas isso esta fora do escopo free-tier.
+continue-on-error + warmup agressivo (min 6 rounds, 3min total). Health
+checks reais NAO substituem unit/integration tests. Se mesmo com warmup
+agressivo falhar, verificar Lição #18 (failure() com continue-on-error).
 
 ### 13. Sync_docs.py e fonte autoritativa — drift detection obrigatorio
 
@@ -491,6 +493,83 @@ Regra permanente:
 - Logar `error_class` em scraper_health_log (Timeout|SSLError|LayoutChanged|...)
 - Causa raiz NAO = log.message; precisa do stack trace + reproducao
 - Apply fix minimo — nao workarounds
+
+### 17. `hashFiles()` no GHA só funciona com arquivos trackados pelo git
+
+`hashFiles(...)` é uma função de cache key que só enxerga arquivos no
+repositório git, NÃO arquivos criados durante a execução do workflow
+(backups, relatórios, logs). Usar `hashFiles()` no `if:` de um upload
+step faz com que o step seja **sempre skipped**.
+
+```yaml
+# ❌ ERRADO (sempre pula):
+if: hashFiles('${{ steps.file.outputs.filename }}') != ''
+
+# ✅ CERTO (checa o output do step anterior):
+if: steps.file.outputs.filename != ''
+```
+
+### 18. `if: failure()` não dispara dentro de `continue-on-error: true` jobs
+
+Quando um job GHA tem `continue-on-error: true`, o job conclui como
+"success" mesmo que steps dentro dele falhem. `if: failure()` checa o
+status do job (sempre "success"), então **nunca dispara**.
+
+Para detectar falha de steps específicos dentro de jobs com
+`continue-on-error: true`, refencie o `outcome` do step:
+
+```yaml
+- name: Alert on failure
+  if: always() && steps.meu_teste.outcome == 'failure'
+```
+
+E adicione `id:` ao step que pode falhar:
+```yaml
+- name: Run tests
+  id: meu_teste
+  run: pytest ...
+```
+
+### 19. Script inline Python em heredoc no YAML — delimiter na coluna 0
+
+GitHub Actions YAML heredoc (`<< 'PYEOF'`) exige o delimiter na **coluna 0**.
+Se o YAML estiver indentado (dentro de um `steps:` ou `run:`), o delimiter
+também fica indentado — o que **quebra o heredoc**.
+
+Sintoma: script recebe código com indentação extra ou `IndentationError`.
+Solução: extrair o Python para um arquivo `.py` separado.
+
+```yaml
+# ❌ ERRADO (delimiter indentado dentro de steps:):
+- run: |
+    python << 'PYEOF'
+    import os
+    print("hi")
+    PYEOF
+
+# ✅ CERTO (arquivo separado):
+- run: python scripts/rpc_backup.py
+```
+
+**Scripts inline só são seguros em comandos de UMA linha.**
+
+### 20. Streamlit Cloud virou SPA (React) — HTTP warmup é inútil
+
+Streamlit Cloud agora é um SPA (Single Page Application) em React. Requisições
+HTTP (`requests`, `httpx`, `curl`) recebem apenas o shell HTML com `<div id='root'></div>`.
+O servidor Python só é acionado via WebSocket/JavaScript após o SPA carregar no navegador.
+
+Consequências:
+- **HTTP warmup não acorda o app** — cookie jar persistente não ajuda porque
+  o servidor nunca recebe tráfego HTTP direto
+- **Playwright (browser real) é obrigatório** para warmup e testes
+- `scripts/warmup_streamlit.py` deve usar Chromium headless, navegar, fazer login,
+  detectar "gone to sleep", clicar wake-up, esperar sidebar
+
+Testes E2E contra cloud:
+- CI (push/PR) usa **localhost:8501** — rápido, confiável, sem cold start
+- Schedule (mensal) testa **cloud real** com Playwright
+- `ensure_app_ready()` adapta retries: 6×30s para cloud, 3×15s para localhost
 
 ## OpenCode Skills Strategy
 

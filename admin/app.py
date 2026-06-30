@@ -109,7 +109,7 @@ def main():
 
     # Authentication
     if not st.session_state.authenticated:
-        render_login(ADMIN_PASSWORD)
+        render_login()
         return
 
     # Render sidebar navigation

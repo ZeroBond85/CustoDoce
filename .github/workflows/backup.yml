@@ -71,33 +71,11 @@ jobs:
 
       - name: Fallback to RPC-based backup (always runs — uses whichever worked)
         id: rpc
+        continue-on-error: true
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: |
-          echo "RPC-based backup (overwrites pg_dump file if it exists)..."
-          python << 'PYEOF'
-          import os, json, gzip, datetime
-          from supabase import create_client
-          s = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
-          tables = ['prices', 'price_history', 'review_queue', 'stores', 'ingredients', 'flyers', 'scrape_frequencies', 'alert_rules', 'feature_flags']
-          backup = {}
-          for t in tables:
-              try:
-                  data = s.table(t).select('*').execute().data
-                  backup[t] = data
-                  print(f'  {t}: {len(data)} rows')
-              except Exception as e:
-                  print(f'  {t}: ERROR {e}')
-          ts = datetime.datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-          fn = f'custodoce_backup_rpc_{ts}.json.gz'
-          with gzip.open(fn, 'wt', encoding='utf-8') as f:
-              json.dump(backup, f, ensure_ascii=False, default=str)
-          print(f'Wrote {fn}')
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-              f.write(f'filename={fn}\n')
-              f.write(f'timestamp={ts}\n')
-          PYEOF
+        run: python scripts/rpc_backup.py
 
       - name: Discover final filename
         id: file
@@ -118,7 +96,7 @@ jobs:
 
       - name: Upload backup to GitHub Artifacts
         uses: actions/upload-artifact@v7
-        if: hashFiles('${{ steps.file.outputs.filename }}') != ''
+        if: steps.file.outputs.filename != ''
         with:
           name: db-backup-${{ steps.file.outputs.timestamp }}
           path: ${{ steps.file.outputs.filename }}
@@ -144,7 +122,6 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Campo | Valor |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Timestamp | ${{ steps.dump.outputs.timestamp }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Arquivo | ${{ steps.dump.outputs.filename }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Tamanho | $(( ${{ steps.dump.outputs.size }} / 1024 )) KB |" >> $GITHUB_STEP_SUMMARY
+          echo "| Timestamp | ${{ steps.file.outputs.timestamp || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Arquivo | ${{ steps.file.outputs.filename || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Retention | 14 dias (GitHub Artifacts) |" >> $GITHUB_STEP_SUMMARY

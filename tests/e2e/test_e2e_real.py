@@ -63,13 +63,21 @@ def wake_if_sleeping(page, app):
 
 def ensure_app_ready(page, app):
     """Garante que o app esta acordado + sidebar renderizada.
-    Reutilizavel antes de cada teste."""
-    app = wake_if_sleeping(page, app)
-    # Esperar sidebar renderizar (ex: visivel primeiro item)
-    try:
-        app.locator("button:has-text('Visao Geral')").first.wait_for(state="visible", timeout=15000)
-    except Exception:
-        pass
+    Usa mais retries para cloud URL (cold start pode levar 60s+)."""
+    is_cloud = "local" not in BASE_URL
+    max_retries = 6 if is_cloud else 3
+    for attempt in range(max_retries):
+        app = wake_if_sleeping(page, app)
+        try:
+            timeout = 30000 if is_cloud else 15000
+            app.locator("button:has-text('Visao Geral')").first.wait_for(state="visible", timeout=timeout)
+            return app
+        except Exception:
+            if attempt < max_retries - 1:
+                page.wait_for_timeout(5000)
+                page.reload(wait_until="networkidle")
+                page.wait_for_timeout(5000)
+                app = get_app(page)
     return app
 
 
@@ -309,6 +317,28 @@ class TestE2EReal:
             run_all.click()
             app.wait_for_timeout(5000)
             check_for_errors(app, "diagnostico_run")
+
+    def test_sidebar_completeness(self, logged_in_app_and_page):
+        """Sidebar contém todos os botões esperados e nenhum inesperado."""
+        app, page = logged_in_app_and_page
+        app = wake_if_sleeping(page, app)
+
+        expected = {label for _, label, _ in PAGES}
+        sidebar = app.locator("[data-testid='stSidebar']")
+        found_buttons = set()
+        for btn in sidebar.locator("button").all():
+            t = (btn.text_content() or "").strip()
+            if t:
+                found_buttons.add(t)
+
+        missing = expected - found_buttons
+        extra = found_buttons - expected
+        msgs = []
+        if missing:
+            msgs.append(f"Botões faltando no PAGES (sidebar tem, testes não cobrem): {missing}")
+        if extra:
+            msgs.append(f"Botões extra sem teste (PAGES desatualizado): {extra}")
+        assert not msgs, "; ".join(msgs)
 
 
 class TestFlyerImages:

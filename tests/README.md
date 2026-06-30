@@ -13,6 +13,7 @@ Este projeto utiliza uma estratégia de testes em múltiplas camadas para garant
 - **Services**: Validação de payloads de RPC e lógica de negócio.
 - **Dashboard**: Testes de renderização de componentes e handlers de página.
 - **Cart Optimizer**: Monofonte/Multifonte.
+- **App Wiring** (`test_app_wiring.py`): 7 testes que validam a **fiação entre módulos** do `admin/app.py` sem executar Streamlit. Usa AST + imports para detectar: `render_login()` chamado com argumento que não aceita (TypeError que estava em produção desde FASE 8), `PAGE_FUNCTIONS` com entradas quebradas, páginas com assinatura inesperada. Version-independent (não usa `st.testing`).
 - **Contract Tests** (`test_dashboard_contracts.py`): validam o **shape dos dados retornados** pelas funções de `services/dashboard_queries.py` consumidas pelo dashboard (`get_dashboard_kpis`, `get_coverage_by_ingredient`, `get_active_promotions`, `get_scraper_health_dashboard`). Garante chaves críticas (`price_per_kg`, `is_promotion`, `status_label`, `latency_label`) sem precisar de DB real.
 - **CI Infrastructure** (`test_ci_infrastructure.py`): 13 testes sem mock que validam config CI real (CATCH-BEFORE-PUSH). Não passam se `requirements.txt` tem `--index-url` inline, ou se pyproject.toml excludes de check_*.py somem, etc.
 

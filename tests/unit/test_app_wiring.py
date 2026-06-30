@@ -1,0 +1,146 @@
+"""Testa a fiação do admin/app.py sem executar Streamlit.
+
+Pega regressões como a TypeError que estava em produção desde FASE 8
+(render_login() chamado com argumento que não aceita).
+
+Testa:
+- Todos os módulos de página importam sem erro
+- Todas as funções de página têm a assinatura esperada (0 args, sem return obrigatório)
+- PAGE_FUNCTIONS contém entrada para cada módulo importado
+- Nenhuma página referenciada em PAGE_FUNCTIONS está faltando
+- render_login() é chamado sem argumento
+"""
+import inspect
+from types import FunctionType
+
+
+def test_all_page_modules_import():
+    """Cada page module importa sem erro."""
+    from dashboard.pages import (
+        visao_geral,
+        precos,
+        historico,
+        flyers,
+        revisao,
+        fontes,
+        ranking,
+        insights,
+        lojas,
+        ingredientes,
+        alertas,
+        scrapers,
+        scraper_health,
+        relatorios,
+        config,
+        calculadora,
+        diagnostico,
+    )
+    assert visao_geral
+    assert precos
+    assert historico
+    assert flyers
+    assert revisao
+    assert fontes
+    assert ranking
+    assert insights
+    assert lojas
+    assert ingredientes
+    assert alertas
+    assert scrapers
+    assert scraper_health
+    assert relatorios
+    assert config
+    assert calculadora
+    assert diagnostico
+
+
+def test_render_login_signature():
+    """render_login() não aceita argumentos.
+
+    Regressão: TypeError que quebrou produção (FASE 8 introduziu
+    render_login(ADMIN_PASSWORD) mas função espera 0 args).
+    """
+    from dashboard.login_page import render_login
+    sig = inspect.signature(render_login)
+    # Nenhum parâmetro obrigatório
+    assert len([p for p in sig.parameters.values() if p.default is inspect.Parameter.empty]) == 0, (
+        f"render_login() deve ser chamavel sem argumentos, assinatura: {sig}"
+    )
+
+
+def test_login_page_import():
+    """login_page importa sem erro."""
+    from dashboard import login_page
+    assert hasattr(login_page, "render_login")
+    assert callable(login_page.render_login)
+
+
+def test_app_import_and_registry():
+    """admin/app.py importa e PAGE_FUNCTIONS tem todas as entradas."""
+    import admin.app  # noqa: F401 — import necessario para testar modulo sem erros
+    from admin.app import PAGE_FUNCTIONS
+
+    for key, fn in PAGE_FUNCTIONS.items():
+        assert isinstance(fn, FunctionType), f"{key} não é função: {fn}"
+        assert callable(fn), f"{key} não é callable: {fn}"
+
+
+def test_all_page_functions_have_zero_required_args():
+    """Toda função de página deve ser chamavel sem argumentos obrigatórios."""
+    from admin.app import PAGE_FUNCTIONS
+
+    for key, fn in PAGE_FUNCTIONS.items():
+        sig = inspect.signature(fn)
+        required = [p for p in sig.parameters.values() if p.default is inspect.Parameter.empty]
+        assert len(required) == 0, (
+            f"{key} ({fn.__name__}) tem {len(required)} parametros obrigatorios: {sig}"
+        )
+
+
+def test_main_does_not_call_render_login_with_args():
+    """Verifica que main() chama render_login() sem argumentos.
+
+    Lê o fonte e confirma que não há render_login(....).
+    """
+    import ast
+
+    with open("admin/app.py") as f:
+        tree = ast.parse(f.read())
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
+            call = node.value
+            if isinstance(call.func, ast.Name) and call.func.id == "render_login":
+                assert len(call.args) == 0, (
+                    f"render_login() chamado com {len(call.args)} argumento(s) em "
+                    f"admin/app.py linha {node.lineno}: {ast.unparse(node)}"
+                )
+
+
+def test_no_page_function_called_directly_with_args():
+    """Nenhuma render_*() é chamada diretamente com argumento em app.py.
+
+    Em app.py, páginas são chamadas via PAGE_FUNCTIONS[current_page]().
+    Se alguém adicionar render_precos(algo) direto, isso falha.
+    """
+    import ast
+    with open("admin/app.py") as f:
+        tree = ast.parse(f.read())
+
+    page_fn_names = {
+        "render_visao_geral", "render_precos", "render_historico",
+        "render_flyers", "render_revisao", "render_fontes",
+        "render_ranking", "render_insights", "render_lojas",
+        "render_ingredientes", "render_alertas", "render_scrapers",
+        "render_scraper_health", "render_relatorios", "render_config",
+        "render_calculadora", "render_diagnostico",
+    }
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):
+            call = node.value
+            if isinstance(call.func, ast.Name) and call.func.id in page_fn_names:
+                assert len(call.args) == 0, (
+                    f"{call.func.id}() chamado com {len(call.args)} args em "
+                    f"admin/app.py linha {node.lineno}: {ast.unparse(node)}"
+                )

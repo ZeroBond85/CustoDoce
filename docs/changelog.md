@@ -5,6 +5,32 @@ Todos os cambios_notáveis deste projeto são documentados aqui.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.2.1] - 2026-06-29
+
+### Fixed
+
+#### Sprint 5 — CI Hardening + Real E2E Validation
+
+- **`admin/app.py`**: TypeError em produção desde FASE 8 — `render_login(ADMIN_PASSWORD)` chamado com argumento, mas `render_login()` não aceita args. Fix: `render_login()`.
+- **`scripts/warmup_streamlit.py`**: Reescrito de HTTP (inútil — Streamlit Cloud virou SPA React) para Playwright headless (navega, faz login, acorda app hibernado, espera sidebar).
+- **`.github/workflows/backup.yml`**: RPC backup nunca rodou em 8+ runs consecutivas. Causa raiz: heredoc `<< 'PYEOF'` indentado (YAML indentou delimiter). Extraído para `scripts/rpc_backup.py`. `hashFiles()` corrigido (`if: steps.file.outputs.filename != ''`).
+- **`.github/workflows/ci.yml`**: e2e-smoke migrado para localhost (sem continue-on-error, sem cloud flakiness). Bloqueia merge em falha.
+- **`.github/workflows/e2e.yml`**: Reescrito — mensal (dia 1), 2 jobs: localhost (16 páginas) + cloud (16 páginas via Playwright). Sem continue-on-error.
+- **`.github/workflows/heal-scrapers.yml`**: `ZeroBond85/CustoDoce` hardcoded → `${{ github.repository }}`.
+- **`.github/workflows/on_demand_scrape.yml`**: cache `pip` adicionado.
+
+### Added
+
+- **`tests/unit/test_app_wiring.py`**: 7 testes AST + imports que validam a fiação do `admin/app.py` sem executar Streamlit. Pega TypeError, import quebrado, assinatura errada de página. Roda no CI unit em <5s — version-independent.
+- **`tests/e2e/test_e2e_real.py::test_sidebar_completeness`**: Varre sidebar e compara com lista PAGES — detecta botões órfãos ou PAGES desatualizado.
+- **`scripts/rpc_backup.py`**: Script de backup via RPC (extraído do heredoc quebrado).
+- **AGENTS.md**: Lições #18 (`failure()` + `continue-on-error`), #19 (heredoc YAML indentado), #20 (Streamlit Cloud SPA — HTTP warmup inútil).
+
+### Changed
+
+- **`tests/e2e/test_e2e_real.py::ensure_app_ready()`**: Adaptativo — 6 retries × 30s timeout para cloud URL, 3 × 15s para localhost.
+- **`pyproject.toml`**: `asyncio_default_fixture_loop_scope = "function"` + filterwarnings para DeprecationWarning.
+
 ## [0.2.0] - 2026-06-27
 
 ### Added

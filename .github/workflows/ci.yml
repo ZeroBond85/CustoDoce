@@ -127,10 +127,8 @@ jobs:
     needs: [deploy-check]
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # E2E contra Streamlit Cloud e flaky por sleep mode (~60s idle). Roda em
-    # push + PR mas falhas do Streamlit Cloud NAO BLOQUEIAM merge (continue-on-error).
-    # Para validar E2E em condicoes ideais, dispare via workflow_dispatch.
-    continue-on-error: true
+    # Roda Streamlit localmente (localhost:8501) — sem dependencia de Streamlit Cloud,
+    # sem hibernacao, sem flaky. Falhas BLOQUEIAM merge (sem continue-on-error).
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -140,17 +138,25 @@ jobs:
       - run: pip install -r requirements.txt -r requirements-dev.txt -r tests/requirements-test.txt
       - name: Install Playwright browsers
         run: python -m playwright install chromium
-      - name: Warmup Streamlit Cloud (keep alive during E2E)
+      - name: Start Streamlit local server
         run: |
-          for attempt in 1 2 3; do
-            echo "=== Warmup attempt ${attempt} ==="
-            python scripts/warmup_streamlit.py https://custodoce.streamlit.app
-            sleep 10
+          nohup streamlit run admin/app.py --server.port 8501 --server.headless true > /tmp/streamlit.log 2>&1 &
+          echo "Streamlit PID: $!"
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:8501 > /dev/null 2>&1; then
+              echo "Streamlit ready after ${i}s"
+              break
+            fi
+            sleep 2
           done
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
       - name: E2E smoke — tab navigation + calculadora
         run: python -m pytest tests/e2e/test_e2e_real.py -k "test_tab_navigates_without_error or test_calculadora" -v --tb=short --no-header
         env:
-          STREAMLIT_URL: https://custodoce.streamlit.app
+          STREAMLIT_URL: http://localhost:8501
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
 
   real:
