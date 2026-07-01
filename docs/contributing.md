@@ -132,7 +132,7 @@ PR só é mergeado se todos passarem:
 - ✅ Ruff (0 errors)
 - ✅ MyPy (0 errors)
 - ✅ Bandit (0 issues, exceto `nosec` marcados)
-- ✅ pytest unit (418 testes + schema 94 = **512 passando**)
+- ✅ pytest unit (483 testes + schema 94 = **577 passando**)
 - ✅ pytest integration (**102 passando**, requer credenciais)
 - ✅ `scripts/validate_dashboard_queries.py` — smoke test de queries contra Supabase real (roda no deploy-check)
 
@@ -148,7 +148,7 @@ PR só é mergeado se todos passarem:
 
 ```
 tests/
-├── unit/           # 418 testes mockados (21 arquivos)
+├── unit/           # 483 testes mockados (21 arquivos)
 ├── schema/         # 94 testes de DB via RPC (parametrizados, 1 arquivo)
 ├── integration/    # 13 arquivos (precisa credenciais DB)
 ├── e2e/            # 3 arquivos (Playwright, require setup)
@@ -262,4 +262,4 @@ skill({ name: "scraping-resilience" }) # Fallback chain, anti-bot
 skill({ name: "telegram-bot" })      # Handlers, ConversationHandler, dedup
 ```
 
-As skills locais injetam contexto específico (comandos `/preco`, schema `prices`, 17 pages do dashboard, 7 GHA workflows) sem duplicar o conteúdo global.
+As skills locais injetam contexto específico (comandos `/preco`, schema `prices`, 18 pages do dashboard, 7 GHA workflows) sem duplicar o conteúdo global.

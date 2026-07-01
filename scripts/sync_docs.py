@@ -12,6 +12,9 @@ Run manually:
 
 Run in CI (fails if docs are outdated):
     python scripts/sync_docs.py --check     # exit 1 if out of sync
+
+Run with full .md audit (also checks stale page/test counts in all .md files):
+    python scripts/sync_docs.py --check --strict   # exit 1 if any stale pattern found
 """
 
 from __future__ import annotations
@@ -157,13 +160,24 @@ def _check_drift() -> list[str]:
 
 
 def _extract_pages() -> list[tuple[str, str, str]]:
-    """Extract PAGES from dashboard/components/layout.py."""
+    """Extract PAGES from dashboard/components/layout.py — only the PAGES block, not MENU_GROUPS."""
     content = _LAYOUT.read_text(encoding="utf-8")
     pages = []
+    in_pages_block = False
     for line in content.splitlines():
-        m = re.match(r'\s*\(["\']([^"\']+)["\']\s*,\s*["\']([^"\']+)["\']\s*,\s*["\']([^"\']+)["\']', line)
-        if m:
-            pages.append((m.group(1), m.group(2), m.group(3)))
+        stripped = line.strip()
+        if stripped == "PAGES = [":
+            in_pages_block = True
+            continue
+        if in_pages_block:
+            if stripped == "]":
+                break
+            m = re.match(
+                r'\s*\(["\']([^"\']+)["\']\s*,\s*["\']([^"\']+)["\']\s*,\s*["\']([^"\']+)["\']',
+                line,
+            )
+            if m:
+                pages.append((m.group(1), m.group(2), m.group(3)))
     return pages
 
 
@@ -349,7 +363,145 @@ def _check_api_docs() -> list[str]:
     return issues
 
 
-def run_sync(dry_run: bool = False, check: bool = False) -> bool:
+# ── Sync_docs enhancement: 3 auto-fixers + strict auditor ──────────────
+# FASE 0.1
+
+
+def _count_dashboard_pages() -> int:
+    """Count actual page modules in dashboard/pages/, excluding __init__.py and orphans."""
+    pages_dir = _ROOT / "dashboard" / "pages"
+    if not pages_dir.exists():
+        return 0
+    return sum(
+        1
+        for f in pages_dir.iterdir()
+        if f.suffix == ".py" and f.stem != "__init__" and f.stem != "capacity_planning"
+    )
+
+
+def _fix_tree_test_count(content: str, unit_count: int) -> str:
+    """Update AGENTS.md directory tree legend with real unit test count.
+
+    Pattern: 'unit/                        # NNN testes (NN arquivos: +XX do Sprint YY)'
+    """
+    return re.sub(
+        r"(│\s+├── unit/\s+# )(\d+)( testes \(\d+ arquivos: \+)(\d+)( do Sprint )(\d+)",
+        lambda m: f"{m.group(1)}{unit_count}{m.group(3)}65{m.group(5)}7-9",
+        content,
+    )
+
+
+def _fix_page_import_count(content: str, pages_count: int) -> str:
+    """Update AGENTS.md page import line: 'importa 17 pages' → 'importa 18 pages'."""
+    return re.sub(
+        r"(importa )(\d+)( pages \+ sidebar \+ login)",
+        rf"\g<1>{pages_count}\g<3>",
+        content,
+    )
+
+
+def _fix_streamlit_skill_row(content: str, pages_count: int) -> str:
+    """Update AGENTS.md streamlit skill row: '| 17 pages' → '| 18 pages'."""
+    return re.sub(
+        r"(\| `?streamlit`? \| )(\d+)( pages, login gate)",
+        rf"\g<1>{pages_count}\g<3>",
+        content,
+    )
+
+
+def _fix_agents_tree(content: str, state: dict) -> str:
+    """Apply all 3 auto-fixers to AGENTS.md content."""
+    tc = state["test_counts"]
+    unit_count = tc.get("unit", 0)
+    pages_count = _count_dashboard_pages()
+    content = _fix_tree_test_count(content, unit_count)
+    content = _fix_page_import_count(content, pages_count)
+    content = _fix_streamlit_skill_row(content, pages_count)
+    return content
+
+
+# FASE 0.4 — Strict auditor
+
+
+def _strict_audit() -> list[dict]:
+    """Varre todos os .md do repo com patterns previsíveis e reporta divergências.
+
+    NÃO auto-corrige — apenas alerta. Roda com --check --strict.
+    Usa os.walk para evitar travessia de symlinks quebrados no .venv (Windows).
+    Returns list of dicts: {file, line, match, message, severity}.
+    """
+    import os as _os
+
+    patterns = [
+        (r"\b17\b.*(páginas?|telas?|módulos?|pages?|aba)", "Page count desatualizado (17 -> 18)", "HIGH"),
+        (r"\b418\b", "Test count desatualizado (418 -> 483)", "HIGH"),
+        (r"\b383\b", "Test count desatualizado (383 -> 483)", "HIGH"),
+        (r"\b512\b.*(testes|passing|passando)", "Test count desatualizado (512 -> 577) - verificar contexto historico", "MEDIUM"),
+        (r"\b630\b.*total", "Total tests desatualizado (630 -> 745)", "HIGH"),
+        (r"\b709\b.*total", "Total tests desatualizado (709 -> 745)", "HIGH"),
+    ]
+
+    # Historical references that are intentionally preserved (milestones, changelog, lessons)
+    # Format: (file_rel, match_text)
+    _skip = {
+        ("AGENTS.md", "418"),               # Lição #13: "o real era 418"
+        ("AGENTS.md", "512 passing"),       # Sprint 2 milestone snapshot
+        ("AGENTS.md", "630 total"),         # Sprint 2 milestone snapshot
+        ("AGENTS.md", "709 total"),         # Sprint 6 milestone snapshot
+        ("README.md", "512 unit+schema + 102 integration + 10 design + 6 real = 630 total passing"),  # Sprint 2 milestone
+        ("README.md", "630 total"),         # Sprint 2 milestone
+        ("README.md", "709 total"),         # Sprint 6 milestone
+        ("docs\\changelog.md", "17 (nova página"),  # v0.1.0 changelog
+        ("docs\\changelog.md", "17→18 pages"),  # changelog describing the change
+        ("docs\\changelog.md", "17→18 aba"),    # changelog describing the change
+        ("docs\\changelog.md", "17→18 módulos"), # changelog describing the change
+        ("docs\\changelog.md", "418"),       # v0.1.0 Metrics + changelog entries
+        ("docs\\archive\\CUSTO_DOCE_RAIO_X.md", "418"),  # v3/v4 comparison table
+        ("docs\\archive\\CUSTO_DOCE_RAIO_X.md", "383"),  # v2 comparison table column
+        ("docs\\archive\\CUSTO_DOCE_RAIO_X.md", "709 total"),  # Sprint 6 historical
+        ("docs\\archive\\CUSTO_DOCE_RAIO_X.md", '512** (35 adicionados). Gargalos recalibrados: #1 (service_role) 🔴→🟡 mitigado via Sprint 1.1; #2 (exec_sql_query) 🔴→🟡 parcialmente mitigado via Sprint 2.2 (RPC 443); #3 (testes'),  # v3.0 historical entry
+        ("docs\\archive\\RAIO-X_CUSTO_DOCE_RESUMIDO.md", "512 em 29/06; Sprint 7-9 adicionou 26 testes"),  # historical comparison
+    }
+
+    findings = []
+    seen = set()
+    skip_dirs = {".git", ".venv", "node_modules", "__pycache__", "lib64"}
+
+    for dirpath, dirnames, filenames in _os.walk(str(_ROOT), topdown=True):
+        dirnames[:] = [d for d in dirnames if d not in skip_dirs]
+
+        for fname in filenames:
+            if not fname.endswith(".md"):
+                continue
+            fpath = Path(dirpath) / fname
+            rel = fpath.relative_to(_ROOT)
+            try:
+                text = fpath.read_text(encoding="utf-8")
+            except Exception:
+                continue
+            for pat, msg, sev in patterns:
+                for m in re.finditer(pat, text, re.IGNORECASE):
+                    line_num = text[: m.start()].count("\n") + 1
+                    match_text = m.group().strip()
+                    key = (str(rel), match_text)
+                    if key in seen:
+                        continue
+                    if key in _skip:
+                        continue
+                    seen.add(key)
+                    findings.append(
+                        {
+                            "file": str(rel),
+                            "line": line_num,
+                            "match": match_text,
+                            "message": msg,
+                            "severity": sev,
+                        }
+                    )
+    return findings
+
+
+def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False) -> bool:
     """
     Main sync logic. Returns True if in sync, False if out of sync.
 
@@ -384,13 +536,43 @@ def run_sync(dry_run: bool = False, check: bool = False) -> bool:
     if api_issues:
         issues.extend(api_issues)
 
-    # Update AGENTS.md
+    # Update AGENTS.md — standard status table
     print("\nUpdating AGENTS.md...")
     agent_changes = _update_agents_md(state, dry_run=dry_run)
     if dry_run:
         for c in agent_changes:
             print(f"  {c}")
-        print("  (dry-run, no changes applied)")
+
+    # Apply 3 auto-fixers (tree count, page import, skill row)
+    print("\nApplying auto-fixers (tree count, page import, skill row)...")
+    if not dry_run:
+        agents_content = _AGENTS.read_text(encoding="utf-8")
+        fixed = _fix_agents_tree(agents_content, state)
+        if fixed != agents_content:
+            _AGENTS.write_text(fixed, encoding="utf-8")
+            print("  [OK] Auto-fixers applied to AGENTS.md")
+        else:
+            print("  [OK] No auto-fixer changes needed")
+    else:
+        print("  (dry-run, skipped)")
+
+    # Strict audit — always runs if --strict (even in dry-run)
+    if strict:
+        print("\nStrict audit (--strict): scanning all .md for stale patterns...")
+        findings = _strict_audit()
+        if findings:
+            for f in findings:
+                safe_match = f["match"].encode("ascii", errors="replace").decode("ascii")
+                label = "  [{sev}] {file}:{line} - {msg}".format(
+                    sev=f["severity"], file=f["file"], line=f["line"], msg=f["message"]
+                )
+                print(f"  {label}  (match: '{safe_match}')")
+                safe_full = f"{f['file']}:{f['line']} - {f['match']} - {f['message']}"
+                issues.append(safe_full.encode("ascii", errors="replace").decode("ascii"))
+        else:
+            print("  [OK] No stale patterns found in any .md file")
+    else:
+        print("\n  (pass --strict for full .md audit)")
 
     # Check README key files
     print("\nChecking README tree...")
@@ -415,9 +597,10 @@ def main():
     parser = argparse.ArgumentParser(description="Sync project documentation with code state")
     parser.add_argument("--dry-run", action="store_true", help="Preview changes without applying")
     parser.add_argument("--check", action="store_true", help="Exit 1 if docs are out of sync (CI mode)")
+    parser.add_argument("--strict", action="store_true", help="Run full .md audit for stale patterns (page count, test count)")
     args = parser.parse_args()
 
-    in_sync = run_sync(dry_run=args.dry_run, check=args.check)
+    in_sync = run_sync(dry_run=args.dry_run, check=args.check, strict=args.strict)
 
     if args.check and not in_sync:
         print("\n::error::Documentation is out of sync. Run 'python scripts/sync_docs.py' to update.")

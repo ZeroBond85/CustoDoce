@@ -214,7 +214,10 @@ Mais detalhes em [docs/contributing.md](docs/contributing.md).
 - [x] **Fase 9 (CI Hygiene + Cleanup)**: `git filter-branch` removeu 11 arquivos sensíveis (pack 444MB → 8.7MB), pre-push hook Python, `ci_local.py` (8 validators), Dependabot alerts resolvidos, lições #1-#10 documentadas, CI 100% verde.
 - [x] **Sprint 1 (UX + Segurança)**: `.env`/YAML tabs removidos do dashboard; Bot lê ingredientes do DB com fallback YAML + fuzzy search; Mobile CSS (768/640px); Query Params URL↔session_state; Acessibilidade (skip-link, prefers-reduced-motion).
 - [x] **Sprint 2 (Test Hardening + Contract Safety)**: `test_normalizer.py` expandido de 11 → 32 casos; conftest usa RPC POSTGREST 443; novo `test_dashboard_contracts.py` valida shape do dashboard; `CI_LOCAL_UNIT=1` opt-in para pre-push. **512 unit+schema + 102 integration + 10 design + 6 real = 630 total passing**.
-- [ ] **Próximos Passos**: Testes E2E (Playwright contra Streamlit Cloud), role `dashboard_user` (segurança residual), cache com TTL real (não apenas LRU memory), fallback de unidade no normalizer.
+- [x] **Sprint 5 (CI Hardening)**: TypeError FASE8 `render_login()` corrigido; backup RPC extraído (`scripts/rpc_backup.py`); warmup reescrito Playwright; e2e-smoke localhost sem continue-on-error; 14 workflows auditados (0 hashFiles/PYEOF/failure()).
+- [x] **Sprint 6 (Migration Sync)**: httpx `<1.0` pin; login E2E polling 45s; migrations 004+005 incluídas; 709 total passing.
+- [x] **Sprint 7-9 (Dashboard Modernization)**: `st.navigation()` menu nativo (5 grupos); promocoes integrada (18 páginas); `st.dialog()` + `st.pagination()` + batch form config + KPIs responsive + spinners + labels acessíveis + email hardening. **577 unit+schema = 745 total passing**.
+- [ ] **Próximos Passos**: role `dashboard_user` (RLS mínimas), `GRANT EXECUTE TO service_role ONLY`, E2E Playwright setup, fallback normalizer unidades, `st.fragment(parallel=True)` com `threading.Lock`, `capacity_planning.py` oficial.
 
 ---
 

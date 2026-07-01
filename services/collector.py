@@ -14,6 +14,7 @@ from services.supabase_client import get_supabase, get_service_client
 from services.config_db import get_active_ingredients, get_active_stores
 from services.price_service import upsert_price, insert_review_item, log_scraper_run
 from services.flyer_service import upsert_flyer
+import httpx
 from parsers.matcher import (
     rank_ingredients,
     has_ingredient_keyword,
@@ -620,7 +621,6 @@ def collect_roldao_flyer(ingredients: list[Ingredient]) -> list[PriceEntry]:
 def process_ocr_queue() -> int:
     from services.flyer_service import get_pending_flyers, mark_processed, mark_failed
     from scrapers.flyer_parser import extract_lines_from_text, parse_flyer_lines
-    import httpx
 
     pending = get_pending_flyers(limit=10)
     if not pending:

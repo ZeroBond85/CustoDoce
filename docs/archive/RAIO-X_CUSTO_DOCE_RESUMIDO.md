@@ -32,7 +32,7 @@ O diferencial está no **pipeline de matching com IA de 6 estágios**: combina r
 
 | Camada | Tecnologia | Por que foi escolhida? |
 | :--- | :--- | :--- |
-| Interface | **Streamlit** | Rápido de desenvolver, gratuito no Cloud, 17 módulos analíticos |
+| Interface | **Streamlit** | Rápido de desenvolver, gratuito no Cloud, 18 módulos analíticos |
 | Banco de Dados | **Supabase (PostgreSQL 15)** | Gratuito (500 MB), autenticação embutida, RLS, RPCs |
 | Orquestração | **GitHub Actions** | Automação de scraping 2x/dia sem custo (2.000 min/mês) |
 | IA/Matching | **Sentence-Transformers ONNX + Groq LLM** | Pipeline de 6 estágios com fallback entre 3 providers de LLM |
@@ -48,7 +48,7 @@ O diferencial está no **pipeline de matching com IA de 6 estágios**: combina r
 
 2. **Custo Zero (Free Tier):** Infraestrutura 100% gratuita — Supabase (500 MB DB), GitHub Actions (2.000 min/mês), Streamlit Cloud (1 app privado), Gmail SMTP (500 e-mails/dia). Viável para MVP sem investimento inicial.
 
-3. **Multi-Canal de Acesso:** Dashboard Web (17 telas analíticas) + Telegram Bot (consultas rápidas) + Relatórios Diários por E-mail.
+3. **Multi-Canal de Acesso:** Dashboard Web (18 telas analíticas) + Telegram Bot (consultas rápidas) + Relatórios Diários por E-mail.
 
 4. **Calculadora de Receitas Inteligente:** Calcula custo real (monofonte ou multifonte) baseado nos preços atuais do banco, com overhead, margem de lucro e sugestão de lojas mais baratas.
 
@@ -79,7 +79,7 @@ O diferencial está no **pipeline de matching com IA de 6 estágios**: combina r
 | 1 | **Dependência de Free Tier:** Limites de armazenamento/ação podem estourar com crescimento | ⚠️ Médio | Cleanup automático (prices 90d, logs 30d). Migrar para planos pagos ao atingir 50+ usuários ativos. |
 | 2 | **Qualidade dos Dados:** Matching impreciso faz o usuário perder confiança | 🔴 Alto | Review Queue com aprovação manual + auto-aprendizado de aliases (se semântica ≥0.75). |
 | 3 | **Segurança da Service Role:** Chave de admin exposta no dashboard | 🔴 Alto → 🟡 Reduzido (29/06) | ✅ Sprint 1.1 mitigou UI dashboard (tabs `.env`/YAML removidas). `dashboard_queries.py` usa apenas `get_supabase()` (anon). `get_service_client()` ainda em `price_repository.py:26` mas é chamado apenas pelo collector pipeline (GitHub Actions server-side). Falta: criar role `dashboard_user` com RLS mínimas. |
-| 4 | **Falta de Cobertura de Testes:** Testes unitários existem (418), mas integração e E2E são frágeis | 🟠 Alto → 🟡 Reduzido (29/06) | ✅ Sprint 2.2 zerou risco de porta 5432 no CI (conftest migrado para RPC POSTGREST 443). Contract tests novos em `test_dashboard_contracts.py`. Pendente: 3 E2E Playwright requerem setup. |
+| 4 | **Falta de Cobertura de Testes:** Testes unitários existem (483), mas integração e E2E são frágeis | 🟠 Alto → 🟡 Reduzido (30/06) | ✅ Sprint 2.2 zerou risco de porta 5432 no CI (conftest migrado para RPC POSTGREST 443). Contract tests novos em `test_dashboard_contracts.py`. Sprint 7-9 (+65). Pendente: 3 E2E Playwright requerem setup. |
 | 5 | **Concorrência:** Grandes players (marketplaces) podem lançar soluções similares | 🟡 Médio | Foco em regionalidade (Baixada Santista) + atendimento personalizado + dados históricos como barreira de saída. |
 
 ---
@@ -88,7 +88,7 @@ O diferencial está no **pipeline de matching com IA de 6 estágios**: combina r
 
 | Fase | Objetivo | Principais Entregas | Prazo |
 | :--- | :--- | :--- | :--- |
-| **Atual** | MVP Consolidado | 51 lojas, 23 ingredientes, **512 testes** (era 477), 17 telas, Telegram, alertas, calculadora | Concluído |
+| **Atual** | MVP Consolidado | 51 lojas, 23 ingredientes, **577 testes** (era 512), 18 telas, Telegram, alertas, calculadora | Concluído |
 | **Pós-MVP ✅ (Fase 9 + Sprint 1 + Sprint 2, 28-29/06)** | Higiene & Robustez | ✅ CI Hygiene (filter-branch removeu 11 arquivos sensíveis; pack 444MB→8.7MB); ✅ Pillow 12.2.0 patched / Dependabot 7 alerts dismissed; ✅ Pre-push Python rewrite + auditoría-secrets; ✅ Sprint 1.1: `.env` editor & `stores.yaml` editor removidos do dashboard; ✅ Sprint 1.2: Bot Telegram agora lê do DB (`config_db.get_active_ingredients()`) com fallback YAML; fuzzy search `rapidfuzz.fuzz.token_set_ratio`; paginação inline keyboard; ✅ Sprint 1.3-1.5: Mobile CSS, Query Params URL↔session_state, Acessibilidade (skip-link + prefers-reduced-motion); ✅ Sprint 2.1-2.4: Test Hardening (normalizer 11→32 casos), conftest migrated para RPC 443, contract tests dashboard_queries, `CI_LOCAL_UNIT=1` opt-in. | Concluído |
 | **Curto Prazo** | Confiabilidade | Finalizar role `dashboard_user` (segurança residual) + sanitizar RPCs (GRANT EXECUTE TO service_role ONLY) + finalizar setup Playwright para E2E + fallback no normalizer para "un"/"pacote" + implementar Peso Mínimo (`unit_kg < 0.01` ignora) | 1-2 meses |
 | **Médio Prazo** | Escalabilidade | Expansão para novas regiões (interior SP), novas fontes de dados, cache Redis, self-learning de aliases | 3-6 meses |

@@ -74,6 +74,29 @@ if echo "${STAGED:-}" | grep -qE "$CODE_PATTERNS"; then
 fi
 
 # ----------------------------------------------------------------
+# 2.5 DOC SYNC --strict (rápido: só leitura, ~2s em repo pequeno)
+# ----------------------------------------------------------------
+if command -v python3 &>/dev/null; then
+  PY=python3
+elif command -v python &>/dev/null; then
+  PY=python
+else
+  PY=""
+fi
+if [ -n "$PY" ] && [ -f "scripts/sync_docs.py" ]; then
+  SYNC_RESULT=$("$PY" scripts/sync_docs.py --check --strict 2>&1) || true
+  if echo "$SYNC_RESULT" | grep -q "\[FAIL\]"; then
+    echo ""
+    echo "📄 [AVISO] Documentacao desatualizada detectada:"
+    echo "$SYNC_RESULT" | grep -E "(HIGH|MEDIUM|\[FAIL\]|\.md:\d+)" | head -10
+    echo ""
+    echo "  Execute 'python scripts/sync_docs.py' para corrigir automaticamente"
+    echo "  Ou 'git commit --no-verify' para pular (NAO recomendado)"
+    echo ""
+  fi
+fi
+
+# ----------------------------------------------------------------
 # 3. SIZE GUARD - BLOQUEIA arquivo >100MB (GitHub rejeita de qualquer jeito)
 # ----------------------------------------------------------------
 for FILE in $STAGED; do

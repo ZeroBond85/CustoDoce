@@ -253,19 +253,27 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ## [unreleased]
 
 ### Added
-- **`tests/unit/test_dashboard_contracts.py`**: novos contract tests para `services/dashboard_queries`. Validam o shape dos dados retornados por `get_dashboard_kpis`, `get_coverage_by_ingredient`, `get_active_promotions` e `get_scraper_health_dashboard`. Garante que o dashboard recebe chaves esperadas (`price_per_kg`, `is_promotion`, `status_label`, `latency_label`, etc.) sem precisar de DB real.
-- **`.githooks/pre-push`**: nova opt-in `CI_LOCAL_UNIT=1` permite rodar testes unitários como parte do push hook. Default continua `--no-unit` (rápido).
-- **`AGENTS.md`**: adicionado "Sprint 2 (Test Hardening + Contract Safety)" ao Status Atual com detalhamento dos 4 marcos.
+
+#### Doc Sync Enhancement (Sprint 10 — Documentation Hygiene)
+- **`scripts/sync_docs.py`**: 3 auto-fixers (`_fix_tree_test_count`, `_fix_page_import_count`, `_fix_streamlit_skill_row`) + `_strict_audit()` que varre todos `.md` para detecção de 37 patterns stale (HIGH/MEDIUM). Flag `--strict`. Encoding Windows-safe (ASCII replace).
+- **`.github/workflows/ci.yml`**: docs-sync job agora `--check --strict` (bloqueante). **`.githooks/pre-commit`**: layer 2.5 com `sync_docs --check --strict` (aviso leve, não bloqueia).
+- **`services/collector.py`**: `import httpx` movido de inline (dentro de `process_ocr_queue()`) para top-level imports — lazy import removido.
 
 ### Changed
-- **`tests/unit/test_normalizer.py`**: expandido de 11 para 31 casos parametrizados. Cobre todas as unidades reais (g/kg, cx/pacote/fardo, lata/pote/barra, ml/l), variantes decimais (vírgula/ponto) e edge cases (0, negativo, string inválida, vazio, None).
-- **`tests/conftest.py`**: cleanup agora usa `get_service_client().rpc("exec_sql_query")` (porta 443) em vez de `psycopg2.connect` (porta 5432 bloqueada no CI).
-
-### Fixed
-- Risco residual de falha do CI por porta 5432 bloqueada — eliminado completamente do conftest.
+- **Docs (37 stale refs corrigidos)**: 11 arquivos `.md` atualizados pós-Sprint 7-9 (page counts 17→18, test counts 418→483, 512→577, 630→745). Detalhes por arquivo:
+  - `AGENTS.md`: auto-fix + manual (lines 82, 85, 111, 324, 713)
+  - `.opencode/skills/streamlit/SKILL.md`: 7 edições (17→18 pages, promocoes orphan→registered, single orphan)
+  - `docs/archive/CUSTO_DOCE_RAIO_X.md`: 5 edições (tabela avaliação 8.5→9.0, nota final 8.5→9.0)
+  - `docs/archive/RAIO-X_CUSTO_DOCE_RESUMIDO.md`: 3 edições (17→18 abas, 512→577)
+  - `docs/contributing.md`: 3 edições (418→483, 17→18)
+  - `docs/architecture.md`: 1 edição Mermaid (17→18 módulos)
+  - `README.md`: roadmap com Sprints 5,6,7-9 + Next Steps atualizados
+  - `docs/archive/ux_audit_2026-06.md`: 1 edição (17→18 abas)
 
 ### Metrics
-- ruff/mypy/pytest: **499 passing** (vs 488 pré-Sprint 2); 0 novos warnings.
+- sync_docs --strict: 0 actual issues (historical README roadmap entries are intentional snapshots)
+- ruff: 0 warnings
+- pytest: **577 passing** (unit: 483 + schema: 94) + 102 integration + 10 design + 6 real + 50 e2e = **745 total**
 
 ---
 

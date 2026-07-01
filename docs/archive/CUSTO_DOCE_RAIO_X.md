@@ -18,7 +18,7 @@
 | :--- | :--- | :--- | :--- |
 | 1 | SERVICE_ROLE_KEY exposta no dashboard (`get_service_client()`) | `price_repository.py:8` chamado pelo **collector pipeline** (GHA, server-side) — NÃO pelo UI | 🔴 → 🟡 CRÍTICO **REDUZIDO** (29/06) — `dashboard_queries.py:9` usa apenas `get_supabase()` (anon). Bot-via-Dashboard e User-Dashboard não tocam service_role. Resta criar role `dashboard_user` com RLS mínimas. |
 | 2 | RPC `exec_sql_query` aceita SQL arbitrário sem sanitização | `consolidated_migration.sql:959` | 🔴 → 🟡 CRÍTICO **MITIGADO** (29/06, Sprint 2.2) — `tests/conftest.py` força RPC via POSTGREST 443; `scripts/validate_db_schema.py` sem trailing `;` (Lição #10). Resta: `GRANT EXECUTE TO service_role ONLY` + remover de `deploy_database.py` se possível. |
-| 3 | Testes desatualizados — doc diz 16 unit, real são 383 + 94 schema | atualizado para **512 (418 unit + 94 schema)** | 🟢 **RESOLVIDO** (29/06) — Sprint 2.1 (32 normalizer) + Sprint 2.3 (4 contract) + 13 ci_infrastructure pré-existentes mantidos. |
+| 3 | Testes desatualizados — doc dizia 16 unit, real eram centenas | atualizado para **577 (483 unit + 94 schema)** | 🟢 **RESOLVIDO** (30/06) — Sprint 7-9 (+65). |
 | 4 | Busca de preços no dashboard sem cache (toda consulta vai ao Supabase) | `dashboard/pages/`, `price_repository.py` | 🟡 → 🟢 **PARCIALMENTE RESOLVIDO** (29/06) — `services/dashboard_queries.py:39-104` agora tem `@lru_cache(maxsize=1)` em `cached_get_*` e `get_cheapest_prices_cached(maxsize=128)`. `clear_all_caches()` centraliza limpeza. Falta: TTL por invalidação (não apenas LRU memory-only). |
 | 5 | Normalizer sem fallback: se `parse_unit()` falha, produto é perdido | `normalizer.py:99` | 🟡 MÉDIO — **DOCUMENTADO** em 32 casos (Sprint 2.1), mas sem fix. Casos `un`/`1un`/`pacote`/`1l` retornam `None`. |
 
@@ -123,7 +123,7 @@ Sistema de configuração em 2 níveis:
                                                                     │
 ─── CONSULTA ──────────────────────────────────────────────────────┘
 Telegram: /preco <ing> → search_prices() → top 10 🥇🥈🥉
-Dashboard: Streamlit → 17 páginas → Supabase (anon/SELECT)
+Dashboard: Streamlit → 18 páginas → Supabase (anon/SELECT)
 ```
 
 ### 3.2. Estrutura de Pastas
@@ -131,9 +131,9 @@ Dashboard: Streamlit → 17 páginas → Supabase (anon/SELECT)
 ```
 CustoDoce/
 ├── .github/workflows/   7 workflows (ci, scrape, backup, restore-test, e2e, deploy-staging, on-demand)
-├── admin/               Entrypoint Streamlit (app.py:126) + 17 tabs/ (visao_geral, precos, etc.)
+├── admin/               Entrypoint Streamlit (app.py:126) + 18 tabs/ (visao_geral, precos, etc.)
 ├── config/              4 arquivos: ingredients.yaml (23 itens), stores.yaml (51 lojas/4 tiers), features.yaml, schema_prices.json
-├── dashboard/           components/ (ui.py CSS, layout.py sidebar), login_page.py (auth+TOTP), pages/ (17 módulos)
+├── dashboard/           components/ (ui.py CSS, layout.py sidebar), login_page.py (auth+TOTP), pages/ (18 módulos)
 ├── data/                Caches: embeddings .npy, ONNX model, llm_cache.db (SQLite), prices_latest.json
 ├── docs/                ADR (5), API docs, architecture, changelog, deployment, security, rollback
 ├── parsers/             8 arquivos: normalizer, matcher, brand_extractor, unit_extractor, semantic_matcher, llm_cache, llm_strategies, llm_classifier
@@ -142,7 +142,7 @@ CustoDoce/
 ├── services/            23 arquivos: price_repository, price_service (facade), price_analytics, price_intelligence, collector, review_queue_service, config_db, config, alert_service, email_service, telegram_service, auth, rate_limiter, recipe_service, flyer_service, import_service, maintenance_service, dashboard_queries, logger, otel, types, supabase_client
 ├── supabase/            consolidated_migration.sql (861 linhas, 20 fases) + migrations/001_config_tables.sql + 3 migrações avulsas
 ├── telegram_bot/        handlers.py (154 linhas, 6 comandos)
-├── tests/               unit/ (383, 20 arquivos), schema/ (94 parametrizados), integration/ (13 arquivos), e2e/ (3 arquivos — 0 collected, requer Playwright), real/ (3 arquivos, 6 testes)
+├── tests/               unit/ (483, 21 arquivos), schema/ (94 parametrizados), integration/ (13 arquivos), e2e/ (3 arquivos — 0 collected, requer Playwright), real/ (3 arquivos, 6 testes)
 ├── main.py              Orquestrador principal (154 linhas)
 └── pyproject.toml       Ruff (120 chars), mypy (3.12), pytest config
 ```
@@ -272,7 +272,7 @@ ORDER BY ingredient_id, store_id, collected_at DESC
 
 ---
 
-## 📱 5. DASHBOARD (17 telas)
+## 📱 5. DASHBOARD (18 telas)
 
 ### Navegação
 
@@ -550,7 +550,7 @@ Produto bruto → [1] Normalizer → [2] Match Exato (100%) → [3] Fuzzy (≥80
 | :--- | :--- | :--- | :--- |
 | 1 | SERVICE_ROLE_KEY no dashboard | `price_repository.py:8,26` (apenas via `collector.py` GHA server-side) | 🔴 → 🟡 **CRÍTICO REDUZIDO** (29/06) |
 | 2 | exec_sql_query sem sanitização | `consolidated.sql:959` | 🔴 → 🟡 **MITIGADO** (29/06, Sprint 2.2) |
-| 3 | Testes unitários e de schema atualizados | **512 testes passing** (unit: 418 [383+35] + schema: 94) | 🟢 **RESOLVIDO** (29/06) |
+| 3 | Testes unitários e de schema atualizados | **577 testes passing** (unit: 483 + schema: 94) | 🟢 **RESOLVIDO** (30/06) |
 | 4 | Sem cache em consultas do dashboard | `services/dashboard_queries.py:39-104,438-447` (cached_get_*) | 🟢 **PARCIALMENTE RESOLVIDO** (29/06) |
 | 5 | Normalizer sem fallback | `normalizer.py:99` — casos `un`/`pacote`/`1l` retornam None (32 testados) | 🟡 ABERTO |
 | 6 | Busca Telegram só startswith | `handlers.py:38` → `rapidfuzz.fuzz.token_set_ratio` | 🟢 **RESOLVIDO em Sprint 1.2** (28/06) |
@@ -593,15 +593,15 @@ Produto bruto → [1] Normalizer → [2] Match Exato (100%) → [3] Fuzzy (≥80
 | Critério | Nota |
 | :--- | :--- |
 | Arquitetura | 9/10 |
-| Código | 8.5/10 ↑ (era 8) — clean via Sprint 2 (conftest RPC) |
-| Testes | 9/10 ↑↑ (era 7/10) — 512 passing, contract tests, CI infrastructure |
+| Código | 9/10 ↑ (era 8.5) — clean via Sprint 2 (conftest RPC); email_service hardening |
+| Testes | 9.5/10 ↑↑ (era 9/10) — 577 passing, +23 feature tests Sprint 7-9, contract tests |
 | Segurança | 7/10 ↑ (era 6/10) — service_role UI mitigated; queda de risco crítico |
-| Performance | 8.5/10 ↑ (era 8/10) — LRU caches em dashboard_queries; _SchemaCursor psycopg2-like |
-| UX/Produto | 8.5/10 ↑ (era 8/10) — Mobile CSS, Query Params, Acessibilidade, Bot DB Sync |
-| Documentação | 9/10 (mantida — RAIO-X sincronizado 29/06) |
-| **Nota Final** | **8.5/10** (era 8.0/10 em 27/06) |
+| Performance | 8.5/10 (mantida) — LRU caches; pagination nativa; KPIs responsivos |
+| UX/Produto | 9/10 ↑ (era 8.5/10) — +Sprint 7-9: st.navigation, st.pagination, diálogos, KPIs responsivos, spinners, labels acessíveis |
+| Documentação | 9.5/10 ↑ (era 9/10) — RAIO-X sincronizado 30/06; sync_docs --strict auditor |
+| **Nota Final** | **9.0/10** (era 8.5/10 em 29/06) |
 
-**Recomendação: ✅ MANTER E EXPANDIR** (era "MANTER E CORRIGIR" em v2) — Projeto maduro, bem arquitetado, pipeline de matching sofisticado para um projeto free tier. Pós-MVP entrega **512 testes passing** (era 477), segurança do dashboard reduzida (Sprint 1.1), CI hygiene completa (Fase 9). Tudo numeração Residual: finalizar `dashboard_user` role + sanitizar RPCs `[GRANT EXECUTE TO service_role ONLY]` + fallback no normalizer. Nada que justifique rewrite.
+**Recomendação: ✅ MANTER E EXPANDIR** (era "MANTER E CORRIGIR" em v2) — Projeto maduro, bem arquitetado, pipeline de matching sofisticado para um projeto free tier. Sprint 7-9 entrega **577 testes passing** (era 512), Dashboard 1.58 modernization (menu nativo, paginação, diálogos, KPIs responsivos), email_service hardening, labels acessíveis. Restam: finalizar `dashboard_user` role + sanitizar RPCs `[GRANT EXECUTE TO service_role ONLY]` + fallback no normalizer + `st.fragment(parallel=True)` com Lock. Nada que justifique rewrite.
 
 ---
 

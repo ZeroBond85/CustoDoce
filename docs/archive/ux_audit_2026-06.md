@@ -1,7 +1,7 @@
 # UX Audit — CustoDoce Dashboard
 
 > Gerado em: 19/06/2026  
-> Escopo: `admin/app.py` (2843 linhas, 17 abas)  
+> Escopo: `admin/app.py` (2843 linhas, 18 abas)  
 > Metodologia: Revisão manual de código + varredura automatizada
 
 ---

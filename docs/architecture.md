@@ -57,7 +57,7 @@ graph TD
     end
 
     subgraph "Camada de Consumo"
-        P --> V[Streamlit Dashboard<br/>17 módulos]
+        P --> V[Streamlit Dashboard<br/>18 módulos]
         P --> W[Telegram Bot<br/>6 comandos]
         O --> X[Email Report Service<br/>Gmail SMTP]
         O --> Y[Alert Service<br/>price_drop / scrape_failure]

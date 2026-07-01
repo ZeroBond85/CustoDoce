@@ -5,11 +5,11 @@ description: "extends streamlit patterns for CustoDoce dashboard conventions."
 
 # streamlit — CustoDoce overlay
 
-Universal Streamlit patterns (execution model, caching, session_state, multipage, layout, connections, antipatterns) live in `~/.config/opencode/skills/streamlit/SKILL.md`. This overlay documents CustoDoce's specific 17-page admin dashboard structure.
+Universal Streamlit patterns (execution model, caching, session_state, multipage, layout, connections, antipatterns) live in `~/.config/opencode/skills/streamlit/SKILL.md`. This overlay documents CustoDoce's specific 18-page admin dashboard structure.
 
 ## Dashboard architecture
 
-- Entry: `admin/app.py` (107 lines) — imports 17 pages + sidebar + login gate
+- Entry: `admin/app.py` (107 lines) — imports 18 pages + sidebar + login gate
 - Login: `dashboard/login_page.py` — simple password gate
 - Pages: `dashboard/pages/*.py` — each exposes a `render_<name>()` function
 - Components: `dashboard/components/ui.py`, `layout.py` — shared widgets, KPI cards, table helpers
@@ -17,14 +17,14 @@ Universal Streamlit patterns (execution model, caching, session_state, multipage
 
 > **Streamlit version**: 1.58.0 (May 2026) — `st.navigation`, `st.pagination`, `st.fragment(parallel=True)`, `st.dialog` all available.
 
-## Page map (19 pages total — 17 registered + 2 orphans)
+## Page map (19 pages total — 18 registered + 1 orphan)
 
 | Page module | Registered in PAGES | Menu group (target for Sprint 7) | Notes |
 |-------------|---------------------|----------------------------------|-------|
 | `visao_geral.py` | ✅ | 📊 Painel | Default landing page |
 | `precos.py` | ✅ | 📊 Painel | |
 | `historico.py` | ✅ | 📊 Painel | |
-| `promocoes.py` | ❌ (orphan) | 📊 Painel | Built in Fase 8, never imported in `admin/app.py` |
+| `promocoes.py` | ✅ (registered) | 📊 Painel | Integrated in Sprint 7 (18 pages active) |
 | `insights.py` | ✅ | 📈 Análises | Has bug: `pivot_table` on numeric `store_count` (Sprint 8) |
 | `fontes.py` | ✅ | 📈 Análises | |
 | `ranking.py` | ✅ | 📈 Análises | |
@@ -41,10 +41,10 @@ Universal Streamlit patterns (execution model, caching, session_state, multipage
 | `diagnostico.py` | ✅ | ⚙️ Ferramentas | |
 | `capacity_planning.py` | ❌ (orphan) | ⚙️ Ferramentas | Exists on disk, never imported |
 | | | | |
-| **Total registered** | **17** | 5 groups | Sprint 7 integrates promocoes → 18 active |
+| **Total registered** | **18** | 5 groups | Sprint 7 integrated promocoes |
 | **Total on disk** | **19** | | sprint 8+9: capacity_planning stays as future |
 
-> **Orphans**: `promocoes.py` and `capacity_planning.py` exist on disk but are NOT imported in `admin/app.py::PAGE_FUNCTIONS` nor `layout.py::PAGES`. Sprint 7 integrates promocoes. Capacity planning deferred — needs `scraping_logs` aggregation fix first.
+> **Orphan**: `capacity_planning.py` exists on disk but is NOT imported in `admin/app.py::PAGE_FUNCTIONS` nor `layout.py::PAGES`. Deferred — needs `scraping_logs` aggregation fix first.
 
 ## CustoDoce-specific patterns
 
@@ -171,7 +171,7 @@ end = start + PAGE_SIZE
 - ❌ Calling `st.rerun()` after button click inside a fragment — use `st.fragment(parallel=False)` (1.32+)
 - ❌ Embedding SQL strings in page modules — always delegate to `dashboard_queries.py`
 - ❌ Using `st.experimental_*` APIs — deprecated, use stable counterparts
-- ❌ Orphan pages (`promocoes.py`, `capacity_planning.py`) exist but not imported — must be registered in `admin/app.py::PAGE_FUNCTIONS` AND `layout.py::PAGES` (or st.Page group)
+- ❌ Orphan pages (`capacity_planning.py`) exist but not imported — must be registered in `admin/app.py::PAGE_FUNCTIONS` AND `layout.py::PAGES` (or st.Page group)
 - ❌ `st.fragment(parallel=True)` with `lru_cache` — thread-unsafe; validate with `threading.Lock` before enabling parallel
 - ❌ `httpx.post()` without error handling (`services/email_service.py:508`) — wrap in try/except
 - ❌ `import smtplib` inside functions in hot path (`services/email_service.py:368,422`) — move to top-level

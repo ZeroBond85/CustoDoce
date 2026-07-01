@@ -79,10 +79,10 @@ CustoDoce/
 │   └── types.py                     # Type hints e aliases compartilhados
 ├── dashboard/
 │   ├── login_page.py, components/ (ui.py, layout.py)
-│   └── pages/                       # 17 módulos (visao_geral, precos, historico, etc.)
+│   └── pages/                       # 18 módulos (visao_geral, precos, historico, etc.)
 ├── telegram_bot/
 │   └── handlers.py                  # /preco, /lista, /status — lê do DB (config_db), fallback YAML; fuzzy search (RapidFuzz); paginação inline keyboard
-├── admin/app.py                     # 107 linhas — importa 17 pages + sidebar + login
+├── admin/app.py                     # 107 linhas — importa 18 pages + sidebar + login
 ├── supabase/
 │   ├── seed.sql, consolidated_migration.sql
 │   ├── 002_add_brand_column.sql
@@ -108,7 +108,7 @@ CustoDoce/
 │   ├── archive/                     # 28 scripts históricos
 │   └── ... (+30 scripts utilitários)
 ├── tests/
-│   ├── unit/                        # 418 testes (21 arquivos: +35 do Sprint 2) — dashboard + services + llm + contract
+│   ├── unit/                        # 483 testes (21 arquivos: +65 do Sprint 7-9-9-9-9-9-9-9-9-9) — dashboard + services + llm + contract
 │   ├── schema/                      # 94 testes parametrizados (1 arquivo)
 │   ├── integration/                 # 13 arquivos — Benchmarks + DB integration (via RPC)
 │   ├── design/                      # 1 arquivo — CSS/estrutura (10 testes)
@@ -321,7 +321,7 @@ python scripts/seed_prices.py --dry-run
 - **9.2 Labels acessíveis**: `login_page.py` — adicionado `help=` em 6 inputs (placeholders preservados, screen-reader hints via tooltip) ✅
 - **9.3 email_service.py hardening**: `import httpx` movido para top-level; `httpx.post()` em `send_telegram_report()` com try/except + `_LOG.warning`; `import smtplib as _ssl_smtplib` inline removido (já importado no topo) ✅
 - **9.4 Test coverage**: novo `tests/unit/test_sprint7_8_9_features.py` com 23 testes (extract_ppk fallback × 6 + _is_promotion × 4 + dialog existence × 3 + alerts/ingredientes × 6 + MENU_GROUPS × 4) ✅
-- Meta: ruff ✅, mypy ✅ (8 erros pre-existentes em email_service tuple typing não-regredidos), pytest **577 passing** (unit: 483 + schema: 94, era 551; +26 testes). sync_docs.py ✅ clean. 0 skips. 0 falhos.
+- Meta: ruff ✅, mypy ✅ (8 erros pre-existentes em email_service tuple typing não-regredidos), pytest **577 unit+schema + 102 integration + 10 design + 6 real + 50 e2e = 745 total** (unit: 483, schema: 94; +65 do Sprint 7-9). sync_docs.py ✅ clean. 0 skips. 0 falhos.
 - Skills atualizadas: `~/.config/opencode/skills/streamlit/SKILL.md` (st.navigation, st.pagination, st.dialog, st.fragment, st.bottom); `.opencode/skills/streamlit/SKILL.md` (page map real, MENU_GROUPS single source of truth).
 
 **Sprint 2 concluída (Test Hardening + Contract Safety) out 2026-06-29:**
@@ -710,7 +710,7 @@ Este projeto usa **duas camadas de skills OpenCode**:
 | `telegram-bot` | Comandos `/preco /lista /status`, REST 443, dedup cron |
 | `docs-writer` | AGENTS.md, ADRs, runbooks, sync_docs.py |
 | `sql-optimizer` | Schema `prices`, RPCs, índices, migration workflow |
-| `streamlit` | 17 pages, login gate, kpi_card, column_config, RPC 443 |
+| `streamlit` | 18 pages, login gate, kpi_card, column_config, RPC 443 |
 | `api-design` | Supabase REST/RPC real, auth boundaries, RPC naming |
 | `github-actions` | 7 workflows + free-tier math (818 min/mês) |
 | `project-doc-sync` | Cobertura do `sync_docs.py` |
