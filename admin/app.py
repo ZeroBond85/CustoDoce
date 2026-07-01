@@ -3,6 +3,7 @@ CustoDoce Dashboard - Main Application (Modular Architecture)
 Refactored from 3664 lines to ~200 lines using dashboard/pages modules.
 
 Architecture: st.navigation() (Streamlit 1.36+) with grouped sidebar.
+Single source of truth: dashboard/navigation_config.py (MENU_GROUPS, PAGE_FUNCTIONS, etc.)
 """
 
 import os
@@ -21,25 +22,12 @@ from dashboard.components.layout import (
 )
 from dashboard.login_page import render_login
 
-from dashboard.pages.visao_geral import render_visao_geral
-from dashboard.pages.precos import render_precos
-from dashboard.pages.historico import render_historico
-from dashboard.pages.flyers import render_flyers
-from dashboard.pages.revisao import render_revisao
-from dashboard.pages.fontes import render_fontes
-from dashboard.pages.ranking import render_ranking
-from dashboard.pages.insights import render_insights
-from dashboard.pages.lojas import render_lojas
-from dashboard.pages.ingredientes import render_ingredientes
-from dashboard.pages.alertas import render_alertas
-from dashboard.pages.scrapers import render_scrapers
-from dashboard.pages.scraper_health import render_scraper_health
-from dashboard.pages.relatorios import render_relatorios
-from dashboard.pages.config import render_config
-from dashboard.pages.calculadora import render_calculadora
-from dashboard.pages.diagnostico import render_diagnostico
-from dashboard.pages.promocoes import render_promocoes
-from dashboard.pages.capacity_planning import render_capacity_planning
+# Single source of truth — all navigation constants from one place
+from dashboard.navigation_config import (
+    PAGE_FUNCTIONS,
+    MENU_GROUPS,
+    DEFAULT_PAGE,
+)
 
 st.set_page_config(
     page_title="CustoDoce - Painel de Preços",
@@ -47,72 +35,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
-
-# Page function mapping — kept as Dict[str, Callable] for backward compat with tests.
-PAGE_FUNCTIONS = {
-    "visao_geral": render_visao_geral,
-    "precos": render_precos,
-    "historico": render_historico,
-    "flyers": render_flyers,
-    "revisao": render_revisao,
-    "fontes": render_fontes,
-    "ranking": render_ranking,
-    "insights": render_insights,
-    "lojas": render_lojas,
-    "ingredientes": render_ingredientes,
-    "alertas": render_alertas,
-    "scrapers": render_scrapers,
-    "scraper_health": render_scraper_health,
-    "relatorios": render_relatorios,
-    "config": render_config,
-    "calculadora": render_calculadora,
-    "diagnostico": render_diagnostico,
-    "promocoes": render_promocoes,
-    "capacity_planning": render_capacity_planning,
-}
-
-# Menu grouping for st.navigation() (Streamlit 1.36+).
-# Single source of truth for both legacy st.session_state.page path and the
-# modern navigation API. Each tuple = (label, icon, page_id).
-MENU_GROUPS: dict[str, list[tuple[str, str, str]]] = {
-    "📊 Painel": [
-        ("Visão Geral", "📊", "visao_geral"),
-        ("Preços", "🔍", "precos"),
-        ("Histórico", "📈", "historico"),
-        ("Promoções", "🏷️", "promocoes"),
-    ],
-    "📈 Análises": [
-        ("Insights", "💡", "insights"),
-        ("Fontes & Ofertas", "📡", "fontes"),
-        ("Ranking", "🏆", "ranking"),
-        ("Calculadora", "🧮", "calculadora"),
-        ("Revisão", "⚠️", "revisao"),
-        ("Capacidade", "📊", "capacity_planning"),
-    ],
-    "📦 Cadastros": [
-        ("Lojas", "🏪", "lojas"),
-        ("Ingredientes", "🛒", "ingredientes"),
-    ],
-    "🤖 Operações": [
-        ("Alertas", "🔔", "alertas"),
-        ("Scrapers & Logs", "🤖", "scrapers"),
-        ("Scraper Health", "🏥", "scraper_health"),
-        ("Relatórios", "📬", "relatorios"),
-        ("Flyers", "📄", "flyers"),
-    ],
-    "🔧 Ferramentas": [
-        ("Configuração", "⚙️", "config"),
-        ("Diagnóstico", "🔬", "diagnostico"),
-    ],
-}
-
-PAGE_TITLE_ICONS: dict[str, tuple[str, str]] = {
-    page_id: (label, icon)
-    for _group_label, group_pages in MENU_GROUPS.items()
-    for label, icon, page_id in group_pages
-}
-
-DEFAULT_PAGE = "visao_geral"
 
 # Password from env or generated
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")

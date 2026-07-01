@@ -33,20 +33,9 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
 
-      - name: Install psql and PyGithub
+      - name: Install dependencies
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-client gzip > /dev/null 2>&1
-          pip install PyGithub 2>/dev/null
-
-      - name: Derive connection params
-        id: parse_ref
-        run: |
-          URL="${{ secrets.SUPABASE_URL }}"
-          REF="${URL#https://}"
-          REF="${REF%.supabase.co}"
-          echo "ref=$REF" >> $GITHUB_OUTPUT
-          echo "host=db.$REF.supabase.co" >> $GITHUB_OUTPUT
+          pip install supabase PyGithub 2>/dev/null
 
       - name: Download latest backup artifact
         if: github.event.inputs.artifact_name == ''
@@ -71,41 +60,24 @@ jobs:
 
       - name: Validate backup file integrity
         run: |
-          BACKUP_FILE=$(ls backup/*.sql.gz 2>/dev/null | head -1)
+          BACKUP_FILE=$(ls backup/custodoce_backup_rpc_*.json.gz 2>/dev/null | head -1)
           if [ -z "$BACKUP_FILE" ]; then
-            echo "No .sql.gz file found in backup/"
+            echo "No .json.gz file found in backup/"
             ls -la backup/
             exit 1
           fi
           echo "Backup file: $BACKUP_FILE"
           gzip -t "$BACKUP_FILE" && echo "Gzip integrity: OK"
           gunzip -l "$BACKUP_FILE"
+          echo "BACKUP_FILE=$BACKUP_FILE" >> $GITHUB_OUTPUT
+        id: find_file
 
-      - name: Dry-run restore validation
+      - name: Dry-run restore validation (JSON via RPC)
         env:
-          PGHOST: ${{ steps.parse_ref.outputs.host }}
-          PGPORT: "5432"
-          PGUSER: postgres
-          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-          PGDATABASE: postgres
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
-          BACKUP_FILE=$(ls backup/*.sql.gz 2>/dev/null | head -1)
-          echo "Running dry-run restore of: $BACKUP_FILE"
-          set +e
-          gunzip -c "$BACKUP_FILE" | psql \
-            --set=ON_ERROR_STOP=0 \
-            --set=quiet=on \
-            2>&1 | tee /tmp/restore_output.txt | head -30
-          EXIT_CODE=${PIPESTATUS[0]}
-          echo "---"
-          echo "psql exit code: $EXIT_CODE"
-          ERROR_LINES=$(grep -c "ERROR" /tmp/restore_output.txt 2>/dev/null || echo "0")
-          echo "Error lines found: $ERROR_LINES"
-          if [ $EXIT_CODE -eq 0 ]; then
-            echo "DRY-RUN: Restore validation passed"
-          else
-            echo "DRY-RUN: Restore encountered errors (review output above)"
-          fi
+          python scripts/restore_from_json.py "${{ steps.find_file.outputs.BACKUP_FILE }}" --dry-run
 
       - name: Restore test summary
         run: |
@@ -113,6 +85,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Campo | Valor |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Status | **Dry-run apenas** (nenhum dado modificado) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | **Dry-run via RPC (port 443)** - sem modificar dados |" >> $GITHUB_STEP_SUMMARY
           echo "| Executado | $(date -u +'%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
-          echo "| Artefact | ${{ github.event.inputs.artifact_name || 'mais recente' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Artefato | ${{ github.event.inputs.artifact_name || 'mais recente' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Arquivo | ${{ steps.find_file.outputs.BACKUP_FILE }} |" >> $GITHUB_STEP_SUMMARY

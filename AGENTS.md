@@ -108,7 +108,7 @@ CustoDoce/
 │   ├── archive/                     # 28 scripts históricos
 │   └── ... (+30 scripts utilitários)
 ├── tests/
-│   ├── unit/                        # 518 testes (21 arquivos: +65 do Sprint 7-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9) — dashboard + services + llm + contract
+│   ├── unit/                        # 518 testes (21 arquivos: +65 do Sprint 7-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9) — dashboard + services + llm + contract
 │   ├── schema/                      # 94 testes parametrizados (1 arquivo)
 │   ├── integration/                 # 13 arquivos — Benchmarks + DB integration (via RPC)
 │   ├── design/                      # 1 arquivo — CSS/estrutura (10 testes)
@@ -290,7 +290,7 @@ python scripts/seed_prices.py --dry-run
 | pytest (unit + schema) | 612 passing (unit: 518, schema: 94) | ✅ |
 | pytest (integration) | 102 passing | ✅ |
 | pytest (real, slow) | 6 passing | ✅ |
-| pytest (e2e) | 50 collected (blocked on Playwright live Streamlit Cloud) | ⏳ |
+| pytest (e2e) | 28 collected (blocked on Playwright live Streamlit Cloud) | ⏳ |
 
 **Sprint 5 concluída (CI Hardening + Real E2E Cloud Validation) out 2026-06-29:**
 - `admin/app.py:` TypeError FASE 8 — `render_login(ADMIN_PASSWORD)` → `render_login()` ✅

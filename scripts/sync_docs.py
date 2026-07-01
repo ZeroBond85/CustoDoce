@@ -29,10 +29,10 @@ from pathlib import Path
 os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 
 _ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_ROOT))
 _AGENTS = _ROOT / "AGENTS.md"
 _README = _ROOT / "README.md"
 _DOCS_API = _ROOT / "docs" / "api"
-_LAYOUT = _ROOT / "dashboard" / "components" / "layout.py"
 _TEST_DIR = _ROOT / "tests"
 _SERVICES_DIR = _ROOT / "services"
 
@@ -160,25 +160,9 @@ def _check_drift() -> list[str]:
 
 
 def _extract_pages() -> list[tuple[str, str, str]]:
-    """Extract PAGES from dashboard/components/layout.py — only the PAGES block, not MENU_GROUPS."""
-    content = _LAYOUT.read_text(encoding="utf-8")
-    pages = []
-    in_pages_block = False
-    for line in content.splitlines():
-        stripped = line.strip()
-        if stripped == "PAGES = [":
-            in_pages_block = True
-            continue
-        if in_pages_block:
-            if stripped == "]":
-                break
-            m = re.match(
-                r'\s*\(["\']([^"\']+)["\']\s*,\s*["\']([^"\']+)["\']\s*,\s*["\']([^"\']+)["\']',
-                line,
-            )
-            if m:
-                pages.append((m.group(1), m.group(2), m.group(3)))
-    return pages
+    """Extract PAGES from navigation_config (single source of truth)."""
+    from dashboard.navigation_config import PAGES as nav_pages
+    return list(nav_pages)
 
 
 def _extract_services_api() -> dict[str, list[str]]:

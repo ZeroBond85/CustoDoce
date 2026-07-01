@@ -71,23 +71,13 @@ def test_login(page):
 
 
 # -------------------- Navegação Sidebar --------------------
+# Single source of truth: import from navigation_config
+from dashboard.navigation_config import MENU_GROUPS
+
 PAGES = [
-    ("visao_geral", "Visao Geral"),
-    ("precos", "Precos"),
-    ("historico", "Historico"),
-    ("flyers", "Flyers"),
-    ("revisao", "Revisao"),
-    ("fontes", "Fontes & Ofertas"),
-    ("ranking", "Ranking"),
-    ("insights", "Insights"),
-    ("lojas", "Lojas"),
-    ("ingredientes", "Ingredientes"),
-    ("alertas", "Alertas"),
-    ("scrapers", "Scrapers & Logs"),
-    ("relatorios", "Relatorios"),
-    ("config", "Configuracao"),
-    ("calculadora", "Calculadora"),
-    ("diagnostico", "Diagnostico"),
+    (page_id, label)
+    for _group, group_pages in MENU_GROUPS.items()
+    for label, _icon, page_id in group_pages
 ]
 
 

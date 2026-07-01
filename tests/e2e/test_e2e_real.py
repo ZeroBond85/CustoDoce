@@ -13,8 +13,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import pytest
 from playwright.sync_api import sync_playwright
 
-# Single source of truth: import from dashboard layout (MENU_GROUPS drives st.navigation)
-from dashboard.components.layout import MENU_GROUPS
+# Single source of truth: import from navigation_config (MENU_GROUPS drives st.navigation)
+from dashboard.navigation_config import MENU_GROUPS
 
 BASE_URL = os.getenv("STREAMLIT_URL", "https://custodoce.streamlit.app")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "custodoce123")

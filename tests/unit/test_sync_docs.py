@@ -94,16 +94,12 @@ def test_extract_pages_known_ids():
 
 
 def test_extract_pages_tolerates_quote_variants():
-    layout_src = "PAGES = [\n        (\"foo\", \"X\", \"Foo Label\"),\n        ('bar', 'Y', 'Bar Label'),\n]"
-
-    class _Fake:
-        def read_text(self, encoding=None):
-            return layout_src
-
-    with patch.object(sync_docs, "_LAYOUT", _Fake()):
-        pages = sync_docs._extract_pages()
-    assert ("foo", "X", "Foo Label") in pages
-    assert ("bar", "Y", "Bar Label") in pages
+    """_extract_pages() now reads from navigation_config (not file parsing)."""
+    pages = sync_docs._extract_pages()
+    assert len(pages) >= 19, f"Expected >= 19 pages, got {len(pages)}"
+    for p in pages:
+        assert isinstance(p, tuple) and len(p) == 3, f"Invalid page tuple: {p}"
+        assert p[0] and p[1] and p[2], f"Empty field in page tuple: {p}"
 
 
 # 4. _extract_services_api: lock service module whitelist

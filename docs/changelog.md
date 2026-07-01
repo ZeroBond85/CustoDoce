@@ -26,8 +26,20 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ### Fixed
 
-- **`tests/unit/test_app_wiring.py`**: Atualizado de 18→19 páginas, adicionado `render_capacity_planning` em todos os validadores.
-- **`tests/unit/test_dashboard_full.py`**: Comentário de referência atualizado de `tests/design/` → `tests/unit/`.
+- **`dashboard/navigation_config.py`**: Criado como **single source of truth** para navegação. Elimina duplicação de `MENU_GROUPS` e `PAGE_FUNCTIONS` entre admin/app.py e layout.py. Resolve drift estrutural detectado em Sprint 10.
+- **`admin/app.py`**: Refatorado para importar `MENU_GROUPS`, `PAGE_FUNCTIONS`, `PAGE_TITLE_ICO`NS e `DEFAULT_PAGE` de `navigation_config.py` (~90 linhas de duplicação removidas).
+- **`dashboard/components/layout.py`**: Refatorado para importar `MENU_GROUPS` e `PAGES` de `navigation_config.py`. Definições locais removidas.
+- **`tests/e2e/test_e2e_real.py`**: Atualizado para construir `PAGES` dinamicamente a partir de `MENU_GROUPS` (antes tinha lista estática com labels não-accented).
+- **`tests/e2e/test_e2e_dashboard.py`**: Atualizado para construir `PAGES` dinamicamente a partir de `MENU_GROUPS`.
+- **`scripts/sync_docs.py`**: 
+  - `_extract_pages()` agora importa `PAGES` de `navigation_config.py` em vez de fazer parsing de arquivo.
+  - Removido `_LAYOUT` constante não-utilizada.
+  - Adicionado `sys.path.insert(0, str(_ROOT))` para permitir importação de `dashboard.navigation_config` quando script é executado como `python scripts/sync_docs.py`.
+- **`tests/unit/test_app_wiring.py`**: Atualizado `test_layout_pmenu_groups_sync_with_admin_app` para verificar que ambos importam de `navigation_config` (antes verificava duplicação local).
+- **`tests/unit/test_sync_docs.py`**: 
+  - `test_extract_pages_known_ids`: Atualizado para verificar IDs vindos de `navigation_config` (antes falhava porque layout.py não tinha mais definição inline).
+  - `test_extract_pages_tolerates_quote_variants`: Atualizado para testar nova abordagem de importação (antes mockava parser de arquivo).
+- **`dashboard/navigation_config.py`**: Correção de mypy — `PAGE_FUNCTIONS: dict[str, callable]` → `PAGE_FUNCTIONS: dict[str, Callable]` (import de `collections.abc`).
 
 ### Metrics
 

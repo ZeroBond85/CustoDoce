@@ -199,18 +199,9 @@ def test_menu_groups_structure():
 
 
 def test_layout_pmenu_groups_sync_with_admin_app():
-    """dashboard/components/layout.py::MENU_GROUPS deve estar sincronizado com admin/app.py."""
+    """Both layout.py and admin/app.py import MENU_GROUPS from navigation_config (single source of truth)."""
     from admin.app import MENU_GROUPS as ADMIN_MENU
-    from dashboard.components.layout import MENU_GROUPS as LAYOUT_MENU
+    from dashboard.navigation_config import MENU_GROUPS as NAV_MENU
 
-    assert ADMIN_MENU.keys() == LAYOUT_MENU.keys(), (
-        f"Grupos diferentes:\nADMIN: {set(ADMIN_MENU.keys())}\nLAYOUT: {set(LAYOUT_MENU.keys())}"
-    )
-
-    for group_label in ADMIN_MENU:
-        admin_pages = {entry[2] for entry in ADMIN_MENU[group_label]}
-        layout_pages = {entry[2] for entry in LAYOUT_MENU[group_label]}
-        assert admin_pages == layout_pages, (
-            f"Grupo '{group_label}' tem paginas diferentes:\n"
-            f"ADMIN: {admin_pages}\nLAYOUT: {layout_pages}"
-        )
+    assert ADMIN_MENU is NAV_MENU, "admin.app.MENU_GROUPS must be the same object as navigation_config.MENU_GROUPS"
+    assert len(ADMIN_MENU) > 0, "MENU_GROUPS must not be empty"

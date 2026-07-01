@@ -1,62 +1,8 @@
 import streamlit as st
 from dashboard.components.ui import get_logo_sidebar_base64
 
-PAGES = [
-    ("visao_geral", "📊", "Visao Geral"),
-    ("precos", "🔍", "Precos"),
-    ("historico", "📈", "Historico"),
-    ("flyers", "📄", "Flyers"),
-    ("revisao", "⚠️", "Revisao"),
-    ("fontes", "📡", "Fontes & Ofertas"),
-    ("ranking", "🏆", "Ranking"),
-    ("insights", "💡", "Insights"),
-    ("lojas", "🏪", "Lojas"),
-    ("ingredientes", "🛒", "Ingredientes"),
-    ("alertas", "🔔", "Alertas"),
-    ("scrapers", "🤖", "Scrapers & Logs"),
-    ("scraper_health", "🏥", "Scraper Health"),
-    ("relatorios", "📬", "Relatorios"),
-    ("config", "⚙️", "Configuracao"),
-    ("calculadora", "🧮", "Calculadora"),
-    ("diagnostico", "🔬", "Diagnostico"),
-    ("promocoes", "🏷️", "Promocoes"),
-    ("capacity_planning", "📊", "Capacidade"),
-]
-
-# Sidebar groups — same single-source-of-truth shape as admin/app.py::MENU_GROUPS
-MENU_GROUPS: dict[str, list[tuple[str, str, str]]] = {
-    "📊 Painel": [
-        ("Visão Geral", "📊", "visao_geral"),
-        ("Preços", "🔍", "precos"),
-        ("Histórico", "📈", "historico"),
-        ("Promoções", "🏷️", "promocoes"),
-    ],
-    "📈 Análises": [
-        ("Insights", "💡", "insights"),
-        ("Fontes & Ofertas", "📡", "fontes"),
-        ("Ranking", "🏆", "ranking"),
-        ("Calculadora", "🧮", "calculadora"),
-        ("Revisão", "⚠️", "revisao"),
-        ("Capacidade", "📊", "capacity_planning"),
-    ],
-    "📦 Cadastros": [
-        ("Lojas", "🏪", "lojas"),
-        ("Ingredientes", "🛒", "ingredientes"),
-    ],
-    "🤖 Operações": [
-        ("Alertas", "🔔", "alertas"),
-        ("Scrapers & Logs", "🤖", "scrapers"),
-        ("Scraper Health", "🏥", "scraper_health"),
-        ("Relatórios", "📬", "relatorios"),
-        ("Flyers", "📄", "flyers"),
-    ],
-    "🔧 Ferramentas": [
-        ("Configuração", "⚙️", "config"),
-        ("Diagnóstico", "🔬", "diagnostico"),
-    ],
-}
-
-DEFAULT_PAGE = "visao_geral"
+# Single source of truth — all navigation constants from dashboard/navigation_config.py
+from dashboard.navigation_config import PAGES, DEFAULT_PAGE
 
 
 def render_legacy_sidebar():
