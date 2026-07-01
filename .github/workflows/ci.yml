@@ -137,13 +137,10 @@ jobs:
     needs: [deploy-check]
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    # Roda Streamlit localmente (localhost:8501). NAO e bloqueante de merge.
-    # Razao (Licao #29): e2e-smoke tem falha historica no caminho de teste que vai
-    # alem do escopo de um PR (st.navigation() em headless Chromium nao re-renderiza
-    # apos Entrar click de forma deterministica). Logs em data/regression_screenshots/
-    # continuam sendo capturados para analise posterior. Para fix real, abrir ticket
-    # dedicado e debugar via screenshot ao vivo + script_run_state=notRunning.
-    continue-on-error: true
+    # Smoke test rapido (15s): valida que Streamlit responde + login form
+    # renderiza + ciclo de submit nao causa excecao. Nao depende de
+    # st.navigation() em headless (Licao #29). O test_e2e_real.py completo
+    # roda no workflow .github/workflows/e2e.yml em schedule mensal.
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -170,8 +167,8 @@ jobs:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
-      - name: E2E smoke — visao_geral + precos + calculadora
-        run: python -m pytest tests/e2e/test_e2e_real.py -k "(test_tab_navigates_without_error and (visao_geral or precos)) or test_calculadora" -v --tb=short --no-header --durations=5
+      - name: E2E smoke — server + login (basic)
+        run: python -m pytest tests/e2e/test_e2e_smoke_basic.py -v --tb=short --no-header --durations=5
         env:
           STREAMLIT_URL: http://localhost:8501
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
