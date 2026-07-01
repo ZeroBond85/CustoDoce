@@ -20,6 +20,7 @@ PAGES = [
     ("calculadora", "🧮", "Calculadora"),
     ("diagnostico", "🔬", "Diagnostico"),
     ("promocoes", "🏷️", "Promocoes"),
+    ("capacity_planning", "📊", "Capacidade"),
 ]
 
 # Sidebar groups — same single-source-of-truth shape as admin/app.py::MENU_GROUPS
@@ -36,6 +37,7 @@ MENU_GROUPS: dict[str, list[tuple[str, str, str]]] = {
         ("Ranking", "🏆", "ranking"),
         ("Calculadora", "🧮", "calculadora"),
         ("Revisão", "⚠️", "revisao"),
+        ("Capacidade", "📊", "capacity_planning"),
     ],
     "📦 Cadastros": [
         ("Lojas", "🏪", "lojas"),

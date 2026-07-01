@@ -82,7 +82,7 @@ CustoDoce/
 │   └── pages/                       # 18 módulos (visao_geral, precos, historico, etc.)
 ├── telegram_bot/
 │   └── handlers.py                  # /preco, /lista, /status — lê do DB (config_db), fallback YAML; fuzzy search (RapidFuzz); paginação inline keyboard
-├── admin/app.py                     # 107 linhas — importa 18 pages + sidebar + login
+├── admin/app.py                     # 107 linhas — importa 19 pages + sidebar + login
 ├── supabase/
 │   ├── seed.sql, consolidated_migration.sql
 │   ├── 002_add_brand_column.sql
@@ -108,7 +108,7 @@ CustoDoce/
 │   ├── archive/                     # 28 scripts históricos
 │   └── ... (+30 scripts utilitários)
 ├── tests/
-│   ├── unit/                        # 508 testes (21 arquivos: +65 do Sprint 7-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9) — dashboard + services + llm + contract
+│   ├── unit/                        # 518 testes (21 arquivos: +65 do Sprint 7-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9) — dashboard + services + llm + contract
 │   ├── schema/                      # 94 testes parametrizados (1 arquivo)
 │   ├── integration/                 # 13 arquivos — Benchmarks + DB integration (via RPC)
 │   ├── design/                      # 1 arquivo — CSS/estrutura (10 testes)
@@ -287,7 +287,7 @@ python scripts/seed_prices.py --dry-run
 
 | Ferramenta | Status |
 |------------|--------|
-| pytest (unit + schema) | 602 passing (unit: 508, schema: 94) | ✅ |
+| pytest (unit + schema) | 612 passing (unit: 518, schema: 94) | ✅ |
 | pytest (integration) | 102 passing | ✅ |
 | pytest (real, slow) | 6 passing | ✅ |
 | pytest (e2e) | 50 collected (blocked on Playwright live Streamlit Cloud) | ⏳ |
@@ -763,7 +763,7 @@ Este projeto usa **duas camadas de skills OpenCode**:
 | `telegram-bot` | Comandos `/preco /lista /status`, REST 443, dedup cron |
 | `docs-writer` | AGENTS.md, ADRs, runbooks, sync_docs.py |
 | `sql-optimizer` | Schema `prices`, RPCs, índices, migration workflow |
-| `streamlit` | 18 pages, login gate, kpi_card, column_config, RPC 443 |
+| `streamlit` | 19 pages, login gate, kpi_card, column_config, RPC 443 |
 | `api-design` | Supabase REST/RPC real, auth boundaries, RPC naming |
 | `github-actions` | 7 workflows + free-tier math (818 min/mês) |
 | `project-doc-sync` | Cobertura do `sync_docs.py` |

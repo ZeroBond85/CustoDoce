@@ -375,7 +375,7 @@ def _count_dashboard_pages() -> int:
     return sum(
         1
         for f in pages_dir.iterdir()
-        if f.suffix == ".py" and f.stem != "__init__" and f.stem != "capacity_planning"
+        if f.suffix == ".py" and f.stem != "__init__"
     )
 
 

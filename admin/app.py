@@ -39,6 +39,7 @@ from dashboard.pages.config import render_config
 from dashboard.pages.calculadora import render_calculadora
 from dashboard.pages.diagnostico import render_diagnostico
 from dashboard.pages.promocoes import render_promocoes
+from dashboard.pages.capacity_planning import render_capacity_planning
 
 st.set_page_config(
     page_title="CustoDoce - Painel de Preços",
@@ -67,6 +68,7 @@ PAGE_FUNCTIONS = {
     "calculadora": render_calculadora,
     "diagnostico": render_diagnostico,
     "promocoes": render_promocoes,
+    "capacity_planning": render_capacity_planning,
 }
 
 # Menu grouping for st.navigation() (Streamlit 1.36+).
@@ -85,6 +87,7 @@ MENU_GROUPS: dict[str, list[tuple[str, str, str]]] = {
         ("Ranking", "🏆", "ranking"),
         ("Calculadora", "🧮", "calculadora"),
         ("Revisão", "⚠️", "revisao"),
+        ("Capacidade", "📊", "capacity_planning"),
     ],
     "📦 Cadastros": [
         ("Lojas", "🏪", "lojas"),

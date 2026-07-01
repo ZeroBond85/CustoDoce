@@ -23,8 +23,7 @@ _TEST_DIRS = [
     ("tests/integration", "integration"),
     ("tests/e2e", "e2e"),
     ("tests/real", "real"),
-    ("tests/design", "design"),
-]
+    ]
 
 
 def count_tests() -> dict[str, int]:
@@ -102,7 +101,7 @@ def _count_dashboard_pages() -> int:
     if not pages_dir.exists():
         return 0
     return sum(
-        1 for f in pages_dir.iterdir() if f.suffix == ".py" and f.stem != "__init__" and f.stem != "capacity_planning"
+        1 for f in pages_dir.iterdir() if f.suffix == ".py" and f.stem != "__init__"
     )
 
 

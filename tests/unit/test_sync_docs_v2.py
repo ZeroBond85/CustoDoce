@@ -46,7 +46,7 @@ def test_count_tests_handles_missing_dir():
     with patch("subprocess.run", side_effect=FileNotFoundError("no dir")):
         result = truth.count_tests()
     assert all(v == 0 for v in result.values())
-    assert set(result) == {"unit", "schema", "integration", "e2e", "real", "design"}
+    assert set(result) == {"unit", "schema", "integration", "e2e", "real"}
 
 
 def test_count_tests_includes_async():

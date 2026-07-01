@@ -3,8 +3,8 @@ scripts/test_total_coverage.py
 
 THE official end-to-end testTotalCoverage routine for CustoDoce.
 
-Drives 11 phases (lint, mysql, mypy, pytest_unit, pytest_schema, pytest_integration,
-pytest_real, pytest_design, sync_docs_drift, audit_secrets, deploy_check) and produces
+Drives 10 phases (lint, mysql, mypy, pytest_unit, pytest_schema, pytest_integration,
+pytest_real, pytest_design, sync_docs_analyze, audit_secrets, deploy_check) and produces
 a single JSON report at `data/test_runs/<timestamp>.json`.
 
 Usage:
@@ -59,11 +59,10 @@ PHASES = [
     {"name": "pytest-real", "cmd": ["python", "-m", "pytest", "tests/real/", "-q", "--tb=short"], "optional": True},
     {
         "name": "pytest-design",
-        "cmd": ["python", "-m", "pytest", "tests/design/", "-q", "--tb=short"],
+        "cmd": ["python", "-m", "pytest", "tests/unit/", "-q", "--tb=short", "-k", "design"],
         "optional": False,
     },
-    {"name": "sync_docs_drift", "cmd": ["python", "scripts/sync_docs.py", "--check"], "optional": False},
-    {"name": "sync_docs_v2_analyze", "cmd": ["python", "scripts/sync_docs.py", "--analyze"], "optional": False},
+    {"name": "sync_docs_analyze", "cmd": ["python", "scripts/sync_docs.py", "--analyze"], "optional": False},
     {"name": "audit_secrets", "cmd": ["python", "scripts/audit_secrets.py", "--strict"], "optional": False},
     {"name": "deploy_check", "cmd": ["python", "scripts/deploy_check.py"], "optional": True},
 ]

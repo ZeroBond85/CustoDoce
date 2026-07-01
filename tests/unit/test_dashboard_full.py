@@ -132,7 +132,7 @@ def test_all_imports():
         PAGE_FUNCTIONS,
     )
 
-    assert len(PAGES) == 18, f"Esperado 18 paginas (17 + promocoes Sprint 7), encontrado {len(PAGES)}"
+    assert len(PAGES) == 19, f"Esperado 19 paginas (18 + capacity_planning Phase 3), encontrado {len(PAGES)}"
     for page_id, icon, label in PAGES:
         assert page_id in PAGE_FUNCTIONS, f"Faltando handler para {page_id}"
 
@@ -988,7 +988,7 @@ tests = [
     # App
     (test_app_module_loads, "app: módulo carrega, main() existe"),
     (test_env_auth_flow, "app: auth flow com env vars"),
-    # Design (movido para tests/design/test_design_checks.py)
+    # Design (movido para tests/unit/test_design_checks.py)
     # Auth Gate
     (test_auth_gate_logic, "auth_gate: lógica de autenticação"),
     # Phase 3 — Flyers & History

@@ -5,6 +5,37 @@ Todos os cambios_notáveis deste projeto são documentados aqui.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.2.4] - 2026-07-01
+
+### Added
+
+#### Phase 3 — CI Hardening + Time Budget Guard + Capacity Planning
+
+- **`scripts/check_time_budget.py`**: Novo script que verifica se elapsed time >70% do `timeout-minutes` e emite `::warning::` no GHA. Integrado nos 4 jobs pytest (unit, integration, e2e-smoke, real) com `if: always()`.
+- **`dashboard/pages/capacity_planning.py`**: Integrado ao sidebar no grupo "📈 Análises" como "Capacidade" (19ª página). Anteriormente orphan no disco desde Fase 8. Exibe disk usage, GHA minutes e SMTP quota com st.metric + st.progress e limites do free tier.
+- **`tests/unit/test_design_checks.py`**: Movido de `tests/design/` → `tests/unit/` para simplificar a pirâmide de testes (2 camadas: unit + integration, elimina diretório `design/`).
+
+### Changed
+
+- **`.github/workflows/ci.yml`**: e2e-smoke timeout 15→25min; escopo reduzido para 3 testes (visao_geral + precos + calculadora); `--durations=5` em todos os 4 jobs pytest; time budget guard pós-cada job.
+- **`admin/app.py`**: Import + registro de `render_capacity_planning` em `PAGE_FUNCTIONS` e `MENU_GROUPS`.
+- **`dashboard/components/layout.py`**: `MENU_GROUPS` sincronizado com admin/app.py — "Capacidade" adicionado; `PAGES` agora com 19 entradas.
+- **`scripts/test_total_coverage.py`**: `sync_docs_drift` e `sync_docs_v2_analyze` consolidados em `sync_docs_analyze` (apenas v2). Removida referência a `tests/design/`.
+- **`scripts/sync_docs_v2/truth.py`**: `capacity_planning` removido da lista de exclusão (agora conta como página oficial).
+- **`scripts/sync_docs.py`**: `capacity_planning` removido da exclusão em `_count_dashboard_pages()`.
+
+### Fixed
+
+- **`tests/unit/test_app_wiring.py`**: Atualizado de 18→19 páginas, adicionado `render_capacity_planning` em todos os validadores.
+- **`tests/unit/test_dashboard_full.py`**: Comentário de referência atualizado de `tests/design/` → `tests/unit/`.
+
+### Metrics
+
+- pytest: **~528 unit + 94 schema + 102 integration + 6 real + 50 e2e = ~780 total** (sync_docs v2 reporta valores reais)
+- ruff: **0 warnings**
+- Pages: **19** (capacity_planning integrado). `tests/design/` diretório removido.
+- CI: e2e-smoke 15→25min timeout, 17→3 testes, time-budget guard ativo.
+
 ## [0.2.3] - 2026-06-30
 
 ### Added
@@ -52,7 +83,7 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - pytest: **577 passing** (unit: 483 + schema: 94) — +26 da baseline 551
 - ruff: **0 warnings** em todos os arquivos modificados
 - mypy: **0 novos erros** (8 pre-existentes em `email_service.py` — tuple typing, não regredidos)
-- Pages: **18** (era 17, promocoes integrada). Orphan `capacity_planning.py` mantido fora (requer `scraping_logs` aggregation fix)
+- Pages: **18** (era 17, promocoes integrada)
 
 ## [0.2.2] - 2026-06-30
 

@@ -36,6 +36,7 @@ def test_all_page_modules_import():
         calculadora,
         diagnostico,
         promocoes,
+        capacity_planning,
     )
 
     assert visao_geral
@@ -56,6 +57,7 @@ def test_all_page_modules_import():
     assert calculadora
     assert diagnostico
     assert promocoes
+    assert capacity_planning
 
 
 def test_render_login_signature():
@@ -151,6 +153,7 @@ def test_no_page_function_called_directly_with_args():
         "render_calculadora",
         "render_diagnostico",
         "render_promocoes",
+        "render_capacity_planning",
     }
 
     for node in ast.walk(tree):
@@ -172,7 +175,7 @@ def test_promocoes_registered_in_page_functions():
 
 
 def test_menu_groups_structure():
-    """MENU_GROUPS contém 5 grupos cobrindo todas as 18 páginas."""
+    """MENU_GROUPS contém 5 grupos cobrindo todas as 19 páginas."""
     from admin.app import MENU_GROUPS, PAGE_FUNCTIONS
 
     expected_groups = {"📊 Painel", "📈 Análises", "📦 Cadastros", "🤖 Operações", "🔧 Ferramentas"}
