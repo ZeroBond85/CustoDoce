@@ -36,12 +36,12 @@ def get_telegram_report(ingredients: list[Ingredient], top_n: int = 5) -> list[d
     return messages
 
 
-def get_longitudinal_winners() -> list[dict[str, Any]]:
+def get_longitudinal_winners(days: int = 90) -> list[dict[str, Any]]:
     """
     Identify stores that are consistently the cheapest over time.
     """
     client = get_supabase()
-    cutoff = (date.today() - timedelta(days=90)).isoformat()
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
     result = (
         client.table("prices")
         .select("ingredient_id, store_name, raw_price, raw_unit, normalized, collected_at")
