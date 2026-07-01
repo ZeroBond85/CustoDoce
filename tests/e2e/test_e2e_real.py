@@ -13,30 +13,20 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import pytest
 from playwright.sync_api import sync_playwright
 
+# Single source of truth: import from dashboard layout (MENU_GROUPS drives st.navigation)
+from dashboard.components.layout import MENU_GROUPS
+
 BASE_URL = os.getenv("STREAMLIT_URL", "https://custodoce.streamlit.app")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "custodoce123")
 
-# (page_id, label, expected_text)
-PAGES = [
-    ("visao_geral", "Visão Geral", "Total"),
-    ("precos", "Preços", "Precos"),
-    ("historico", "Histórico", "Historico"),
-    ("flyers", "Flyers", "Flyers"),
-    ("revisao", "Revisão", "Revisao"),
-    ("fontes", "Fontes & Ofertas", "Fontes"),
-    ("ranking", "Ranking", "Ranking"),
-    ("insights", "Insights", "Insights"),
-    ("lojas", "Lojas", "Lojas"),
-    ("ingredientes", "Ingredientes", "Ingredientes"),
-    ("alertas", "Alertas", "Alertas"),
-    ("scrapers", "Scrapers & Logs", "Scrapers"),
-    ("scraper_health", "Scraper Health", "Scraper Health"),
-    ("relatorios", "Relatórios", "Relatorios"),
-    ("config", "Configuração", "Configuracao"),
-    ("calculadora", "Calculadora", "Calculadora"),
-    ("diagnostico", "Diagnóstico", "Diagnostico"),
-    ("promocoes", "Promoções", "Promocoes"),
-]
+# Build PAGES from MENU_GROUPS — eliminates drift
+# MENU_GROUPS format: {group: [(label, icon, page_id), ...]}
+PAGES = []
+for group_pages in MENU_GROUPS.values():
+    for label, icon, page_id in group_pages:
+        # expected_text: use page_id capitalized as fallback (tests check for this text)
+        expected = page_id.replace("_", " ").title()
+        PAGES.append((page_id, label, expected))
 
 
 def get_app(page):
