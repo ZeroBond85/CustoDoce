@@ -620,7 +620,7 @@ if pw_input.count() > 0:  # Pode ser 0 se cold start >5s!
 
 # ✅ CERTO (polling ativo até 45s):
 pw_input = page.locator("input[type='password']")
-sidebar = page.locator("button:has-text('Visao Geral')")
+sidebar = page.locator("button:has-text('Visão Geral')")
 for _ in range(45):
     if pw_input.count() > 0 and pw_input.first.is_visible():
         break

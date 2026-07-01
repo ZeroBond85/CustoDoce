@@ -62,7 +62,8 @@ def ensure_app_ready(page, app):
         app = wake_if_sleeping(page, app)
         try:
             timeout = 30000 if is_cloud else 15000
-            app.locator("button:has-text('Visao Geral')").first.wait_for(state="visible", timeout=timeout)
+            # Phase 3: sidebar buttons use accented labels from MENU_GROUPS
+            app.locator("button:has-text('Visão Geral')").first.wait_for(state="visible", timeout=timeout)
             return app
         except Exception:
             if attempt < max_retries - 1:
@@ -84,7 +85,8 @@ def login_to_app(page):
 
     # Poll for either password input (need login) or sidebar (already logged in)
     pw_input = page.locator("input[type='password']")
-    sidebar = page.locator("button:has-text('Visao Geral')")
+    # Phase 3: sidebar buttons use accented labels from MENU_GROUPS (e.g. "Visão Geral")
+    sidebar = page.locator("button:has-text('Visão Geral')")
     for _ in range(45):
         if pw_input.count() > 0 and pw_input.first.is_visible():
             break
@@ -224,10 +226,10 @@ class TestE2EReal:
         app, page = logged_in_app_and_page
         # Acordar Streamlit Cloud caso tenha hibernado entre tests
         app = wake_if_sleeping(page, app)
-        # Esperar botao com timeout reduzido para fail-fast (default 30s)
+        # Esperar botao com timeout maior para CI (cold start ate 60s)
         btn = app.locator(f"button:has-text('{label}')")
         try:
-            btn.first.wait_for(state="visible", timeout=8000)
+            btn.first.wait_for(state="visible", timeout=30000)
         except Exception:
             # Screenshot antes de falhar
             report_dir = Path("data/regression_screenshots")
@@ -236,7 +238,7 @@ class TestE2EReal:
             with open(report_dir / f"missing_{page_id}_{ts}.png", "wb") as f:
                 f.write(page.screenshot())
             pytest.fail(
-                f"Botão '{label}' não encontrado (timeout 8s). "
+                f"Botão '{label}' não encontrado (timeout 30s). "
                 f"Screenshot salvo em data/regression_screenshots/missing_{page_id}_{ts}.png"
             )
         btn.first.click()
@@ -284,7 +286,7 @@ class TestE2EReal:
         """Calculadora carrega sem erro e tabs trocam via selectbox."""
         app, page = logged_in_app_and_page
         app = wake_if_sleeping(page, app)
-        app.locator("button:has-text('Calculadora')").first.wait_for(state="visible", timeout=8000)
+        app.locator("button:has-text('Calculadora')").first.wait_for(state="visible", timeout=30000)
         app.locator("button:has-text('Calculadora')").first.click()
         app.wait_for_timeout(3000)
         check_for_errors(app, "calculadora")

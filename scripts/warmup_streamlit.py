@@ -84,7 +84,7 @@ def warmup(
                         break
 
                     app = _get_app_frame(page)
-                    btn = app.locator("button:has-text('Visao Geral')")
+                    btn = app.locator("button:has-text('Visão Geral')")
                     if btn.count() > 0 and btn.first.is_visible():
                         _trace("sidebar pronta!")
                         browser.close()
@@ -94,7 +94,7 @@ def warmup(
                     _trace("app nao respondeu (sidebar nao apareceu)")
 
                 app = _get_app_frame(page)
-                btn = app.locator("button:has-text('Visao Geral')")
+                btn = app.locator("button:has-text('Visão Geral')")
                 if btn.count() > 0 and btn.first.is_visible():
                     _trace("sidebar pronta (final check)!")
                     browser.close()

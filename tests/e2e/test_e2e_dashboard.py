@@ -67,7 +67,7 @@ def compare_images(path1: str, path2: str, threshold: float = 0.01) -> bool:
 def test_login(page):
     login(page)
     # Verifica se chegou no dashboard
-    expect(page.locator("text=Visao Geral")).to_be_visible()
+    expect(page.locator("text=Visão Geral")).to_be_visible()
 
 
 # -------------------- Navegação Sidebar --------------------
@@ -94,7 +94,7 @@ def test_navigate(page, page_id, label):
 # -------------------- Testes específicos por aba --------------------
 def test_visao_geral_kpis(page):
     login(page)
-    page.click("button:has-text('Visao Geral')")
+    page.click("button:has-text('Visão Geral')")
     page.wait_for_load_state("networkidle")
     # KPIs
     expect(page.locator("text=Total Preços")).to_be_visible()
