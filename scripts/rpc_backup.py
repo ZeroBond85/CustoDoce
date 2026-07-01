@@ -66,7 +66,7 @@ def run_backup(include_schema: bool = False):
             ORDER BY table_name, ordinal_position;
             """
             result = s.rpc("exec_sql_query", {"sql": schema_sql}).execute()
-            backup["schema"]["columns"] = result.data if result.data is not None else []
+            backup["schema"]["columns"] = list(result.data) if result.data is not None else []  # type: ignore[arg-type]
 
             idx_sql = """
             SELECT
@@ -79,7 +79,7 @@ def run_backup(include_schema: bool = False):
             ORDER BY tablename, indexname;
             """
             result = s.rpc("exec_sql_query", {"sql": idx_sql}).execute()
-            backup["schema"]["indexes"] = result.data if result.data is not None else []
+            backup["schema"]["indexes"] = list(result.data) if result.data is not None else []  # type: ignore[arg-type]
 
             const_sql = """
             SELECT
@@ -100,7 +100,7 @@ def run_backup(include_schema: bool = False):
             ORDER BY tc.table_name, tc.constraint_name;
 """
             result = s.rpc("exec_sql_query", {"sql": const_sql}).execute()
-            backup["schema"]["constraints"] = result.data if result.data is not None else []
+            backup["schema"]["constraints"] = list(result.data) if result.data is not None else []  # type: ignore[arg-type]
 
             trig_sql = """
             SELECT
@@ -114,7 +114,7 @@ def run_backup(include_schema: bool = False):
             ORDER BY event_object_table, trigger_name;
             """
             result = s.rpc("exec_sql_query", {"sql": trig_sql}).execute()
-            backup["schema"]["triggers"] = result.data if result.data is not None else []
+            backup["schema"]["triggers"] = list(result.data) if result.data is not None else []  # type: ignore[arg-type]
 
             func_sql = """
             SELECT
@@ -126,7 +126,7 @@ def run_backup(include_schema: bool = False):
             ORDER BY p.proname;
             """
             result = s.rpc("exec_sql_query", {"sql": func_sql}).execute()
-            backup["schema"]["functions"] = result.data if result.data is not None else []
+            backup["schema"]["functions"] = list(result.data) if result.data is not None else []  # type: ignore[arg-type]
 
             print("  schema: dumped (columns, indexes, constraints, triggers, functions)")
         except Exception as e:

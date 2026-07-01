@@ -5,34 +5,50 @@ Download the most recent GitHub Actions artifact matching a prefix.
 import argparse
 import os
 import sys
+import requests
 
 
 def download_latest_artifact(repo: str, prefix: str, token: str, output_dir: str):
-    try:
-        from github import Github
-    except ImportError:
-        print("ERROR: PyGithub required. Install with: pip install PyGithub")
-        sys.exit(1)
-
     os.makedirs(output_dir, exist_ok=True)
-    g = Github(token)
-    repo_obj = g.get_repo(repo)
 
-    artifacts = sorted(
-        [a for a in repo_obj.get_actions_artifacts().get_page(0) if a.name.startswith(prefix)],
-        key=lambda a: a.created_at,
-        reverse=True,
-    )
+    # Use GitHub REST API directly (more reliable than PyGithub for artifacts)
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+    url = f"https://api.github.com/repos/{repo}/actions/artifacts"
+    resp = requests.get(url, headers=headers, params={"per_page": 100}, timeout=30)
+    resp.raise_for_status()
+    data = resp.json()
+
+    artifacts = [
+        a for a in data.get("artifacts", [])
+        if a["name"].startswith(prefix)
+    ]
+    artifacts.sort(key=lambda a: a["created_at"], reverse=True)
 
     if not artifacts:
         print(f"No artifacts found with prefix '{prefix}'")
         sys.exit(1)
 
     latest = artifacts[0]
-    print(f"Downloading {latest.name} (created {latest.created_at.date()})")
-    latest.download_archive(output_dir)
+    print(f"Downloading {latest['name']} (created {latest['created_at'][:10]})")
+
+    # Download artifact zip
+    download_url = latest["archive_download_url"]
+    resp = requests.get(download_url, headers=headers, stream=True, timeout=60)
+    resp.raise_for_status()
+
+    # Extract zip to output_dir
+    import zipfile
+    import io
+    with zipfile.ZipFile(io.BytesIO(resp.content)) as z:
+        z.extractall(output_dir)
+
     print(f"Saved to: {output_dir}")
-    return latest.name
+    return latest["name"]
 
 
 if __name__ == "__main__":
