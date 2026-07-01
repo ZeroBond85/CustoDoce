@@ -108,7 +108,7 @@ CustoDoce/
 │   ├── archive/                     # 28 scripts históricos
 │   └── ... (+30 scripts utilitários)
 ├── tests/
-│   ├── unit/                        # 483 testes (21 arquivos: +65 do Sprint 7-9-9-9-9-9-9-9-9-9) — dashboard + services + llm + contract
+│   ├── unit/                        # 483 testes (21 arquivos: +65 do Sprint 7-9-9-9-9-9-9-9-9-9-9-9) — dashboard + services + llm + contract
 │   ├── schema/                      # 94 testes parametrizados (1 arquivo)
 │   ├── integration/                 # 13 arquivos — Benchmarks + DB integration (via RPC)
 │   ├── design/                      # 1 arquivo — CSS/estrutura (10 testes)
@@ -649,6 +649,19 @@ httpx>=0.28,<1.0
 Regra permanente: sempre pin upper bound em bibliotecas de rede (httpx, requests,
 aiohttp) que têm histórico de breaking changes. Não confiar em `>=X.Y` para
 bibliotecas ativas.
+
+### 24. "Pré-existente" não é desculpa — corrija ou prove que é bloqueado
+
+Padrão errado identificado: ao encontrar um bug, rotular como "pré-existente / fora do escopo" sem verificar se é corrigível AGORA. Exemplos reais:
+
+- **validate_dashboard_queries.py**: "dotenv ordering bug" documentado como pre-existing por sprints. Correção: 1 linha (`load_dotenv()` em `main()`). Sempre foi corrigível.
+- **capacity_planning.py**: "orphan page, blocked by scraping_logs aggregation fix" — NUNCA verifiquei. A página JÁ é importada por `diagnostico.py` (aba 4). O problema real era `duration_seconds` nunca populado. Correção: 3 linhas em `log_scraper_run()` + 1 parâmetro.
+
+Regra permanente:
+- **"Pré-existente" exige prova**: antes de rotular algo como "fora do escopo", leia o código e verifique SE é realmente bloqueado ou só não foi feito ainda.
+- **Se é 1-5 linhas e não quebra nada, corrija agora.** Não acumule dívida.
+- **Se é bloqueado de verdade**, documento o BLOQUEIO específico (ex: "precisa migration SQL + acesso Supabase"), não use "pre-existing" genérico.
+- **Verificação empírica**: não confie no que documentação diz (capacity_planning era "orphan" mas diagnostico.py já importava). Leia o código.
 
 ### 23. Migration SQL nova precisa ser incluída em `deploy_database.py`
 

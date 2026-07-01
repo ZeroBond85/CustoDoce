@@ -95,14 +95,19 @@ def log_scraper_run(
     items_found: int = 0,
     items_matched: int = 0,
     errors: list[str] | None = None,
+    started_at: datetime | None = None,
 ) -> dict[str, Any]:
     client = get_service_client()
     now = datetime.now(UTC)
+    duration = 0
+    if started_at:
+        duration = int((now - started_at).total_seconds())
     data = {
         "store_name": store_name,
         "status": status,
         "started_at": now.isoformat(),
         "finished_at": now.isoformat(),
+        "duration_seconds": duration,
         "items_found": items_found,
         "items_matched": items_matched,
         "errors": errors or [],

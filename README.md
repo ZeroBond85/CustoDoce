@@ -217,7 +217,8 @@ Mais detalhes em [docs/contributing.md](docs/contributing.md).
 - [x] **Sprint 5 (CI Hardening)**: TypeError FASE8 `render_login()` corrigido; backup RPC extraído (`scripts/rpc_backup.py`); warmup reescrito Playwright; e2e-smoke localhost sem continue-on-error; 14 workflows auditados (0 hashFiles/PYEOF/failure()).
 - [x] **Sprint 6 (Migration Sync)**: httpx `<1.0` pin; login E2E polling 45s; migrations 004+005 incluídas; 709 total passing.
 - [x] **Sprint 7-9 (Dashboard Modernization)**: `st.navigation()` menu nativo (5 grupos); promocoes integrada (18 páginas); `st.dialog()` + `st.pagination()` + batch form config + KPIs responsive + spinners + labels acessíveis + email hardening. **577 unit+schema = 745 total passing**.
-- [ ] **Próximos Passos**: role `dashboard_user` (RLS mínimas), `GRANT EXECUTE TO service_role ONLY`, E2E Playwright setup, fallback normalizer unidades, `st.fragment(parallel=True)` com `threading.Lock`, `capacity_planning.py` oficial.
+- [x] **Sprint 10 (Documentation Hygiene)**: sync_docs.py 3 auto-fixers + `--strict` auditor + dedup fix; 40 stale refs corrigidos em 11 `.md`; validate_dashboard_queries.py load_dotenv fix; maintenance_service.py duration_seconds populado; capacity_planning já funcional via diagnostico.py.
+- [ ] **Próximos Passos**: role `dashboard_user` (RLS mínimas), `GRANT EXECUTE TO service_role ONLY`, E2E Playwright setup, fallback normalizer unidades.
 
 ---
 

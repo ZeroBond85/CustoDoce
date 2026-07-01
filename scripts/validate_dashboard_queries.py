@@ -181,6 +181,11 @@ def validate_bot_commands():
 
 
 def main():
+    # Carregar .env antes de verificar env vars (falha local sem isso)
+    from dotenv import load_dotenv
+
+    load_dotenv()
+
     parser = argparse.ArgumentParser(description="Valida queries do dashboard contra Supabase real")
     parser.add_argument("--verbose", "-v", action="store_true")
     parser.add_argument("--skip-db-check", action="store_true", help="Pula verificacao de conexao inicial")

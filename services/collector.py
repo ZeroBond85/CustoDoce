@@ -350,6 +350,7 @@ def _collect_generic(
 
     for store in stores:
         store_name = store.get("name", "unknown")
+        started_at = dt_now.now(dt_now.timezone.utc)
         try:
             # Per-ingredient scraper filter
             from services.config import get_feature
@@ -390,7 +391,7 @@ def _collect_generic(
 
             if not raw_products:
                 logger.info("[%s] No products found", store_name)
-                log_scraper_run(store_name, "completed", 0, 0)
+                log_scraper_run(store_name, "completed", 0, 0, started_at=started_at)
                 _check_zero_products_alert(store_name)
                 # Sprint 4: zero products (resolved ok) but informs heuristic
                 with suppress(Exception):
@@ -421,7 +422,7 @@ def _collect_generic(
                     all_products.append(entry)
 
             logger.info("[%s] %d products, %d matched", store_name, len(raw_products), matched)
-            log_scraper_run(store_name, "completed", len(raw_products), matched)
+            log_scraper_run(store_name, "completed", len(raw_products), matched, started_at=started_at)
             _check_zero_products_alert(store_name)
             # Sprint 4: success branch resets failure counter
             with suppress(Exception):
@@ -437,7 +438,7 @@ def _collect_generic(
 
         except Exception as e:
             logger.error("[%s] %s: %s", label, store_name, e)
-            log_scraper_run(store_name, "error", 0, 0, str(e))
+            log_scraper_run(store_name, "error", 0, 0, str(e), started_at=started_at)
             from services.email_service import send_scraper_error
 
             with suppress(Exception):
