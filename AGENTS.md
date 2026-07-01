@@ -108,7 +108,7 @@ CustoDoce/
 │   ├── archive/                     # 28 scripts históricos
 │   └── ... (+30 scripts utilitários)
 ├── tests/
-│   ├── unit/                        # 483 testes (21 arquivos: +65 do Sprint 7-9-9-9-9-9-9-9-9-9-9-9-9-9) — dashboard + services + llm + contract
+│   ├── unit/                        # 508 testes (21 arquivos: +65 do Sprint 7-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9) — dashboard + services + llm + contract
 │   ├── schema/                      # 94 testes parametrizados (1 arquivo)
 │   ├── integration/                 # 13 arquivos — Benchmarks + DB integration (via RPC)
 │   ├── design/                      # 1 arquivo — CSS/estrutura (10 testes)
@@ -287,7 +287,7 @@ python scripts/seed_prices.py --dry-run
 
 | Ferramenta | Status |
 |------------|--------|
-| pytest (unit + schema) | 577 passing (unit: 483, schema: 94) | ✅ |
+| pytest (unit + schema) | 602 passing (unit: 508, schema: 94) | ✅ |
 | pytest (integration) | 102 passing | ✅ |
 | pytest (real, slow) | 6 passing | ✅ |
 | pytest (e2e) | 50 collected (blocked on Playwright live Streamlit Cloud) | ⏳ |
@@ -699,6 +699,30 @@ Regra permanente:
 - **Módulo novo = `test_<modulo>.py` no mesmo PR.** Não criar código sem teste.
 - **Unitários puros primeiro** (mock I/O, sem DB/rede). Integração depois.
 - **Nova Lição (25) = aprendizado desta Sprint 10.**
+
+### 26. Push → Acompanha CI até PASS
+
+**Regra:** Qualquer push que dispara workflow deve ser monitorado até conclusão.
+
+1. **Análise prévia (antes do push)**
+   - `python scripts/sync_docs.py --check --strict` PASS local
+   - `ruff check . && mypy .` PASS local
+   - `pytest tests/unit tests/schema -q` PASS local
+   - Sem warnings/errors pendentes
+
+2. **Resiliência durante (no CI)**
+   - `gh run watch <id>` até todos os jobs concluírem
+   - Jobs com `continue-on-error: true` → **verifica logs** (não conta como PASS)
+   - Qualquer `warn`/`skip` em job obrigatório = investiga antes de fechar
+
+3. **Completude no fim**
+   - Todos os jobs **PASS** (verde) → push considerado "finalizado"
+   - Falhou? → analisa erro → corrige → push novamente (sem `--no-verify`)
+
+**`--no-verify` só em emergência real** (ex: hotfix prod, segredo vazado).
+- Requer commit message: `fix: hotfix X — no-verify because [justificativa técnica]`
+- Abre issue/PR imediatamente para reverter a exceção
+- Nunca usar para "ganhar tempo" ou contornar falha conhecida
 
 ## OpenCode Skills Strategy
 

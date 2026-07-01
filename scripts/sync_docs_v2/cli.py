@@ -100,6 +100,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.analyze:
         findings = run_analyze()
         _print_findings(findings)
+        ambiguous = sum(1 for f in findings if f["classification"] == "AMBIGUOUS")
+        if ambiguous > 0:
+            print(f"\n[BLOCK] {ambiguous} AMBIGUOUS ref(s) found — CI blocked")
+            return 1
         return 0
 
     if args.sync:

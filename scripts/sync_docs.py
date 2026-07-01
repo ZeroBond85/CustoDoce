@@ -456,6 +456,7 @@ def _strict_audit() -> list[dict]:
         ("docs\\changelog.md", "17→18 aba"),    # changelog describing the change
         ("docs\\changelog.md", "17→18 módulos"), # changelog describing the change
         ("docs\\changelog.md", "418"),       # v0.1.0 Metrics + changelog entries
+        ("docs\\changelog.md", "383"),       # v2 changelog reference (Sprint 10)
         ("docs\\archive\\CUSTO_DOCE_RAIO_X.md", "418"),  # v3/v4 comparison table
         ("docs\\archive\\CUSTO_DOCE_RAIO_X.md", "383"),  # v2 comparison table column
         ("docs\\archive\\CUSTO_DOCE_RAIO_X.md", "709 total"),  # Sprint 6 historical
