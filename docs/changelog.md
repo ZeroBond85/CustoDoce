@@ -254,6 +254,19 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ### Added
 
+#### sync_docs v2 — heading-aware stale-ref detector + auto-updater (Sprint 10)
+- **`scripts/sync_docs_v2/`**: 5 novos módulos baseados em markdown-it:
+  - `truth.py`: source of truth (test counts, pages, workflows, services)
+  - `parser.py`: section span parser via heading hierarchy
+  - `classifier.py`: HISTORICAL/CURRENT/AMBIGUOUS por heading path
+  - `updater.py`: `\bNUMBER\b` replacement em CURRENT blocks only
+  - `cli.py`: `--analyze`, `--sync`, `--dry-run`, `--dump-truth`
+- **`scripts/sync_docs.py`**: +3 flags (`--analyze`, `--sync`, `--dump-truth`) que delegam ao v2
+- **`scripts/test_total_coverage.py`**: nova fase `sync_docs_v2_analyze`
+- **`tests/unit/test_sync_docs_v2.py`**: 25 testes unitários (mocks, 1.67s) — 5 módulos cobertos
+- **`AGENTS.md`**: Lição #25 (novo código = novos testes)
+- **Resultado**: 5 CURRENT refs corrigidos (512→577, 630→745, 709→745, 418→483, 383→483); 14 HISTORICAL preservados; 0 AMBIGUOUS
+
 #### Doc Sync Enhancement (Sprint 10 — Documentation Hygiene)
 - **`scripts/sync_docs.py`**: 3 auto-fixers (`_fix_tree_test_count`, `_fix_page_import_count`, `_fix_streamlit_skill_row`) + `_strict_audit()` que varre todos `.md` para detecção de 37 patterns stale (HIGH/MEDIUM). Flag `--strict`. Encoding Windows-safe (ASCII replace).
 - **`.github/workflows/ci.yml`**: docs-sync job agora `--check --strict` (bloqueante). **`.githooks/pre-commit`**: layer 2.5 com `sync_docs --check --strict` (aviso leve, não bloqueia).

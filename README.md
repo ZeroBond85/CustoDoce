@@ -218,7 +218,8 @@ Mais detalhes em [docs/contributing.md](docs/contributing.md).
 - [x] **Sprint 6 (Migration Sync)**: httpx `<1.0` pin; login E2E polling 45s; migrations 004+005 incluídas; 709 total passing.
 - [x] **Sprint 7-9 (Dashboard Modernization)**: `st.navigation()` menu nativo (5 grupos); promocoes integrada (18 páginas); `st.dialog()` + `st.pagination()` + batch form config + KPIs responsive + spinners + labels acessíveis + email hardening. **577 unit+schema = 745 total passing**.
 - [x] **Sprint 10 (Documentation Hygiene)**: sync_docs.py 3 auto-fixers + `--strict` auditor + dedup fix; 40 stale refs corrigidos em 11 `.md`; validate_dashboard_queries.py load_dotenv fix; maintenance_service.py duration_seconds populado; capacity_planning já funcional via diagnostico.py.
-- [ ] **Próximos Passos**: role `dashboard_user` (RLS mínimas), `GRANT EXECUTE TO service_role ONLY`, E2E Playwright setup, fallback normalizer unidades.
+- [x] **Sprint 10.5 (sync_docs v2)**: 5 módulos baseados em markdown-it para classificação heading-aware de stale refs (HISTORICAL/CURRENT/AMBIGUOUS). 19 matches analisados, 5 auto-corrigidos. 25 testes unitários. Flag `--sync`/`--analyze`. Lição #25 (novo código = novos testes).
+- [ ] **Próximos Passos**: role `dashboard_user` (RLS mínimas), `GRANT EXECUTE TO service_role ONLY`, E2E Playwright setup, fallback normalizer unidades, sync_docs v2 integrado em CI (--check --analyze).
 
 ---
 
