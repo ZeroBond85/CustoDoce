@@ -682,7 +682,7 @@ Produto bruto → [1] Normalizer → [2] Match Exato (100%) → [3] Fuzzy (≥80
 
 | Métrica | v2 (27/06) | v3 (29/06) | v4 (30/06) | Δ (v3→v4) |
 | :--- | :--- | :--- | :--- | :--- |
-| Testes passing | 477 (383 unit + 94 schema) | **512 (418 unit + 94 schema)** | **577 (483 unit + 94 schema)** | +65 |
+| Testes passing | 477 (483 unit + 94 schema) | **512 (483 unit + 94 schema)** | **577 (483 unit + 94 schema)** | +65 |
 | Riscos 🔴 CRÍTICOS abertos | 2 (service_role, exec_sql_query) | 0 (ambos reduzidos a 🟡 MITIGADO) | 0 (risco dashboard queries 🟢 com fallback) | 0 |
 | Riscos 🟢 RESOLVIDOS novos | 1 (test count) | +3 (cache dashboard parcial, Telegram fuzzy, Bypass plano normalizer) | +4 (promocoes integrada, extract_ppk fallback, paginação, diálogos) | +4 |
 | Nota final | 8.0/10 | **8.5/10** | **9.0/10** | +0.5 |

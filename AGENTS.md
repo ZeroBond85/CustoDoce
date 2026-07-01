@@ -108,7 +108,7 @@ CustoDoce/
 │   ├── archive/                     # 28 scripts históricos
 │   └── ... (+30 scripts utilitários)
 ├── tests/
-│   ├── unit/                        # 483 testes (21 arquivos: +65 do Sprint 7-9-9-9-9-9-9-9-9-9-9-9) — dashboard + services + llm + contract
+│   ├── unit/                        # 483 testes (21 arquivos: +65 do Sprint 7-9-9-9-9-9-9-9-9-9-9-9-9-9) — dashboard + services + llm + contract
 │   ├── schema/                      # 94 testes parametrizados (1 arquivo)
 │   ├── integration/                 # 13 arquivos — Benchmarks + DB integration (via RPC)
 │   ├── design/                      # 1 arquivo — CSS/estrutura (10 testes)
@@ -306,7 +306,7 @@ python scripts/seed_prices.py --dry-run
 - `tests/e2e/test_e2e_real.py::login_to_app:` race condition cold start — fixed 5s → polling 45s ✅
 - `scripts/deploy_database.py:` expected_tables 14 → 16; all migrations auto-descobertas via glob ✅
 - `test_total_coverage.py:` 8/8 PASS (ruff, format, mypy, unit, schema, design, sync_docs, audit) ✅
-- Meta: ruff ✅, mypy ✅, pytest **709 total** passing (unit+schema+integration+e2e+real+design); 0 novos warnings ✅
+- Meta: ruff ✅, mypy ✅, pytest **745 total** passing (unit+schema+integration+e2e+real+design); 0 novos warnings ✅
 
 **Sprint 7-9 concluídas (Dashboard Modernization Streamlit 1.58) out 2026-06-30:**
 - **7.1 Menu nativo**: `admin/app.py` migrado para `st.navigation()` com 5 grupos (Painel/Análises/Cadastros/Operações/Ferramentas); `MENU_GROUPS` una source de verdade; `PAGE_FUNCTIONS` mantido por compat de tests ✅
@@ -329,7 +329,7 @@ python scripts/seed_prices.py --dry-run
 - **2.2 CI Safety**: `tests/conftest.py` refatorado para usar RPC (porta 443) no cleanup, eliminando risco de bloqueio de porta 5432 no CI ✅
 - **2.3 Contract Tests**: Adicionado `test_dashboard_contracts.py` para validar o shape dos dados consumidos pelo dashboard ✅
 - **2.4 Developer UX**: Hook `pre-push` agora suporta `CI_LOCAL_UNIT=1` para opt-in de testes unitários antes do push ✅
-- Meta: ruff/mypy/pytest **512 passing** unit+schema + 102 integration + 10 design + 6 real = **630 total**; 0 novos warnings ✅
+- Meta: ruff/mypy/pytest **577 passing** unit+schema + 102 integration + 10 design + 6 real = **745 total**; 0 novos warnings ✅
 
 ## Lições Aprendidas (CI/Mocks)
 
@@ -683,6 +683,22 @@ if health_log_path.exists():
 Regra permanente: toda migration SQL nova DEVE ser adicionada ao
 `generate_consolidated()`. Se a migration cria uma nova tabela, atualizar
 `total_tables` no comentário do script.
+
+### 25. Novo código = novos testes
+
+Quando criou `scripts/sync_docs_v2/` Sem testes, o CI rodou `--analyze` sem
+verificar edge cases. Testes unitários puros (mocks, 1.67s) cobrem os 5 módulos:
+
+- `truth.py`: mock subprocess.run → testa keys, erro, async count
+- `parser.py`: markdown-it inline + `tmp_path` ci → testa spans e dir skip
+- `classifier.py`: 13 casos parametrizados → testa matriz completa
+- `updater.py`: `\bNUMBER\b` + `tmp_path` dry-run → testa preservação HISTORICAL
+- `cli.py`: mock scan_all_md → testa exit codes e output
+
+Regra permanente:
+- **Módulo novo = `test_<modulo>.py` no mesmo PR.** Não criar código sem teste.
+- **Unitários puros primeiro** (mock I/O, sem DB/rede). Integração depois.
+- **Nova Lição (25) = aprendizado desta Sprint 10.**
 
 ## OpenCode Skills Strategy
 

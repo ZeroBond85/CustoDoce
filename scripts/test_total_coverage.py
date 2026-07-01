@@ -63,6 +63,7 @@ PHASES = [
         "optional": False,
     },
     {"name": "sync_docs_drift", "cmd": ["python", "scripts/sync_docs.py", "--check"], "optional": False},
+    {"name": "sync_docs_v2_analyze", "cmd": ["python", "scripts/sync_docs.py", "--analyze"], "optional": False},
     {"name": "audit_secrets", "cmd": ["python", "scripts/audit_secrets.py", "--strict"], "optional": False},
     {"name": "deploy_check", "cmd": ["python", "scripts/deploy_check.py"], "optional": True},
 ]

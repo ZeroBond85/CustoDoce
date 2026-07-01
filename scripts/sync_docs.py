@@ -598,7 +598,14 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Preview changes without applying")
     parser.add_argument("--check", action="store_true", help="Exit 1 if docs are out of sync (CI mode)")
     parser.add_argument("--strict", action="store_true", help="Run full .md audit for stale patterns (page count, test count)")
+    parser.add_argument("--analyze", action="store_true", help="(v2) Classify stale refs via heading hierarchy")
+    parser.add_argument("--sync", action="store_true", help="(v2) Auto-update CURRENT blocks with truth values")
+    parser.add_argument("--dump-truth", action="store_true", help="(v2) Print truth JSON and exit")
     args = parser.parse_args()
+
+    if args.analyze or args.sync or args.dump_truth:
+        _run_v2(args)
+        return
 
     in_sync = run_sync(dry_run=args.dry_run, check=args.check, strict=args.strict)
 
@@ -607,6 +614,24 @@ def main():
         sys.exit(1)
     if args.dry_run:
         print("\n(Dry-run complete, no changes made)")
+
+
+def _run_v2(args: argparse.Namespace):
+    """Delegate to sync_docs_v2."""
+    sys.path.insert(0, str(_ROOT))
+    from scripts.sync_docs_v2.cli import main as v2_main
+
+    v2_args: list[str] = []
+    if args.analyze:
+        v2_args.append("--analyze")
+    if args.sync:
+        v2_args.append("--sync")
+    if args.dry_run and args.sync:
+        v2_args.append("--dry-run")
+    if args.dump_truth:
+        v2_args.append("--dump-truth")
+
+    sys.exit(v2_main(v2_args))
 
 
 if __name__ == "__main__":
