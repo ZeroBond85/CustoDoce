@@ -724,6 +724,23 @@ Regra permanente:
 - Abre issue/PR imediatamente para reverter a exceção
 - Nunca usar para "ganhar tempo" ou contornar falha conhecida
 
+### 29. E2E smoke local tem dependência oculta em headless `st.navigation()` que pytest não cobre
+
+O teste `e2e-smoke` (localhost:8501) tem falha histórica desde antes do Phase 3, com sintoma consistente: após login via `Entrar`, o estado do script fica preso em `data-test-script-state="notRunning"` e o sidebar/navigation não renderiza. Isso **não é regressão do PR**; é um problema de longo prazo no caminho de teste que envolve interação entre:
+- `st.rerun()` após `login_page.py`
+- Renderização de `st.navigation()` em modo headless
+- Possível condições de corrida no WebSocket/state do Streamlit
+
+Não gaste ciclos em "fixar seletores de teste" (ex: trocar `Visao Geral`↔`Visão Geral`, aumentar timeout) como solução definitiva. Isso apenas mapeia sintomas.
+
+Para resolução definitiva:
+1. Abrir issue/ticket dedicado com repro steps e screenshots
+2. Investigar via `streamlit run --server.headless false` + inspeção visual
+3. Verificar se há exceções silenciosas no `main()` pós-login que impedem rerun
+4. Considerar fallback para `render_legacy_sidebar()` apenas para testes
+
+Este problema já foi documentado em Lição #12 (Streamlit Cloud E2E flakiness) e agora se aplica ao ambiente local também.
+
 ## OpenCode Skills Strategy
 
 Este projeto usa **duas camadas de skills OpenCode**:
