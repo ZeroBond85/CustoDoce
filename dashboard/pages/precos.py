@@ -59,7 +59,8 @@ def render_precos():
 
     _push_query_params()
 
-    prices = get_latest_prices_cached(valid_only=True, limit=5000)
+    with st.spinner("Carregando preços…"):
+        prices = get_latest_prices_cached(valid_only=True, limit=5000)
 
     df = pd.DataFrame(prices)
     if df.empty:

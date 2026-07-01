@@ -35,6 +35,7 @@ def test_all_page_modules_import():
         config,
         calculadora,
         diagnostico,
+        promocoes,
     )
 
     assert visao_geral
@@ -54,6 +55,7 @@ def test_all_page_modules_import():
     assert config
     assert calculadora
     assert diagnostico
+    assert promocoes
 
 
 def test_render_login_signature():
@@ -106,7 +108,7 @@ def test_main_does_not_call_render_login_with_args():
     """
     import ast
 
-    with open("admin/app.py") as f:
+    with open("admin/app.py", encoding="utf-8") as f:
         tree = ast.parse(f.read())
 
     for node in ast.walk(tree):
@@ -127,7 +129,7 @@ def test_no_page_function_called_directly_with_args():
     """
     import ast
 
-    with open("admin/app.py") as f:
+    with open("admin/app.py", encoding="utf-8") as f:
         tree = ast.parse(f.read())
 
     page_fn_names = {
@@ -148,6 +150,7 @@ def test_no_page_function_called_directly_with_args():
         "render_config",
         "render_calculadora",
         "render_diagnostico",
+        "render_promocoes",
     }
 
     for node in ast.walk(tree):
@@ -158,3 +161,53 @@ def test_no_page_function_called_directly_with_args():
                     f"{call.func.id}() chamado com {len(call.args)} args em "
                     f"admin/app.py linha {node.lineno}: {ast.unparse(node)}"
                 )
+
+
+def test_promocoes_registered_in_page_functions():
+    """Promocoes page was in Fase 8 as orphan; Sprint 7 integrates it."""
+    from admin.app import PAGE_FUNCTIONS
+
+    assert "promocoes" in PAGE_FUNCTIONS
+    assert callable(PAGE_FUNCTIONS["promocoes"])
+
+
+def test_menu_groups_structure():
+    """MENU_GROUPS contém 5 grupos cobrindo todas as 18 páginas."""
+    from admin.app import MENU_GROUPS, PAGE_FUNCTIONS
+
+    expected_groups = {"📊 Painel", "📈 Análises", "📦 Cadastros", "🤖 Operações", "🔧 Ferramentas"}
+    actual_groups = set(MENU_GROUPS.keys())
+    assert expected_groups.issubset(actual_groups), (
+        f"Grupos faltando: {expected_groups - actual_groups}"
+    )
+
+    seen_pages: set[str] = set()
+    for group_pages in MENU_GROUPS.values():
+        for entry in group_pages:
+            assert len(entry) == 3, f"Tupla invalida: {entry}"
+            label, icon, page_id = entry
+            seen_pages.add(page_id)
+            assert page_id in PAGE_FUNCTIONS, f"Pagina {page_id} nao esta em PAGE_FUNCTIONS"
+
+    assert seen_pages == set(PAGE_FUNCTIONS.keys()), (
+        f"Paginas faltando nos grupos: {set(PAGE_FUNCTIONS.keys()) - seen_pages}; "
+        f"Paginas extras: {seen_pages - set(PAGE_FUNCTIONS.keys())}"
+    )
+
+
+def test_layout_pmenu_groups_sync_with_admin_app():
+    """dashboard/components/layout.py::MENU_GROUPS deve estar sincronizado com admin/app.py."""
+    from admin.app import MENU_GROUPS as ADMIN_MENU
+    from dashboard.components.layout import MENU_GROUPS as LAYOUT_MENU
+
+    assert ADMIN_MENU.keys() == LAYOUT_MENU.keys(), (
+        f"Grupos diferentes:\nADMIN: {set(ADMIN_MENU.keys())}\nLAYOUT: {set(LAYOUT_MENU.keys())}"
+    )
+
+    for group_label in ADMIN_MENU:
+        admin_pages = {entry[2] for entry in ADMIN_MENU[group_label]}
+        layout_pages = {entry[2] for entry in LAYOUT_MENU[group_label]}
+        assert admin_pages == layout_pages, (
+            f"Grupo '{group_label}' tem paginas diferentes:\n"
+            f"ADMIN: {admin_pages}\nLAYOUT: {layout_pages}"
+        )

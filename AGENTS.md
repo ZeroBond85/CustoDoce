@@ -287,9 +287,8 @@ python scripts/seed_prices.py --dry-run
 
 | Ferramenta | Status |
 |------------|--------|
-| pytest (unit + schema) | 551 passing (unit: 457, schema: 94) | ✅ |
+| pytest (unit + schema) | 577 passing (unit: 483, schema: 94) | ✅ |
 | pytest (integration) | 102 passing | ✅ |
-| pytest (design) | 10 passing | ✅ |
 | pytest (real, slow) | 6 passing | ✅ |
 | pytest (e2e) | 50 collected (blocked on Playwright live Streamlit Cloud) | ⏳ |
 
@@ -308,6 +307,22 @@ python scripts/seed_prices.py --dry-run
 - `scripts/deploy_database.py:` expected_tables 14 → 16; all migrations auto-descobertas via glob ✅
 - `test_total_coverage.py:` 8/8 PASS (ruff, format, mypy, unit, schema, design, sync_docs, audit) ✅
 - Meta: ruff ✅, mypy ✅, pytest **709 total** passing (unit+schema+integration+e2e+real+design); 0 novos warnings ✅
+
+**Sprint 7-9 concluídas (Dashboard Modernization Streamlit 1.58) out 2026-06-30:**
+- **7.1 Menu nativo**: `admin/app.py` migrado para `st.navigation()` com 5 grupos (Painel/Análises/Cadastros/Operações/Ferramentas); `MENU_GROUPS` una source de verdade; `PAGE_FUNCTIONS` mantido por compat de tests ✅
+- **7.2 Integração promocoes.py**: orphan page (Fase 8) registrada em `layout.py::PAGES` + `admin/app.py::PAGE_FUNCTIONS`. Páginas 17→18; refatorada com `inject_css()`, filters (loja/ingrediente), KPI metrics, dataframe formatado ✅
+- **7.3 Confirm dialogs** com `st.dialog()` (1.31+): `flyers.py` (delete), `relatorios.py` (send report), `ingredientes.py` (YAML save com backup automático em `data/ingredient_backups/`) ✅
+- **7.4 Config batch form**: `config.py` substituído per-flag "Salvar" por `st.form` único com "Salvar Tudo"; botões `✅ Habilitar todas` / `⛔ Desabilitar todas` em alert_rules e recipients ✅
+- **8.1 Pagination**: `alertas.py` — `st.pagination()` nativo 1.58+ paginando 54 regras em 25/página com `bind="query-params"`; fallback manual com botões ⏮◀️▶️⏭ se versão < 1.58 ✅
+- **8.2 Mobile KPIs**: `visao_geral.py` — wrap em `.cd-kpi-row` flexbox (1 col ≤640px / 2 cols ≤768px / 4 cols desktop) ✅
+- **8.3 Heatmap fix**: `insights.py` — `pivot_table` em coluna numérica `store_count` (quebrado) substituído por bar chart horizontal com cor = cobertura ✅
+- **8.4 PPk resiliência**: `dashboard_queries.py::extract_ppk()`/`extract_pun()` agora lêem flat (`row["price_per_kg"]`, da view `v_latest_prices`) com fallback nested (`row["normalized"]...`) ✅
+- **9.1 Loading spinners** em 6 páginas: `precos`, `historico`, `fontes`, `ranking`, `insights`, `visao_geral` — UX de carregamento explícito ✅
+- **9.2 Labels acessíveis**: `login_page.py` — adicionado `help=` em 6 inputs (placeholders preservados, screen-reader hints via tooltip) ✅
+- **9.3 email_service.py hardening**: `import httpx` movido para top-level; `httpx.post()` em `send_telegram_report()` com try/except + `_LOG.warning`; `import smtplib as _ssl_smtplib` inline removido (já importado no topo) ✅
+- **9.4 Test coverage**: novo `tests/unit/test_sprint7_8_9_features.py` com 23 testes (extract_ppk fallback × 6 + _is_promotion × 4 + dialog existence × 3 + alerts/ingredientes × 6 + MENU_GROUPS × 4) ✅
+- Meta: ruff ✅, mypy ✅ (8 erros pre-existentes em email_service tuple typing não-regredidos), pytest **577 passing** (unit: 483 + schema: 94, era 551; +26 testes). sync_docs.py ✅ clean. 0 skips. 0 falhos.
+- Skills atualizadas: `~/.config/opencode/skills/streamlit/SKILL.md` (st.navigation, st.pagination, st.dialog, st.fragment, st.bottom); `.opencode/skills/streamlit/SKILL.md` (page map real, MENU_GROUPS single source of truth).
 
 **Sprint 2 concluída (Test Hardening + Contract Safety) out 2026-06-29:**
 - **2.1 Test Hardening**: `test_normalizer.py` expandido para 31 casos (cobre todas as unidades do YAML + edge cases) ✅

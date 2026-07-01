@@ -19,10 +19,46 @@ PAGES = [
     ("config", "⚙️", "Configuracao"),
     ("calculadora", "🧮", "Calculadora"),
     ("diagnostico", "🔬", "Diagnostico"),
+    ("promocoes", "🏷️", "Promocoes"),
 ]
 
+# Sidebar groups — same single-source-of-truth shape as admin/app.py::MENU_GROUPS
+MENU_GROUPS: dict[str, list[tuple[str, str, str]]] = {
+    "📊 Painel": [
+        ("Visão Geral", "📊", "visao_geral"),
+        ("Preços", "🔍", "precos"),
+        ("Histórico", "📈", "historico"),
+        ("Promoções", "🏷️", "promocoes"),
+    ],
+    "📈 Análises": [
+        ("Insights", "💡", "insights"),
+        ("Fontes & Ofertas", "📡", "fontes"),
+        ("Ranking", "🏆", "ranking"),
+        ("Calculadora", "🧮", "calculadora"),
+        ("Revisão", "⚠️", "revisao"),
+    ],
+    "📦 Cadastros": [
+        ("Lojas", "🏪", "lojas"),
+        ("Ingredientes", "🛒", "ingredientes"),
+    ],
+    "🤖 Operações": [
+        ("Alertas", "🔔", "alertas"),
+        ("Scrapers & Logs", "🤖", "scrapers"),
+        ("Scraper Health", "🏥", "scraper_health"),
+        ("Relatórios", "📬", "relatorios"),
+        ("Flyers", "📄", "flyers"),
+    ],
+    "🔧 Ferramentas": [
+        ("Configuração", "⚙️", "config"),
+        ("Diagnóstico", "🔬", "diagnostico"),
+    ],
+}
 
-def render_sidebar():
+DEFAULT_PAGE = "visao_geral"
+
+
+def render_legacy_sidebar():
+    """Fallback sidebar using manual buttons (pre-1.36 Streamlit)."""
     with st.sidebar:
         logo_b64 = get_logo_sidebar_base64()
         if logo_b64:
@@ -50,7 +86,7 @@ def render_sidebar():
 
         st.markdown("---")
 
-        current = st.session_state.get("page", "visao_geral")
+        current = st.session_state.get("page", DEFAULT_PAGE)
 
         for page_id, icon, label in PAGES:
             selected = page_id == current
@@ -87,9 +123,52 @@ def render_sidebar():
                     st.rerun()
 
 
+def render_sidebar():
+    """Sidebar renderer.
+
+    Streamlit 1.36+: native `st.navigation()` owns the sidebar content, so the
+    legacy button loop is no longer needed. The admin/app.py main() detects
+    Streamlit version and uses st.navigation() when available — render_sidebar
+    becomes a thin wrapper that only renders the footer (logout / clear cache)
+    inside an expander.
+
+    Pre-1.36: falls back to render_legacy_sidebar() with the original button
+    loop plus footer controls.
+    """
+    if hasattr(st, "navigation") and hasattr(st, "Page"):
+        _render_nav_footer()
+        return
+    render_legacy_sidebar()
+
+
+def _render_nav_footer():
+    """Logout / clear cache controls appended below st.navigation() sidebar."""
+    auth = st.session_state.get("authenticated", False)
+    if not auth:
+        return
+    user = st.session_state.get("user", "admin")
+    with st.sidebar:
+        st.markdown("---")
+        st.markdown(
+            f'<div style="text-align:center;padding:0.5rem 0;font-size:0.78rem;"><strong>{user}</strong></div>',
+            unsafe_allow_html=True,
+        )
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            if st.button("Limpar Cache", key="clear_cache_btn", width="stretch"):
+                st.cache_data.clear()
+                st.rerun()
+        with col2:
+            if st.button("Sair", key="logout_btn", width="stretch"):
+                st.session_state.authenticated = False
+                st.session_state.pop("token", None)
+                st.session_state.pop("user", None)
+                st.rerun()
+
+
 def render_skip_link():
     st.markdown(
-        '<a href="#main-content" class="skip-link" tabindex="1">Pular para conte\u00fado</a>'
+        '<a href="#main-content" class="skip-link" tabindex="1">Pular para conteúdo</a>'
         '<div id="main-content"></div>',
         unsafe_allow_html=True,
     )

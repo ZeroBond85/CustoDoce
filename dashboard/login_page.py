@@ -122,6 +122,7 @@ def render_login():
             placeholder="admin",
             key="login_user",
             label_visibility="collapsed",
+            help="Seu nome de usuario",
         )
         password = st.text_input(
             "Senha",
@@ -129,6 +130,7 @@ def render_login():
             placeholder="Sua senha",
             key="login_pass",
             label_visibility="collapsed",
+            help="Sua senha de acesso",
         )
 
         totp_code = ""
@@ -141,6 +143,7 @@ def render_login():
                 max_chars=6,
                 key="login_totp",
                 label_visibility="collapsed",
+                help="Codigo de 6 digitos do seu autenticador",
             )
             st.markdown(
                 '<p class="cd-login-hint">Abra seu app autenticador (Google Authenticator, Authy, etc.)</p>',
@@ -225,6 +228,7 @@ def render_setup_first_user():
             placeholder="Minimo 8 caracteres",
             key="setup_pass",
             label_visibility="collapsed",
+            help="Minimo 8 caracteres",
         )
         confirm_pass = st.text_input(
             "Confirmar senha",
@@ -232,6 +236,7 @@ def render_setup_first_user():
             placeholder="Repita a senha",
             key="setup_confirm",
             label_visibility="collapsed",
+            help="Repita a senha para confirmar",
         )
 
         enable_totp = st.checkbox("Ativar 2FA (TOTP)", value=False, key="setup_totp")
@@ -254,6 +259,7 @@ def render_setup_first_user():
                 placeholder="000000",
                 key="setup_totp_test",
                 label_visibility="collapsed",
+                help="Digite o codigo de 6 digitos gerado pelo app",
             )
             if totp_test and len(totp_test) == 6:
                 from services.auth import verify_totp as _vt

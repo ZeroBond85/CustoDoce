@@ -5,6 +5,55 @@ Todos os cambios_notáveis deste projeto são documentados aqui.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.2.3] - 2026-06-30
+
+### Added
+
+#### Sprint 7 — Dashboard Modernization Streamlit 1.58 (Menu Nativo + Dialogs + Batch Config)
+
+- **`admin/app.py`**: `st.navigation()` com 5 grupos (Painel/Análises/Cadastros/Operações/Ferramentas); `MENU_GROUPS` como single source of truth; `PAGE_FUNCTIONS` mantido por compatibilidade com 87 testes legados; `_build_navigation()` com fallback `_render_page_by_id()`.
+- **`dashboard/pages/promocoes.py`**: página órfã integrada ao layout oficial (18 páginas). Refatorada com `inject_css()`, filtros (loja/ingrediente/order), 3 KPIs, `st.dataframe` com column config, `_is_promotion()` + `_safe_ppk()` helpers.
+- **`dashboard/pages/flyers.py`**: `@st.dialog("Confirmar exclusão")` — exclusão com confirmação + contagem de itens.
+- **`dashboard/pages/relatorios.py`**: `@st.dialog("Confirmar envio")` — preview + canal + execução. `build_daily_report_html()` e `build_telegram_summary()` extraídas para funções puras.
+- **`dashboard/pages/ingredientes.py`**: `@st.dialog("Confirmar sobrescrita do YAML")` com auto-backup em `data/ingredient_backups/`; 5 abas; `_backup_yaml()` + `_suggest_aliases()` helpers.
+- **`dashboard/pages/config.py`**: per-flag "Salvar" substituído por `st.form` único com "Salvar Tudo"; botões batch ✅/⛔ para alert_rules e recipients.
+
+#### Sprint 8 — Performance + Pagination
+
+- **`dashboard/pages/alertas.py`**: `st.pagination()` nativo 54 regras → 25/página com `bind="query-params"`; `_fallback_pagination()` manual; `_contact_options()` helper.
+- **`dashboard/pages/visao_geral.py`**: KPIs wrapados em `.cd-kpi-row` flexbox responsivo (1 col ≤640px / 2 cols ≤768px / 4 cols desktop); spinners para promo/coverage/winners/ranking.
+- **`dashboard/pages/insights.py`**: `pivot_table(columns="store_count")` (quebrado — pivoteava coluna numérica) substituído por bar chart por ingrediente com cor = cobertura; guard para <2 ingredientes.
+- **`services/dashboard_queries.py`**: `extract_ppk()`/`extract_pun()` com fallback: `row["price_per_kg"]` (flat) → `row["normalized"]["price_per_kg"]` (nested); trata None/0 → 0.0.
+
+#### Sprint 9 — Polish + Acessibilidade + Hardening
+
+- **Loading spinners** em 6 páginas: `precos.py`, `historico.py`, `fontes.py` (3 queries), `ranking.py` (3 tabs), `insights.py`, `visao_geral.py` (3 queries).
+- **Labels acessíveis**: `login_page.py` — `help=` tooltip em 6 inputs; `calculadora.py:34` — `help=` na seção selectbox.
+- **`services/email_service.py`**: `import httpx` movido para top-level; `httpx.post()` em `send_telegram_report()` envolto em try/except + `logging.warning`; `import smtplib as _ssl_smtplib` inline removido (reusa top-level `import smtplib`); `server: smtplib.SMTP` type annotation reduz mypy falsos positivos (10→8).
+
+#### Sprint 9.5 — Test Coverage
+
+- **`tests/unit/test_sprint7_8_9_features.py`**: 23 testes puros (sem Streamlit runtime) — `extract_ppk` fallback (6), `_is_promotion` (4), dialog existence (3), `_contact_options` (3), `_fallback_pagination`, ingredientes constants (2), MENU_GROUPS structure (2), `_build_navigation` (1).
+- **`tests/unit/test_app_wiring.py`**: atualizado para 18 páginas + 3 novos testes de menu groups; encoding fix para UTF-8.
+- **`tests/unit/test_dashboard_full.py`**: `len(PAGES)` atualizado 17→18.
+
+### Changed
+
+- **`dashboard/components/layout.py`**: `MENU_GROUPS` adicionado como fonte única da verdade; `PAGES` 17→18 (promocoes); `render_sidebar()` delega para `_render_nav_footer()` quando `st.navigation` disponível.
+
+### Fixed
+
+- **`dashboard/pages/insights.py`**: heatmap quebrado (pivot_table em coluna numérica) substituído por bar chart funcional.
+- **`admin/app.py`**: TypeError potencial por page `None` — guard `if pg:` em `_build_navigation()`.
+- **`tests/unit/test_app_wiring.py`**: encoding bug `encoding="utf-8"` em 2 testes AST que falhavam em Windows com caracteres acentuados.
+
+### Metrics
+
+- pytest: **577 passing** (unit: 483 + schema: 94) — +26 da baseline 551
+- ruff: **0 warnings** em todos os arquivos modificados
+- mypy: **0 novos erros** (8 pre-existentes em `email_service.py` — tuple typing, não regredidos)
+- Pages: **18** (era 17, promocoes integrada). Orphan `capacity_planning.py` mantido fora (requer `scraping_logs` aggregation fix)
+
 ## [0.2.2] - 2026-06-30
 
 ### Fixed

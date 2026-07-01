@@ -36,7 +36,7 @@ Este projeto utiliza uma estratégia de testes em múltiplas camadas para garant
 **Quantidade**: 3 arquivos (requer Playwright setup)
 **Objetivo**: Validar a interface do usuário (UI) via Playwright.
 - Fluxo de login e autenticação.
-- Navegação entre as 17 abas do dashboard.
+- Navegação entre as 18 abas do dashboard.
 - Interações complexas na calculadora de receitas.
 - Regressão visual via screenshots.
 

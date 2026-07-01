@@ -31,7 +31,14 @@ def render_calculadora():
 
     tab_names = ["📝 Modo Simples", "🔧 Modo Completo", "📚 Receitas Salvas"]
     tab_index = st.session_state.get("calc_tab", 0)
-    tab_index = st.selectbox("Seção", tab_names, index=tab_index, key="calc_tab", label_visibility="collapsed")
+    tab_index = st.selectbox(
+        "Seção",
+        tab_names,
+        index=tab_index,
+        key="calc_tab",
+        label_visibility="collapsed",
+        help="Selecione a seção da calculadora",
+    )
 
     _push_calc_query_params()
 

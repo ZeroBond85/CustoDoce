@@ -2,18 +2,18 @@
 Dashboard Page: Visão Geral
 """
 
-import streamlit as st
 import pandas as pd
 import plotly.express as px
+import streamlit as st
 
-from services.dashboard_queries import (
-    get_dashboard_kpis,
-    get_coverage_by_ingredient,
-    get_active_promotions,
-    get_longitudinal_winners_cached,
-    get_cross_ingredient_ranking_cached,
-)
 from dashboard.components.ui import info_box, inject_css
+from services.dashboard_queries import (
+    get_active_promotions,
+    get_coverage_by_ingredient,
+    get_cross_ingredient_ranking_cached,
+    get_dashboard_kpis,
+    get_longitudinal_winners_cached,
+)
 
 
 def render_visao_geral():
@@ -21,24 +21,28 @@ def render_visao_geral():
 
     st.title("Visão Geral")
 
-    # KPIs
     kpis = get_dashboard_kpis()
 
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
+    # Sprint 8: KPI row uses .cd-kpi-row class for mobile responsiveness
+    # (1 column @ ≤640px, 2 cols @ ≤768px, 4 cols on desktop).
+    st.markdown('<div class="cd-kpi-row">', unsafe_allow_html=True)
+    k1, k2, k3, k4 = st.columns(4, gap="small")
+    with k1:
         st.metric("Total Preços", kpis["total_prices"])
-    with col2:
+    with k2:
         st.metric("Ingredientes Cobertos", kpis["ingredients_covered"])
-    with col3:
+    with k3:
         st.metric("Lojas Ativas", kpis["stores_active"])
-    with col4:
+    with k4:
         st.metric("Média R$/kg", f"R$ {kpis['avg_price_per_kg']:.2f}")
+    st.markdown("</div>", unsafe_allow_html=True)
 
     st.divider()
 
     # Promoções ativas
     st.subheader("Promoções Ativas")
-    promos = get_active_promotions()
+    with st.spinner("Buscando promoções ativas…"):
+        promos = get_active_promotions()
     if promos:
         df = pd.DataFrame(promos)
         st.dataframe(
@@ -51,7 +55,8 @@ def render_visao_geral():
 
     # Cobertura por ingrediente
     st.subheader("Cobertura por Ingrediente")
-    coverage = get_coverage_by_ingredient()
+    with st.spinner("Calculando cobertura…"):
+        coverage = get_coverage_by_ingredient()
     if coverage:
         df = pd.DataFrame(coverage)
         df = df.rename(
@@ -69,7 +74,8 @@ def render_visao_geral():
 
     # Ranking longitudinal
     st.subheader("Lojas que mais vencem (últimos 90 dias)")
-    winners = get_longitudinal_winners_cached(90)
+    with st.spinner("Calculando vencedores longitudinais…"):
+        winners = get_longitudinal_winners_cached(90)
     if winners:
         df = pd.DataFrame(winners)
         df = df.rename(
@@ -88,7 +94,8 @@ def render_visao_geral():
 
     # Cross-ingredient ranking
     st.subheader("Ranking Cruzado (Top 3 por ingrediente)")
-    ranking = get_cross_ingredient_ranking_cached(90)
+    with st.spinner("Calculando ranking cruzado…"):
+        ranking = get_cross_ingredient_ranking_cached(90)
     if ranking:
         df = pd.DataFrame(ranking)
         df = df.rename(

@@ -22,13 +22,13 @@ def render_ranking():
     with tab1:
         st.subheader("Lojas que mais venceram (menor R$/kg) - Últimos 90 dias")
         days = st.slider("Período (dias)", 30, 180, 90)
-        winners = get_longitudinal_winners_cached(days)
+        with st.spinner("Calculando vencedores…"):
+            winners = get_longitudinal_winners_cached(days)
 
         if winners:
             df = pd.DataFrame(winners)
             st.dataframe(df, use_container_width=True)
 
-            # Gráfico
             fig = px.bar(
                 df.head(20), x="ingredient", y="win_count", color="store", title="Top 20 Ingredientes por Vitórias"
             )
@@ -45,7 +45,8 @@ def render_ranking():
             selected = st.selectbox("Ingrediente", ing_names)
             days = st.slider("Período", 30, 180, 90, key="trend_days")
 
-            trends = get_price_trends_cached(selected, days)
+            with st.spinner("Calculando tendências…"):
+                trends = get_price_trends_cached(selected, days)
             if trends:
                 df = pd.DataFrame(trends)
                 fig = px.line(
@@ -58,13 +59,13 @@ def render_ranking():
     with tab3:
         st.subheader("Ranking Cruzado de Ingredientes")
         days = st.slider("Período (dias)", 30, 180, 90, key="cross_days")
-        ranking = get_cross_ingredient_ranking_cached(days)
+        with st.spinner("Calculando ranking cruzado…"):
+            ranking = get_cross_ingredient_ranking_cached(days)
 
         if ranking:
             df = pd.DataFrame(ranking)
             st.dataframe(df, use_container_width=True)
 
-            # Heatmap
             fig = px.density_heatmap(
                 df, x="store", y="ingredient", z="avg_price_per_kg", title="Heatmap R$/kg médio por Loja x Ingrediente"
             )

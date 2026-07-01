@@ -70,7 +70,8 @@ def render_historico():
 
     _push_query_params()
 
-    history = get_price_history_cached(selected, days=days, valid_only=valid_only)
+    with st.spinner("Carregando histórico…"):
+        history = get_price_history_cached(selected, days=days, valid_only=valid_only)
 
     if not history:
         st.info("Sem hist\u00f3rico para este ingrediente no per\u00edodo selecionado.")

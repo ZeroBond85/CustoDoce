@@ -421,13 +421,61 @@ def reject_review_item_cached(item_id: str):
 
 
 def extract_ppk(row: dict) -> float:
+    """Extract price_per_kg from a row, handling both nested and flat schemas.
+
+    Sprint 8 fallback chain:
+    1. ``row["price_per_kg"]`` (flat layout — v_latest_prices materialized view)
+    2. ``row["normalized"]["price_per_kg"]`` (nested layout — price_history)
+    Returns 0.0 if neither yields a positive numeric value.
+    """
+    flat = row.get("price_per_kg")
+    if flat is not None:
+        try:
+            value = float(flat)
+            if value > 0:
+                return value
+        except (TypeError, ValueError):
+            pass
     norm = row.get("normalized", {})
-    return norm.get("price_per_kg", 0) if isinstance(norm, dict) else 0
+    if isinstance(norm, dict):
+        flat_top = norm.get("price_per_kg")
+        if flat_top is not None:
+            try:
+                value = float(flat_top)
+                if value > 0:
+                    return value
+            except (TypeError, ValueError):
+                pass
+    return 0.0
 
 
 def extract_pun(row: dict) -> float:
+    """Extract price_per_un from a row, handling both nested and flat schemas.
+
+    Sprint 8 fallback chain:
+    1. ``row["price_per_un"]`` (flat layout)
+    2. ``row["normalized"]["price_per_un"]`` (nested layout)
+    Returns 0.0 if neither yields a positive numeric value.
+    """
+    flat = row.get("price_per_un")
+    if flat is not None:
+        try:
+            value = float(flat)
+            if value > 0:
+                return value
+        except (TypeError, ValueError):
+            pass
     norm = row.get("normalized", {})
-    return norm.get("price_per_un", 0) if isinstance(norm, dict) else 0
+    if isinstance(norm, dict):
+        flat_top = norm.get("price_per_un")
+        if flat_top is not None:
+            try:
+                value = float(flat_top)
+                if value > 0:
+                    return value
+            except (TypeError, ValueError):
+                pass
+    return 0.0
 
 
 def clear_all_caches():

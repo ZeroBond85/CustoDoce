@@ -1,4 +1,5 @@
 import html as _html
+import logging
 import os
 import smtplib
 from datetime import date
@@ -7,6 +8,10 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from email.mime.image import MIMEImage
 from pathlib import Path
+
+import httpx
+
+_LOG = logging.getLogger(__name__)
 
 # ── Brand ( cores do logo CustoDoce ) ─────────────────────────────────
 _BRAND = {
@@ -365,9 +370,7 @@ def send_email(to_email: str, subject: str, html_body: str):
         msg.attach(img)
 
     if port == 465:
-        import smtplib as _ssl_smtplib
-
-        server = _ssl_smtplib.SMTP_SSL(host, port, timeout=30)
+        server: smtplib.SMTP = smtplib.SMTP_SSL(host, port, timeout=30)
         server.login(user, password)
     else:
         server = smtplib.SMTP(host, port, timeout=30)
@@ -419,9 +422,7 @@ def send_daily_report(
         msg.attach(img)
 
     if port == 465:
-        import smtplib as _ssl_smtplib
-
-        server = _ssl_smtplib.SMTP_SSL(host, port, timeout=30)
+        server: smtplib.SMTP = smtplib.SMTP_SSL(host, port, timeout=30)
         server.login(user, password)
     else:
         server = smtplib.SMTP(host, port, timeout=30)
@@ -453,7 +454,6 @@ def _store_info_telegram(store_name: str) -> str:
 # ── Telegram: 1 mensagem consolidada ──────────────────────────────────
 def send_telegram_report(token: str, chat_id: str, ingredients: list[dict], prices_by_ingredient: dict):
     """Envia 1 única mensagem Telegram com top-5 por ingrediente (deduplicado por loja)."""
-    import httpx
 
     today = date.today().strftime("%d/%m/%Y")
     lines = ["📊 *CustoDoce — Cotação de Preços*", f"📅 {today}\n"]
@@ -505,8 +505,12 @@ def send_telegram_report(token: str, chat_id: str, ingredients: list[dict], pric
         lines.append("❌ Nenhum preço encontrado hoje.")
 
     text = "\n".join(lines)
-    httpx.post(
-        f"https://api.telegram.org/bot{token}/sendMessage",
-        json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
-        timeout=15,
-    )
+    try:
+        httpx.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
+            timeout=15,
+        )
+    except httpx.HTTPError as exc:
+        _LOG.warning("Falha ao enviar telegram: %s", exc)
+        raise

@@ -21,7 +21,8 @@ def render_fontes():
 
     # Cobertura por ingrediente
     st.subheader("Cobertura por Ingrediente")
-    coverage = get_coverage_by_ingredient()
+    with st.spinner("Calculando cobertura…"):
+        coverage = get_coverage_by_ingredient()
     if coverage:
         df = pd.DataFrame(coverage)
         df = df.rename(
@@ -49,7 +50,8 @@ def render_fontes():
 
     # Promoções ativas
     st.subheader("Promoções Ativas")
-    promos = get_active_promotions()
+    with st.spinner("Buscando promoções…"):
+        promos = get_active_promotions()
     if promos:
         df = pd.DataFrame(promos)
         st.dataframe(
@@ -63,7 +65,8 @@ def render_fontes():
 
     # Ranking de fontes
     st.subheader("Ranking de Fontes (Lojas mais ativas)")
-    stores = get_stores_with_frequencies()
+    with st.spinner("Listando fontes…"):
+        stores = get_stores_with_frequencies()
     if stores:
         df = pd.DataFrame(stores)
         df = df[["name", "tier", "scraper", "is_active", "scrape_frequency"]]

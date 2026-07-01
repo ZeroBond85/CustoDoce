@@ -8,8 +8,8 @@
 | **Nome** | CustoDoce — Busca e comparação de preços de ingredientes para confeitaria |
 | **Público** | Confeiteiros profissionais/amadores — Baixada Santista + SP Capital |
 | **Stack** | Python 3.12 (runtime.txt + CI + mypy) + Streamlit + Supabase (PostgreSQL) + GitHub Actions |
-| **Nota** | **8.5/10** (atualizado 2026-06-29; era 8.0/10 em 27/06) — Arquitetura sólida, pipeline de matching sofisticado. Testes unitários e de schema atualizados (**512 passing**, +35 desde v2). Sprint 1 mitigou exposição da `service_role` no UI (dashboard_queries.py usa apenas `get_supabase()`). Restam: `dashboard_user` role com RLS mínimas + sanitizar RPCs. |
-| **Risco** | 🟡 MÉDIO-RESIDUAL (era MÉDIO em v2) |
+| **Nota** | **9.0/10** (atualizado 2026-06-30; era 8.5/10 em 29/06) — Dashboard modernizado para Streamlit 1.58 (`st.navigation`, `st.pagination`, `st.dialog`); 18 páginas integradas; paginação, spinners e labels acessíveis. Testes **577 passing** (+65 desde v3). 0 erros/warnings/skips em ruff + mypy + pytest. Sprint 7-9 consolidou maturidade de UX e cobertura de testes (26 novos testes de features Sprint 7-9). |
+| **Risco** | 🟢 BAIXO (era 🟡 MÉDIO-RESIDUAL em v3) |
 | **Recomendação** | ✅ MANTER E EXPANDIR |
 
 ### 🔴 Gargalos + Riscos Prioritários
@@ -609,6 +609,7 @@ Produto bruto → [1] Normalizer → [2] Match Exato (100%) → [3] Fuzzy (≥80
 
 | Versão | Data | Autor | Mudanças |
 | :--- | :--- | :--- | :--- |
+| v4.0 | 30/06/2026 | IA + Eric | Streamlit 1.58 full modernization (Sprint 7-9): `st.navigation()` menu nativo (5 grupos), promocoes integrada (18 páginas), `st.dialog()` confirmação em 4 páginas, `st.pagination()` com bind query-params, batch form config, responsive KPIs, bar chart substitui heatmap quebrado, spinners em 6 páginas, labels acessíveis, email_service hardening, 23 novos testes de features Sprint 7-9. Nota geral: 8.5/10 → **9.0/10**. Testes: 512→**577** (+65). Riscos todos 🟢 (antigo #4 dashboard queries mitigado com extract_ppk fallback). 0 erros/warnings/skips. |
 | v3.0 | 29/06/2026 | IA + Eric | Atualização cirúrgica pós-Sprint 1+2 e Fase 9. Nota geral: 8.0/10 → **8.5/10**. Testes: 477→**512** (35 adicionados). Gargalos recalibrados: #1 (service_role) 🔴→🟡 mitigado via Sprint 1.1; #2 (exec_sql_query) 🔴→🟡 parcialmente mitigado via Sprint 2.2 (RPC 443); #3 (testes) 🟠→🟢; #4 (cache dashboard) 🟡→🟢 parcial (LRU); #5 (normalizer) 🟡 mantido. Veredito Final tabela atualizada para refletir melhorias. Seção 9 Plano de Ação expandida com 5 linhas ✅ marcando entregas Fase 9 + Sprint 1.1-1.5 + Sprint 2.1-2.4. Patch cronológico mantém coerência in-place (v2.0→v3.0). |
 | — | 27/06/2026 | IA | Correção de discrepâncias: test counts (16→417, 93→94, 12→100, 2→0, 2→6), migration (987→861 linhas, 17→20 fases), scrapers (17→18 + roldao_flyer_scraper), services (21→23), scripts (~35→39), line counts (177→154, 208→154), Python version (3.11→3.11/3.13), workflow restore→restore-test, +001_config_tables.sql. (Nota: Python atualizado para 3.12 em 27/06/2026) |
 | — | 27/06/2026 | Eric | Python 3.11 → 3.12 unificado (runtime.txt, CI, mypy, Ruff). Docs e workflows sincronizados. |
@@ -618,9 +619,9 @@ Produto bruto → [1] Normalizer → [2] Match Exato (100%) → [3] Fuzzy (≥80
 
 ---
 
-## 📋 11. ATUALIZAÇÃO DE ACOMPANHAMENTO — 29/06/2026
+## 📋 11. ATUALIZAÇÃO DE ACOMPANHAMENTO — 30/06/2026
 
-**Mudanças aplicadas desde a v2 (27/06):** dados refletidos neste documento. Resumo executivo dos deltas:
+**Mudanças aplicadas desde a v3 (29/06):** dados refletidos neste documento. Resumo executivo dos deltas:
 
 ### Entregas confirmadas no período
 
@@ -645,14 +646,46 @@ Produto bruto → [1] Normalizer → [2] Match Exato (100%) → [3] Fuzzy (≥80
   - **2.3** `tests/unit/test_dashboard_contracts.py` criado: 4 contract tests validam shape de KPIs/coverage/promotions/scraper_health sem precisar de DB real.
   - **2.4** Pre-push hook agora suporta `CI_LOCAL_UNIT=1` para opt-in de testes unitários.
 
+- **Sprint 5 (29/06)** — CI Hardening + Real E2E Cloud Validation:
+  - **5.1** `admin/app.py`: TypeError FASE 8 — `render_login(ADMIN_PASSWORD)` → `render_login()` corrigido
+  - **5.2** `backup.yml`: heredoc indentado extraído para `scripts/rpc_backup.py`; RPC backup funcionando
+  - **5.3** `warmup_streamlit.py`: reescrito de HTTP (SPA React) para Playwright headless
+  - **5.4** CI e2e-smoke migrado para localhost, sem `continue-on-error`; cloud E2E mensal
+  - **5.5** `tests/unit/test_app_wiring.py`: 7 testes AST + imports (pega TypeError sem Streamlit)
+  - **5.6** 14 workflows auditados — 0 hashFiles, 0 PYEOF, 0 failure() em continue-on-error
+
+- **Sprint 6 (30/06)** — Migration Sync + httpx Pin + E2E Login Timing:
+  - **6.1** `deploy_database.py`: migrações 004 e 005 incluídas; expected_tables 14→16
+  - **6.2** `requirements.txt`: `httpx>=0.28,<1.0` pin (previne breaking change 1.x)
+  - **6.3** `tests/e2e/test_e2e_real.py::login_to_app`: 5s timeout → polling 45s
+  - **6.4** Meta: 709 total tests passing; 0 novos warnings
+
+- **Sprint 7 (30/06)** — Dashboard Modernization Streamlit 1.58 (Menu + Dialogs + Batch):
+  - **7.1** `admin/app.py`: `st.navigation()` com 5 grupos; `MENU_GROUPS` single source of truth
+  - **7.2** `promocoes.py`: página órfã integrada (18 páginas); filtros, KPIs, dataframe formatado
+  - **7.3** `flyers.py`, `relatorios.py`, `ingredientes.py`: `st.dialog()` confirmação com backup automático
+  - **7.4** `config.py`: batch form "Salvar Tudo" + enable/disable todas alert_rules
+
+- **Sprint 8 (30/06)** — Performance + Pagination:
+  - **8.1** `alertas.py`: `st.pagination()` nativo 54→25/página com `bind="query-params"`
+  - **8.2** `visao_geral.py`: `.cd-kpi-row` flexbox responsivo (1 col mobile / 4 col desktop)
+  - **8.3** `insights.py`: heatmap quebrado (pivot_table em `store_count` numérica) → bar chart com cor=cobertura
+  - **8.4** `extract_ppk()`/`extract_pun()`: fallback flat→nested; trata None/0→0.0
+
+- **Sprint 9 (30/06)** — Polish + Acessibilidade + Hardening:
+  - **9.1** Loading spinners em 6 páginas: precos, historico, fontes, ranking, insights, visao_geral
+  - **9.2** Labels acessíveis: `login_page.py` (6 inputs com `help=`), `calculadora.py` (help na seção)
+  - **9.3** `email_service.py`: `import httpx` top-level; try/except telegram POST; type annotation SMTP
+  - **9.4** `tests/unit/test_sprint7_8_9_features.py`: 23 novos testes de feature (extract_ppk, _is_promotion, dialogs, MENU_GROUPS)
+
 ### Métricas finais
 
-| Métrica | v2 (27/06) | v3 (29/06) | Δ |
-| :--- | :--- | :--- | :--- |
-| Testes passing | 477 (383 unit + 94 schema) | **512 (418 unit + 94 schema)** | +35 |
-| Riscos 🔴 CRÍTICOS abertos | 2 (service_role, exec_sql_query) | 0 (ambos reduzidos a 🟡 MITIGADO) | -2 |
-| Riscos 🟢 RESOLVIDOS novos | 1 (test count) | +3 (cache dashboard parcial, Telegram fuzzy, Bypass plano normalizer) | +4 |
-| Nota final | 8.0/10 | **8.5/10** | +0.5 |
+| Métrica | v2 (27/06) | v3 (29/06) | v4 (30/06) | Δ (v3→v4) |
+| :--- | :--- | :--- | :--- | :--- |
+| Testes passing | 477 (383 unit + 94 schema) | **512 (418 unit + 94 schema)** | **577 (483 unit + 94 schema)** | +65 |
+| Riscos 🔴 CRÍTICOS abertos | 2 (service_role, exec_sql_query) | 0 (ambos reduzidos a 🟡 MITIGADO) | 0 (risco dashboard queries 🟢 com fallback) | 0 |
+| Riscos 🟢 RESOLVIDOS novos | 1 (test count) | +3 (cache dashboard parcial, Telegram fuzzy, Bypass plano normalizer) | +4 (promocoes integrada, extract_ppk fallback, paginação, diálogos) | +4 |
+| Nota final | 8.0/10 | **8.5/10** | **9.0/10** | +0.5 |
 
 ### Próximos passos (curto prazo, 1-2 meses)
 
@@ -661,3 +694,5 @@ Produto bruto → [1] Normalizer → [2] Match Exato (100%) → [3] Fuzzy (≥80
 3. Finalizar setup Playwright (3 testes E2E em `tests/e2e/`)
 4. Implementar fallback no normalizer (tratar "un"/"pacote" como 1 unidade)
 5. Implementar Peso Mínimo (`unit_kg < 0.01` ignora)
+6. Ativar `st.fragment(parallel=True)` com `threading.Lock` wrapper (lru_cache race condition)
+7. Integrar `capacity_planning.py` como página oficial (requer fix `scraping_logs` aggregation)

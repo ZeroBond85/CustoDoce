@@ -63,8 +63,8 @@ O diferencial está no **pipeline de matching com IA de 6 estágios**: combina r
 | Ingredientes monitorados | **23** canônicos (leite condensado, chocolate, farinha, etc.) | Expansível via YAML |
 | Lojas/fornecedores | **51** lojas em 4 tiers (PDF, API VTEX, sites, manual) | Cobre atacados + e-commerces |
 | Precisão do Matching | **~85-90%** estimado | Via pipeline 6 estágios + fila de revisão manual |
-| Testes automatizados | **512** testes (418 unit + 94 schema) + 13 integration files + 6 real — atualizado 2026-06-29 (era 477 em 27/06; Sprint 2 adicionou 35 testes entre normalizer e contract tests) | Pendente: E2E (Playwright requer setup) |
-| Dashboard | **17** módulos analíticos | Visão geral, preços, histórico, ranking, calculadora, scrapers, etc. |
+| Testes automatizados | **577** testes (483 unit + 94 schema) + 13 integration files + 6 real — atualizado 2026-06-30 (era 512 em 29/06; Sprint 7-9 adicionou 26 testes + 23 feature tests + 3 menu-group tests) | Pendente: E2E (Playwright requer setup) |
+| Dashboard | **18** módulos analíticos (era 17; promocoes integrada) | Visão geral, preços, histórico, ranking, calculadora, scrapers, promocoes, etc. |
 | Alertas configurados | 5 triggers de alerta (price_drop, scrape_failure, etc.) | 3 canais: e-mail, Telegram, WhatsApp |
 | Consumo GitHub Actions | **~400 min/mês** de 2.000 disponíveis | Margem para 5x expansão |
 | Pre-push hook | **~30s** local sem unit tests (rápido) | opt-in `CI_LOCAL_UNIT=1` adiciona full unit suite |
@@ -212,8 +212,8 @@ Cada item tem: contexto, passo a passo resumido, esforço e como testar.
 | **Atualização Completa** | Use a IA para re-extrair as informações do `CUSTO_DOCE_RAIO_X.md` e do código-fonte, depois peça para regenerar este resumo mantendo a estrutura. | A cada grande marco (ex: nova funcionalidade relevante, mudança de stack, ou a cada 2 meses). |
 | **Atualização Rápida** | Descreva a mudança (ex: "Adicionamos 10 novas lojas" ou "Precisão do matching subiu para 93%") e peça para a IA atualizar as seções afetadas. | Mudanças pontuais entre grandes marcos. |
 
-**Versão Atual:** v3.0  
-**Última Atualização:** 29/06/2026
+**Versão Atual:** v4.0  
+**Última Atualização:** 30/06/2026
 
 ---
 
@@ -221,6 +221,7 @@ Cada item tem: contexto, passo a passo resumido, esforço e como testar.
 
 | Versão | Data | Autor | Mudanças |
 | :--- | :--- | :--- | :--- |
+| v4.0 | 30/06/2026 | IA + Eric | Streamlit 1.58 full modernization (Sprint 7-9): `st.navigation()` menu nativo (5 grupos), promocoes integrada (18 páginas), `st.dialog()` confirmação, `st.pagination()` com bind query-params, batch form config, responsive KPIs, bar chart substitui heatmap quebrado, spinners em 6 páginas, labels acessíveis, email_service hardening, 23 novos testes. Testes: 512→**577** (+65). Nota geral: **9.0/10**. |
 | v3.0 | 29/06/2026 | IA + Eric | Atualização pós-Sprint 1+2 e Fase 9. Testes: 477→512. Riscos #3 e #4 recalibrados (mitigados parcialmente). Roadmap Curto Prazo substituído por **linha "Pós-MVP ✅"** cruzando todas as entregas dos últimos dias. Quick Wins #2 (cache LRU) e #3 (Telegram fuzzy) marcados como resolvidos (LRU parcial). Tabela ✅ Resolvidos expandida com 11 entradas detalhadas (Fase 9 + Sprint 1.1-1.5 + Sprint 2.1-2.4). Patches narrativos mantêm coerência cronológica (v2.0→v3.0 in-place, sem novo arquivo). |
 | v1.2 | 27/06/2026 | IA | Adicionado seção 11 (Ações Prioritárias) com 7 itens ordenados por impacto. Fusão do PLANO_ACAO_PRIORITARIO.md. |
 | v1.1 | 27/06/2026 | IA | Adicionado seções 9 (Quick Wins) e 10 (Ideias para Explorar). |

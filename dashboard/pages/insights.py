@@ -2,43 +2,61 @@
 Dashboard Page: Insights
 """
 
-import streamlit as st
 import pandas as pd
 import plotly.express as px
+import streamlit as st
 
 from services.dashboard_queries import (
-    get_latest_prices_cached,
     get_coverage_by_ingredient,
+    get_latest_prices_cached,
 )
 
 
 def render_insights():
     st.title("Insights & Análises")
 
-    prices = get_latest_prices_cached(valid_only=True, limit=5000)
+    with st.spinner("Carregando preços…"):
+        prices = get_latest_prices_cached(valid_only=True, limit=5000)
 
     if not prices:
         st.info("Sem dados de preços disponíveis.")
         return
 
-    # Heatmap de cobertura
-    st.subheader("Heatmap: Cobertura de Ingredientes x Lojas")
+    st.subheader("Cobertura e Preço Médio por Ingrediente")
     coverage = get_coverage_by_ingredient()
 
     if coverage:
         df_cov = pd.DataFrame(coverage)
-        # Create pivot for heatmap
-        pivot = df_cov.pivot_table(index="ingredient", columns="store_count", values="avg_ppk", fill_value=0)
-
-        fig = px.imshow(
-            pivot.values,
-            x=pivot.columns.astype(str),
-            y=pivot.index,
-            labels={"x": "Nº Lojas", "y": "Ingrediente", "color": "R$/kg médio"},
-            title="Cobertura e Preço Médio",
-            aspect="auto",
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        if (
+            "ingredient" not in df_cov.columns
+            or "avg_ppk" not in df_cov.columns
+            or df_cov["ingredient"].nunique() < 2
+        ):
+            st.info(
+                "Heatmap requer >=2 ingredientes distintos. "
+                "Aguarde maior cobertura antes de visualizar."
+            )
+        else:
+            df_cov_sorted = df_cov.sort_values("avg_ppk", ascending=False).head(20)
+            top_value = max(df_cov_sorted["avg_ppk"].max(), 1)
+            fig = px.bar(
+                df_cov_sorted,
+                x="avg_ppk",
+                y="ingredient",
+                orientation="h",
+                color="store_count",
+                labels={
+                    "avg_ppk": "R$/kg médio",
+                    "ingredient": "Ingrediente",
+                    "store_count": "Nº Lojas",
+                },
+                title="Top 20 ingredientes por R$/kg médio (cor = cobertura)",
+            )
+            fig.update_layout(
+                yaxis={"categoryorder": "total ascending"},
+                xaxis={"range": [0, top_value * 1.1]},
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
     st.divider()
 

@@ -132,7 +132,7 @@ def test_all_imports():
         PAGE_FUNCTIONS,
     )
 
-    assert len(PAGES) == 17  # + scraper_health
+    assert len(PAGES) == 18, f"Esperado 18 paginas (17 + promocoes Sprint 7), encontrado {len(PAGES)}"
     for page_id, icon, label in PAGES:
         assert page_id in PAGE_FUNCTIONS, f"Faltando handler para {page_id}"
 

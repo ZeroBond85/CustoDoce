@@ -2,9 +2,10 @@
 Dashboard Page: Relatórios
 """
 
-import streamlit as st
-import pandas as pd
 import os
+
+import pandas as pd
+import streamlit as st
 
 from services.dashboard_queries import (
     get_latest_prices_cached,
@@ -12,6 +13,70 @@ from services.dashboard_queries import (
 from services.email_service import send_email
 from services.telegram_service import send_telegram_message
 from dashboard.components.ui import inject_css
+
+
+@st.dialog("Confirmar envio de relatório")
+def _confirm_send_report_dialog(
+    send_email_opt: bool,
+    recipients: list,
+    send_tg_opt: bool,
+    report_kind: str,
+):
+    st.markdown(
+        f"Você está prestes a enviar um relatório **{report_kind}**. "
+        "Verifique o preview na aba lateral antes de continuar."
+    )
+    if send_email_opt and recipients:
+        st.markdown(f"📧 **Email**: {len(recipients)} destinatário(s) — `{'`, `'.join(recipients)}`")
+    if send_tg_opt:
+        chat = os.environ.get("TELEGRAM_CHAT_ID", "(não definido)")
+        st.markdown(f"📱 **Telegram**: chat_id `{chat}`")
+    if not (send_email_opt or send_tg_opt):
+        st.error("Nenhum canal de envio selecionado. Volta e marque Email ou Telegram.")
+        return
+
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        if st.button("❌ Cancelar", key="cancel_report_send", width="stretch"):
+            st.rerun()
+    with col2:
+        if st.button(
+            "📤 Enviar Relatório",
+            key="confirm_report_send",
+            type="primary",
+            width="stretch",
+        ):
+            html = build_daily_report_html()
+            errors: list[str] = []
+
+            if send_email_opt and recipients:
+                for r in recipients:
+                    try:
+                        send_email(r, "Relatório CustoDoce", html)
+                    except Exception as e:
+                        errors.append(f"email `{r}`: {e}")
+                if not errors:
+                    st.success(f"Email enviado para {len(recipients)} destinatário(s).")
+
+            if send_tg_opt:
+                chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+                if chat_id:
+                    try:
+                        summary = build_telegram_summary()
+                        send_telegram_message(chat_id, summary)
+                        st.success("Telegram enviado.")
+                    except Exception as e:
+                        errors.append(f"telegram: {e}")
+                else:
+                    errors.append("telegram: TELEGRAM_CHAT_ID não configurado")
+
+            if errors:
+                st.error("Falhas durante envio:")
+                for err in errors:
+                    st.write(f"- {err}")
+            else:
+                st.session_state["report_html"] = html
+            st.rerun()
 
 
 def render_relatorios():
@@ -26,41 +91,41 @@ def render_relatorios():
 
         col1, col2 = st.columns(2)
         with col1:
-            _ = st.selectbox("Tipo", ["Diário (Top 5 por ingrediente)", "Semanal (Ranking)", "Personalizado"])
+            report_kind = st.selectbox(
+                "Tipo",
+                ["Diário (Top 5 por ingrediente)", "Semanal (Ranking)", "Personalizado"],
+            )
             _ = st.checkbox("Incluir promoções", value=True)
             _ = st.checkbox("Incluir tendências (7 dias)", value=False)
         with col2:
-            recipients = st.multiselect("Destinatários", ["zerobond@gmail.com", "custodoce@gmail.com"])
+            recipients = st.multiselect(
+                "Destinatários",
+                ["zerobond@gmail.com", "custodoce@gmail.com"],
+            )
             send_email_opt = st.checkbox("Enviar por Email", value=True)
             send_tg_opt = st.checkbox("Enviar por Telegram", value=True)
 
-        if st.button("Gerar e Enviar Relatório", type="primary"):
-            with st.spinner("Gerando relatório..."):
-                html = build_daily_report_html()
-
-                if send_email_opt and recipients:
-                    for r in recipients:
-                        send_email(r, "Relatório Diário CustoDoce", html)
-                    st.success(f"Email enviado para {len(recipients)} destinatários")
-
-                if send_tg_opt:
-                    # Send summary via Telegram
-                    summary = build_telegram_summary()
-                    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
-                    if chat_id:
-                        send_telegram_message(chat_id, summary)
-                    st.success("Telegram enviado")
-
-                st.session_state["report_html"] = html
-                st.rerun()
+        st.divider()
+        if st.button("👀 Preview + Enviar", type="primary"):
+            _confirm_send_report_dialog(
+                send_email_opt=send_email_opt,
+                recipients=recipients,
+                send_tg_opt=send_tg_opt,
+                report_kind=report_kind,
+            )
 
     with tabs[1]:  # Preview
         st.subheader("Preview do Relatório")
 
         if "report_html" in st.session_state:
-            st.components.v1.html(st.session_state["report_html"], height=600, scrolling=True)
+            st.components.v1.html(
+                st.session_state["report_html"],
+                height=600,
+                scrolling=True,
+            )
         else:
-            html = build_daily_report_html()
+            with st.spinner("Gerando preview..."):
+                html = build_daily_report_html()
             st.components.v1.html(html, height=600, scrolling=True)
 
     with tabs[2]:  # Testar
@@ -73,10 +138,10 @@ def render_relatorios():
 
                 with st.spinner("Testando..."):
                     ok, msg = test_smtp_connection()
-                    if ok:
-                        st.success("SMTP OK!")
-                    else:
-                        st.error(f"SMTP Falhou: {msg}")
+                if ok:
+                    st.success("SMTP OK!")
+                else:
+                    st.error(f"SMTP Falhou: {msg}")
 
         with col2:
             if st.button("📱 Testar Telegram"):
@@ -84,10 +149,10 @@ def render_relatorios():
 
                 with st.spinner("Testando..."):
                     ok, msg = test_telegram_connection()
-                    if ok:
-                        st.success("Telegram OK!")
-                    else:
-                        st.error(f"Telegram Falhou: {msg}")
+                if ok:
+                    st.success("Telegram OK!")
+                else:
+                    st.error(f"Telegram Falhou: {msg}")
 
 
 def build_daily_report_html() -> str:
@@ -101,7 +166,6 @@ def build_daily_report_html() -> str:
     df["ppk"] = df.apply(lambda r: r.get("normalized", {}).get("price_per_kg", 0), axis=1)
     df = df[df["ppk"] > 0]
 
-    # Top 5 por ingrediente
     top5 = df.sort_values("ppk").groupby("ingredient_id").head(5)
 
     html = """
@@ -149,13 +213,12 @@ def build_telegram_summary() -> str:
     prices = get_latest_prices_cached(valid_only=True, limit=5000)
 
     if not prices:
-        return "🍰��� CustoDoce: Sem dados de preços hoje."
+        return "🍰 CustoDoce: Sem dados de preços hoje."
 
     df = pd.DataFrame(prices)
     df["ppk"] = df.apply(lambda r: r.get("normalized", {}).get("price_per_kg", 0), axis=1)
     df = df[df["ppk"] > 0]
 
-    # Top 3 geral
     top3 = df.nsmallest(3, "ppk")
 
     msg = "🍰 *CustoDoce - Top 3 Ofertas do Dia*\n\n"

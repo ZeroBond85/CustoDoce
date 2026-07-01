@@ -10,6 +10,32 @@ from services.flyer_service import get_flyer_detail, delete_flyer
 from dashboard.components.ui import inject_css
 
 
+@st.dialog("Confirmar exclusão")
+def _confirm_delete_dialog(flyer_id: str):
+    detail = get_flyer_detail(flyer_id) or {}
+    store_name = detail.get("store_name", "N/A")
+    items = detail.get("items_count", 0)
+    st.warning(
+        f"Esta ação é **irreversível**. O flyer de **{store_name}** "
+        f"({items} produtos extraídos) será excluído permanentemente."
+    )
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        if st.button("❌ Cancelar", key=f"cancel_delete_{flyer_id}", width="stretch"):
+            st.rerun()
+    with col2:
+        if st.button(
+            "🗑️ Confirmar Exclusão",
+            key=f"confirm_delete_{flyer_id}",
+            type="primary",
+            width="stretch",
+        ):
+            delete_flyer(flyer_id)
+            st.session_state.pop("selected_flyer_id", None)
+            st.success("Flyer excluído com sucesso.")
+            st.rerun()
+
+
 def render_flyers():
     inject_css()
 
@@ -27,7 +53,6 @@ def render_flyers():
         st.info("Nenhum flyer encontrado no período.")
         return
 
-    # Grid de thumbnails
     st.subheader(f"Flyers ({len(flyers)} encontrados)")
 
     cols = st.columns(4)
@@ -42,13 +67,12 @@ def render_flyers():
                 st.caption("Sem thumbnail")
 
             st.markdown(f"**{flyer.get('store_name', 'N/A')}**")
-            st.caption(f"{flyer.get('collected_at', 'N/A')[:10]}")
+            st.caption(f"{str(flyer.get('collected_at', 'N/A'))[:10]}")
 
             if st.button("Ver detalhes", key=f"flyer_{flyer['id']}"):
                 st.session_state["selected_flyer_id"] = flyer["id"]
                 st.rerun()
 
-    # Detalhe do flyer selecionado
     if "selected_flyer_id" in st.session_state:
         flyer_id = st.session_state["selected_flyer_id"]
         detail = get_flyer_detail(flyer_id)
@@ -72,17 +96,20 @@ def render_flyers():
                 st.markdown(f"**Itens extraídos:** {detail.get('items_count', 0)}")
                 st.markdown(f"**OCR usado:** {'Sim' if detail.get('ocr_used', False) else 'Não'}")
 
-                if st.button("Fechar", key="close_flyer"):
-                    del st.session_state["selected_flyer_id"]
-                    st.rerun()
+                col_a, col_b = st.columns([1, 1])
+                with col_a:
+                    if st.button("Fechar", key="close_flyer", width="stretch"):
+                        st.session_state.pop("selected_flyer_id", None)
+                        st.rerun()
+                with col_b:
+                    if st.button(
+                        "🗑️ Excluir",
+                        key=f"delete_flyer_{flyer_id}",
+                        type="secondary",
+                        width="stretch",
+                    ):
+                        _confirm_delete_dialog(flyer_id)
 
-                if st.button("🗑️ Excluir", key="delete_flyer"):
-                    delete_flyer(flyer_id)
-                    st.success("Flyer excluído")
-                    del st.session_state["selected_flyer_id"]
-                    st.rerun()
-
-            # Produtos extraídos
             if detail.get("products"):
                 st.subheader("Produtos Extraídos")
                 df = pd.DataFrame(detail["products"])

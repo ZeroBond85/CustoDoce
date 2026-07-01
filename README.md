@@ -11,7 +11,7 @@ Sistema automatizado de busca e comparação de preços de ingredientes para con
 
 - 🔍 **Coleta Automatizada**: Varredura 2x/dia de PDFs de atacados, APIs VTEX, sites de e-commerce e agregadores.
 - 🤖 **Inteligência de Matching**: Pipeline multi-estágio (Exato → Alias → Fuzzy → Semantic Embeddings → LLM Groq → Review Queue).
-- 📊 **Dashboard Analítico**: 17 módulos especializados incluindo visão geral, histórico de preços, ranking de fontes, insights de outliers e health de scrapers.
+- 📊 **Dashboard Analítico**: 18 módulos especializados incluindo visão geral, histórico de preços, ranking de fontes, promoções, insights de outliers e health de scrapers.
 - 📱 **Telegram Bot**: Consultas instantâneas via `/preco <ingrediente>`, lista de monitorados e status do sistema, com fuzzy search e paginação inline.
 - 🧮 **Calculadora de Receitas**: Cálculo de custo real baseado nos preços atuais do banco, com salvamento de receitas e cenários de margem.
 - 📧 **Relatórios Diários**: Envio automático de resumo de melhores preços via Gmail SMTP.
