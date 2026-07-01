@@ -18,22 +18,24 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "custodoce123")
 
 # (page_id, label, expected_text)
 PAGES = [
-    ("visao_geral", "Visao Geral", "Total"),
-    ("precos", "Precos", "Precos"),
-    ("historico", "Historico", "Historico"),
+    ("visao_geral", "Visão Geral", "Total"),
+    ("precos", "Preços", "Precos"),
+    ("historico", "Histórico", "Historico"),
     ("flyers", "Flyers", "Flyers"),
-    ("revisao", "Revisao", "Revisao"),
+    ("revisao", "Revisão", "Revisao"),
     ("fontes", "Fontes & Ofertas", "Fontes"),
     ("ranking", "Ranking", "Ranking"),
     ("insights", "Insights", "Insights"),
     ("lojas", "Lojas", "Lojas"),
     ("ingredientes", "Ingredientes", "Ingredientes"),
     ("alertas", "Alertas", "Alertas"),
-    ("scrapers", "Scrapers", "Scrapers"),
-    ("relatorios", "Relatorios", "Relatorios"),
-    ("config", "Configuracao", "Configuracao"),
+    ("scrapers", "Scrapers & Logs", "Scrapers"),
+    ("scraper_health", "Scraper Health", "Scraper Health"),
+    ("relatorios", "Relatórios", "Relatorios"),
+    ("config", "Configuração", "Configuracao"),
     ("calculadora", "Calculadora", "Calculadora"),
-    ("diagnostico", "Diagnostico", "Diagnostico"),
+    ("diagnostico", "Diagnóstico", "Diagnostico"),
+    ("promocoes", "Promoções", "Promocoes"),
 ]
 
 
