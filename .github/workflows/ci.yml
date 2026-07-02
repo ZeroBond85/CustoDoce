@@ -137,10 +137,9 @@ jobs:
     needs: [deploy-check]
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    # Smoke test rapido (15s): valida que Streamlit responde + login form
-    # renderiza + ciclo de submit nao causa excecao. Nao depende de
-    # st.navigation() em headless (Licao #29). Suite e2e completa roda no
-    # workflow .github/workflows/e2e.yml em schedule mensal.
+    # Smoke test: login + page crawl de 19 paginas (~3min).
+    # Suite e2e completa (Playwright cloud) roda em .github/workflows/e2e.yml
+    # schedule mensal.
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -167,11 +166,17 @@ jobs:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
-      - name: E2E smoke — server + login (basic)
+      - name: E2E smoke — server + login + page crawl (19 pages)
+        id: e2e-smoke
         run: python -m pytest tests/e2e/test_e2e_smoke_basic.py -v --tb=short --no-header --durations=5
         env:
           STREAMLIT_URL: http://localhost:8501
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: e2e-smoke-screenshots
+          path: tests/e2e/e2e_screenshots/
       - name: Check time budget
         run: python scripts/check_time_budget.py --timeout-minutes 25 --label "e2e-smoke"
         if: always()

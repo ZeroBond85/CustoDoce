@@ -158,11 +158,11 @@ class PriceIntelligence:
             if store_id:
                 hist_prices = [p for p in hist_prices if p.get("store_id") == store_id]
             hist_values = []
-        for hp in hist_prices:
-            raw_hn = hp.get("normalized")
-            hn = raw_hn if isinstance(raw_hn, dict) else {}
-            hppk = hn.get("price_per_kg")
-            if hppk and hppk > 0:
+            for hp in hist_prices:
+                raw_hn = hp.get("normalized")
+                hn = raw_hn if isinstance(raw_hn, dict) else {}
+                hppk = hn.get("price_per_kg")
+                if hppk and hppk > 0:
                     hist_values.append(hppk)
 
             if len(hist_values) >= 10:  # Need enough data for IF

@@ -15,6 +15,7 @@ env/
 # Test caches & tooling
 .mypy_cache/
 .pytest_cache/
+tests/e2e/e2e_screenshots/
 .ruff_cache/
 .coverage
 htmlcov/

@@ -1,16 +1,15 @@
-"""E2E smoke ultra-fast: verifica apenas que Streamlit responde e o login form renderiza.
+"""E2E smoke: login + page crawl de todas as 19 paginas do dashboard.
 
-NAO depende de:
-- st.navigation() renderizar em headless (long-standing issue, Licao #29)
-- Click em Entrar funcionar via WebSocket em localhost
-- Sidebar/navigation contents
-
-Verifica apenas:
+Fluxo:
 - Servidor responde HTTP 200 em /
-- Login form e password input renderizam
-- Tela nao tem excecoes Streamlit/Python visíveis
+- Login form renderiza com password input
+- Submeter credenciais completa sem excecao
+- Sidebar navigation renderiza (todas as 19 paginas)
+- Crawl de cada pagina via click no nav link:
 
-Roda em ~10s. Nao bloqueia PR mas falha se algo fundamental quebrar.
+Testes sao independentes. Cada um abre/fecha a propria pagina.
+
+O crawl de 19 paginas leva ~3-4min (com screenshot).
 """
 import os
 import sys
@@ -153,3 +152,100 @@ def test_login_submit_completes_without_exception(browser):
 
     _load_and_assert_no_errors(page, "login_submit")
     page.close()
+
+
+# ── Page crawl: navega por todas as 19 paginas via sidebar ──────────────
+# Cada entrada: (nav_link_text, expected_url_path, expected_text_snippet)
+PAGES_TO_CRAWL: list[tuple[str, str, str]] = [
+    ("Visão Geral", "visao_geral", "Total Preços"),
+    ("Preços", "precos", "Preços"),
+    ("Histórico", "historico", "Histórico"),
+    ("Promoções", "promocoes", "Promoções"),
+    ("Insights", "insights", "Insights"),
+    ("Fontes & Ofertas", "fontes", "Fontes"),
+    ("Ranking", "ranking", "Ranking"),
+    ("Calculadora", "calculadora", "Calculadora"),
+    ("Revisão", "revisao", "Revisão"),
+    ("Capacidade", "capacity_planning", "Capacidade"),
+    ("Lojas", "lojas", "Lojas"),
+    ("Ingredientes", "ingredientes", "Ingredientes"),
+    ("Alertas", "alertas", "Alertas"),
+    ("Scrapers & Logs", "scrapers", "Scrapers"),
+    ("Scraper Health", "scraper_health", "Health"),
+    ("Relatórios", "relatorios", "Relatórios"),
+    ("Flyers", "flyers", "Flyers"),
+    ("Configuração", "config", "Configuração"),
+    ("Diagnóstico", "diagnostico", "Diagnóstico"),
+]
+
+
+def test_all_pages_crawl(browser):
+    """Login + crawl todas as 19 paginas via sidebar nav. Screenshots + deteccao de erro."""
+    if not ADMIN_PASSWORD:
+        pytest.skip("ADMIN_PASSWORD nao definido no env")
+
+    page = browser.new_page(viewport={"width": 1280, "height": 800})
+    failures: list[str] = []
+    screenshots_dir = Path(os.path.dirname(__file__)) / "e2e_screenshots"
+    screenshots_dir.mkdir(exist_ok=True)
+
+    try:
+        # ── Login ──
+        page.goto(BASE_URL, timeout=60000)
+        page.wait_for_load_state("domcontentloaded")
+
+        pwd = page.locator("input[type='password']").first
+        pwd.wait_for(state="visible", timeout=60000)
+        user_input = page.locator("input[type='text']").first
+        user_input.fill("admin")
+        pwd.fill(ADMIN_PASSWORD)
+        entrar = page.get_by_role("button", name="Entrar", exact=True).first
+        entrar.wait_for(state="visible", timeout=5000)
+        entrar.click()
+        page.wait_for_timeout(5000)
+
+        # ── Verificar sidebar ──
+        sidebar = page.locator('[data-testid="stSidebar"]')
+        if sidebar.count() == 0:
+            pytest.fail("Sidebar nao renderizou apos login (60s)")
+
+        # ── Crawl cada pagina ──
+        for nav_text, expected_path, expected_text in PAGES_TO_CRAWL:
+            try:
+                # Encontrar e clicar no nav link
+                link = sidebar.locator("a").filter(has_text=nav_text).first
+                if link.count() == 0:
+                    failures.append(f"[{nav_text}] Nav link nao encontrado")
+                    continue
+
+                link.click()
+                page.wait_for_timeout(5000)
+
+                # Screenshot
+                safe_name = nav_text.replace(" ", "_").replace("/", "_").replace("&", "e")[:40]
+                page.screenshot(path=str(screenshots_dir / f"{safe_name}.png"))
+
+                # Verificar estado
+                state = page.locator("[data-test-script-state]").first.get_attribute("data-test-script-state")
+                if state == "notRunning":
+                    # Verificar se ha erro visivel
+                    _load_and_assert_no_errors(page, f"page_{safe_name}")
+
+                # Verificar URL contem path esperado
+                # visao_geral é a página default — URL fica "/"
+                if expected_path != "visao_geral" and expected_path not in page.url:
+                    failures.append(f"[{nav_text}] URL nao contem '{expected_path}': {page.url}")
+
+                # Verificar texto esperado no body
+                body_text = page.locator("body").inner_text()
+                if expected_text not in body_text:
+                    failures.append(f"[{nav_text}] Texto '{expected_text}' nao encontrado")
+
+            except Exception as exc:
+                failures.append(f"[{nav_text}] Excecao: {exc}")
+
+        if failures:
+            pytest.fail("Falhas no crawl:\n" + "\n".join(failures))
+
+    finally:
+        page.close()

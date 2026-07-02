@@ -108,7 +108,7 @@ CustoDoce/
 │   ├── archive/                     # 28 scripts históricos
 │   └── ... (+30 scripts utilitários)
 ├── tests/
-│   ├── unit/                        # 518 testes (21 arquivos: +65 do Sprint 7-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9) — dashboard + services + llm + contract
+│   ├── unit/                        # 518 testes (21 arquivos: +65 do Sprint 7-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9) — dashboard + services + llm + contract
 │   ├── schema/                      # 94 testes parametrizados (1 arquivo)
 │   ├── integration/                 # 13 arquivos — Benchmarks + DB integration (via RPC)
 │   ├── design/                      # 1 arquivo — CSS/estrutura (10 testes)
@@ -290,7 +290,7 @@ python scripts/seed_prices.py --dry-run
 | pytest (unit + schema) | 612 passing (unit: 518, schema: 94) | ✅ |
 | pytest (integration) | 102 passing | ✅ |
 | pytest (real, slow) | 6 passing | ✅ |
-| pytest (e2e) | 28 collected (blocked on Playwright live Streamlit Cloud) | ⏳ |
+| pytest (e2e) | 60 collected (blocked on Playwright live Streamlit Cloud) | ⏳ |
 
 **Sprint 5 concluída (CI Hardening + Real E2E Cloud Validation) out 2026-06-29:**
 - `admin/app.py:` TypeError FASE 8 — `render_login(ADMIN_PASSWORD)` → `render_login()` ✅
@@ -724,22 +724,21 @@ Regra permanente:
 - Abre issue/PR imediatamente para reverter a exceção
 - Nunca usar para "ganhar tempo" ou contornar falha conhecida
 
-### 29. E2E smoke local tem dependência oculta em headless `st.navigation()` que pytest não cobre
+### 29. Sidebar/navigation NÃO renderizava em headless por TypeError/AttributeError silencioso — corrigido
 
-O teste `e2e-smoke` (localhost:8501) tem falha histórica desde antes do Phase 3, com sintoma consistente: após login via `Entrar`, o estado do script fica preso em `data-test-script-state="notRunning"` e o sidebar/navigation não renderiza. Isso **não é regressão do PR**; é um problema de longo prazo no caminho de teste que envolve interação entre:
-- `st.rerun()` após `login_page.py`
-- Renderização de `st.navigation()` em modo headless
-- Possível condições de corrida no WebSocket/state do Streamlit
+**Root cause (descoberta Sprint 10, 2026-07-01):** O sidebar/navigation pós-login não renderizava porque o script Streamlit crashava SILENCIOSAMENTE com:
+1. **TypeError**: `get_longitudinal_winners()` chamado sem parâmetro `days` em `dashboard_queries.py:127` — `get_longitudinal_winners()` definido com `def get_longitudinal_winners(days)` mas chamado sem argumento
+2. **AttributeError**: campo `normalized` no Supabase contém `true` (bool) em vez de `{}` (dict) — `p.get("normalized") or {}` curto-circuita para `True` → `True.get("price_per_kg")` explode. 21 ocorrências em 7 arquivos.
 
-Não gaste ciclos em "fixar seletores de teste" (ex: trocar `Visao Geral`↔`Visão Geral`, aumentar timeout) como solução definitiva. Isso apenas mapeia sintomas.
+Ambas as exceções eram capturadas por Streamlit (que mostra o formulário de login novamente com um erro genérico), mas não apareciam como `stException` visível — apenas um "ainda não logado" redirect.
 
-Para resolução definitiva:
-1. Abrir issue/ticket dedicado com repro steps e screenshots
-2. Investigar via `streamlit run --server.headless false` + inspeção visual
-3. Verificar se há exceções silenciosas no `main()` pós-login que impedem rerun
-4. Considerar fallback para `render_legacy_sidebar()` apenas para testes
+**Fixes:**
+- `get_longitudinal_winners(days)` → `get_longitudinal_winners(days=90)` em `dashboard_queries.py`
+- `norm = p.get("normalized") or {}` → `raw_norm = p.get("normalized"); norm = raw_norm if isinstance(raw_norm, dict) else {}` em 21 ocorrências
 
-Este problema já foi documentado em Lição #12 (Streamlit Cloud E2E flakiness) e agora se aplica ao ambiente local também.
+**Teste de page crawl agora funcional:** `test_all_pages_crawl` navega por todas as 19 páginas via sidebar links, tira screenshot de cada uma, e verifica conteúdo/texto esperado.
+
+**Sintoma anterior (falso):** Atribuía-se a falha a `st.navigation()` em headless — era na verdade o script morrendo antes de renderizar.
 
 ### 30. Normalized pode ser `true` (bool) no Supabase — NUNCA use `p.get("normalized") or {}`
 
