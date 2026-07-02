@@ -181,7 +181,7 @@ def _render_recipients_tab() -> None:
             st.markdown("Edite cada destinatário e clique **Salvar Tudo** para persistir.")
             new_states: dict[int, dict] = {}
             for r in recipients:
-                st.markdown(f"**{r['name']}** — `{r['channel']}`: `{r['address']}`")
+                st.markdown(f"**{r['name']}** — `{r['channel']}`: `{r.get('target', r.get('address', ''))}`")
                 enabled = st.checkbox(
                     "Ativo",
                     value=r.get("enabled", True),
@@ -215,7 +215,7 @@ def _render_recipients_tab() -> None:
             if not name.strip() or not address.strip():
                 st.error("Nome e endereço são obrigatórios")
             else:
-                upsert_recipient({"name": name, "channel": channel, "address": address, "enabled": enabled})
+                upsert_recipient({"name": name, "channel": channel, "target": address, "enabled": enabled})
                 st.success("Destinatário adicionado!")
                 st.rerun()
 
