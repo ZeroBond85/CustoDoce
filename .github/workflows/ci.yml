@@ -139,8 +139,8 @@ jobs:
     timeout-minutes: 25
     # Smoke test rapido (15s): valida que Streamlit responde + login form
     # renderiza + ciclo de submit nao causa excecao. Nao depende de
-    # st.navigation() em headless (Licao #29). O test_e2e_real.py completo
-    # roda no workflow .github/workflows/e2e.yml em schedule mensal.
+    # st.navigation() em headless (Licao #29). Suite e2e completa roda no
+    # workflow .github/workflows/e2e.yml em schedule mensal.
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6

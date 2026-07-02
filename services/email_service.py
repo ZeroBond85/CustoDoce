@@ -210,7 +210,8 @@ def build_full_report_html(prices_by_ingredient: dict) -> str:
         best_per_store = {}
         for p in prices:
             store_id = p.get("store_id", p.get("store_name", "?"))
-            norm = p.get("normalized") or {}
+            raw_norm = p.get("normalized")
+            norm = raw_norm if isinstance(raw_norm, dict) else {}
             ppk = norm.get("price_per_kg", 999999)
             if store_id not in best_per_store or ppk < best_per_store[store_id][0]:
                 best_per_store[store_id] = (ppk, p)
@@ -224,10 +225,13 @@ def build_full_report_html(prices_by_ingredient: dict) -> str:
         safe_ing = _html.escape(ing_name)
         sorted_prices = sorted(
             prices,
-            key=lambda x: (x.get("normalized") or {}).get("price_per_kg", 999999),
+            key=lambda x: (
+                x.get("normalized") if isinstance(x.get("normalized"), dict) else {}
+            ).get("price_per_kg", 999999),
         )
         best = sorted_prices[0] if sorted_prices else None
-        best_ppk = (best.get("normalized") or {}).get("price_per_kg", 0) if best else 0
+        raw_best_norm = best.get("normalized") if best else None
+        best_ppk = (raw_best_norm if isinstance(raw_best_norm, dict) else {}).get("price_per_kg", 0) if best else 0
         best_store = _html.escape(best.get("store_name", "?")) if best else ""
 
         rows = ""
@@ -236,7 +240,8 @@ def build_full_report_html(prices_by_ingredient: dict) -> str:
             product = _html.escape(p.get("raw_product", "?")[:45])
             raw_p = float(p.get("raw_price", 0))
             unit = p.get("raw_unit", "")
-            norm = p.get("normalized") or {}
+            raw_norm = p.get("normalized")
+            norm = raw_norm if isinstance(raw_norm, dict) else {}
             ppk = norm.get("price_per_kg", 0)
             ppk_str = f"R$ {ppk:.2f}" if ppk else "—"
             promo = (
@@ -469,7 +474,8 @@ def send_telegram_report(token: str, chat_id: str, ingredients: list[dict], pric
         best_per_store = {}
         for p in prices:
             store_id = p.get("store_id", p.get("store_name", "?"))
-            norm = p.get("normalized") or {}
+            raw_norm = p.get("normalized")
+            norm = raw_norm if isinstance(raw_norm, dict) else {}
             ppk = norm.get("price_per_kg", 999999)
             if store_id not in best_per_store or ppk < best_per_store[store_id][0]:
                 best_per_store[store_id] = (ppk, p)
@@ -479,16 +485,20 @@ def send_telegram_report(token: str, chat_id: str, ingredients: list[dict], pric
             continue
 
         n_with_prices += 1
-        best = deduped[0]
-        best_ppk = (best.get("normalized") or {}).get("price_per_kg", 0)
+        best_entry = deduped[0]
+        _, best_p = best_entry
+        raw_best_norm = best_p.get("normalized")
+        best_ppk = (raw_best_norm if isinstance(raw_best_norm, dict) else {}).get("price_per_kg", 0)
 
         lines.append(f"🏷️ *{name}*")
         lines.append(f"   Melhor: R\\$ {best_ppk:.2f}/kg")
 
-        for i, p in enumerate(deduped[:5], 1):
+        for i, entry in enumerate(deduped[:5], 1):
+            _, p = entry
             store = p.get("store_name", "?")
             raw_p = float(p.get("raw_price", 0))
-            norm = p.get("normalized") or {}
+            raw_norm = p.get("normalized")
+            norm = raw_norm if isinstance(raw_norm, dict) else {}
             ppk = norm.get("price_per_kg", 0)
             unit = p.get("raw_unit", "")
             medal = ["🥇", "🥈", "🥉"][i - 1] if i <= 3 else f"  {i}."

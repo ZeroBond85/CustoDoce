@@ -424,7 +424,7 @@ def test_real_telegram_report_generation():
         # Should not crash
         if prices_list:
             best = prices_list[0]
-            _ = (best.get("normalized") or {}).get("price_per_kg", 0)
+            _ = (best.get("normalized") if isinstance(best.get("normalized"), dict) else {}).get("price_per_kg", 0)
     assert True  # If we reach here, formatting logic works
 
 

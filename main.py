@@ -26,8 +26,14 @@ def generate_report_html(products: list[dict], ingredients: list[dict]) -> str:
 
     rows = ""
     for ing_name, prices in sorted(by_ingredient.items()):
-        best = min(prices, key=lambda x: (x.get("normalized") or {}).get("price_per_kg", 999999))
-        norm = best.get("normalized") or {}
+        best = min(
+            prices,
+            key=lambda x: (
+                x.get("normalized") if isinstance(x.get("normalized"), dict) else {}
+            ).get("price_per_kg", 999999),
+        )
+        raw_norm = best.get("normalized")
+        norm = raw_norm if isinstance(raw_norm, dict) else {}
         price_kg = norm.get("price_per_kg", 0)
         unique_stores = len({p.get("store_id", "") for p in prices})
         safe_ing = _html.escape(ing_name)

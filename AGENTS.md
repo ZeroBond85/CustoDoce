@@ -741,6 +741,30 @@ Para resolução definitiva:
 
 Este problema já foi documentado em Lição #12 (Streamlit Cloud E2E flakiness) e agora se aplica ao ambiente local também.
 
+### 30. Normalized pode ser `true` (bool) no Supabase — NUNCA use `p.get("normalized") or {}`
+
+O campo `normalized` na tabela `prices` do Supabase pode conter `true`/`false` (JSON bool) em vez de `{"price_per_kg": ..., "price_per_un": ...}`. Isso acontece quando um scraper insere um registro sem normalização e o valor default da coluna é `true` (configuração da tabela).
+
+```python
+# ❌ ERRADO (quebra quando normalized=True no DB):
+norm = p.get("normalized") or {}
+ppk = norm.get("price_per_kg", 0)  # AttributeError: 'bool' object has no attribute 'get'
+
+# ✅ CERTO (isinstance guard):
+raw_norm = p.get("normalized")
+norm = raw_norm if isinstance(raw_norm, dict) else {}
+
+# ✅ Para lambdas inline (min/sort key):
+key=lambda x: (x.get("normalized") if isinstance(x.get("normalized"), dict) else {}).get("price_per_kg", 999999)
+```
+
+**Ocorrências sistemáticas (21 em 7 arquivos):**
+- `main.py`, `telegram_bot/handlers.py`, `services/email_service.py`, `services/price_analytics.py`, `services/price_intelligence.py`, `tests/integration/test_real_integration.py`, `scripts/send_daily_report.py`
+
+**Corrigido em:** Phase 3, Sprint 10, 2026-07-01. Commit `???` (pendente).
+
+**Regra permanente:** SEMPRE proteger `p.get("normalized")` com `isinstance(raw, dict)` antes de chamar `.get("price_per_kg")`. Nunca confiar no tipo do dado vindo do Supabase — tipo `jsonb` pode conter `true`/`false` mesmo que o schema espere objeto.
+
 ## OpenCode Skills Strategy
 
 Este projeto usa **duas camadas de skills OpenCode**:

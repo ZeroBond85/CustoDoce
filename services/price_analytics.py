@@ -55,7 +55,8 @@ def get_longitudinal_winners(days: int = 90) -> list[dict[str, Any]]:
     for p in result.data:
         ing = p.get("ingredient_id", "")
         day = p.get("collected_at", "")[:10]
-        norm = p.get("normalized") or {}
+        raw_norm = p.get("normalized")
+        norm = raw_norm if isinstance(raw_norm, dict) else {}
         ppk = norm.get("price_per_kg", 0) or 0
         if ppk <= 0:
             continue
@@ -93,7 +94,8 @@ def get_price_trends(ingredient_id: str, days: int = 90) -> list[dict[str, Any]]
     daily = defaultdict(list)
     for p in result.data:
         day = p.get("collected_at", "")[:10]
-        norm = p.get("normalized") or {}
+        raw_norm = p.get("normalized")
+        norm = raw_norm if isinstance(raw_norm, dict) else {}
         ppk = norm.get("price_per_kg", 0) or 0
         if ppk > 0:
             daily[day].append(ppk)
@@ -128,7 +130,8 @@ def get_cross_ingredient_ranking(days: int = 90) -> list[dict[str, Any]]:
     per_ing = defaultdict(list)
     for p in result.data:
         ing = p.get("ingredient_id", "")
-        norm = p.get("normalized") or {}
+        raw_norm = p.get("normalized")
+        norm = raw_norm if isinstance(raw_norm, dict) else {}
         ppk = norm.get("price_per_kg", 0) or 0
         if ppk > 0:
             per_ing[ing].append({"store": p.get("store_name", "?"), "ppk": ppk})
@@ -175,8 +178,14 @@ def generate_report_html(products: list[PriceEntry], ingredients: list[Ingredien
 
     rows = ""
     for ing_name, prices in sorted(by_ingredient.items()):
-        best = min(prices, key=lambda x: (x.get("normalized") or {}).get("price_per_kg", 999999))
-        norm = best.get("normalized") or {}
+        best = min(
+            prices,
+            key=lambda x: (
+                x.get("normalized") if isinstance(x.get("normalized"), dict) else {}
+            ).get("price_per_kg", 999999),
+        )
+        raw_norm = best.get("normalized")
+        norm = raw_norm if isinstance(raw_norm, dict) else {}
         price_kg = norm.get("price_per_kg", 0)
         unique_stores = len({p.get("store_id", "") for p in prices})
         safe_ing = _html.escape(ing_name)
@@ -254,7 +263,8 @@ def otimizar_carrinho_compras(lista_itens: dict, max_sources: int = 2) -> dict:
     for p in latest_prices:
         ing = p.get("ingredient_id", "")
         sid = p.get("store_id") or p.get("store_name", "")
-        norm = p.get("normalized") or {}
+        raw_norm = p.get("normalized")
+        norm = raw_norm if isinstance(raw_norm, dict) else {}
         ppk = norm.get("price_per_kg")
         if ing and sid and ppk and ppk > 0:
             by_ing_store[ing][sid] = {

@@ -57,7 +57,8 @@ class PriceIntelligence:
             prices = [p for p in prices if p.get("store_id") == store_id]
         values = []
         for p in prices:
-            norm = p.get("normalized") or {}
+            raw_norm = p.get("normalized")
+            norm = raw_norm if isinstance(raw_norm, dict) else {}
             ppk = norm.get("price_per_kg")
             if ppk and ppk > 0:
                 values.append(ppk)
@@ -143,7 +144,8 @@ class PriceIntelligence:
 
         groups = defaultdict(list)
         for p in prices:
-            norm = p.get("normalized") or {}
+            raw_norm = p.get("normalized")
+            norm = raw_norm if isinstance(raw_norm, dict) else {}
             ppk = norm.get("price_per_kg")
             if ppk:
                 key = (p.get("ingredient_id", ""), p.get("store_id", ""))
@@ -156,10 +158,11 @@ class PriceIntelligence:
             if store_id:
                 hist_prices = [p for p in hist_prices if p.get("store_id") == store_id]
             hist_values = []
-            for hp in hist_prices:
-                hn = hp.get("normalized") or {}
-                hppk = hn.get("price_per_kg")
-                if hppk and hppk > 0:
+        for hp in hist_prices:
+            raw_hn = hp.get("normalized")
+            hn = raw_hn if isinstance(raw_hn, dict) else {}
+            hppk = hn.get("price_per_kg")
+            if hppk and hppk > 0:
                     hist_values.append(hppk)
 
             if len(hist_values) >= 10:  # Need enough data for IF

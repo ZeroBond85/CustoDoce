@@ -48,7 +48,8 @@ def _fuzzy_match(query: str, ingredients: list[dict]) -> list[tuple[dict, int]]:
 
 
 def format_price_entry(entry: dict, rank: int) -> str:
-    norm = entry.get("normalized") or {}
+    raw_norm = entry.get("normalized")
+    norm = raw_norm if isinstance(raw_norm, dict) else {}
     medal = {1: "\U0001f947", 2: "\U0001f948", 3: "\U0001f949"}.get(rank, "  ")
     price_kg = norm.get("price_per_kg", 0)
     price_un = norm.get("price_per_un", 0)

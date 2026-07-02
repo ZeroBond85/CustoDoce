@@ -57,7 +57,10 @@ def main():
             for ing in ingredients:
                 name = ing["canonical_name"]
                 ing_prices = sorted(
-                    by_ingredient.get(name, []), key=lambda x: (x.get("normalized") or {}).get("price_per_kg", 999999)
+                    by_ingredient.get(name, []),
+                    key=lambda x: (
+                        x.get("normalized") if isinstance(x.get("normalized"), dict) else {}
+                    ).get("price_per_kg", 999999),
                 )
                 top5_by_ingredient[name] = ing_prices[:5]
             send_telegram_report(token, chat_id, ingredients, top5_by_ingredient)
