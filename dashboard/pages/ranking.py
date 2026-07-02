@@ -30,7 +30,7 @@ def render_ranking():
             st.dataframe(df, use_container_width=True)
 
             fig = px.bar(
-                df.head(20), x="ingredient", y="win_count", color="store", title="Top 20 Ingredientes por Vitórias"
+                df.head(20), x="ingredient_id", y="wins", color="store_name", title="Top 20 Ingredientes por Vitórias"
             )
             st.plotly_chart(fig, use_container_width=True)
         else:
@@ -50,8 +50,10 @@ def render_ranking():
             if trends:
                 df = pd.DataFrame(trends)
                 fig = px.line(
-                    df, x="collected_at", y="price_per_kg", color="store_name", title=f"Tendência R$/kg - {selected}"
+                    df, x="date", y="avg_ppk", title=f"Tendência R$/kg - {selected}"
                 )
+                fig.add_scatter(x=df["date"], y=df["min_ppk"], mode="lines", name="Mín", line={"dash": "dot"})
+                fig.add_scatter(x=df["date"], y=df["max_ppk"], mode="lines", name="Máx", line={"dash": "dot"})
                 st.plotly_chart(fig, use_container_width=True)
             else:
                 st.info("Sem dados para este ingrediente no período.")
@@ -66,8 +68,9 @@ def render_ranking():
             df = pd.DataFrame(ranking)
             st.dataframe(df, use_container_width=True)
 
-            fig = px.density_heatmap(
-                df, x="store", y="ingredient", z="avg_price_per_kg", title="Heatmap R$/kg médio por Loja x Ingrediente"
+            fig = px.bar(
+                df.head(20), x="top1_count", y="store_name", orientation="h",
+                title="Top Lojas com mais vitórias (1º lugar)"
             )
             st.plotly_chart(fig, use_container_width=True)
         else:
