@@ -1,0 +1,61 @@
+# Schema do AGENTS.md — define o que pode entrar, onde, e quanto.
+# CI valida isso a cada push e merge.
+max_lines: 350
+headings:
+  regras_mandatorias:
+    type: list
+    max_lines: 40
+    description: "Top 10 regras que nunca podem sumir"
+    mandatory: true
+  sobre:
+    type: text
+    max_lines: 10
+  stack:
+    type: list
+    max_lines: 15
+  arquitetura:
+    type: mermaid
+    max_lines: 30
+  estrutura_de_diretorios:
+    type: tree
+    max_lines: 60
+    allow_key: estrutura
+  tiers_de_lojas:
+    type: table
+    max_lines: 20
+  ingredientes_monitorados:
+    type: table
+    max_lines: 40
+  fluxo_de_coleta:
+    type: code
+    max_lines: 50
+  matcher:
+    type: list
+    max_lines: 25
+  normalizer:
+    type: code
+    max_lines: 20
+  tratamento_de_erros:
+    type: table
+    max_lines: 25
+  comandos_relevantes:
+    type: code
+    max_lines: 40
+  status_atual:
+    type: table
+    max_lines: 40
+    auto_generated: true
+  ambiente:
+    type: text
+    max_lines: 40
+
+blocked_heading_patterns:
+  "licao": {target: "LESSONS.md", reason: "Lições pertencem ao LESSONS.md"}
+  "lesson": {target: "LESSONS.md", reason: "Lições pertencem ao LESSONS.md"}
+  "aprendida": {target: "LESSONS.md", reason: "Lições pertencem ao LESSONS.md"}
+  "skill": {target: "docs/skills.md", reason: "Skills têm doc separada"}
+  "opencode": {target: "docs/skills.md", reason: "Skills têm doc separada"}
+  "changelog": {target: "docs/changelog.md", reason: "Changelog tem arquivo próprio"}
+  "historico": {target: "docs/archive/", reason: "Histórico pertence ao archive"}
+
+allow_new_headings: true

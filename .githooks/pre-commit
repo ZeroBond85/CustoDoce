@@ -5,6 +5,7 @@
 # Layer 2: DOC SYNC        - AVISA se codigo mudou sem docs (usuario decide)
 # Layer 3: SIZE GUARD      - BLOQUEIA arquivo >100MB (GitHub rejeita; mais vale parar antes)
 # Layer 4: DOC WATCHDOG    - AVISO leve sobre outros docs
+# Layer 5: AGENTS SCHEMA   - BLOQUEIA se AGENTS.md não passar no schema check
 #
 # Para pular TODOS os checks:  git commit --no-verify  (usar com consciencia)
 
@@ -122,6 +123,25 @@ if echo "${STAGED:-}" | grep -qE "$TEST_PATTERNS"; then
     echo ""
     echo "💡 [AVISO] tests/* alterado. Considere atualizar tests/README.md."
     echo ""
+  fi
+fi
+
+# ----------------------------------------------------------------
+# 5. AGENTS SCHEMA - bloqueante se AGENTS.md estiver staged e invalido
+# ----------------------------------------------------------------
+if echo "${STAGED:-}" | grep -q 'AGENTS\.md$'; then
+  if [ -n "$PY" ] && [ -f "scripts/agents_tool.py" ] && [ -f "config/agents_schema.yaml" ]; then
+    AGENTS_RESULT=$("$PY" scripts/agents_tool.py --check 2>&1) || true
+    if echo "$AGENTS_RESULT" | grep -q "\[FAIL\]"; then
+      echo ""
+      echo "🚨 COMMIT BLOQUEADO: AGENTS.md nao passa no schema check."
+      echo "$AGENTS_RESULT" | grep "\[FAIL\]" | head -10
+      echo ""
+      echo "Execute 'python scripts/agents_tool.py --check' para ver os problemas"
+      echo "Ou 'git commit --no-verify' para pular (NAO recomendado)"
+      echo ""
+      exit 1
+    fi
   fi
 fi
 

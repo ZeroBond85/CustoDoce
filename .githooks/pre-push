@@ -53,7 +53,16 @@ def main() -> int:
         return 1
     print("[OK] secrets: limpos", file=sys.stderr)
 
-    print("[2/3] ci_local.py...", file=sys.stderr)
+    print("[1.5/4] agents_tool --check (schema)...", file=sys.stderr)
+    result = run([THIS_PYTHON, "scripts/agents_tool.py", "--check"])
+    if result.returncode != 0:
+        print("FALHA: agents_tool --check falhou. Corrija AGENTS.md antes de push.", file=sys.stderr)
+        if result.stdout:
+            print(result.stdout[-1000:], file=sys.stderr)
+        return 1
+    print("[OK] AGENTS.md schema valido", file=sys.stderr)
+
+    print("[2/4] ci_local.py...", file=sys.stderr)
     # Check if user wants to run unit tests (via env var)
     run_unit = os.environ.get("CI_LOCAL_UNIT") == "1"
     ci_args = [THIS_PYTHON, "scripts/ci_local.py"]

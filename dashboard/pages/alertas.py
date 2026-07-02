@@ -137,9 +137,9 @@ def _contact_options(channel: str) -> list[str]:
     recipients = cached_get_active_recipients(channel) or []
     options: list[str] = []
     for r in recipients:
-        contact = r.get("email") if channel == "email" else r.get("chat_id")
-        if contact:
-            options.append(str(contact))
+        target = r.get("target")
+        if target:
+            options.append(str(target))
     return options
 
 
@@ -186,9 +186,16 @@ def _render_new_rule_tab() -> None:
                 rule_data = {
                     "name": name,
                     "trigger": trigger,
-                    "ingredient": ingredient,
-                    "threshold": threshold,
-                    "comparison": comparison,
+                    "channel": "alert",
+                    "condition": {
+                        key: val
+                        for key, val in [
+                            ("ingredient", ingredient or None),
+                            ("threshold", threshold if threshold > 0 else None),
+                            ("comparison", comparison if threshold > 0 else None),
+                        ]
+                        if val is not None
+                    },
                     "enabled": enabled,
                     "recipients": recipients,
                 }
@@ -215,7 +222,7 @@ def _render_recipients_tab() -> None:
         col1, col2 = st.columns(2)
         with col1:
             channel = st.selectbox("Canal", ["email", "telegram"])
-            contact = st.text_input("Contato*", placeholder="email@exemplo.com ou -100xxxxxxxx")
+            target = st.text_input("Contato*", placeholder="email@exemplo.com ou -100xxxxxxxx")
         with col2:
             name = st.text_input("Nome", placeholder="Descrição do destinatário")
             is_active = st.checkbox("Ativo", value=True)
@@ -223,15 +230,15 @@ def _render_recipients_tab() -> None:
         submitted = st.form_submit_button("Adicionar Destinatário", type="primary")
 
         if submitted:
-            if not contact:
+            if not target:
                 st.error("Contato é obrigatório")
             else:
                 result = upsert_recipient(
                     {
                         "channel": channel,
-                        "contact": contact,
+                        "target": target,
                         "name": name,
-                        "is_active": is_active,
+                        "active": is_active,
                     }
                 )
                 if result:

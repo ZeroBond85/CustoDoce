@@ -29,7 +29,7 @@ def render_lojas():
 
         if stores:
             df = pd.DataFrame(stores)
-            expected_cols = ["id", "name", "tier", "scraper", "city", "state", "is_active", "base_url"]
+            expected_cols = ["id", "name", "tier", "scraper", "city", "active", "base_url"]
             df = df.reindex(columns=[c for c in expected_cols if c in df.columns])
             st.dataframe(df, use_container_width=True)
 
@@ -61,8 +61,7 @@ def render_lojas():
                 "tier": 2,
                 "scraper": "website_scraper",
                 "city": "Santos",
-                "state": "SP",
-                "is_active": True,
+                "active": True,
                 "base_url": "",
                 "search_url": "",
                 "selectors": {},
@@ -102,8 +101,7 @@ def render_lojas():
                     ].index(default["scraper"]),
                 )
                 city = st.text_input("Cidade", value=default["city"])
-                state = st.text_input("Estado", value=default["state"])
-                is_active = st.checkbox("Ativa", value=default["is_active"])
+                active = st.checkbox("Ativa", value=default.get("active", True))
 
             with col2:
                 base_url = st.text_input("Base URL", value=default.get("base_url", ""))
@@ -133,8 +131,7 @@ def render_lojas():
                         "tier": tier,
                         "scraper": scraper,
                         "city": city,
-                        "state": state,
-                        "is_active": is_active,
+                        "active": active,
                         "base_url": base_url,
                         "search_url": search_url,
                         "api_endpoint": api_endpoint,

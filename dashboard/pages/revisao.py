@@ -120,7 +120,7 @@ def render_revisao():
 
             with col_approve:
                 # Selectbox de ingrediente
-                suggested = item.get("suggested_ingredient")
+                suggested = item.get("resolved_ingredient")
                 default_idx = 0
                 if suggested and suggested in ing_options:
                     default_idx = list(ing_options.keys()).index(suggested) + 1

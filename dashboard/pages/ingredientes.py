@@ -175,22 +175,22 @@ def render_ingredientes():
         if category_filter:
             filtered = filtered[filtered["category"].isin(category_filter)]
         if status_filter == "Ativos":
-            filtered = filtered[filtered["is_active"]]
+            filtered = filtered[filtered["active"]]
         elif status_filter == "Inativos":
-            filtered = filtered[~filtered["is_active"]]
+            filtered = filtered[~filtered["active"]]
 
-        display_cols = ["canonical_name", "category", "unit", "brands", "search_terms", "aliases", "is_active"]
+        display_cols = ["canonical_name", "category", "unit_target", "brands", "search_terms", "aliases", "active"]
         if not filtered.empty:
             st.dataframe(
                 filtered[[c for c in display_cols if c in filtered.columns]].rename(
                     columns={
                         "canonical_name": "Nome Canônico",
                         "category": "Categoria",
-                        "unit": "Unidade Base",
+                        "unit_target": "Unidade Base",
                         "brands": "Marcas",
                         "search_terms": "Termos de Busca",
                         "aliases": "Apelidos",
-                        "is_active": "Ativo",
+                        "active": "Ativo",
                     }
                 ),
                 use_container_width=True,
@@ -232,8 +232,8 @@ def render_ingredientes():
                 except (ValueError, TypeError):
                     cat_index = CANONICAL_CATEGORIES.index("outros")
                 category = st.selectbox("Categoria", CANONICAL_CATEGORIES, index=cat_index)
-                unit = st.text_input("Unidade Base", value=ing_data.get("unit", "kg"))
-                is_active = st.checkbox("Ativo", value=ing_data.get("is_active", True))
+                unit = st.text_input("Unidade Base", value=ing_data.get("unit_target", "kg"))
+                active = st.checkbox("Ativo", value=ing_data.get("active", True))
 
             with col2:
                 brands_lines = "\n".join(ing_data.get("brands", []) or [])
@@ -252,11 +252,11 @@ def render_ingredientes():
                     ing_dict = {
                         "canonical_name": canonical,
                         "category": category,
-                        "unit": unit,
+                        "unit_target": unit,
                         "brands": [b.strip() for b in brands.split("\n") if b.strip()],
                         "search_terms": [s.strip() for s in search_terms.split("\n") if s.strip()],
                         "aliases": [a.strip() for a in aliases.split("\n") if a.strip()],
-                        "is_active": is_active,
+                        "active": active,
                     }
                     is_actually_new = is_new or not any(
                         i.get("canonical_name") == canonical for i in ingredients_yaml

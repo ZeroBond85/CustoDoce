@@ -69,7 +69,7 @@ def render_fontes():
         stores = get_stores_with_frequencies()
     if stores:
         df = pd.DataFrame(stores)
-        cols = [c for c in ["name", "tier", "scraper", "is_active", "scrape_frequency"] if c in df.columns]
+        cols = [c for c in ["name", "tier", "scraper", "active", "scrape_frequency"] if c in df.columns]
         df = df.reindex(columns=cols)
         st.dataframe(df, use_container_width=True)
 

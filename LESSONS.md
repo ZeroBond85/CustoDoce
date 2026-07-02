@@ -1,0 +1,172 @@
+# Lições Aprendidas
+
+> Extraídas de AGENTS.md. Numeração original preservada.
+> Regras de execução/ambiente → `REGRAS.md`.
+
+### 1. Mocks — boundary layer, not internal functions
+
+```python
+# ❌ ERRADO: patcha onde a função é definida
+@patch("services.dashboard_queries.get_latest_prices_cached")
+def test_x(): ...
+
+# ✅ CERTO: patcha onde é usada
+@patch("dashboard.pages.relatorios.get_latest_prices_cached")
+def test_x(): ...
+```
+
+Ou marca como `@pytest.mark.integration` e deixa o conftest `db_conn` resolver via RPC.
+
+### 2. Tests que tocam Supabase real — marque `integration`
+
+Marque com `@pytest.mark.integration`. `pyproject.toml` tem `addopts = "-m 'not slow and not integration'"`.
+
+### 3. `exec_sql_query` RPC (porta 443), NUNCA `psycopg2` (porta 5432)
+
+GitHub Actions bloqueia porta 5432. Use o fixture `db_conn` do `tests/conftest.py`.
+
+### 4. Cleanup POST test, não só PRE
+
+Setup PRE não basta — sempre cleanup POST também. Filtre por `collected_at = today` ao validar.
+
+### 5. `deploy_check.py` — required vs optional env
+
+Required: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`. Optional: `GMAIL_*`, `AUTH_SECRET_KEY`, `SUPABASE_ANON_KEY`, `TELEGRAM_*`. Opcionais viram WARN, não bloqueiam.
+
+### 6. Pre-commit hook SECRETS GUARD — bloqueia, não skipa
+
+Padrões: `sk-*`, `gsk_*`, `sk-or-*`, `sk-or-v1-*`, `sk-proj-*`, `hf_*`, `github_pat_*`, `nvapi-*`, `mOns*`, `AQ.*`.
+
+### 7. `PIP_INDEX_URL` → `PIP_EXTRA_INDEX_URL`
+
+Para torch CPU em CI: use `PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu`. `PIP_INDEX_URL` SUBSTITUI PyPI e quebra `ruff`/`mypy`.
+
+### 8. `get_supabase()` deve ter fallback se `SUPABASE_ANON_KEY` faltar
+
+```python
+# ✅ CERTO:
+key = os.environ.get("SUPABASE_ANON_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+```
+
+`get_supabase()` prefere `SUPABASE_ANON_KEY` mas aceita `SUPABASE_SERVICE_ROLE_KEY` como fallback.
+
+### 9. `SUPABASE_ANON_KEY` deve ser passado explicitamente nos jobs CI
+
+A secret existe no GitHub mas precisa ser mapeada no workflow. Sempre adicionar `SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}`.
+
+### 10. `exec_sql_query` RPC — sem trailing semicolons
+
+SQL com `;` no final quebra a subquery. Remova qualquer `;` no final de queries enviadas via `client.rpc("exec_sql_query", {"sql": sql})`.
+
+### 12. Streamlit Cloud E2E flakiness — use continue-on-error + warmup agressivo
+
+E2E contra infra externa que hiberna = sempre continue-on-error + warmup agressivo (min 6 rounds, 3min total). Verificar Lição #18 (failure() com continue-on-error).
+
+### 14. Auto-disable scrapers — SEMPRE investigar causa raiz antes
+
+Antes de mexer em `is_active`, fazer dry-run do `_auto_disable_if_needed`. Logs devem mostrar CAUSA detalhada.
+
+### 15. Self-healing OBRIGATORIO em todos os scrapers
+
+API obrigatória:
+- `record_failure(scraper_name, reason, items_found, products_matched, flyer_count, attempted_by)`
+- `record_success(scraper_name, items_found, products_matched, flyer_count, attempted_by)`
+- `attempt_heal(scraper_name=None, dry_run=False)` — cron 15d
+
+Config em `config/features.yaml`:
+```yaml
+self_healing:
+  enabled: true
+  required: true
+  threshold_failures: 3
+  heal_days: 15
+  recovery_min_items: 1
+```
+
+### 16. Causa raiz > Mascarar
+
+Investigar raiz ANTES de aplicar patches. Logar `error_class` (Timeout|SSLError|LayoutChanged|...). Causa raiz ≠ log.message.
+
+### 17. `hashFiles()` no GHA só funciona com arquivos trackados pelo git
+
+```yaml
+# ✅ CERTO:
+if: steps.file.outputs.filename != ''
+```
+
+### 18. `if: failure()` não dispara dentro de `continue-on-error: true` jobs
+
+Use `if: always() && steps.meu_teste.outcome == 'failure'` e adicione `id:` ao step.
+
+### 19. Script inline Python em heredoc no YAML — delimiter na coluna 0
+
+Solução: extrair para arquivo `.py` separado.
+
+### 20. Streamlit Cloud virou SPA (React) — HTTP warmup é inútil
+
+Playwright (browser real) é obrigatório. CI (push/PR) usa localhost:8501. Schedule mensal testa cloud real.
+
+### 21. `page.wait_for_timeout()` é frágil para cold start E2E — use polling
+
+Sempre usar polling (45s) para elementos que dependem de renderização assíncrona.
+
+### 22. `httpx>=0.28` pode resolver para 1.x — sempre pin upper bound
+
+```txt
+# ✅ CERTO:
+httpx>=0.28,<1.0
+```
+
+### 24. "Pré-existente" não é desculpa — corrija ou prove que é bloqueado
+
+"Pré-existente" exige prova. Se é 1-5 linhas e não quebra nada, corrija agora.
+
+### 23. Migration SQL nova precisa ser incluída em `deploy_database.py`
+
+Toda migration SQL nova DEVE ser adicionada ao `generate_consolidated()`.
+
+### 25. Novo código = novos testes
+
+Módulo novo = `test_<modulo>.py` no mesmo PR. Unitários puros primeiro (mock I/O), integração depois.
+
+### 26. Push → Acompanha CI até PASS
+
+Análise prévia → resiliência durante → completude no fim. `--no-verify` só em emergência real, com justificativa no commit.
+
+### 29. Sidebar/navigation NÃO renderizava em headless por TypeError/AttributeError silencioso
+
+Root cause: `get_longitudinal_winners()` sem argumento `days` + `normalized` bool em vez de dict. Fix: `days=90` + `isinstance` guard.
+
+### 30. Normalized pode ser `true` (bool) no Supabase — NUNCA use `p.get("normalized") or {}`
+
+Commit: `da3e9f6`. SEMPRE proteger com `isinstance(raw, dict)` antes de `.get("price_per_kg")`. 21 ocorrências em 7 arquivos.
+
+### 31. Schema Sync Validation — pre-req obrigatório antes de push
+
+3 camadas: Contract tests (`test_dashboard_query_shapes.py`) + Schema introspection (pre-push) + Mocks realistas (dump real).
+
+### 32. Mocks devem refletir realidade — gerar de dump real, não hand-crafted
+
+Fixtures de teste = dump real do Supabase. Se mock precisa de caso edge, adicionar explicitamente ao fixture real, não inventar.
+
+### 33. Contract tests como primeira linha de defesa — não E2E
+
+Novo query em `dashboard_queries.py` = novo teste em `test_dashboard_query_shapes.py` no MESMO PR. E2E é validação de UX, não de schema.
+
+### 34. CI leve para iteração E2E — não queimar free tier no pipeline completo
+
+Iteração de bug E2E = branch + `ci-e2e-only.yml` (~4 min). Full CI só no merge final.
+
+### 35. AGENTS.md sanitization (Sprint 11) — schema, split, agents_tool.py
+
+AGENTS.md cresceu para 974 linhas, misturando lições, regras infra, ambiente e projeto vivo. Split em 3 arquivos + schema YAML + ferramenta de gestão:
+
+- `config/agents_schema.yaml` — schema que define o que pode entrar no AGENTS.md (headings, max_lines, blocked patterns)
+- `scripts/agents_tool.py` — ponto único de entrada: `--check`, `--full`, `--add-rule`, `--add-lesson`, `--status`
+- 3 gatilhos de validação: pre-commit (+1s se AGENTS.md staged) → pre-push (+1s, agents_tool --check) → CI docs-sync (+8s)
+
+Regra permanente:
+- AGENTS.md mantido em ~350 linhas máximo
+- Lições novas vão para LESSONS.md (via `--add-lesson`)
+- Regras novas de execução vão para REGRAS.md
+- CI valida schema a cada push/merge
