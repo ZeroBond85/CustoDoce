@@ -113,9 +113,9 @@ def test_get_stores_with_frequencies_shape():
 
 
 def test_prices_table_expected_columns():
-    """Prices table must have ingredient_id, store_id, price_per_kg, normalized."""
+    """Prices table must have ingredient_id, store_id, raw_price, price_per_kg."""
     cols = table_columns("prices")
-    for col in ("ingredient_id", "store_id", "price", "collected_at"):
+    for col in ("ingredient_id", "store_id", "raw_price", "price_per_kg", "collected_at", "normalized"):
         assert col in cols, f"Prices table missing column '{col}'"
 
 
@@ -127,7 +127,7 @@ def test_get_latest_prices_cached_shape():
     if not prices:
         pytest.skip("No prices in DB")
     p = prices[0]
-    for key in ("ingredient_id", "store_id", "price", "collected_at", "normalized"):
+    for key in ("ingredient_id", "store_id", "raw_price", "price_per_kg", "collected_at", "normalized"):
         assert key in p, f"Missing key '{key}' in price row"
 
 
@@ -137,14 +137,14 @@ def test_get_latest_prices_cached_shape():
 
 
 def test_get_cross_ingredient_ranking_shape():
-    """get_cross_ingredient_ranking must return rows with ingredient_id, wins, store_name."""
+    """get_cross_ingredient_ranking returns rows with store_name, top1_count, top3_count, total_ingredients."""
     from services.dashboard_queries import get_cross_ingredient_ranking_cached
 
     ranking = get_cross_ingredient_ranking_cached(days=90)
     if not ranking:
         pytest.skip("No ranking data in DB")
     r = ranking[0]
-    for key in ("ingredient_id", "wins"):
+    for key in ("store_name", "top1_count", "top3_count"):
         assert key in r, f"Missing key '{key}' in ranking row"
 
 
@@ -164,5 +164,5 @@ def test_flyers_table_columns():
     """Flyers table must have expected columns."""
     cols = table_columns("flyers")
     if cols:
-        for col in ("id", "store_name", "start_date", "end_date"):
+        for col in ("id", "store_name", "flyer_date_start", "flyer_date_end"):
             assert col in cols, f"Flyers table missing column '{col}'"

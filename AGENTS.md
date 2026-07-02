@@ -108,7 +108,7 @@ CustoDoce/
 │   ├── archive/                     # 28 scripts históricos
 │   └── ... (+30 scripts utilitários)
 ├── tests/
-│   ├── unit/                        # 518 testes (21 arquivos: +65 do Sprint 7-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9) — dashboard + services + llm + contract
+│   ├── unit/                        # 518 testes (21 arquivos: +65 do Sprint 7-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9-9) — dashboard + services + llm + contract
 │   ├── schema/                      # 94 testes parametrizados (1 arquivo)
 │   ├── integration/                 # 13 arquivos — Benchmarks + DB integration (via RPC)
 │   ├── design/                      # 1 arquivo — CSS/estrutura (10 testes)
@@ -288,7 +288,7 @@ python scripts/seed_prices.py --dry-run
 | Ferramenta | Status |
 |------------|--------|
 | pytest (unit + schema) | 612 passing (unit: 518, schema: 94) | ✅ |
-| pytest (integration) | 102 passing | ✅ |
+| pytest (integration) | 112 passing | ✅ |
 | pytest (real, slow) | 6 passing | ✅ |
 | pytest (e2e) | 60 collected (blocked on Playwright live Streamlit Cloud) | ⏳ |
 
@@ -763,6 +763,116 @@ key=lambda x: (x.get("normalized") if isinstance(x.get("normalized"), dict) else
 **Corrigido em:** Phase 3, Sprint 10, 2026-07-01. Commit `???` (pendente).
 
 **Regra permanente:** SEMPRE proteger `p.get("normalized")` com `isinstance(raw, dict)` antes de chamar `.get("price_per_kg")`. Nunca confiar no tipo do dado vindo do Supabase — tipo `jsonb` pode conter `true`/`false` mesmo que o schema espere objeto.
+
+### 31. Schema Sync Validation — pre-req obrigatório antes de push
+
+**Problema descoberto (Sprint 10, 2026-07-02):** Múltiplos bugs de schema só apareceram no CI E2E real contra Supabase produção:
+- `scraping_logs.completed_at` (código) vs `finished_at` (schema real)
+- `stores.state` (código `df[["state"]]`) — coluna não existe no schema real
+- `get_longitudinal_winners(days)` chamado sem argumento `days`
+- `ranking.py`: `ingredient` vs `ingredient_id`, `wins` vs `win_count`, `store` vs `store_name`
+
+**Causa raiz:** Mocks de unit tests retornam dados "felizes" com todas as colunas esperadas. O schema real do Supabase diverge do que o código assume. Não há validação automática de que colunas queryadas existem no schema.
+
+**Solução (3 camadas):**
+
+1. **Contract tests** (`tests/integration/test_dashboard_query_shapes.py`): chamam queries reais e validam shape dos dados retornados contra schema real. Rodam em **segundos** nos integration tests (porta 443 via RPC).
+
+2. **Schema introspection check** no `pre-push` hook: antes do push, validar que TODAS as colunas referenciadas em `.select("...")` e `df[[...]]` existem no schema real via `information_schema.columns`.
+
+3. **Mocks realistas**: fixtures de testes devem ser geradas a partir de dump real do Supabase (`scripts/dump_real_fixtures.py`), NÃO escritas à mão.
+
+```bash
+# Adicionar ao pre-push hook:
+python scripts/validate_query_columns.py  # falha se coluna queryada não existe no schema real
+```
+
+**Regra permanente:** ANTES de push que toca queries/dashboard, rodar validação de schema. Se falhar, corrigir código OU migrar schema — nunca assumir que "funciona local".
+
+---
+
+### 32. Mocks devem refletir realidade — gerar de dump real, não hand-crafted
+
+**Problema:** Mocks em `tests/unit/` sempre retornam objetos completos com todos os campos (`normalized: {price_per_kg: ...}`, `state: "SP"`, `completed_at: "..."`). O Supabase real tem:
+- `normalized: true` (bool) em vez de dict
+- `state: NULL` (coluna ausente) em registros antigos
+- `finished_at` em vez de `completed_at`
+- Campos opcionais que podem ser `null`
+
+**Regra permanente:**
+- Fixtures de teste = dump real do Supabase (via `scripts/dump_real_fixtures.py --table prices --limit 100`)
+- Unit tests que mockam `get_supabase()` devem usar dados que passaram pela validação de schema
+- Se mock precisa de um caso edge (bool normalized, coluna missing), adicionar explicitamente ao fixture real, não inventar
+
+```python
+# ❌ ERRADO: mock inventado
+@patch("services.dashboard_queries.get_supabase")
+def test_x(mock_client):
+    mock_client.table.return_value.select.return_value.execute.return_value.data = [
+        {"ingredient_id": "1", "normalized": {"price_per_kg": 10.0}}  # sempre dict
+    ]
+
+# ✅ CERTO: fixture real validada
+@pytest.fixture
+def real_price_row():
+    return load_fixture("prices_row_with_bool_normalized.json")  # pode ter normalized=true
+```
+
+---
+
+### 33. Contract tests como primeira linha de defesa — não E2E
+
+**Problema:** Bugs de schema só pegos no `test_all_pages_crawl` (E2E, 2-3 min, flaky, gasta minutes do free tier).
+
+**Solução:** Contract tests em `tests/integration/test_dashboard_query_shapes.py`:
+- Chamam funções reais de `dashboard_queries.py` contra Supabase real (porta 443)
+- Validam: colunas retornadas ⊇ colunas esperadas pelas páginas
+- Rodam em **<10s** no job `integration` do CI
+- Pegam: `completed_at` vs `finished_at`, colunas faltando, tipos errados
+
+**Pipeline ideal:**
+```
+pre-push: schema validation (segundos)
+  ↓
+CI unit: mocks realistas (segundos)
+  ↓
+CI integration: contract tests + real DB queries (segundos) ← PEGA BUGS DE SCHEMA
+  ↓
+CI e2e-smoke (ci-e2e-only.yml): page crawl (minutos) ← VALIDAÇÃO FINAL UX
+  ↓
+Full CI (apenas em merge/main): lint + type + unit + integration + deploy-check + e2e
+```
+
+**Regra permanente:** Novo query em `dashboard_queries.py` = novo teste em `test_dashboard_query_shapes.py` no MESMO PR. E2E é validação de UX, não de schema.
+
+---
+
+### 34. CI leve para iteração E2E — não queimar free tier no pipeline completo
+
+**Problema:** Cada iteração de fix de página (completed_at, state, ranking, etc.) disparava full CI (~20 min, 7 jobs) só para validar 1 teste E2E de 4 min.
+
+**Solução implementada:** `.github/workflows/ci-e2e-only.yml` (workflow_dispatch):
+- Só: checkout → install → playwright install → start streamlit → pytest e2e smoke → upload screenshots
+- **~4 min** vs **~20 min** do full pipeline
+- Trigger manual: `gh workflow run ci-e2e-only.yml --ref fix/branch-name`
+
+**Fluxo de iteração:**
+```bash
+# 1. Cria branch para fix
+git checkout -b fix/scraping-logs-column
+
+# 2. Faz fix + contract test
+# 3. Push branch (NÃO master — evita full CI)
+git push origin fix/scraping-logs-column
+
+# 4. Roda CI leve só pra E2E
+gh workflow run ci-e2e-only.yml --ref fix/scraping-logs-column
+
+# 5. Se PASS → merge to master (full CI roda 1x no final)
+#    Se FAIL → fixa, push branch, roda ci-e2e-only de novo
+```
+
+**Regra permanente:** Iteração de bug E2E = branch + `ci-e2e-only.yml`. Full CI só no merge final.
 
 ## OpenCode Skills Strategy
 

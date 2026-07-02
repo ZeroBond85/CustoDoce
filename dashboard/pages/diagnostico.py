@@ -66,7 +66,7 @@ def render_diagnostico():
             if st.button("Testar Supabase", key="test_sb"):
                 try:
                     client = get_supabase()
-                    client.table("stores").select("count").limit(1).execute()
+                    client.table("stores").select("id", count="exact").limit(1).execute()
                     st.success("✅ OK")
                 except Exception as e:
                     st.error(f"❌ ERRO: {e}")
@@ -132,7 +132,7 @@ def render_diagnostico():
                     st.bar_chart(df["ingredient_id"].value_counts())
 
                 # Check review queue
-                rq = client.table("review_queue").select("count").limit(1).execute()
+                rq = client.table("review_queue").select("id", count="exact").limit(1).execute()
                 st.info(f"📋 Fila de revisão: {rq.count if hasattr(rq, 'count') else len(rq.data)} itens")
 
     with tabs[3]:  # Capacity Planning
