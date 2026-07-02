@@ -29,7 +29,8 @@ def render_lojas():
 
         if stores:
             df = pd.DataFrame(stores)
-            df = df[["id", "name", "tier", "scraper", "city", "state", "is_active", "base_url"]]
+            expected_cols = ["id", "name", "tier", "scraper", "city", "state", "is_active", "base_url"]
+            df = df.reindex(columns=[c for c in expected_cols if c in df.columns])
             st.dataframe(df, use_container_width=True)
 
         st.divider()
@@ -39,7 +40,8 @@ def render_lojas():
         schedules = cached_get_all_schedules(include_disabled=True)
         if schedules:
             df = pd.DataFrame(schedules)
-            df = df[["store_id", "enabled", "cron_expression", "timezone", "max_retries"]]
+            expected_cols = ["store_id", "enabled", "cron_expression", "timezone", "max_retries"]
+            df = df.reindex(columns=[c for c in expected_cols if c in df.columns])
             st.dataframe(df, use_container_width=True)
 
     with tabs[1]:  # Adicionar/Editar

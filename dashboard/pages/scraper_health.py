@@ -95,9 +95,8 @@ def render_scraper_health():
     with tabs[2]:
         if logs_data:
             df = pd.DataFrame(logs_data)
-            df = df[
-                ["store_name", "status", "started_at", "completed_at", "items_found", "items_matched", "error_message"]
-            ]
+            cols = [c for c in ["store_name", "status", "started_at", "completed_at", "items_found", "items_matched", "error_message"] if c in df.columns]
+            df = df.reindex(columns=cols)
             st.dataframe(df, use_container_width=True, hide_index=True)
         else:
             st.info("Nenhum log disponível.")

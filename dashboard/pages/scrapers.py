@@ -26,9 +26,8 @@ def render_scrapers():
         logs = get_recent_scraper_logs(100)
         if logs:
             df = pd.DataFrame(logs)
-            df = df[
-                ["store_name", "status", "started_at", "completed_at", "items_found", "items_matched", "error_message"]
-            ]
+            cols = [c for c in ["store_name", "status", "started_at", "completed_at", "items_found", "items_matched", "error_message"] if c in df.columns]
+            df = df.reindex(columns=cols)
             st.dataframe(df, use_container_width=True)
         else:
             st.info("Nenhum log encontrado.")
@@ -40,8 +39,9 @@ def render_scrapers():
         health = get_store_health()
         if health:
             df = pd.DataFrame(health)
-            df["error_rate"] = df["errors"] / df["runs"].replace(0, 1)
-            df = df.sort_values("error_rate", ascending=False)
+            if "errors" in df.columns and "runs" in df.columns:
+                df["error_rate"] = df["errors"] / df["runs"].replace(0, 1)
+                df = df.sort_values("error_rate", ascending=False)
             st.dataframe(df, use_container_width=True)
 
     with tabs[1]:  # Agendamentos
