@@ -304,7 +304,7 @@ def get_store_health():
     client = get_supabase()
     logs = (
         client.table("scraping_logs")
-        .select("store_name, status, started_at, completed_at, items_found, items_matched")
+        .select("store_name, status, started_at, finished_at, items_found, items_matched")
         .order("started_at", desc=True)
         .limit(200)
         .execute()
@@ -328,7 +328,7 @@ def get_store_health():
             health[store]["last_run"] = log.get("started_at")
 
         started = log.get("started_at")
-        completed = log.get("completed_at")
+        completed = log.get("finished_at")
         if started and completed:
             try:
                 from datetime import datetime
