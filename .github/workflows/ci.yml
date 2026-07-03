@@ -30,7 +30,7 @@ jobs:
           python scripts/generate_schema_manifest.py
           python -m pytest tests/unit/test_validate_mocks_against_manifest.py -q --no-header
       - run: bandit -r admin/ dashboard/ services/ -x tests/
-      - run: pip-audit --strict -s osv -r requirements.lock
+      - run: pip-audit --strict -s osv -r requirements.txt
 
   typecheck:
     runs-on: ubuntu-latest
