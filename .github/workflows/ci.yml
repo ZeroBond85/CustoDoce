@@ -24,6 +24,10 @@ jobs:
           cache: 'pip'
       - run: pip install -r requirements-dev.txt
       - run: ruff check . --output-format=github
+      - name: Validate schema manifest (SQL → mock alignment)
+        run: |
+          python scripts/generate_schema_manifest.py
+          python -m pytest tests/unit/test_validate_mocks_against_manifest.py -q --no-header
       - run: bandit -r admin/ dashboard/ services/ -x tests/
       - run: pip-audit --strict -s osv -r requirements.txt
 

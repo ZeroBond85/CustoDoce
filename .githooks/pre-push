@@ -87,6 +87,27 @@ def main() -> int:
         return 1
     print("[OK] schema: todas as colunas existem no Supabase", file=sys.stderr)
 
+    print("[3.5/4] audit_df_columns...", file=sys.stderr)
+    result = run([THIS_PYTHON, "scripts/audit_df_columns.py"])
+    if result.returncode != 0:
+        print("FALHA: colunas usadas em DataFrames nao existem no schema ou alias.", file=sys.stderr)
+        if result.stdout:
+            print(result.stdout[-1500:], file=sys.stderr)
+        return 1
+    print("[OK] audit_df_columns: DataFrame columns valid", file=sys.stderr)
+
+    print("[3.75/4] schema_manifest + mock validation...", file=sys.stderr)
+    result = run([THIS_PYTHON, "scripts/generate_schema_manifest.py"])
+    if result.returncode != 0:
+        print("FALHA: nao foi possivel gerar schema manifest.", file=sys.stderr)
+        return 1
+    result = run([THIS_PYTHON, "-m", "pytest", "tests/unit/test_validate_mocks_against_manifest.py", "-q", "--no-header"])
+    if result.returncode != 0:
+        print("FALHA: mock data nao alinhado com schema real.", file=sys.stderr)
+        print("Corrija os mocks em tests/ OU atualize o schema em supabase/consolidated_migration.sql.", file=sys.stderr)
+        return 1
+    print("[OK] schema_manifest + mock validation: todos os mocks alinhados ao schema real", file=sys.stderr)
+
     print("[4/4] test_total_coverage (light, no integration/real)...", file=sys.stderr)
     # Sprint 4: opt-in full pipeline via TEST_TOTAL opt-in env var.
     # Skip by default to keep pre-push <30s. Set TEST_TOTAL=1 to enable.

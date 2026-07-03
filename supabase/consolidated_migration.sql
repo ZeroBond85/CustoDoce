@@ -119,6 +119,26 @@ CREATE INDEX IF NOT EXISTS idx_scraping_logs_status ON scraping_logs(status);
 CREATE INDEX IF NOT EXISTS idx_scraping_logs_started ON scraping_logs(started_at DESC);
 
 -- ============================================================================
+-- SCRAPER HEALTH LOG (failure/success events for self-healing)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS scraper_health_log (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    scraper_name TEXT NOT NULL,
+    event_type TEXT NOT NULL CHECK (event_type IN ('failure', 'success', 'auto_disabled', 'auto_reactivated')),
+    error_class TEXT,
+    reason TEXT,
+    failures_count INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    attempted_by TEXT DEFAULT 'auto',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_scraper_health_log_name ON scraper_health_log(scraper_name);
+CREATE INDEX IF NOT EXISTS idx_scraper_health_log_type ON scraper_health_log(event_type);
+CREATE INDEX IF NOT EXISTS idx_scraper_health_log_created ON scraper_health_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scraper_health_log_name_type ON scraper_health_log(scraper_name, event_type);
+
+-- ============================================================================
 -- STORES METADATA (mirror of stores.yaml for reference in DB)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS stores (
