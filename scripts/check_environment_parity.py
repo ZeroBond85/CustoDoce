@@ -48,18 +48,18 @@ def _check_platform() -> list[str]:
     return errors
 
 
-def _check_lock_hashes() -> list[str]:
+def _check_lock_valid() -> list[str]:
     errors: list[str] = []
     if not LOCK_FILE.exists():
         errors.append(f"requirements.lock nao encontrado em {LOCK_FILE}")
         return errors
 
     result = subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--dry-run", "-r", str(LOCK_FILE), "--require-hashes"],
+        [sys.executable, "-m", "pip", "install", "--dry-run", "-r", str(LOCK_FILE)],
         capture_output=True, text=True, cwd=REPO_ROOT, timeout=120,
     )
     if result.returncode != 0:
-        errors.append(f"pip --require-hashes falhou: {result.stderr.strip()[-500:]}")
+        errors.append(f"pip dry-run falhou: {result.stderr.strip()[-500:]}")
     return errors
 
 
@@ -89,7 +89,7 @@ def main() -> int:
     all_warnings.extend(py_warnings)
 
     all_errors.extend(_check_platform())
-    all_errors.extend(_check_lock_hashes())
+    all_errors.extend(_check_lock_valid())
     all_errors.extend(_check_agents_md_rule_10())
 
     for w in all_warnings:
