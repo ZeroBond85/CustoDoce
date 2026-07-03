@@ -179,8 +179,13 @@ python -m pytest tests/integration/ -q -x
 | AGENTS.md | 974→~370 linhas (Sprint 11 sanitization) |
 | LESSONS.md | 32 lições movidas |
 | REGRAS.md | Ambiente + hooks + comandos |
-| CI lint/type/test | ✅ Todos verdes |
+| CI lint/type/test | ✅ Todos verdes (Python 3.14) |
 | E2E (cloud) | ⏳ Mensal (Playwright) |
+| Python local (Windows) | 3.14.6 (`.venv314`) |
+| Python CI (GitHub Actions) | 3.14 (`PYTHON_VERSION=3.14`) |
+| Python WSL | 3.14 (`custodoce-314`) |
+| Python Cloud (Streamlit) | 3.14 (pending UI update) |
+| requirements.lock | 130+ packages, no hashes |
 
 ## Ambiente
 

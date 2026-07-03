@@ -15,15 +15,24 @@ Run in CI (fails if docs are outdated):
 
 Run with full .md audit (also checks stale page/test counts in all .md files):
     python scripts/sync_docs.py --check --strict   # exit 1 if any stale pattern found
+
+V2 features (embedded from sync_docs_v2):
+    python scripts/sync_docs.py --analyze             # classify stale refs by heading
+    python scripts/sync_docs.py --sync                # auto-update CURRENT blocks
+    python scripts/sync_docs.py --sync --dry-run      # preview changes
+    python scripts/sync_docs.py --dump-truth          # print truth JSON
+    python scripts/sync_docs.py --strict --experimental  # strict audit using v2 classifier
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import sys
-from datetime import datetime
+from collections import Counter
+from datetime import datetime, UTC
 from pathlib import Path
 
 os.environ.setdefault("PYTHONIOENCODING", "utf-8")
@@ -40,6 +49,11 @@ _OK = "OK"
 _FAIL = "FAIL"
 
 
+# ═══════════════════════════════════════════════════════════════════
+# v1 — Production core (drift detection, AGENTS.md update, auto-fixers)
+# ═══════════════════════════════════════════════════════════════════
+
+
 def _count_tests() -> dict:
     """Count tests by category using pytest --collect-only (no import needed).
 
@@ -50,9 +64,8 @@ def _count_tests() -> dict:
     import subprocess
 
     result = {}
-    # Compiled patterns once for speed and consistency
-    sync_pat = re.compile(r"<Function\s+test_")  # sync tests
-    async_pat = re.compile(r"<Coroutine\s+test_")  # async tests
+    sync_pat = re.compile(r"<Function\s+test_")
+    async_pat = re.compile(r"<Coroutine\s+test_")
 
     for test_path, label in [
         ("tests/unit", "unit"),
@@ -115,7 +128,6 @@ def _extract_actual_test_count(test_path: str) -> tuple[int, int]:
             timeout=60,
             cwd=str(_ROOT),
         )
-        # Pattern: "X tests collected in N.NNs"
         m = re.search(r"(\d+)\s+tests?\s+collected", proc.stdout)
         pytest_total = int(m.group(1)) if m else 0
         sync_count = len(re.findall(r"<Function\s+test_", proc.stdout))
@@ -200,7 +212,7 @@ def _extract_workflows() -> list[str]:
 
 
 def _current_timestamp() -> str:
-    return datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    return datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
 
 
 def _build_agents_state() -> dict:
@@ -247,8 +259,6 @@ def _update_agents_md(state: dict, dry_run: bool = False) -> list[str]:
 
     tc = state["test_counts"]
 
-    # Find the status table — flexible regex tolerant of both
-    # "| pytest (unit) | ..." and "| pytest (unit + schema) | ..." headers
     in_status_table = False
     status_start = -1
     status_end = -1
@@ -273,13 +283,11 @@ def _update_agents_md(state: dict, dry_run: bool = False) -> list[str]:
         status_end = len(lines)
 
     if status_start >= 0 and status_end > status_start:
-        # Build new status table replacing old rows (but keep header & separator)
         new_table = []
-        new_table.append(lines[status_start])  # header
+        new_table.append(lines[status_start])
         if status_start + 1 < len(lines):
-            new_table.append(lines[status_start + 1])  # separator
+            new_table.append(lines[status_start + 1])
 
-        # Emit row per label, in canonical order
         new_table.append(
             f"| pytest (unit + schema) | {tc.get('unit', 0) + tc.get('schema', 0)} passing "
             f"(unit: {tc.get('unit', 0)}, schema: {tc.get('schema', 0)}) | ✅ |"
@@ -295,7 +303,6 @@ def _update_agents_md(state: dict, dry_run: bool = False) -> list[str]:
                 f"| pytest (e2e) | {tc['e2e']} collected (blocked on Playwright live Streamlit Cloud) | ⏳ |"
             )
 
-        # Replace in lines
         lines = lines[:status_start] + new_table + lines[status_end:]
 
     if dry_run:
@@ -307,7 +314,6 @@ def _update_agents_md(state: dict, dry_run: bool = False) -> list[str]:
 
 def _update_readme_tree(dry_run: bool = False) -> list[str]:
     """Update README.md directory tree if new files were added."""
-    # This is lightweight — just verify key files exist
     key_files = [
         "README.md",
         "AGENTS.md",
@@ -345,10 +351,6 @@ def _check_api_docs() -> list[str]:
         elif path.stat().st_size < 100:
             issues.append(f"Empty or too small: {api_file}")
     return issues
-
-
-# ── Sync_docs enhancement: 3 auto-fixers + strict auditor ──────────────
-# FASE 0.1
 
 
 def _count_dashboard_pages() -> int:
@@ -404,9 +406,6 @@ def _fix_agents_tree(content: str, state: dict) -> str:
     return content
 
 
-# FASE 0.4 — Strict auditor
-
-
 def _strict_audit() -> list[dict]:
     """Varre todos os .md do repo com patterns previsíveis e reporta divergências.
 
@@ -425,27 +424,25 @@ def _strict_audit() -> list[dict]:
         (r"\b709\b.*total", "Total tests desatualizado (709 -> 745)", "HIGH"),
     ]
 
-    # Historical references that are intentionally preserved (milestones, changelog, lessons)
-    # Format: (file_rel, match_text)
     _skip = {
-        ("AGENTS.md", "418"),               # Lição #13: "o real era 418"
-        ("AGENTS.md", "512 passing"),       # Sprint 2 milestone snapshot
-        ("AGENTS.md", "630 total"),         # Sprint 2 milestone snapshot
-        ("AGENTS.md", "709 total"),         # Sprint 6 milestone snapshot
-        ("README.md", "512 unit+schema + 102 integration + 10 design + 6 real = 630 total passing"),  # Sprint 2 milestone
-        ("README.md", "630 total"),         # Sprint 2 milestone
-        ("README.md", "709 total"),         # Sprint 6 milestone
-        ("docs\\changelog.md", "17 (nova página"),  # v0.1.0 changelog
-        ("docs\\changelog.md", "17→18 pages"),  # changelog describing the change
-        ("docs\\changelog.md", "17→18 aba"),    # changelog describing the change
-        ("docs\\changelog.md", "17→18 módulos"), # changelog describing the change
-        ("docs\\changelog.md", "418"),       # v0.1.0 Metrics + changelog entries
-        ("docs\\changelog.md", "383"),       # v2 changelog reference (Sprint 10)
-        ("docs\\archive\\CUSTO_DOCE_RAIO_X.md", "418"),  # v3/v4 comparison table
-        ("docs\\archive\\CUSTO_DOCE_RAIO_X.md", "383"),  # v2 comparison table column
-        ("docs\\archive\\CUSTO_DOCE_RAIO_X.md", "709 total"),  # Sprint 6 historical
-        ("docs\\archive\\CUSTO_DOCE_RAIO_X.md", '512** (35 adicionados). Gargalos recalibrados: #1 (service_role) 🔴→🟡 mitigado via Sprint 1.1; #2 (exec_sql_query) 🔴→🟡 parcialmente mitigado via Sprint 2.2 (RPC 443); #3 (testes'),  # v3.0 historical entry
-        ("docs\\archive\\RAIO-X_CUSTO_DOCE_RESUMIDO.md", "512 em 29/06; Sprint 7-9 adicionou 26 testes"),  # historical comparison
+        ("AGENTS.md", "418"),
+        ("AGENTS.md", "512 passing"),
+        ("AGENTS.md", "630 total"),
+        ("AGENTS.md", "709 total"),
+        ("README.md", "512 unit+schema + 102 integration + 10 design + 6 real = 630 total passing"),
+        ("README.md", "630 total"),
+        ("README.md", "709 total"),
+        ("docs\\changelog.md", "17 (nova página"),
+        ("docs\\changelog.md", "17→18 pages"),
+        ("docs\\changelog.md", "17→18 aba"),
+        ("docs\\changelog.md", "17→18 módulos"),
+        ("docs\\changelog.md", "418"),
+        ("docs\\changelog.md", "383"),
+        ("docs\\archive\\CUSTO_DOCE_RAIO_X.md", "418"),
+        ("docs\\archive\\CUSTO_DOCE_RAIO_X.md", "383"),
+        ("docs\\archive\\CUSTO_DOCE_RAIO_X.md", "709 total"),
+        ("docs\\archive\\CUSTO_DOCE_RAIO_X.md", '512** (35 adicionados). Gargalos recalibrados: #1 (service_role) 🔴→🟡 mitigado via Sprint 1.1; #2 (exec_sql_query) 🔴→🟡 parcialmente mitigado via Sprint 2.2 (RPC 443); #3 (testes'),
+        ("docs\\archive\\RAIO-X_CUSTO_DOCE_RESUMIDO.md", "512 em 29/06; Sprint 7-9 adicionou 26 testes"),
     }
 
     findings = []
@@ -486,7 +483,8 @@ def _strict_audit() -> list[dict]:
     return findings
 
 
-def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False) -> bool:
+def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False,
+             experimental: bool = False) -> bool:
     """
     Main sync logic. Returns True if in sync, False if out of sync.
 
@@ -496,7 +494,6 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False) -
     """
     issues: list[str] = []
 
-    # Build current state
     state = _build_agents_state()
     print(f"Current state (as of {state['updated_at']}):")
     print(
@@ -506,7 +503,6 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False) -
     print(f"  API services: {', '.join(state['api_services'])}")
     print(f"  CI workflows: {', '.join(state['workflows'])}")
 
-    # Drift detection — always (visible in --dry-run; required for --check)
     print("\nDrift detection (sync_docs counts vs pytest --collect-only)...")
     drift = _check_drift()
     if drift:
@@ -516,19 +512,16 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False) -
     else:
         print("  [OK] All test counts match pytest --collect-only")
 
-    # Check API docs
     api_issues = _check_api_docs()
     if api_issues:
         issues.extend(api_issues)
 
-    # Update AGENTS.md — standard status table
     print("\nUpdating AGENTS.md...")
     agent_changes = _update_agents_md(state, dry_run=dry_run)
     if dry_run:
         for c in agent_changes:
             print(f"  {c}")
 
-    # Apply 3 auto-fixers (tree count, page import, skill row)
     print("\nApplying auto-fixers (tree count, page import, skill row)...")
     if not dry_run:
         agents_content = _AGENTS.read_text(encoding="utf-8")
@@ -541,10 +534,11 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False) -
     else:
         print("  (dry-run, skipped)")
 
-    # Strict audit — always runs if --strict (even in dry-run)
     if strict:
-        print("\nStrict audit (--strict): scanning all .md for stale patterns...")
-        findings = _strict_audit()
+        print(f"\nStrict audit (--strict{' experimental' if experimental else ''}): scanning all .md for stale patterns...")
+
+        findings = _v2_strict_audit() if experimental else _strict_audit()
+
         if findings:
             for f in findings:
                 safe_match = f["match"].encode("ascii", errors="replace").decode("ascii")
@@ -559,14 +553,12 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False) -
     else:
         print("\n  (pass --strict for full .md audit)")
 
-    # Check README key files
     print("\nChecking README tree...")
     tree_issues = _update_readme_tree(dry_run=dry_run)
     issues.extend(tree_issues)
     for issue in tree_issues:
         print(f"  [WARN] {issue}")
 
-    # Summary
     print()
     if issues:
         print(f"[FAIL] Issues found: {len(issues)}")
@@ -578,45 +570,360 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False) -
         return True
 
 
+# ═══════════════════════════════════════════════════════════════════
+# v2 — Embedded classifier / parser / updater (from sync_docs_v2)
+# ═══════════════════════════════════════════════════════════════════
+
+# ── v2 Classifier ─────────────────────────────────────────────────
+
+_HISTORICAL_HEADING_MARKERS = {
+    "histórico", "histórico de versões",
+    "versão", "changelog",
+    "roadmap", "próximos",
+    "lição", "lições", "lessons",
+    "entregas confirmadas", "entregas",
+    "milestone",
+}
+
+_CURRENT_HEADING_MARKERS = {
+    "status atual",
+    "avaliação", "avaliação de riscos",
+    "riscos",
+    "métricas finais",
+    "métricas de sucesso",
+}
+
+_HISTORICAL_MATCH_MARKERS = [
+    "era ", "em 29/06", "em 30/06",
+    "resolvido", "mitigado",
+    "passou de ", "subiu de",
+    "anteriormente",
+]
+
+
+def _v2_classify(heading: str, match_text: str, file_path: str) -> str:
+    """Return 'HISTORICAL', 'CURRENT', or 'AMBIGUOUS'.
+
+    Checks (in order):
+    1. File-level: changelog.md is always HISTORICAL
+    2. Heading path markers
+    3. Match text markers
+    4. Default: AMBIGUOUS
+    """
+    h_lower = heading.lower()
+    m_lower = match_text.lower()
+    fp_lower = file_path.lower()
+
+    if "changelog" in fp_lower:
+        return "HISTORICAL"
+
+    for marker in _HISTORICAL_HEADING_MARKERS:
+        if marker in h_lower:
+            return "HISTORICAL"
+
+    for marker in _HISTORICAL_MATCH_MARKERS:
+        if marker in m_lower:
+            return "HISTORICAL"
+
+    for marker in _CURRENT_HEADING_MARKERS:
+        if marker in h_lower:
+            return "CURRENT"
+
+    if "readme" in fp_lower and "roadmap" in h_lower:
+        return "HISTORICAL"
+
+    return "AMBIGUOUS"
+
+
+# ── v2 Parser ──────────────────────────────────────────────────────
+
+_V2_SKIP_DIRS = {".git", ".venv", "node_modules", "__pycache__", "lib64"}
+
+_V2_PATTERNS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"\b17\b.*(páginas?|telas?|módulos?|pages?|aba)"), "page_count"),
+    (re.compile(r"\b418\b"), "test_count_418"),
+    (re.compile(r"\b383\b"), "test_count_383"),
+    (re.compile(r"\b512\b.*(testes|passing|passando)"), "test_count_512"),
+    (re.compile(r"\b630\b.*total"), "test_count_630"),
+    (re.compile(r"\b709\b.*total"), "test_count_709"),
+]
+
+
+def _v2_compute_section_spans(text: str) -> dict[int, str]:
+    """Return dict: line_num -> heading_path for the entire section span."""
+    from markdown_it import MarkdownIt as _MarkdownIt
+
+    _md = _MarkdownIt()
+    tokens = _md.parse(text)
+    headings: list[dict] = []
+    for i, tok in enumerate(tokens):
+        if tok.type == "heading_open":
+            level = int(tok.tag[1])
+            start = tok.map[0] if tok.map else 0
+            content = ""
+            for j in range(i + 1, len(tokens)):
+                if tokens[j].type == "inline":
+                    content = tokens[j].content
+                    break
+                elif tokens[j].type == "heading_close":
+                    break
+            headings.append({"level": level, "content": content, "start": start})
+
+    headings.sort(key=lambda h: h["start"])
+
+    for i, h in enumerate(headings):
+        end = len(text.split("\n"))
+        for j in range(i + 1, len(headings)):
+            if headings[j]["level"] <= h["level"]:
+                end = headings[j]["start"]
+                break
+        h["end"] = end
+
+    lines = text.split("\n")
+    line_to_heading: dict[int, str] = {}
+    for line_num in range(len(lines)):
+        path: list[tuple[int, str]] = []
+        for h in headings:
+            if h["start"] <= line_num < h["end"]:
+                path = [p for p in path if p[0] < h["level"]]
+                path.append((h["level"], h["content"]))
+        line_to_heading[line_num] = " > ".join(t for _, t in path)
+
+    return line_to_heading
+
+
+def _v2_scan_all_md() -> list[dict]:
+    """Scan all .md files and return structured findings.
+
+    Each finding: {file, line, match, pattern, heading, classification}
+    """
+    import os as _os
+
+    findings: list[dict] = []
+
+    for dirpath, dirnames, filenames in _os.walk(str(_ROOT), topdown=True):
+        dirnames[:] = [d for d in dirnames if d not in _V2_SKIP_DIRS]
+        for fname in filenames:
+            if not fname.endswith(".md"):
+                continue
+            fpath = Path(dirpath) / fname
+            rel = str(fpath.relative_to(_ROOT))
+            try:
+                text = fpath.read_text(encoding="utf-8")
+            except Exception:
+                continue
+
+            line_to_heading = _v2_compute_section_spans(text)
+
+            for pat, pat_name in _V2_PATTERNS:
+                for m in pat.finditer(text):
+                    line_num = text[: m.start()].count("\n")
+                    heading = line_to_heading.get(line_num, "")
+                    findings.append({
+                        "file": rel,
+                        "line": line_num + 1,
+                        "heading": heading,
+                        "pattern": pat_name,
+                        "match": m.group().strip()[:80],
+                    })
+
+    return findings
+
+
+# ── v2 Updater ─────────────────────────────────────────────────────
+
+
+def _v2_build_replacements(truth: dict) -> dict[str, tuple[str, str]]:
+    unit = truth["test_counts"].get("unit", 0)
+    schema = truth["test_counts"].get("schema", 0)
+    total = truth["total_tests"]
+    pages = truth["pages_count"]
+
+    return {
+        "page_count": ("17", str(pages)),
+        "test_count_418": ("418", str(unit)),
+        "test_count_383": ("383", str(unit)),
+        "test_count_512": ("512", str(unit + schema)),
+        "test_count_630": ("630", str(total)),
+        "test_count_709": ("709", str(total)),
+    }
+
+
+def _v2_apply_fix(text: str, stale_num: str, truth_num: str) -> str:
+    """Replace stale_num with truth_num, as standalone word/boundary.
+
+    Uses word-boundary regex \b to avoid replacing substrings of larger numbers.
+    Only replaces FIRST occurrence.
+    """
+    return re.sub(rf"\b{re.escape(stale_num)}\b", truth_num, text, count=1)
+
+
+def _v2_sync_file(fpath: Path, findings: list[dict], truth: dict, dry_run: bool = False) -> list[str]:
+    """Apply updates to a single .md file based on CURRENT-classified findings.
+
+    Returns list of change descriptions (empty = no changes).
+    """
+    repl = _v2_build_replacements(truth)
+    changes: list[str] = []
+    content = fpath.read_text(encoding="utf-8")
+
+    for finding in findings:
+        if finding.get("classification") != "CURRENT":
+            continue
+        pat = finding["pattern"]
+        if pat not in repl:
+            continue
+        stale_num, truth_num = repl[pat]
+
+        if re.search(rf"\b{re.escape(stale_num)}\b", content) is None:
+            continue
+
+        new_content = _v2_apply_fix(content, stale_num, truth_num)
+        if new_content != content:
+            changes.append(f"  {finding['file']}:{finding['line']} - {pat}: '{stale_num}' -> '{truth_num}'")
+            content = new_content
+
+    if not dry_run:
+        fpath.write_text(content, encoding="utf-8")
+
+    return changes
+
+
+# ── v2 Analysis / Sync ──────────────────────────────────────────────
+
+
+def _v2_run_analyze() -> list[dict]:
+    """Run scanner + classifier on all .md files."""
+    raw = _v2_scan_all_md()
+    for f in raw:
+        f["classification"] = _v2_classify(f["heading"], f["match"], f["file"])
+    return raw
+
+
+def _v2_run_sync(dry_run: bool = False) -> tuple[list[str], list[dict]]:
+    """Sync all CURRENT blocks with truth values.
+
+    Returns (changes, findings).
+    """
+    findings = _v2_run_analyze()
+    truth = _build_agents_state()
+    all_changes: list[str] = []
+
+    by_file: dict[str, list[dict]] = {}
+    for f in findings:
+        by_file.setdefault(f["file"], []).append(f)
+
+    for file_rel, file_findings in by_file.items():
+        fpath = _ROOT / file_rel
+        changes = _v2_sync_file(fpath, file_findings, truth, dry_run=dry_run)
+        all_changes.extend(changes)
+
+    return all_changes, findings
+
+
+def _v2_print_findings(findings: list[dict]):
+    counts = Counter(f["classification"] for f in findings)
+    print(f"Total: {len(findings)}  CURRENT: {counts.get('CURRENT', 0)}  "
+          f"HISTORICAL: {counts.get('HISTORICAL', 0)}  "
+          f"AMBIGUOUS: {counts.get('AMBIGUOUS', 0)}")
+    print()
+
+    if not findings:
+        return
+
+    for f in findings:
+        cl = f["classification"]
+        sep = "  "
+        print(f"  [{cl:<10}] {f['file']}:{f['line']}")
+        print(f"{sep}heading: {f['heading'][:100]}")
+        print(f"{sep}match:   '{f['match']}'")
+        print()
+
+
+def _v2_strict_audit() -> list[dict]:
+    """Strict audit using v2 classifier instead of hardcoded _skip set.
+
+    Replicates v1 _strict_audit() output format but uses heading-based
+    classification (CURRENT vs HISTORICAL) to filter findings.
+    """
+    findings = _v2_run_analyze()
+    result = []
+    for f in findings:
+        if f["classification"] == "HISTORICAL":
+            continue
+        sev = "HIGH"
+        if f["pattern"] in ("test_count_512",):
+            sev = "MEDIUM"
+        if f["classification"] == "AMBIGUOUS":
+            sev = "MEDIUM"
+        result.append({
+            "file": f["file"],
+            "line": f["line"],
+            "match": f["match"],
+            "message": f"Stale {f['pattern']} in '{f['heading']}'",
+            "severity": sev,
+        })
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════
+# CLI
+# ═══════════════════════════════════════════════════════════════════
+
+
+def _ensure_utf8():
+    if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+        import contextlib
+        with contextlib.suppress(Exception):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+
 def main():
+    _ensure_utf8()
     parser = argparse.ArgumentParser(description="Sync project documentation with code state")
     parser.add_argument("--dry-run", action="store_true", help="Preview changes without applying")
     parser.add_argument("--check", action="store_true", help="Exit 1 if docs are out of sync (CI mode)")
     parser.add_argument("--strict", action="store_true", help="Run full .md audit for stale patterns (page count, test count)")
-    parser.add_argument("--analyze", action="store_true", help="(v2) Classify stale refs via heading hierarchy")
-    parser.add_argument("--sync", action="store_true", help="(v2) Auto-update CURRENT blocks with truth values")
-    parser.add_argument("--dump-truth", action="store_true", help="(v2) Print truth JSON and exit")
+    parser.add_argument("--experimental", action="store_true", help="Use v2 classifier for strict audit instead of hardcoded skip set")
+    parser.add_argument("--analyze", action="store_true", help="Classify stale refs via heading hierarchy (v2)")
+    parser.add_argument("--sync", action="store_true", help="Auto-update CURRENT blocks with truth values (v2)")
+    parser.add_argument("--dump-truth", action="store_true", help="Print truth JSON and exit")
     args = parser.parse_args()
 
-    if args.analyze or args.sync or args.dump_truth:
-        _run_v2(args)
+    if args.analyze:
+        findings = _v2_run_analyze()
+        _v2_print_findings(findings)
+        ambiguous = sum(1 for f in findings if f["classification"] == "AMBIGUOUS")
+        if ambiguous > 0:
+            print(f"\n[BLOCK] {ambiguous} AMBIGUOUS ref(s) found — CI blocked")
+            sys.exit(1)
         return
 
-    in_sync = run_sync(dry_run=args.dry_run, check=args.check, strict=args.strict)
+    if args.sync:
+        changes, findings = _v2_run_sync(dry_run=args.dry_run)
+        if changes:
+            print(f"Changes to apply ({'dry-run' if args.dry_run else 'live'}):")
+            for c in changes:
+                print(c)
+            print()
+            print(f"Total: {len(changes)} changes across {len(findings)} findings")
+        else:
+            print("No stale CURRENT refs found. All docs are in sync.")
+        return
+
+    if args.dump_truth:
+        truth = _build_agents_state()
+        print(json.dumps(truth, ensure_ascii=False, indent=2, default=str))
+        return
+
+    in_sync = run_sync(dry_run=args.dry_run, check=args.check, strict=args.strict,
+                       experimental=args.experimental)
 
     if args.check and not in_sync:
         print("\n::error::Documentation is out of sync. Run 'python scripts/sync_docs.py' to update.")
         sys.exit(1)
     if args.dry_run:
         print("\n(Dry-run complete, no changes made)")
-
-
-def _run_v2(args: argparse.Namespace):
-    """Delegate to sync_docs_v2."""
-    sys.path.insert(0, str(_ROOT))
-    from scripts.sync_docs_v2.cli import main as v2_main
-
-    v2_args: list[str] = []
-    if args.analyze:
-        v2_args.append("--analyze")
-    if args.sync:
-        v2_args.append("--sync")
-    if args.dry_run and args.sync:
-        v2_args.append("--dry-run")
-    if args.dump_truth:
-        v2_args.append("--dump-truth")
-
-    sys.exit(v2_main(v2_args))
 
 
 if __name__ == "__main__":

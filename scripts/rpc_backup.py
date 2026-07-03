@@ -133,7 +133,7 @@ def run_backup(include_schema: bool = False):
             print(f"  schema: ERROR {e}")
             backup["schema"] = {}
 
-    ts = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.datetime.now(datetime.UTC).strftime("%Y%m%d_%H%M%S")
     fn = f"custodoce_backup_rpc_{ts}.json.gz"
     with gzip.open(fn, "wt", encoding="utf-8") as f:
         json.dump(backup, f, ensure_ascii=False, default=str)

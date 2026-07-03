@@ -2,7 +2,7 @@
 Dashboard Page: Promoções em Destaque
 """
 
-from datetime import datetime
+from datetime import datetime, UTC
 
 import pandas as pd
 import streamlit as st
@@ -151,7 +151,7 @@ def render_promocoes():
     )
 
     st.caption(
-        f"Atualizado em {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}. "
+        f"Atualizado em {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}. "
         f"{len(promos_raw) - len(filtered)} promoções ocultadas pelos filtros."
     )
 

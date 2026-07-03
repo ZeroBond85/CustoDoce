@@ -76,10 +76,10 @@ if echo "${STAGED:-}" | grep -qE "$CODE_PATTERNS"; then
     echo "    A            - rodar sync_docs.py automaticamente e cancelar commit (para revisar)"
     echo "    C            - cancelar commit"
     echo ""
-    # 3 camadas de leitura: /dev/tty → PowerShell fallback → default continua
+    # 3 camadas: terminal interativo → PowerShell → default continua
     CONFIRM=""
-    if read -r CONFIRM </dev/tty 2>/dev/null; then
-      : # leu via /dev/tty (Git Bash / MSYS2)
+    if [ -t 0 ] && read -r CONFIRM 2>/dev/null; then
+      : # leu via stdin (POSIX terminal real)
     elif command -v powershell &>/dev/null; then
       CONFIRM=$(powershell -NoProfile -Command "Read-Host 'Opcao'" 2>/dev/null) || CONFIRM=""
     fi

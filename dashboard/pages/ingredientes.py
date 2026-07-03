@@ -3,7 +3,7 @@ Dashboard Page: Ingredientes
 """
 
 import shutil
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 
 import pandas as pd
@@ -43,7 +43,7 @@ def _backup_yaml() -> Path | None:
     if not INGREDIENTS_YAML.exists():
         return None
     INGREDIENTS_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
-    suffix = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    suffix = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     backup_path = INGREDIENTS_BACKUP_DIR / f"ingredients.{suffix}.yaml"
     shutil.copy2(INGREDIENTS_YAML, backup_path)
     return backup_path

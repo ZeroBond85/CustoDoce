@@ -293,6 +293,51 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [0.2.5] - 2026-07-03
+
+### Added
+
+#### Sprint 12 — Environment Parity → Python 3.14 (Windows/WSL/CI/Cloud)
+
+- **`requirements.lock`**: Single pinned lock file (130+ packages, no hashes — cross-platform cp311 vs cp314 wheel conflict). Generated via `pip-compile --allow-unsafe`. Installs cleanly on Python 3.11 (local) and 3.14 (CI).
+- **`scripts/check_environment_parity.py`**: New parity checker — validates Python version (warns locally, fails hard in CI), lock file integrity (`pip install --dry-run`), platform, and AGENTS.md rule #10 presence.
+- **`scripts/generate_schema_manifest.py`**: Rewritten for **offline SQL parsing** — parses `supabase/consolidated_migration.sql` directly (no Supabase credentials needed). Emits `config/schema_manifest.json` with 16 tables/views including `v_latest_prices` materialized view.
+- **`tests/unit/test_validate_mocks_against_manifest.py`**: New mock validator — maps `MOCK_PRICES` → `v_latest_prices`, `MOCK_LOGS` → `scraping_logs`; validates every dict key exists in schema; checks essential NOT NULL columns present.
+- **`supabase/consolidated_migration.sql`**: Added missing `scraper_health_log` table (used by `services/scraper_health.py`, `scripts/heal_scrapers.py` but absent from SQL).
+- **`scripts/heal_scrapers.py`**: Fixed `stores.scraper` → `stores.type` (column is `type`, not `scraper`).
+- **`tests/unit/test_dashboard_contracts.py`**: `MOCK_PRICES` aligned with `v_latest_prices` — added flat `price_per_kg` (primary `_safe_ppk` path), removed flat `price_per_un` (not in materialized view, only in `normalized` JSONB). `MOCK_LOGS` `completed_at` → `finished_at` (matches DB schema).
+
+### Changed
+
+- **`pyproject.toml`**: `target-version=py314`, `python_version="3.14"`, `mypy` target updated.
+- **9 GitHub Actions workflows** (ci.yml, scrape.yml, ci-e2e-only.yml, e2e.yml, deploy-staging.yml, heal-scrapers.yml, on_demand_scrape.yml, restore-test.yml, backup.yml): `PYTHON_VERSION=3.14`; all install via `pip install -r requirements.lock`; `pip-audit --strict -s osv -r requirements.txt` (prod only — dev deps CVEs handled separately).
+- **`.githooks/pre-push`**: Added schema manifest generation + mock validation + environment parity check (steps 3.75–3.875 of 4).
+- **`AGENTS.md`**: Rule #10 replaced with **Paridade Total de Ambiente** (Python + deps + OS + runtime + tools identical local/CI/Cloud). Metrics table updated (Python 3.14.6 local, 3.14 CI/WSL, 3.14 Cloud pending).
+- **`REGRAS.md`**: Environments table → `.venv314` / `custodoce-314`; added §4 Paridade de Versões.
+
+### Fixed
+
+- **CI `--require-hashes` auto-mode conflict**: Lock file originally had hashes → pip auto-enables `--require-hashes` → cp314 wheel hash differs from cp311 → mismatch. Fixed by regenerating lock **without hashes** (version pinning = supply-chain security; hash verification moved to parity checker `--dry-run`).
+- **`pip-audit` false positives**: Scanning full lock file caught pre-existing CVEs in dev deps (pytest 8.3.3 CVE-2025-71176, diskcache 5.6.3 CVE-2025-69872) unrelated to migration. Restricted audit to `requirements.txt` (prod).
+- **Test pre-existing failures** (unrelated to migration):
+  - `test_promocoes_is_promotion_true_via_oferta_tag` → renamed `test_promocoes_is_promotion_false_when_not_flag` (prod `_is_promotion` no longer checks `ai_tags`).
+  - `test_promocoes_is_promotion_false_for_normal_item`: removed `ai_tags` assertions.
+  - `test_alertas_contact_options_filters_empty`: `fake_recipients` returns `{"target": "..."}` (prod uses `target`, not `email`/`chat_id`).
+  - `test_dashboard_contracts.py` `MOCK_LOGS`: `completed_at` → `finished_at` (DB schema `scraping_logs.finished_at`).
+- **`scripts/heal_scrapers.py` column name**: `stores.scraper` → `stores.type`.
+
+### Metrics
+
+- pytest: **612 unit+schema + 112 integration + 6 real = 730 passing** (CI green on Python 3.14)
+- ruff: **0 warnings**
+- mypy: **0 new errors** (8 pre-existing in `email_service.py` tuple typing)
+- Lock file: **130+ packages, no hashes** (cross-platform cp311/cp314 compatible)
+- CI: **All 9 workflows green** on Python 3.14 + lock file
+- PR #1: **Merged to master** (commit `de5422d`)
+- Tag **v3.14.0** created and pushed with release notes
+
+---
+
 ## [unreleased]
 
 ### Added

@@ -114,7 +114,7 @@ def build_truth() -> dict:
     total_tests = sum(tc.values())
 
     return {
-        "updated_at": __import__("datetime").datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+        "updated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         "total_tests": total_tests,
         "test_counts": tc,
         "pages": pages,

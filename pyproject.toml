@@ -3,6 +3,10 @@ asyncio_default_fixture_loop_scope = "function"
 filterwarnings = [
     "ignore::DeprecationWarning:supabase",
     "ignore::pytest.PytestDeprecationWarning",
+    "ignore:.*asyncio_default_fixture_loop_scope.*:pytest.PytestDeprecationWarning",
+    "ignore:.*iscoroutinefunction.*:DeprecationWarning:pytest_asyncio",
+    "ignore:.*get_event_loop_policy.*:DeprecationWarning:pytest_asyncio",
+    "ignore:.*set_event_loop_policy.*:DeprecationWarning:pytest_asyncio",
 ]
 markers = [
     "slow: marks tests as slow (real HTTP/Playwright/OCR)",
@@ -17,6 +21,7 @@ addopts = "-m 'not slow and not integration' --ignore=tests/integration/test_rea
 [tool.ruff]
 line-length = 120
 target-version = "py314"
+exclude = [".agents/"]
 
 [tool.ruff.lint]
 select = ["F", "E", "W", "B", "S", "UP", "SIM", "C4"]

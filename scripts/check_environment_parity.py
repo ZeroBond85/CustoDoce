@@ -3,11 +3,11 @@
 check_environment_parity.py
 
 Paridade Total de Ambiente — valida que Python + deps + OS correspondem
-aos requisitos do projeto, e que requirements.lock (com hashes) está íntegro.
+aos requisitos do projeto, e que requirements.lock está íntegro.
 
 - Em CI (GITHUB_ACTIONS): falha HARD se Python != 3.14.
 - Local: avisa (warn) se Python != 3.14, mas não bloqueia.
-- requirements.lock hash validation: sempre HARD failure.
+- requirements.lock dry-run: sempre HARD failure se pip resolve falhar.
 """
 from __future__ import annotations
 
