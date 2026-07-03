@@ -5,15 +5,13 @@ check_environment_parity.py
 Paridade Total de Ambiente — valida que Python + deps + OS correspondem
 aos requisitos do projeto, e que requirements.lock (com hashes) está íntegro.
 
-Chamado por:
-  - pre-push hook
-  - CI (lint job)
-  - manualmente: python scripts/check_environment_parity.py
-
-Falha se qualquer verificação quebrar.
+- Em CI (GITHUB_ACTIONS): falha HARD se Python != 3.14.
+- Local: avisa (warn) se Python != 3.14, mas não bloqueia.
+- requirements.lock hash validation: sempre HARD failure.
 """
 from __future__ import annotations
 
+import os
 import platform
 import subprocess
 import sys
@@ -23,17 +21,23 @@ REPO_ROOT = Path(__file__).parent.parent.resolve()
 REQUIRED_PYTHON = (3, 14)
 LOCK_FILE = REPO_ROOT / "requirements.lock"
 AGENTS_MD = REPO_ROOT / "AGENTS.md"
+IN_CI = os.environ.get("GITHUB_ACTIONS") == "true"
 
 
 def _check_python_version() -> list[str]:
     errors: list[str] = []
+    warnings: list[str] = []
     actual = sys.version_info[:2]
     if actual != REQUIRED_PYTHON:
-        errors.append(
+        msg = (
             f"Python {actual[0]}.{actual[1]} detectado, "
             f"mas {REQUIRED_PYTHON[0]}.{REQUIRED_PYTHON[1]} exigido."
         )
-    return errors
+        if IN_CI:
+            errors.append(msg)
+        else:
+            warnings.append(f"[WARN] {msg} (ignorado localmente — CI vai validar)")
+    return errors, warnings
 
 
 def _check_platform() -> list[str]:
@@ -75,18 +79,24 @@ def _check_agents_md_rule_10() -> list[str]:
 
 
 def main() -> int:
-    print(f"=== check_environment_parity (platform={platform.system()}, python={sys.version})", file=sys.stderr)
+    print(f"=== check_environment_parity (CI={IN_CI}, platform={platform.system()}, python={sys.version})", file=sys.stderr)
 
     all_errors: list[str] = []
-    all_errors.extend(_check_python_version())
+    all_warnings: list[str] = []
+
+    py_errors, py_warnings = _check_python_version()
+    all_errors.extend(py_errors)
+    all_warnings.extend(py_warnings)
+
     all_errors.extend(_check_platform())
     all_errors.extend(_check_lock_hashes())
     all_errors.extend(_check_agents_md_rule_10())
 
+    for w in all_warnings:
+        print(w, file=sys.stderr)
     if not all_errors:
         print("[OK] Todas as verificacoes de paridade passaram.", file=sys.stderr)
         return 0
-
     for err in all_errors:
         print(f"[FALHA] {err}", file=sys.stderr)
     return 1
