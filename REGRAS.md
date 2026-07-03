@@ -5,14 +5,31 @@
 
 ## Ambiente: Escolha do Executor
 
-| Tarefa | Executor | Motivo |
-|--------|----------|--------|
-| ruff, mypy, pytest (unit/schema) | **Windows** (PowerShell) | Nativo, sem overhead de WSL |
-| Shell scripts (.sh) | **WSL (Debian)** | PowerShell/cmd quebra escapes |
-| Git filter-branch, rebase | **WSL (Debian)** | PowerShell heredoc quebra `\` |
-| Simular CI Linux (act, bash) | **WSL (Debian)** | GitHub Actions usa Linux |
-| Playwright, scrapers reais, OCR | **WSL (Debian)** | Browser automation estável |
-| Scripts de deploy, DB, SQL | **Windows** | python direto funciona |
+| Tarefa | Executor | Motivo | Tooling |
+|--------|----------|--------|----------|
+| ruff, mypy, pytest (unit/schema) | **Windows** | Latência zero, sem overhead de WSL | `.venv314` |
+| Dashboard (Streamlit) | **Windows** | Renderização e rede local nativa | `.venv314` |
+| Scripts de deploy, DB, SQL | **Windows** | Python direto via RPC/HTTPS | `.venv314` |
+| Shell scripts (.sh), Git complexo | **WSL (Debian)** | PowerShell quebra escapes/heredocs | Bash |
+| Simular CI Linux, Scrapers Reais | **WSL (Debian)** | Idêntico ao GitHub Actions (Ubuntu) | `custodoce-314` (Conda) |
+| Playwright, OCR (Tesseract) | **WSL (Debian)** | Browser automation e dependências SO | `custodoce-314` (Conda) |
+| Testes E2E / Visual | **WSL (Debian)** | Estabilidade do Chromium Headless | `custodoce-314` (Conda) |
+
+### ⚠️ Lei do Ambiente (Anti-Fricção)
+1. **Proibido "Misturar" Shells**: Não execute `wsl bash -c '...'` para tarefas que podem rodar em Python no Windows. Use WSL apenas para dependências de SO.
+2. **Isolamento de Paths**:
+   - Windows $\rightarrow$ `C:\Zerobond\Code\CustoDoce`
+   - WSL $\rightarrow$ `/mnt/c/Zerobond/Code/CustoDoce`
+   - Nunca passe caminhos de Windows para o Bash sem converter para o formato `/mnt/c/`.
+3. **Default Python**:
+   - Windows: `.venv314` (PowerShell)
+   - WSL: `custodoce-314` (Conda/Bash)
+4. **Paridade de Versões (Obrigatório)**:
+   - **Python local (Windows/WSL) DEVE ser igual ao CI (GitHub Actions)**.
+   - Versão alvo definida em `pyproject.toml` `[tool.ruff] target-version` e workflows `PYTHON_VERSION`.
+   - Antes de qualquer PR: `python --version` local == `PYTHON_VERSION` no CI.
+   - Qualquer discrepância bloqueia merge — CI valida no alvo real.
+
 
 ## Windows (PowerShell) — Padrão para Python
 
