@@ -45,7 +45,7 @@ jobs:
           cache: "pip"
 
       - name: Install deps
-        run: pip install -r requirements.lock
+        run: pip install -r requirements.lock --no-require-hashes
 
       - name: Audit disabled scrapers
         run: python scripts/heal_scrapers.py list-disabled

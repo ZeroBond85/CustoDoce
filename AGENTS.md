@@ -49,7 +49,7 @@ CustoDoce/
 │   ├── deploy-staging.yml, on_demand_scrape.yml, ci-e2e-only.yml
 │   └── heal-scrapers.yml                             # Cron 15d auto-heal
 ├── .githooks/
-│   ├── pre-commit                                     # 4 layers + schema check
+│   ├── pre-commit                                     # 5 camadas (secret, doc sync, size, watchdog, agents)
 │   └── pre-push                                       # Python, 4 steps + agents_tool
 ├── config/
 │   ├── ingredients.yaml, stores.yaml, features.yaml

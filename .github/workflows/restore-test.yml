@@ -34,7 +34,7 @@ jobs:
           cache: 'pip'
 
       - name: Install dependencies
-        run: pip install -r requirements.lock
+        run: pip install -r requirements.lock --no-require-hashes
 
       - name: Download latest backup artifact
         if: github.event.inputs.artifact_name == ''
