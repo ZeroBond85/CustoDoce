@@ -6,14 +6,14 @@
 
 1. **Schema contracts**: `config/agents_schema.yaml` define o que entra aqui. CI valida.
 2. **Mocks na boundary, não na definição**: `@patch("onde.usado.import")`, não `@patch("onde.definido")`.
-3. **Testes com Supabase real = `@pytest.mark.integration`**: pula em CI unit, roda em integration CI.
+3. **Padrão de Testes**: Novo código = novos testes (`test_<modulo>.py`); testes com Supabase real devem usar `@pytest.mark.integration`.
 4. **`exec_sql_query` RPC (porta 443), NUNCA `psycopg2`**: GH Actions bloqueia 5432.
 5. **<55% vai pra review_queue**: `match_type`, `match_reason`, brand, top3 candidatos.
 6. **Self-healing em todo scraper**: `record_failure/success()` obrigatório. `scraper_health.py`.
 7. **`normalized` pode ser `true` (bool)** — SEMPRE proteger: `isinstance(raw, dict)` antes de `.get()`.
 8. **Migration SQL nova → adicionar em `scripts/deploy_database.py::generate_consolidated()`**.
-9. **Novo código = novos testes (`test_<modulo>.py` no mesmo PR)**.
-10. **`httpx` pinado `<1.0`** no `requirements.txt`.
+9. **`httpx` pinado `<1.0`** no `requirements.txt`.
+10. **Paridade Total de Ambiente**: Python, deps (requirements.lock), runtime, OS e versões de ferramentas devem ser IDÊNTICOS entre local (Windows/WSL), CI (GitHub Actions) e Cloud (Streamlit). Qualquer divergência bloqueia merge — CI valida no alvo real. (Ver `REGRAS.md` §4)
 
 ## Sobre
 
