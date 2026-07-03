@@ -14,9 +14,7 @@ Falha se qualquer verificação quebrar.
 """
 from __future__ import annotations
 
-import os
 import platform
-import re
 import subprocess
 import sys
 from pathlib import Path
