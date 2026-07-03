@@ -72,38 +72,43 @@ if echo "${STAGED:-}" | grep -qE "$CODE_PATTERNS"; then
     echo "  - CUSTO_DOCE_RAIO_X.md / RAIO-X_CUSTO_DOCE_RESUMIDO.md (referencia interna)"
     echo ""
     echo "  Opcoes:"
-    echo "    YES  - confirmar que nao precisa de docs e continuar"
-    echo "    A    - rodar sync_docs.py automaticamente e cancelar commit (para revisar)"
-    echo "    Enter / qualquer outra tecla - cancelar commit"
+    echo "    Enter/Y/YES  - confirmar que nao precisa de docs e continuar (default)"
+    echo "    A            - rodar sync_docs.py automaticamente e cancelar commit (para revisar)"
+    echo "    C            - cancelar commit"
     echo ""
-    if read -r CONFIRM 2>/dev/null; then
-      case "$CONFIRM" in
-        [Yy]|[Yy][Ee][Ss])
-          echo "[AVISO] Continuando sem docs (confirmado manualmente)"
-          ;;
-        [Aa])
-          echo "[INFO] Rodando sync_docs.py..."
-          if [ -n "$PY" ] && [ -f "scripts/sync_docs.py" ]; then
-            SYNC_OUTPUT=$("$PY" scripts/sync_docs.py 2>&1) || true
-            echo "$SYNC_OUTPUT"
-            MODIFIED=$(echo "$SYNC_OUTPUT" | grep -E "^(MODIFIED|CREATE|UPDATE|->)" || true)
-            if [ -n "$MODIFIED" ]; then
-              echo ""
-              echo "📝 Arquivos alterados pelo sync_docs.py (revise e stageie manualmente):"
-              echo "$MODIFIED"
-            fi
-          else
-            echo "[WARN] scripts/sync_docs.py nao encontrado ou Python indisponivel"
-          fi
-          echo "Cancelado. Revise os arquivos alterados e commite novamente."
-          exit 1
-          ;;
-        *)
-          echo "Cancelado. Ajuste os docs e commite novamente."
-          exit 1
-          ;;
-      esac
+    # 3 camadas de leitura: /dev/tty → PowerShell fallback → default continua
+    CONFIRM=""
+    if read -r CONFIRM </dev/tty 2>/dev/null; then
+      : # leu via /dev/tty (Git Bash / MSYS2)
+    elif command -v powershell &>/dev/null; then
+      CONFIRM=$(powershell -NoProfile -Command "Read-Host 'Opcao'" 2>/dev/null) || CONFIRM=""
     fi
+    case "$CONFIRM" in
+      [Aa])
+        echo "[INFO] Rodando sync_docs.py..."
+        if [ -n "$PY" ] && [ -f "scripts/sync_docs.py" ]; then
+          SYNC_OUTPUT=$("$PY" scripts/sync_docs.py 2>&1) || true
+          echo "$SYNC_OUTPUT"
+          MODIFIED=$(echo "$SYNC_OUTPUT" | grep -E "^(MODIFIED|CREATE|UPDATE|->)" || true)
+          if [ -n "$MODIFIED" ]; then
+            echo ""
+            echo "📝 Arquivos alterados pelo sync_docs.py (revise e stageie manualmente):"
+            echo "$MODIFIED"
+          fi
+        else
+          echo "[WARN] scripts/sync_docs.py nao encontrado ou Python indisponivel"
+        fi
+        echo "Cancelado. Revise os arquivos alterados e commite novamente."
+        exit 1
+        ;;
+      [Cc])
+        echo "Cancelado. Ajuste os docs e commite novamente."
+        exit 1
+        ;;
+      *)
+        echo "[AVISO] Continuando sem docs (default: Enter / YES / sem terminal)"
+        ;;
+    esac
   fi
 fi
 
