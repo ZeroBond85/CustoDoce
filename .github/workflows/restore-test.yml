@@ -30,12 +30,11 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
+          python-version: '3.14'
           cache: 'pip'
 
       - name: Install dependencies
-        run: |
-          pip install supabase PyGithub 2>/dev/null
+        run: pip install -r requirements.lock
 
       - name: Download latest backup artifact
         if: github.event.inputs.artifact_name == ''

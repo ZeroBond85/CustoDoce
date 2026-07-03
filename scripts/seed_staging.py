@@ -17,9 +17,9 @@ def seed_staging_data(client):
     if not ingredients.data:
         print("No ingredients found. Seeding basic ingredients...")
         basic_ings = [
-            {"canonical": "Leite Condensado", "category": "lacteos"},
-            {"canonical": "Creme de Leite", "category": "lacteos"},
-            {"canonical": "Chocolate em Pó", "category": "chocolates"},
+            {"canonical_name": "Leite Condensado", "category": "lacteos"},
+            {"canonical_name": "Creme de Leite", "category": "lacteos"},
+            {"canonical_name": "Chocolate em Pó", "category": "chocolates"},
         ]
         client.table("ingredients").insert(basic_ings).execute()
 
@@ -34,7 +34,7 @@ def seed_staging_data(client):
 
     # 2. Seed synthetic prices
     # Get IDs
-    ings = client.table("ingredients").select("id, canonical").execute().data
+    ings = client.table("ingredients").select("id, canonical_name").execute().data
     strs = client.table("stores").select("id, name").execute().data
 
     if not ings or not strs:

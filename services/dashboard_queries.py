@@ -233,9 +233,9 @@ def get_dashboard_kpis():
     stores = {p.get("store_id", "") for p in prices}
 
     valid_ppk = [
-        p.get("normalized", {}).get("price_per_kg", 0)
+        _safe_ppk(p)
         for p in prices
-        if p.get("normalized", {}).get("price_per_kg", 0) > 0
+        if _safe_ppk(p) > 0
     ]
 
     return {
@@ -259,7 +259,7 @@ def get_coverage_by_ingredient():
     for p in prices:
         ing = p.get("ingredient_id", "")
         store = p.get("store_id", "")
-        ppk = p.get("normalized", {}).get("price_per_kg", 0)
+        ppk = _safe_ppk(p)
 
         coverage[ing]["stores"].add(store)
         coverage[ing]["prices"] += 1
@@ -270,9 +270,9 @@ def get_coverage_by_ingredient():
     for ing, data in coverage.items():
         ing_prices = [p for p in prices if p.get("ingredient_id") == ing]
         valid_ppk = [
-            p.get("normalized", {}).get("price_per_kg", 0)
+            _safe_ppk(p)
             for p in ing_prices
-            if p.get("normalized", {}).get("price_per_kg", 0) > 0
+            if _safe_ppk(p) > 0
         ]
         data["avg_ppk"] = sum(valid_ppk) / len(valid_ppk) if valid_ppk else 0
         data["store_count"] = len(data["stores"])
@@ -418,6 +418,17 @@ def reject_review_item_cached(item_id: str):
 # ============================================================
 # Utility
 # ============================================================
+
+
+def _safe_ppk(r: dict) -> float:
+    """Extract price_per_kg with isinstance guard (normalized may be bool)."""
+    norm = r.get("normalized")
+    if isinstance(norm, dict):
+        try:
+            return float(norm.get("price_per_kg", 0))
+        except (TypeError, ValueError):
+            return 0.0
+    return 0.0
 
 
 def extract_ppk(row: dict) -> float:

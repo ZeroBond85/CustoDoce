@@ -16,7 +16,7 @@ addopts = "-m 'not slow and not integration' --ignore=tests/integration/test_rea
 
 [tool.ruff]
 line-length = 120
-target-version = "py312"
+target-version = "py314"
 
 [tool.ruff.lint]
 select = ["F", "E", "W", "B", "S", "UP", "SIM", "C4"]
@@ -29,7 +29,7 @@ ignore = ["E501", "B006", "B008", "B023", "S101"]
 "tests/*" = ["S101", "S105", "B007", "C401", "E402", "F841", "F811", "S110", "SIM105", "SIM117"]
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.14"
 ignore_missing_imports = true
 explicit_package_bases = true
 exclude = [

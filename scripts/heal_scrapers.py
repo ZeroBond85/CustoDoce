@@ -45,7 +45,7 @@ def list_disabled() -> int:
     client = get_service_client()
     res = (
         client.table("stores")
-        .select("id, name, tier, is_active, scraper")
+        .select("id, name, tier, is_active, type")
         .eq("is_active", False)
         .order("name")
         .execute()
@@ -58,7 +58,7 @@ def list_disabled() -> int:
     for s in rows:
         print(
             f"  - id={s['id'][:8] if s.get('id') else '-'} "
-            f"name={s['name']!r} tier={s.get('tier')} scraper={s.get('scraper')}"
+            f"name={s['name']!r} tier={s.get('tier')} type={s.get('type')}"
         )
     return len(rows)
 

@@ -53,7 +53,16 @@ def main() -> int:
         return 1
     print("[OK] secrets: limpos", file=sys.stderr)
 
-    print("[2/3] ci_local.py...", file=sys.stderr)
+    print("[1.5/4] agents_tool --check (schema)...", file=sys.stderr)
+    result = run([THIS_PYTHON, "scripts/agents_tool.py", "--check"])
+    if result.returncode != 0:
+        print("FALHA: agents_tool --check falhou. Corrija AGENTS.md antes de push.", file=sys.stderr)
+        if result.stdout:
+            print(result.stdout[-1000:], file=sys.stderr)
+        return 1
+    print("[OK] AGENTS.md schema valido", file=sys.stderr)
+
+    print("[2/4] ci_local.py...", file=sys.stderr)
     # Check if user wants to run unit tests (via env var)
     run_unit = os.environ.get("CI_LOCAL_UNIT") == "1"
     ci_args = [THIS_PYTHON, "scripts/ci_local.py"]
@@ -77,6 +86,36 @@ def main() -> int:
         print("Corrija o codigo OU migre o schema antes de push.", file=sys.stderr)
         return 1
     print("[OK] schema: todas as colunas existem no Supabase", file=sys.stderr)
+
+    print("[3.5/4] audit_df_columns...", file=sys.stderr)
+    result = run([THIS_PYTHON, "scripts/audit_df_columns.py"])
+    if result.returncode != 0:
+        print("FALHA: colunas usadas em DataFrames nao existem no schema ou alias.", file=sys.stderr)
+        if result.stdout:
+            print(result.stdout[-1500:], file=sys.stderr)
+        return 1
+    print("[OK] audit_df_columns: DataFrame columns valid", file=sys.stderr)
+
+    print("[3.75/4] schema_manifest + mock validation...", file=sys.stderr)
+    result = run([THIS_PYTHON, "scripts/generate_schema_manifest.py"])
+    if result.returncode != 0:
+        print("FALHA: nao foi possivel gerar schema manifest.", file=sys.stderr)
+        return 1
+    result = run([THIS_PYTHON, "-m", "pytest", "tests/unit/test_validate_mocks_against_manifest.py", "-q", "--no-header"])
+    if result.returncode != 0:
+        print("FALHA: mock data nao alinhado com schema real.", file=sys.stderr)
+        print("Corrija os mocks em tests/ OU atualize o schema em supabase/consolidated_migration.sql.", file=sys.stderr)
+        return 1
+    print("[OK] schema_manifest + mock validation: todos os mocks alinhados ao schema real", file=sys.stderr)
+
+    print("[3.875/4] check_environment_parity...", file=sys.stderr)
+    result = run([THIS_PYTHON, "scripts/check_environment_parity.py"])
+    if result.returncode != 0:
+        print("FALHA: ambiente fora de paridade. Corrija antes de push.", file=sys.stderr)
+        if result.stdout:
+            print(result.stdout[-1500:], file=sys.stderr)
+        return 1
+    print("[OK] environment parity: Python + lock + platform ok", file=sys.stderr)
 
     print("[4/4] test_total_coverage (light, no integration/real)...", file=sys.stderr)
     # Sprint 4: opt-in full pipeline via TEST_TOTAL opt-in env var.

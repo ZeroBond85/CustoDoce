@@ -86,12 +86,11 @@ def test_promocoes_is_promotion_true_via_flag():
     assert _is_promotion({"is_promotion": True}) is True
 
 
-def test_promocoes_is_promotion_true_via_oferta_tag():
-    """_is_promotion detecta tag 'OFERTA' (case-insensitive)."""
+def test_promocoes_is_promotion_false_when_not_flag():
+    """_is_promotion retorna False se is_promotion não for True."""
     from dashboard.pages.promocoes import _is_promotion
 
-    assert _is_promotion({"is_promotion": False, "ai_tags": ["OFERTA"]}) is True
-    assert _is_promotion({"is_promotion": False, "ai_tags": ["promocao", "oferta"]}) is True
+    assert _is_promotion({"is_promotion": False}) is False
 
 
 def test_promocoes_is_promotion_false_for_normal_item():
@@ -99,8 +98,7 @@ def test_promocoes_is_promotion_false_for_normal_item():
     from dashboard.pages.promocoes import _is_promotion
 
     assert _is_promotion({"is_promotion": False}) is False
-    assert _is_promotion({"is_promotion": False, "ai_tags": ["novo"]}) is False
-    assert _is_promotion({"is_promotion": False, "ai_tags": None}) is False
+    assert _is_promotion({"is_promotion": False}) is False
 
 
 def test_promocoes_safe_ppk_flat():
@@ -146,15 +144,15 @@ def test_relatorios_confirm_send_report_dialog_exists():
 
 
 def test_alertas_contact_options_filters_empty():
-    """_contact_options filtra recipients sem campo 'email' ou 'chat_id'."""
+    """_contact_options filtra recipients sem campo 'target'."""
     from dashboard.pages import alertas
 
     def fake_recipients(channel):
-        return [
-            {"email": "a@b.c", "chat_id": None},
-            {"email": None, "chat_id": "12345"},
-            {"email": "", "chat_id": ""},
-        ]
+        if channel == "email":
+            return [{"target": "a@b.c"}]
+        if channel == "telegram":
+            return [{"target": "12345"}]
+        return []
 
     try:
         original = alertas.cached_get_active_recipients

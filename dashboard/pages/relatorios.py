@@ -155,6 +155,16 @@ def render_relatorios():
                     st.error(f"Telegram Falhou: {msg}")
 
 
+def _safe_ppk(r: dict) -> float:
+    norm = r.get("normalized")
+    if isinstance(norm, dict):
+        try:
+            return float(norm.get("price_per_kg", 0))
+        except (TypeError, ValueError):
+            return 0.0
+    return 0.0
+
+
 def build_daily_report_html() -> str:
     """Build HTML email report."""
     prices = get_latest_prices_cached(valid_only=True, limit=5000)
@@ -163,7 +173,7 @@ def build_daily_report_html() -> str:
         return "<p>Sem dados de preços.</p>"
 
     df = pd.DataFrame(prices)
-    df["ppk"] = df.apply(lambda r: r.get("normalized", {}).get("price_per_kg", 0), axis=1)
+    df["ppk"] = df.apply(_safe_ppk, axis=1)
     df = df[df["ppk"] > 0]
 
     top5 = df.sort_values("ppk").groupby("ingredient_id").head(5)
@@ -216,7 +226,7 @@ def build_telegram_summary() -> str:
         return "🍰 CustoDoce: Sem dados de preços hoje."
 
     df = pd.DataFrame(prices)
-    df["ppk"] = df.apply(lambda r: r.get("normalized", {}).get("price_per_kg", 0), axis=1)
+    df["ppk"] = df.apply(_safe_ppk, axis=1)
     df = df[df["ppk"] > 0]
 
     top3 = df.nsmallest(3, "ppk")

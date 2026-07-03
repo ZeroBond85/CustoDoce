@@ -1,9 +1,10 @@
 """Browser pool para reutilizar instâncias do Playwright entre scrapers."""
 
+from __future__ import annotations
+
 import asyncio
 import contextlib
 from services.logger import logger
-from typing import Optional
 
 from playwright.async_api import async_playwright, Browser, BrowserContext
 
@@ -11,7 +12,7 @@ from playwright.async_api import async_playwright, Browser, BrowserContext
 class BrowserPool:
     """Pool de browsers Playwright reutilizáveis."""
 
-    _instance: Optional["BrowserPool"] = None
+    _instance: BrowserPool | None = None
     _browser: Browser | None = None
     _playwright = None
     _lock = asyncio.Lock()

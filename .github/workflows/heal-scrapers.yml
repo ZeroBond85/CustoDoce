@@ -1,6 +1,5 @@
 name: Heal Scrapers - Self-Healing Cron
 on:
-  # Sprint 4 — every 15 days at 02:00 UTC (low traffic window)
   schedule:
     - cron: "0 2 */15 * *"
   workflow_dispatch:
@@ -21,7 +20,7 @@ on:
         default: ""
 
 env:
-  PYTHON_VERSION: "3.12"
+  PYTHON_VERSION: "3.14"
 
 concurrency:
   group: heal-scrapers-${{ github.ref }}
@@ -31,8 +30,6 @@ jobs:
   heal:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # Self-healing is information + recovery — must not block CI pipeline.
-    # Always continues even on failure; alerts via Telegram if interface breaks.
     continue-on-error: true
     permissions:
       contents: read
@@ -48,7 +45,7 @@ jobs:
           cache: "pip"
 
       - name: Install deps
-        run: pip install -r requirements.txt
+        run: pip install -r requirements.lock
 
       - name: Audit disabled scrapers
         run: python scripts/heal_scrapers.py list-disabled
@@ -70,7 +67,6 @@ jobs:
 
       - name: Show recent failure log
         if: always()
-        # Pick one representative scraper (Pao de Acucar Fresh — known auto-disabled)
         run: python scripts/heal_scrapers.py failures "Pao de Acucar Fresh" --days 30
 
       - name: Notify on result

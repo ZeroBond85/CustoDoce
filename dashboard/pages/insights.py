@@ -12,6 +12,16 @@ from services.dashboard_queries import (
 )
 
 
+def _safe_ppk(r: dict) -> float:
+    norm = r.get("normalized")
+    if isinstance(norm, dict):
+        try:
+            return float(norm.get("price_per_kg", 0))
+        except (TypeError, ValueError):
+            return 0.0
+    return 0.0
+
+
 def render_insights():
     st.title("Insights & Análises")
 
@@ -64,7 +74,7 @@ def render_insights():
     st.subheader("Outliers de Preço (Desvio Padrão > 2)")
     if prices:
         df = pd.DataFrame(prices)
-        df["ppk"] = df.apply(lambda r: r.get("normalized", {}).get("price_per_kg", 0), axis=1)
+        df["ppk"] = df.apply(_safe_ppk, axis=1)
         df = df[df["ppk"] > 0]
 
         # Group by ingredient
@@ -95,7 +105,7 @@ def render_insights():
     st.subheader("Top 10 Melhores Ofertas (R$/kg)")
     if prices:
         df = pd.DataFrame(prices)
-        df["ppk"] = df.apply(lambda r: r.get("normalized", {}).get("price_per_kg", 0), axis=1)
+        df["ppk"] = df.apply(_safe_ppk, axis=1)
         df = df[df["ppk"] > 0].nsmallest(10, "ppk")
         st.dataframe(
             df[["ingredient_id", "store_name", "raw_product", "raw_price", "raw_unit", "ppk", "collected_at"]],

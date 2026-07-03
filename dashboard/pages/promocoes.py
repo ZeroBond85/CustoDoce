@@ -12,14 +12,7 @@ from services.price_service import get_all_current_prices
 
 
 def _is_promotion(p: dict) -> bool:
-    if p.get("is_promotion"):
-        return True
-    tags = p.get("ai_tags")
-    if isinstance(tags, list):
-        for t in tags:
-            if isinstance(t, str) and "OFERTA" in t.upper():
-                return True
-    return False
+    return bool(p.get("is_promotion"))
 
 
 def _safe_ppk(p: dict) -> float:

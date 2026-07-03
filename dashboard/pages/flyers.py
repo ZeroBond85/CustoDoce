@@ -3,7 +3,6 @@ Dashboard Page: Flyers
 """
 
 import streamlit as st
-import pandas as pd
 
 from services.dashboard_queries import get_recent_flyers_cached
 from services.flyer_service import get_flyer_detail, delete_flyer
@@ -14,10 +13,10 @@ from dashboard.components.ui import inject_css
 def _confirm_delete_dialog(flyer_id: str):
     detail = get_flyer_detail(flyer_id) or {}
     store_name = detail.get("store_name", "N/A")
-    items = detail.get("items_count", 0)
+    products_count = detail.get("products_extracted", 0)
     st.warning(
         f"Esta ação é **irreversível**. O flyer de **{store_name}** "
-        f"({items} produtos extraídos) será excluído permanentemente."
+        f"({products_count} produtos extraídos) será excluído permanentemente."
     )
     col1, col2 = st.columns([1, 1])
     with col1:
@@ -58,9 +57,9 @@ def render_flyers():
     cols = st.columns(4)
     for idx, flyer in enumerate(flyers):
         with cols[idx % 4], st.container():
-            if flyer.get("thumbnail_url"):
+            if flyer.get("image_url"):
                 try:
-                    st.image(flyer["thumbnail_url"], use_container_width=True)
+                    st.image(flyer["image_url"], use_container_width=True)
                 except Exception:
                     st.caption("Erro ao carregar imagem")
             else:
@@ -93,8 +92,7 @@ def render_flyers():
                 st.markdown(f"**Loja:** {detail.get('store_name')}")
                 st.markdown(f"**Fonte:** {detail.get('source')}")
                 st.markdown(f"**Coletado:** {detail.get('collected_at')}")
-                st.markdown(f"**Itens extraídos:** {detail.get('items_count', 0)}")
-                st.markdown(f"**OCR usado:** {'Sim' if detail.get('ocr_used', False) else 'Não'}")
+                st.markdown(f"**Produtos extraídos:** {detail.get('products_extracted', 0)}")
 
                 col_a, col_b = st.columns([1, 1])
                 with col_a:
@@ -110,10 +108,8 @@ def render_flyers():
                     ):
                         _confirm_delete_dialog(flyer_id)
 
-            if detail.get("products"):
-                st.subheader("Produtos Extraídos")
-                df = pd.DataFrame(detail["products"])
-                st.dataframe(df, use_container_width=True)
+            if detail.get("products_extracted", 0) > 0:
+                st.info(f"{detail['products_extracted']} produtos extraídos neste flyer.")
 
 
 __all__ = ["render_flyers"]

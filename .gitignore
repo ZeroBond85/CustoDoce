@@ -5,7 +5,7 @@ __pycache__/
 *.pyd
 .Python
 *.so
-.venv/
+.venv*/
 venv/
 env/
 .env
@@ -110,3 +110,10 @@ scripts/diagnose.py
 cline.log
 _tmp/
 tmp/
+
+# Setup files / downloaded artifacts
+*.whl
+miniconda.sh
+pyenv_bashrc.txt
+
+# Generated manifests (committed - SSOT for mock validation in CI)

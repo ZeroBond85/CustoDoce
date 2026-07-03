@@ -2,15 +2,25 @@
 # Pre-commit hook (CustoDoce) — blindado para committers Windows + POSIX
 #
 # Layer 1: SECRET GUARD    - BLOQUEIA chave de API em staged (irreversivel: iria vazar)
-# Layer 2: DOC SYNC        - AVISA se codigo mudou sem docs (usuario decide)
+# Layer 2: DOC SYNC        - BLOQUEIA se codigo mudou sem docs (YES bypass, A auto-sync)
 # Layer 3: SIZE GUARD      - BLOQUEIA arquivo >100MB (GitHub rejeita; mais vale parar antes)
 # Layer 4: DOC WATCHDOG    - AVISO leve sobre outros docs
+# Layer 5: AGENTS SCHEMA   - BLOQUEIA se AGENTS.md não passar no schema check
 #
 # Para pular TODOS os checks:  git commit --no-verify  (usar com consciencia)
 
 set -euo pipefail
 
 STAGED=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null || true)
+
+# Detect Python interpeter (compartilhado entre layers 2, 2.5 e 5)
+if command -v python3 &>/dev/null; then
+  PY=python3
+elif command -v python &>/dev/null; then
+  PY=python
+else
+  PY=""
+fi
 
 # ----------------------------------------------------------------
 # 1. SECRET GUARD - bloqueante (chave em staged => catastrofe publica)
@@ -43,7 +53,7 @@ if [ -n "${STAGED:-}" ]; then
 fi
 
 # ----------------------------------------------------------------
-# 2. DOC SYNC - AVISO (usuario pode ignorar conscientemente)
+# 2. DOC SYNC - BLOQUEIA se codigo mudou sem docs (bypass: YES, auto: A)
 # ----------------------------------------------------------------
 CODE_PATTERNS='^(services|scrapers|parsers|telegram_bot|dashboard|admin)/|main\.py$|^\.github/workflows/|^config/|^tests/'
 DOC_REQUIRED='^docs/changelog\.md$|^README\.md$|^CUSTO_DOCE_RAIO_X\.md$|^RAIO-X_CUSTO_DOCE_RESUMIDO\.md$'
@@ -61,28 +71,45 @@ if echo "${STAGED:-}" | grep -qE "$CODE_PATTERNS"; then
     echo "  - README.md (mudancas visiveis ao usuario)"
     echo "  - CUSTO_DOCE_RAIO_X.md / RAIO-X_CUSTO_DOCE_RESUMIDO.md (referencia interna)"
     echo ""
-    echo "  -> Se voce REALMENTE sabe que nao precisa, pressione ENTER para confirmar (timeout 10s)"
+    echo "  Opcoes:"
+    echo "    YES  - confirmar que nao precisa de docs e continuar"
+    echo "    A    - rodar sync_docs.py automaticamente e cancelar commit (para revisar)"
+    echo "    Enter / qualquer outra tecla - cancelar commit"
     echo ""
-    if read -r -t 10 CONFIRM 2>/dev/null; then
-      if [ "$CONFIRM" != "" ]; then
-        echo "Cancelado. Ajuste os docs e commite novamente."
-        exit 1
-      fi
+    if read -r CONFIRM 2>/dev/null; then
+      case "$CONFIRM" in
+        [Yy]|[Yy][Ee][Ss])
+          echo "[AVISO] Continuando sem docs (confirmado manualmente)"
+          ;;
+        [Aa])
+          echo "[INFO] Rodando sync_docs.py..."
+          if [ -n "$PY" ] && [ -f "scripts/sync_docs.py" ]; then
+            SYNC_OUTPUT=$("$PY" scripts/sync_docs.py 2>&1) || true
+            echo "$SYNC_OUTPUT"
+            MODIFIED=$(echo "$SYNC_OUTPUT" | grep -E "^(MODIFIED|CREATE|UPDATE|->)" || true)
+            if [ -n "$MODIFIED" ]; then
+              echo ""
+              echo "📝 Arquivos alterados pelo sync_docs.py (revise e stageie manualmente):"
+              echo "$MODIFIED"
+            fi
+          else
+            echo "[WARN] scripts/sync_docs.py nao encontrado ou Python indisponivel"
+          fi
+          echo "Cancelado. Revise os arquivos alterados e commite novamente."
+          exit 1
+          ;;
+        *)
+          echo "Cancelado. Ajuste os docs e commite novamente."
+          exit 1
+          ;;
+      esac
     fi
-    echo "[AVISO] Continuando sem docs (10s sem resposta = segue)"
   fi
 fi
 
 # ----------------------------------------------------------------
-# 2.5 DOC SYNC --strict (rápido: só leitura, ~2s em repo pequeno)
+# 2.5 DOC SYNC --strict check - AVISO se sync_docs.py --check falhar
 # ----------------------------------------------------------------
-if command -v python3 &>/dev/null; then
-  PY=python3
-elif command -v python &>/dev/null; then
-  PY=python
-else
-  PY=""
-fi
 if [ -n "$PY" ] && [ -f "scripts/sync_docs.py" ]; then
   SYNC_RESULT=$("$PY" scripts/sync_docs.py --check --strict 2>&1) || true
   if echo "$SYNC_RESULT" | grep -q "\[FAIL\]"; then
@@ -99,7 +126,10 @@ fi
 # ----------------------------------------------------------------
 # 3. SIZE GUARD - BLOQUEIA arquivo >100MB (GitHub rejeita de qualquer jeito)
 # ----------------------------------------------------------------
+OIFS="$IFS"
+IFS=$'\n'
 for FILE in $STAGED; do
+  IFS="$OIFS"
   if [ -f "$FILE" ]; then
     SIZE=$(stat -c%s "$FILE" 2>/dev/null || ls -la "$FILE" 2>/dev/null | awk '{print $5}')
     if [ -n "$SIZE" ] && [ "$SIZE" -gt 104857600 ]; then
@@ -112,6 +142,7 @@ for FILE in $STAGED; do
     fi
   fi
 done
+IFS="$OIFS"
 
 # ----------------------------------------------------------------
 # 4. DOC WATCHDOG - AVISO leve
@@ -122,6 +153,25 @@ if echo "${STAGED:-}" | grep -qE "$TEST_PATTERNS"; then
     echo ""
     echo "💡 [AVISO] tests/* alterado. Considere atualizar tests/README.md."
     echo ""
+  fi
+fi
+
+# ----------------------------------------------------------------
+# 5. AGENTS SCHEMA - bloqueante se AGENTS.md estiver staged e invalido
+# ----------------------------------------------------------------
+if echo "${STAGED:-}" | grep -q 'AGENTS\.md$'; then
+  if [ -n "$PY" ] && [ -f "scripts/agents_tool.py" ] && [ -f "config/agents_schema.yaml" ]; then
+    AGENTS_RESULT=$("$PY" scripts/agents_tool.py --check 2>&1) || true
+    if echo "$AGENTS_RESULT" | grep -q "\[FAIL\]"; then
+      echo ""
+      echo "🚨 COMMIT BLOQUEADO: AGENTS.md nao passa no schema check."
+      echo "$AGENTS_RESULT" | grep "\[FAIL\]" | head -10
+      echo ""
+      echo "Execute 'python scripts/agents_tool.py --check' para ver os problemas"
+      echo "Ou 'git commit --no-verify' para pular (NAO recomendado)"
+      echo ""
+      exit 1
+    fi
   fi
 fi
 
