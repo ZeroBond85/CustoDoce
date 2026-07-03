@@ -170,3 +170,7 @@ Regra permanente:
 - Lições novas vão para LESSONS.md (via `--add-lesson`)
 - Regras novas de execução vão para REGRAS.md
 - CI valida schema a cada push/merge
+
+### 36. Lesson #33
+
+30 bugs de schema mismatch encontrados na auditoria manual de 19 páginas do dashboard contra information_schema real do Supabase. Todo dict key access em páginas Streamlit deve ser validado contra schema real (SELECT column_name FROM information_schema.columns WHERE table_name=...). Mocks de teste DEVEM refletir schema real — nunca hand-crafted com keys imaginarias.

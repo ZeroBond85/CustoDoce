@@ -29,7 +29,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      - run: pip install -r requirements-dev.txt 2>/dev/null
+      - run: pip install -r requirements.lock 2>/dev/null
       - name: Deploy schema to staging
         run: python scripts/deploy_database.py --execute --env staging
         env:
@@ -54,7 +54,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: pip install -r requirements.lock
       - run: python -m pytest tests/unit/ tests/schema/ -q --tb=short
 
   seed-data:
@@ -68,7 +68,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      - run: pip install -r requirements.txt 2>/dev/null
+      - run: pip install -r requirements.lock 2>/dev/null
       - name: Sync stores to staging
         run: python scripts/sync_all_store_fields.py
         env:
@@ -90,7 +90,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      - run: pip install -r requirements-dev.txt 2>/dev/null
+      - run: pip install -r requirements.lock 2>/dev/null
       - name: Staging health check
         run: python scripts/deploy_check.py
         env:

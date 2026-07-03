@@ -2,7 +2,7 @@ name: On Demand Scrape
 
 on:
   schedule:
-    - cron: '0 */4 * * *' # Every 4 hours
+    - cron: '0 */4 * * *'
   workflow_dispatch:
 
 jobs:
@@ -17,8 +17,7 @@ jobs:
           cache: 'pip'
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
-          pip install playwright
+          pip install -r requirements.lock
           playwright install --with-deps chromium
       - name: Process Requests
         env:

@@ -22,14 +22,15 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      - run: pip install -r requirements-dev.txt
+      - run: pip install -r requirements.lock
+      - run: python scripts/check_environment_parity.py
       - run: ruff check . --output-format=github
       - name: Validate schema manifest (SQL → mock alignment)
         run: |
           python scripts/generate_schema_manifest.py
           python -m pytest tests/unit/test_validate_mocks_against_manifest.py -q --no-header
       - run: bandit -r admin/ dashboard/ services/ -x tests/
-      - run: pip-audit --strict -s osv -r requirements.txt
+      - run: pip-audit --strict -s osv -r requirements.lock
 
   typecheck:
     runs-on: ubuntu-latest
@@ -40,7 +41,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      - run: pip install -r requirements-dev.txt
+      - run: pip install -r requirements.lock
       - run: mypy . --config-file pyproject.toml
 
   docs-sync:
@@ -52,7 +53,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: pip install -r requirements.lock
       - name: Check docs are in sync (v2 heading-aware)
         run: python scripts/sync_docs.py --analyze
       - name: Validate AGENTS.md schema
@@ -68,7 +69,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      - run: pip install -r requirements.txt -r requirements-dev.txt -r tests/requirements-test.txt
+      - run: pip install -r requirements.lock
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - run: python -m pytest tests/unit/ tests/schema/ -q --tb=short --no-header --durations=5
@@ -80,7 +81,6 @@ jobs:
     needs: [lint, typecheck]
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Só roda se tiver acesso aos secrets (PR de fork não tem)
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
       - uses: actions/checkout@v7
@@ -88,7 +88,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      - run: pip install -r requirements.txt -r requirements-dev.txt -r tests/requirements-test.txt
+      - run: pip install -r requirements.lock
       - name: Install Playwright browsers
         run: python -m playwright install chromium
       - name: Record start time
@@ -116,7 +116,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: pip install -r requirements.lock
       - name: Deploy check
         run: python scripts/deploy_check.py
         env:
@@ -143,16 +143,13 @@ jobs:
     needs: [deploy-check]
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    # Smoke test: login + page crawl de 19 paginas (~3min).
-    # Suite e2e completa (Playwright cloud) roda em .github/workflows/e2e.yml
-    # schedule mensal.
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      - run: pip install -r requirements.txt -r requirements-dev.txt -r tests/requirements-test.txt
+      - run: pip install -r requirements.lock
       - name: Install Playwright browsers
         run: python -m playwright install chromium
       - name: Start Streamlit local server
@@ -199,7 +196,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-por poppler-utils
-      - run: pip install -r requirements.txt -r requirements-dev.txt -r tests/requirements-test.txt
+      - run: pip install -r requirements.lock
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - name: Real scraper tests

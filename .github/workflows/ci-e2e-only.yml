@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: '3.14'
           cache: 'pip'
-      - run: pip install -r requirements.txt -r requirements-dev.txt -r tests/requirements-test.txt
+      - run: pip install -r requirements.lock
       - name: Install Playwright browsers
         run: python -m playwright install chromium
       - name: Start Streamlit local server
