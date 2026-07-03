@@ -2,7 +2,7 @@
 # Pre-commit hook (CustoDoce) — blindado para committers Windows + POSIX
 #
 # Layer 1: SECRET GUARD    - BLOQUEIA chave de API em staged (irreversivel: iria vazar)
-# Layer 2: DOC SYNC        - AVISA se codigo mudou sem docs (usuario decide)
+# Layer 2: DOC SYNC        - BLOQUEIA se codigo mudou sem docs (bypass com YES)
 # Layer 3: SIZE GUARD      - BLOQUEIA arquivo >100MB (GitHub rejeita; mais vale parar antes)
 # Layer 4: DOC WATCHDOG    - AVISO leve sobre outros docs
 # Layer 5: AGENTS SCHEMA   - BLOQUEIA se AGENTS.md não passar no schema check
@@ -62,15 +62,22 @@ if echo "${STAGED:-}" | grep -qE "$CODE_PATTERNS"; then
     echo "  - README.md (mudancas visiveis ao usuario)"
     echo "  - CUSTO_DOCE_RAIO_X.md / RAIO-X_CUSTO_DOCE_RESUMIDO.md (referencia interna)"
     echo ""
-    echo "  -> Se voce REALMENTE sabe que nao precisa, pressione ENTER para confirmar (timeout 10s)"
+    echo "  -> Digite YES para confirmar que nao precisa de docs (ou aguarde 10s para cancelar)"
     echo ""
     if read -r -t 10 CONFIRM 2>/dev/null; then
-      if [ "$CONFIRM" != "" ]; then
-        echo "Cancelado. Ajuste os docs e commite novamente."
-        exit 1
-      fi
+      case "$CONFIRM" in
+        [Yy]|[Yy][Ee][Ss]|[Ss])
+          echo "[AVISO] Continuando sem docs (confirmado manualmente)"
+          ;;
+        *)
+          echo "Cancelado. Ajuste os docs e commite novamente."
+          exit 1
+          ;;
+      esac
+    else
+      echo "Cancelado (timeout 10s). Ajuste os docs e commite novamente."
+      exit 1
     fi
-    echo "[AVISO] Continuando sem docs (10s sem resposta = segue)"
   fi
 fi
 
