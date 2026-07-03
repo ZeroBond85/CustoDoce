@@ -117,6 +117,16 @@ def main() -> int:
         return 1
     print("[OK] environment parity: Python + lock + platform ok", file=sys.stderr)
 
+    print("[3.9/4] sync_docs --check --strict (aviso)...", file=sys.stderr)
+    result = run([THIS_PYTHON, "scripts/sync_docs.py", "--check", "--strict"])
+    if result.returncode != 0:
+        print("[AVISO] Documentacao dessincronizada. Rode: python scripts/sync_docs.py", file=sys.stderr)
+        if result.stdout:
+            print(result.stdout[-1500:], file=sys.stderr)
+        # Nao bloqueia - apenas aviso (CI e o gate real)
+    else:
+        print("[OK] docs sincronizadas", file=sys.stderr)
+
     print("[4/4] test_total_coverage (light, no integration/real)...", file=sys.stderr)
     # Sprint 4: opt-in full pipeline via TEST_TOTAL opt-in env var.
     # Skip by default to keep pre-push <30s. Set TEST_TOTAL=1 to enable.
