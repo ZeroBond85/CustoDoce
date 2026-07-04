@@ -331,6 +331,7 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
   - `test_alertas_contact_options_filters_empty`: `fake_recipients` returns `{"target": "..."}` (prod uses `target`, not `email`/`chat_id`).
   - `test_dashboard_contracts.py` `MOCK_LOGS`: `completed_at` → `finished_at` (DB schema `scraping_logs.finished_at`).
 - **`scripts/heal_scrapers.py` column name**: `stores.scraper` → `stores.type`.
+- **`v_latest_prices` materialized view staleness (CI pre-existing)**: Pre-condicao quebrada pelo snapshot stale (`WHERE valid_until >= CURRENT_DATE` captura data do REFRESH, sem trigger automatico). Cada CI run do `validate_dashboard_queries.py` agora chama `REFRESH MATERIALIZED VIEW CONCURRENTLY v_latest_prices` via RPC `exec_sql` (DDL/DML, vs `exec_sql_query` SELECT-only). Smoke test passa a detectar dados reais em vez de falha por snapshot expirado.
 
 ### Metrics
 

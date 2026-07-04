@@ -66,6 +66,32 @@ def check(description, ok, detail=""):
     return ok
 
 
+def refresh_materialized_views() -> bool:
+    """Refresh materialized views via exec_sql RPC antes do smoke test.
+
+    v_latest_prices e' materialized view com WHERE valid_until >= CURRENT_DATE.
+    Sem refresh regular, o snapshot fica stale (valid_until < today).
+    Cada CI run deve refrescar para garantir dados fresh no smoke test.
+
+    exec_sql RPC suporta DDL/DML (exec_sql_query e' SELECT-only).
+    """
+    from supabase import create_client
+
+    try:
+        url = os.environ.get("SUPABASE_URL", "")
+        key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+        if not url or not key:
+            print("  [SKIP] SUPABASE_URL/KEY nao configurados - refresh nao executado")
+            return True
+        c = create_client(url, key)
+        c.rpc("exec_sql", {"sql": "REFRESH MATERIALIZED VIEW CONCURRENTLY v_latest_prices"}).execute()
+        print("  [OK] v_latest_prices refreshed (CONCURRENTLY supported via unique index)")
+        return True
+    except Exception as e:
+        print(f"  [WARN] Refresh v_latest_prices falhou: {e}")
+        return True  # warning only - smoke test ainda roda (pode falhar)
+
+
 def validate_prices():
     from services.price_service import get_all_current_prices
 
@@ -209,6 +235,9 @@ def main():
         r = c.table("prices").select("id").limit(1).execute()
         assert r.data is not None, "Falha na conexao Supabase"
         print("  [OK] Conexao OK\n")
+
+        print(">> Refresh materialized views (precondicao para queries fresh)...")
+        refresh_materialized_views()
 
     results = []
 
