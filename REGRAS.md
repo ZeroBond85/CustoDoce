@@ -131,22 +131,13 @@ Emergência: `git push --no-verify` (não recomendado).
 - `scripts/audit_secrets.py --strict` — varre histórico por chaves
 - `scripts/install_hooks.sh` — instala/re-instala hooks (shell-based, via WSL)
 
-## OpenCode Skills Strategy
+## OpenCode Skills
 
-Duas camadas:
+Skills: ver [docs/skills.md](docs/skills.md) (gerado por `python scripts/sync_docs.py --sync`).
 
-| Camada | Localização | Propósito |
-|--------|-------------|-----------|
-| **Global** | `~/.config/opencode/skills/` | 17 skills universais |
-| **Local** | `.opencode/skills/` | 7 overlays específicos CustoDoce |
+SST (Single Source of Truth) = disco (`.opencode/skills/`) + `APPROVED_SKILLS` em `scripts/skills_maintenance.py`.
 
-### Skills Globais (17)
-
-scraping-resilience, code-quality-pro, test-architect, api-design, code-review, debug-troubleshooting, docs-writer, git-workflow, github-actions, project-doc-sync, refactor-patterns, sql-optimizer, streamlit, telegram-bot, test-generation, humanizer, seo, ui-ux-pro-max.
-
-### Overlays Locais (7)
-
-telegram-bot, docs-writer, sql-optimizer, streamlit, api-design, github-actions, project-doc-sync.
+**Não editar manualmente.** Qualquer alteração em skills deve ser refletida via `sync_docs --sync`.
 
 ## CI Docs-Sync Job
 

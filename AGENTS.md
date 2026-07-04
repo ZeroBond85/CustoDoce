@@ -48,7 +48,8 @@ CustoDoce/
 │   ├── scrape.yml, ci.yml, e2e.yml, backup.yml, restore-test.yml
 │   ├── deploy-staging.yml, on_demand_scrape.yml, ci-e2e-only.yml
 │   ├── heal-scrapers.yml                             # Cron 15d auto-heal
-│   └── skills-maintenance.yml                       # Cron mensal (dia 1, 9am UTC)
+│   ├── skills-maintenance.yml                       # Cron mensal (dia 1, 9am UTC)
+│   └── dependency-audit.yml                         # Cron mensal (dia 1, 9am UTC) — pip-audit + deptry + licenses
 ├── .githooks/
 │   ├── pre-commit                                     # 5 camadas (secret, doc sync, size, watchdog, agents)
 │   └── pre-push                                       # Python, 4 steps + agents_tool
@@ -191,38 +192,31 @@ python -m pytest tests/integration/ -q -x
 
 ## OpenCode Skills
 
-**33 skills** em `.opencode/skills/`.
+Lista canônica em [docs/skills.md](docs/skills.md) — gerado por `python scripts/sync_docs.py --sync`.
 
-### Categorias
-
-| Categoria | Skills | Propósito |
-|-----------|--------|------------|
-| **Vibe Coding** | project-context-primer, code-review, github, dependency-audit, knowledge-base-update, brainstorming, writing-plans, prompt-enhancer, architecture-review, test-driven-execution, documentation-sync, incident-response | Workflows produtivos |
-| **CustoDoce Core** | web-scraper, price-normalizer, llm-integration, self-healing, brand-extractor | Domain-specific |
-| **Streamlit UI** | streamlit, streamlit-theming, streamlit-components, streamlit-responsive, accessibility, design-md | Dashboard excellence |
-| **Ops** | skills-maintenance | Manutenção |
+| Métrica | Valor |
+|---|---|
+| Skills instaladas | 33 (ver docs/skills.md) |
+| Sub-themes (theme-factory) | 10 (arctic-frost, ... tech-innovation) |
+| Externas (não adotadas) | frontend-design, theme-factory |
 
 ### Manutenção
 
 ```bash
-# Verificar status (mensal automático via skills-maintenance.yml)
-python scripts/skills_maintenance.py --check
-
-# Validar estrutura (a cada PR)
-python scripts/skills_maintenance.py --validate
-
-# Backup + Check + Validate (trimestral)
-python scripts/skills_maintenance.py --full
-
-# Listar todas
-python scripts/skills_maintenance.py --list
+python scripts/skills_maintenance.py --check      # Status freshness
+python scripts/skills_maintenance.py --validate    # Estrutura/frontmatter
+python scripts/skills_maintenance.py --full        # Backup + check + validate
+python scripts/skills_maintenance.py --list        # Listar instaladas
+python scripts/sync_docs.py --sync                # Regenera docs/skills.md
 ```
 
 ### Cron
 
-- **Mensal** (1º do mês, 6am SP / 9am UTC): `skills-maintenance.yml` executa `--check`
+- **Mensal** (1º do mês, 6am SP / 9am UTC): `skills-maintenance.yml` executa `--check --validate`
+- **Mensal** (1º do mês, 9am UTC): `dependency-audit.yml` executa `pip-audit` + `deptry` + `pip-licenses`
 - **A cada PR**: CI valida estrutura das skills modificadas
-- **Manual**: `workflow_dispatch` com modos `check | validate | full`
+- **A cada PR (requirements*.txt)**: `dependency-audit.yml` job `audit-prod` bloqueia se `pip-audit --strict -r requirements.txt` falhar
+- **Detecção de drift**: `sync_docs --check` no `ci.yml` job `docs-sync` — falha se disco ≠ approved ≠ docs
 
 ## Ambiente
 

@@ -44,6 +44,10 @@ _README = _ROOT / "README.md"
 _DOCS_API = _ROOT / "docs" / "api"
 _TEST_DIR = _ROOT / "tests"
 _SERVICES_DIR = _ROOT / "services"
+_SKILLS_DIR = _ROOT / ".opencode" / "skills"
+_SKILLS_DOC = _ROOT / "docs" / "skills.md"
+
+from scripts.skills_maintenance import APPROVED_SKILLS, skill_to_category  # noqa: E402
 
 _OK = "OK"
 _FAIL = "FAIL"
@@ -169,6 +173,183 @@ def _check_drift() -> list[str]:
                 f"  {label}: pytest reports {pytest_total}, sync_docs counted {my_count} (regex-confirmed {actual})"
             )
     return drift_msgs
+
+
+def _check_skills_sync() -> list[str]:
+    """Single Source of Truth para skills.
+
+    Fonte 1: .opencode/skills/ (filesystem)
+    Fonte 2: scripts/skills_maintenance.py::APPROVED_SKILLS
+    Fonte 3: docs/skills.md (gold standard, gerado por --sync)
+
+    Retorna lista de issues (vazia = tudo ok).
+    """
+    issues: list[str] = []
+
+    if not _SKILLS_DIR.exists():
+        issues.append(f"Skills dir not found: {_SKILLS_DIR}")
+        return issues
+
+    # Skills no disco (pastas com SKILL.md)
+    disk_skills = {
+        d.name for d in _SKILLS_DIR.iterdir()
+        if d.is_dir() and (d / "SKILL.md").exists()
+    }
+
+    expected = set(APPROVED_SKILLS)
+
+    # 1. Disco -> APPROVED: skills no disco mas não aprovadas
+    orphan_skills = sorted(disk_skills - expected)
+    if orphan_skills:
+        issues.append(f"Skills no disco sem APPROVED_SKILLS: {orphan_skills}")
+
+    # 2. APPROVED -> Disco: skills aprovadas mas sem pasta/SKILL.md
+    missing_skills = sorted(expected - disk_skills)
+    if missing_skills:
+        issues.append(f"Skills em APPROVED_SKILLS sem SKILL.md no disco: {missing_skills}")
+
+    # 3. APPOVED_SKILLS deve cobrir toda skill no disco
+    if disk_skills != expected:
+        issues.append(
+            f"Skills count mismatch: {len(disk_skills)} on disk vs {len(expected)} approved"
+        )
+
+    return issues
+
+
+def _sync_skills_md(state: dict | None = None, dry_run: bool = False) -> list[str]:
+    """Gera docs/skills.md a partir do disco + APPROVED_SKILLS + categorias.
+
+    Usa SKILL_CATEGORIES de skills_maintenance.py como override de categoria.
+    Para skills sem categoria definida, deriva por heurística simples.
+    """
+    changes: list[str] = []
+
+    if not _SKILLS_DIR.exists():
+        changes.append("Skills dir not found, skipping skills.md generation")
+        return changes
+
+    disk_skills = sorted(
+        d.name for d in _SKILLS_DIR.iterdir()
+        if d.is_dir() and (d / "SKILL.md").exists()
+    )
+
+    # Build category -> skills mapping (from override + auto-derive)
+    category_skills: dict[str, list[str]] = {}
+    for skill in disk_skills:
+        cat = skill_to_category(skill)
+        category_skills.setdefault(cat, []).append(skill)
+
+    # Get descriptions from SKILL.md frontmatter
+    skill_descriptions: dict[str, str] = {}
+    for d in _SKILLS_DIR.iterdir():
+        if not d.is_dir():
+            continue
+        sf = d / "SKILL.md"
+        if not sf.exists():
+            continue
+        content = sf.read_text(encoding="utf-8")
+        if content.startswith("---"):
+            fm = content.split("---")[1]
+            lines = fm.splitlines()
+            for i, line in enumerate(lines):
+                if line.strip().startswith("description:"):
+                    first_val = line.split(":", 1)[1].strip().strip('"\'')
+                    if first_val in (">", "|", ">-", "|-"):
+                        # YAML block scalar: read indented continuation lines
+                        desc_lines = []
+                        for j in range(i + 1, len(lines)):
+                            if lines[j].startswith("  ") or lines[j].startswith("\t"):
+                                desc_lines.append(lines[j].strip())
+                            else:
+                                break
+                        desc = " ".join(desc_lines)
+                    else:
+                        desc = first_val
+                    skill_descriptions[d.name] = desc
+                    break
+
+    # Build markdown — conteúdo sem timestamp (para comparação estável)
+    now_iso = datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')
+
+    def _build_skills_content(timestamp: str) -> str:
+        lines: list[str] = [
+            "# Skills do CustoDoce",
+            "",
+            "> Gerado por `python scripts/sync_docs.py --sync`. **Não editar à mão.**",
+            f"> Última atualização: {timestamp}",
+            f"> Total: {len(disk_skills)} skills instaladas",
+            "",
+            "| Categoria | Skill | Descrição |",
+            "|---|---|---|",
+        ]
+
+        for cat in sorted(category_skills.keys()):
+            for skill in sorted(category_skills[cat]):
+                desc = skill_descriptions.get(skill, "")
+                lines.append(f"| {cat} | {skill} | {desc} |")
+
+        # theme-factory sub-themes
+        themes_dir = _SKILLS_DIR / "theme-factory" / "themes"
+        if themes_dir.exists():
+            themes = sorted(f.name for f in themes_dir.iterdir() if f.suffix == ".md")
+            if themes:
+                lines += [
+                    "",
+                    "## Sub-themes (theme-factory)",
+                    "",
+                    ", ".join(t.replace(".md", "") for t in themes) + ".",
+                    "",
+                    "Ver `.opencode/skills/theme-factory/themes/*.md` para detalhes de cada paleta.",
+                ]
+
+        # Skills externas não adotadas
+        non_adopted = [s for s in disk_skills if skill_to_category(s) == "Externas (não adotadas)"]
+        if non_adopted:
+            lines += [
+                "",
+                "## Skills externas (instaladas mas não adotadas)",
+                "",
+                "Estas skills existem no disco mas não estão integradas ao fluxo principal:",
+            ]
+            for s in non_adopted:
+                desc = skill_descriptions.get(s, "")
+                lines.append(f"- `{s}`: {desc}")
+
+        return "\n".join(lines) + "\n"
+
+    # Comparação sem timestamp para detectar mudança real
+    content_no_ts = _build_skills_content("UPDATED_AT")
+    old_no_ts = ""
+    if _SKILLS_DOC.exists():
+        old_raw = _SKILLS_DOC.read_text(encoding="utf-8")
+        # Extrair mesmo padrão sem a linha de timestamp
+        old_lines = old_raw.splitlines()
+        old_no_ts_lines = [l for l in old_lines if "Última atualização:" not in l]
+        old_no_ts = "\n".join(old_no_ts_lines) + "\n"
+    content_compare = "\n".join(
+        l for l in content_no_ts.splitlines() if "Última atualização:" not in l
+    ) + "\n"
+
+    if dry_run:
+        if not _SKILLS_DOC.exists() or old_no_ts != content_compare:
+            changes.append("  Would regenerate docs/skills.md (content changed)")
+        else:
+            changes.append("  docs/skills.md is up to date")
+        return changes
+
+    if not _SKILLS_DOC.exists() or old_no_ts != content_compare:
+        _SKILLS_DOC.write_text(_build_skills_content(now_iso), encoding="utf-8")
+        if not old_no_ts:
+            changes.append("docs/skills.md created")
+        else:
+            changes.append("docs/skills.md regenerated (content changed)")
+    else:
+        # Apenas atualizar timestamp sem marcar como mudança
+        _SKILLS_DOC.write_text(_build_skills_content(now_iso), encoding="utf-8")
+        changes.append("docs/skills.md unchanged (timestamp refreshed)")
+
+    return changes
 
 
 def _extract_pages() -> list[tuple[str, str, str]]:
@@ -512,6 +693,15 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False,
     else:
         print("  [OK] All test counts match pytest --collect-only")
 
+    print("\nSkills sync check (disk vs APPROVED_SKILLS)...")
+    skill_issues = _check_skills_sync()
+    if skill_issues:
+        for s in skill_issues:
+            print(f"  [FAIL] {s}")
+            issues.append(f"Skills: {s}")
+    else:
+        print("  [OK] All skills match between disk and APPROVED_SKILLS")
+
     api_issues = _check_api_docs()
     if api_issues:
         issues.extend(api_issues)
@@ -533,6 +723,11 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False,
             print("  [OK] No auto-fixer changes needed")
     else:
         print("  (dry-run, skipped)")
+
+    print("\nSyncing docs/skills.md...")
+    skill_md_changes = _sync_skills_md(state, dry_run=dry_run)
+    for c in skill_md_changes:
+        print(f"  {c}")
 
     if strict:
         print(f"\nStrict audit (--strict{' experimental' if experimental else ''}): scanning all .md for stale patterns...")
