@@ -75,7 +75,7 @@ git config core.fileMode false         # permissoes nao travam em Windows
 4. `mypy .`
 
 **Add (Sprint 11)**: Roda `python scripts/agents_tool.py --check` antes de validar secrets. Falha bloqueia push.
-**Add (Sprint 13)**: CI CHECK layer (step 0) antes de qualquer validação local — pipeline vermelho = push bloqueado.
+**Add (Sprint 13)**: CI CHECK layer (step 0) antes de qualquer validação local — pipeline vermelho = aviso (não bloqueia, pois o push pode ser a correção).
 
 ### Resolução Automática de Python
 
@@ -208,4 +208,4 @@ python scripts/sanitize.py --rollback
 4. **NUNCA colocar sanitize no pre-push** — manter push rápido (8 verificações já existem)
 5. **Snapshot antes de mutação irreversível** — `--rollback` restaura backup_personal do último `--execute`
 6. **CI semanal dry-run** — workflow `sanitize-check.yml` falha se detectar lixo novo no working tree
-7. **CI status check antes de push** — pre-push hook tenta `gh run list`; se CI estiver vermelho, BLOQUEIA push. Se `gh` não estiver autenticado, AVISA (não bloqueia). Autenticar com `gh auth login` ou `GH_TOKEN` no `.env`.
+7. **CI status check antes de push** — pre-push hook tenta `gh run list` step [0/5]. Se CI estiver vermelho, AVISA (não bloqueia — o push pode ser a correção). Se `gh` não estiver autenticado, AVISA. Responsabilidade do desenvolvedor: não pushar sobre CI vermelho sem ser a correção. Autenticar com `gh auth login` ou `GH_TOKEN` no `.env`.

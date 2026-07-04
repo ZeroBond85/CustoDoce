@@ -226,8 +226,11 @@ Regra permanente:
 
 ### 36. CI status check antes de push — pipeline verde ou bloqueia
 
-Antes de qualquer push para `master`, verificar se o CI está verde. Se `gh` não estiver autenticado, o pre-push hook emite **AVISO** (não bloqueia). Se estiver autenticado e o CI estiver vermelho, **BLOQUEIA** — push só depois de verde.
+Antes de qualquer push para `master`, verificar se o CI está verde. O pre-push hook step [0/5] faz essa checagem automaticamente:
+- CI verde → OK, prossegue
+- CI vermelho → **AVISO OBRIGATÓRIO** (não bloqueia — paradoxo: pode ser o fix que vai tornar o CI verde)
+- `gh` não autenticado → **AVISO** para configurar
 
-Ordem: primeiro verificar CI, depois executar os demais steps locais (se CI estiver vermelho, nem perde tempo rodando checks locais).
+Ordem: primeiro verificar CI, depois executar os demais steps locais.
 
-Autenticação: `gh auth login` ou `GH_TOKEN` no `.env`.
+Autenticação: `gh auth login` ou `GH_TOKEN` no `.env`. Responsabilidade do desenvolvedor de não pushar sobre CI vermelho a menos que seja a correção.
