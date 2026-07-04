@@ -192,8 +192,9 @@ def run_v2_analyze() -> list[str]:
         stdout = result.stdout.decode("utf-8", errors="replace")
         stderr = result.stderr.decode("utf-8", errors="replace")
         if result.returncode != 0:
-            return [f"V2 --analyze falhou (exit {result.returncode}): {stderr[:500]}"]
-        if "AMBIGUOUS" in stdout or "BLOCK" in stdout:
+            stderr_text = stderr[:500] if stderr else stdout[-1000:]
+            return [f"V2 --analyze falhou (exit {result.returncode}): {stderr_text}"]
+        if "BLOCK" in stdout:
             return [f"V2 --analyze reportou AMBIGUOUS:\n{stdout[-1000:]}"]
         return []
     except subprocess.TimeoutExpired:

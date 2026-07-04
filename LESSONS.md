@@ -174,3 +174,36 @@ Regra permanente:
 ### 36. Lesson #33
 
 30 bugs de schema mismatch encontrados na auditoria manual de 19 páginas do dashboard contra information_schema real do Supabase. Todo dict key access em páginas Streamlit deve ser validado contra schema real (SELECT column_name FROM information_schema.columns WHERE table_name=...). Mocks de teste DEVEM refletir schema real — nunca hand-crafted com keys imaginarias.
+
+### 37. Drift skills ↔ docs ↔ disco é recorrente — SST operacional
+
+**Causa raiz:** `sync_docs.py` detectava drift numérico (test counts, pages) mas nunca inspecionava `.opencode/skills/`. Skills podiam ser adicionadas/removidas sem qualquer falha em CI. Três verdades conflitavam: disco, `APPROVED_SKILLS` (hardcoded), e docs.
+
+**Solução aplicada:**
+- SST = disco (`.opencode/skills/`) + `APPROVED_SKILLS` + `docs/skills.md` (auto-gerado)
+- `sync_docs.py` agora varre skills: `_check_skills_sync()` detecta disco ≠ approved ≠ docs
+- `_sync_skills_md()` regenera `docs/skills.md` a partir do disco + categorias
+- pre-commit Layer 6: bloqueia se skills mudarem sem `docs/skills.md`
+- CI docs-sync job: `sync_docs --check --strict --experimental` falha se drift
+
+**Regra permanente:** Toda skill nova = SST em 3 lugares verificáveis. `sync_docs --check` é o portão. Não editar `docs/skills.md` manualmente.
+
+### 38. Dependency drift recorrente — auditoria automatizada obrigatória
+
+**Causa raiz:** O projeto tinha `pip-audit --strict` no `ci.yml:lint` (linha 33), mas cobria apenas `requirements.txt` (prod). CVEs em deps de teste/dev (`diskcache 5.6.3`, `pytest 8.3.3`) só eram descobertas em scans manuais. E o time não tinha como **descobrir** novas vulns automaticamente após release.
+
+**Solução aplicada:**
+1. **Higienização**: deps transitivas (`numpy`, `transformers`, `pillow`, `joblib`) declaradas explicitamente em `requirements.txt`. `psycopg2-binary` movido de dev → prod (scripts de deploy precisam dele).
+2. **Vulnerabilidades**: `pytest` 8.3.3 → 9.0.3 (CVE-2025-71176 corrigida), `pytest-asyncio` 0.24 → 1.4.0 (compat com pytest 9.x). `diskcache` aceito em dev (Sprint 12 policy — FP transitivo).
+3. **Automação**: novo workflow `.github/workflows/dependency-audit.yml`:
+   - `audit-prod` job: bloqueia PR se `pip-audit --strict -r requirements.txt` falhar
+   - `audit-dev` job: informational (continua em erro, registra em log)
+   - `full-scan` job: roda deptry + pip-licenses mensalmente (cron dia 1, 9am UTC)
+4. **Lock sync**: `pip-compile` regenera `requirements.lock` sempre que PR alterar requirements.
+
+**Regra permanente:**
+- Toda mudança em qualquer `requirements*.txt` → regenerar `requirements.lock` via `pip-compile`
+- `pip-audit --strict -s osv -r requirements.txt` é o portão de release (já existente, mantido)
+- CVEs Critical/High em prod = bloqueia release sem exceção
+- CVEs Medium/Low em dev/test = aceitas até próximo sprint (documentar em `docs/security.md`)
+- Falsos positivos do `deptry` (transitivas reais): NUNCA remover sem grep `import <pkg>` em todo o codebase

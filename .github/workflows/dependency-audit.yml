@@ -1,0 +1,105 @@
+name: Dependency Audit
+
+on:
+  schedule:
+    - cron: '0 9 1 * *'  # 1st of month, 9am UTC — full audit + report
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Mode'
+        required: true
+        default: 'audit'
+        type: choice
+        options:
+          - audit    # pip-audit on prod only (requirements.txt)
+          - audit-dev  # pip-audit on dev + test deps
+          - deptry   # unused/transitive deps scan
+          - licenses # license compliance check
+          - full     # all of the above + generate report
+  pull_request:
+    paths:
+      - 'requirements.txt'
+      - 'requirements-dev.txt'
+      - 'tests/requirements-test.txt'
+      - 'requirements.lock'
+
+env:
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  audit-prod:
+    name: Audit production deps (blocks PR)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install pip-audit
+        run: pip install pip-audit
+      - name: Audit production deps (blocks if High/Critical)
+        run: pip-audit --strict -s osv -r requirements.txt
+
+  audit-dev:
+    name: Audit dev/test deps (informational)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install pip-audit
+        run: pip install pip-audit
+      - name: Audit dev deps (informational)
+        continue-on-error: true
+        run: pip-audit --strict -s osv -r requirements-dev.txt || true
+      - name: Audit test deps (informational — known FPs accepted per docs/security.md)
+        continue-on-error: true
+        run: pip-audit --strict -s osv -r tests/requirements-test.txt || echo "Known dev/test CVEs accepted — see docs/security.md"
+
+  full-scan:
+    name: Transitive/unused scan + licenses (monthly)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install full toolchain
+        run: pip install deptry pip-licenses
+      - name: Scan for unused/transitive deps
+        continue-on-error: true
+        run: deptry . || true
+      - name: Generate license report
+        run: |
+          mkdir -p .agent/audits
+          pip-licenses --format=markdown > .agent/audits/license-report.md
+      - name: Generate monthly audit report
+        if: always()
+        run: |
+          mkdir -p .agent/audits
+          date_marker=$(date -u +%Y-%m-%d)
+          cat > ".agent/audits/dependency-audit-${date_marker}.md" << EOF
+          # Monthly Dependency Audit — ${date_marker}
+
+          ## Summary
+          - **Production audit**: see \`audit-prod\` job above
+          - **Dev/test audit**: see \`audit-dev\` job (informational)
+          - **Unused/transitive**: see \`full-scan\` deptry output
+          - **Licenses**: see license-report.md
+          - **Policy**: test deps CVEs accepted per \`docs/security.md\` §Histórico (Sprint 12)
+          EOF
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dep-audit-${{ github.run_number }}
+          path: .agent/audits/
+          retention-days: 180
