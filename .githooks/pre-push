@@ -79,7 +79,27 @@ def main() -> int:
         print("Commit ou descarte antes de fazer push.", file=sys.stderr)
         return 1
 
-    print("[1/2] audit_secrets...", file=sys.stderr)
+    print("[0/5] CI status check...", file=sys.stderr)
+    gh_result = run(["gh", "run", "list", "--branch", "master", "--limit", "3",
+                     "--json", "conclusion,headBranch,workflowName"])
+    if gh_result.returncode != 0:
+        print("  [AVISO] gh nao autenticado. Rode 'gh auth login' ou defina GH_TOKEN no .env", file=sys.stderr)
+        print("  [AVISO] Pulando CI check — push nao bloqueado, mas verifique manualmente.", file=sys.stderr)
+    else:
+        import json
+        try:
+            runs = json.loads(gh_result.stdout)
+            failures = [r for r in runs if r.get("conclusion") in ("failure", "cancelled")]
+            if failures:
+                for f in failures:
+                    print(f"  [FALHA] CI: {f['workflowName']} ({f['conclusion']})", file=sys.stderr)
+                print("  BLOQUEADO: Pipeline CI esta vermelho. Corrija antes de push.", file=sys.stderr)
+                return 1
+            print("  [OK] CI: ultimos runs estao verdes", file=sys.stderr)
+        except (json.JSONDecodeError, KeyError) as e:
+            print(f"  [AVISO] Nao foi possivel interpretar resposta do gh: {e}", file=sys.stderr)
+
+    print("[1/5] audit_secrets...", file=sys.stderr)
     result = run([THIS_PYTHON, "scripts/audit_secrets.py", "--strict"])
     if result.returncode != 0:
         print("FALHA: secrets detectados no repo. Corrija antes de push.", file=sys.stderr)
@@ -88,7 +108,7 @@ def main() -> int:
         return 1
     print("[OK] secrets: limpos", file=sys.stderr)
 
-    print("[1.5/4] agents_tool --check (schema)...", file=sys.stderr)
+    print("[1.5/5] agents_tool --check (schema)...", file=sys.stderr)
     result = run([THIS_PYTHON, "scripts/agents_tool.py", "--check"])
     if result.returncode != 0:
         print("FALHA: agents_tool --check falhou. Corrija AGENTS.md antes de push.", file=sys.stderr)
@@ -97,7 +117,7 @@ def main() -> int:
         return 1
     print("[OK] AGENTS.md schema valido", file=sys.stderr)
 
-    print("[2/4] ci_local.py...", file=sys.stderr)
+    print("[2/5] ci_local.py...", file=sys.stderr)
     run_unit = os.environ.get("CI_LOCAL_UNIT") == "1"
     ci_args = [THIS_PYTHON, "scripts/ci_local.py"]
     if not run_unit:
@@ -111,7 +131,7 @@ def main() -> int:
         return 1
     print("[OK] ci_local: limpos", file=sys.stderr)
 
-    print("[3/4] validate_query_columns (schema check)...", file=sys.stderr)
+    print("[3/5] validate_query_columns (schema check)...", file=sys.stderr)
     result = run([THIS_PYTHON, "scripts/validate_query_columns.py"])
     if result.returncode != 0:
         print("FALHA: colunas referenciadas no codigo nao existem no schema real.", file=sys.stderr)
@@ -121,7 +141,7 @@ def main() -> int:
         return 1
     print("[OK] schema: todas as colunas existem no Supabase", file=sys.stderr)
 
-    print("[3.5/4] audit_df_columns...", file=sys.stderr)
+    print("[3.5/5] audit_df_columns...", file=sys.stderr)
     result = run([THIS_PYTHON, "scripts/audit_df_columns.py"])
     if result.returncode != 0:
         print("FALHA: colunas usadas em DataFrames nao existem no schema ou alias.", file=sys.stderr)
@@ -130,7 +150,7 @@ def main() -> int:
         return 1
     print("[OK] audit_df_columns: DataFrame columns valid", file=sys.stderr)
 
-    print("[3.75/4] schema_manifest + mock validation...", file=sys.stderr)
+    print("[3.75/5] schema_manifest + mock validation...", file=sys.stderr)
     result = run([THIS_PYTHON, "scripts/generate_schema_manifest.py"])
     if result.returncode != 0:
         print("FALHA: nao foi possivel gerar schema manifest.", file=sys.stderr)
@@ -142,7 +162,7 @@ def main() -> int:
         return 1
     print("[OK] schema_manifest + mock validation: todos os mocks alinhados ao schema real", file=sys.stderr)
 
-    print("[3.875/4] check_environment_parity...", file=sys.stderr)
+    print("[3.875/5] check_environment_parity...", file=sys.stderr)
     result = run([THIS_PYTHON, "scripts/check_environment_parity.py"])
     if result.returncode != 0:
         print("FALHA: ambiente fora de paridade. Corrija antes de push.", file=sys.stderr)
@@ -151,7 +171,7 @@ def main() -> int:
         return 1
     print("[OK] environment parity: Python + lock + platform ok", file=sys.stderr)
 
-    print("[3.9/4] sync_docs --check --strict (aviso)...", file=sys.stderr)
+    print("[3.9/5] sync_docs --check --strict (aviso)...", file=sys.stderr)
     result = run([THIS_PYTHON, "scripts/sync_docs.py", "--check", "--strict"])
     if result.returncode != 0:
         print("[AVISO] Documentacao dessincronizada. Rode: python scripts/sync_docs.py", file=sys.stderr)
@@ -160,7 +180,7 @@ def main() -> int:
     else:
         print("[OK] docs sincronizadas", file=sys.stderr)
 
-    print("[4/4] test_total_coverage (light, no integration/real)...", file=sys.stderr)
+    print("[4/5] test_total_coverage (light, no integration/real)...", file=sys.stderr)
     if os.environ.get("TEST_TOTAL") == "1":
         tt_args = [THIS_PYTHON, "scripts/test_total_coverage.py", "--skip-slow"]
         result = run(tt_args)

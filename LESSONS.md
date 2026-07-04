@@ -223,3 +223,11 @@ Regra permanente:
 - `python scripts/sanitize.py --dry-run` semanalmente (segunda) para auditoria
 - Hook RESIDUE GUARD bloqueia commit acidental de resíduo — `--no-verify` é bypass de emergência
 - `scripts/sanitize.py --rollback` reverte o último `--execute` via snapshot em `.archive/sanitize/`
+
+### 36. CI status check antes de push — pipeline verde ou bloqueia
+
+Antes de qualquer push para `master`, verificar se o CI está verde. Se `gh` não estiver autenticado, o pre-push hook emite **AVISO** (não bloqueia). Se estiver autenticado e o CI estiver vermelho, **BLOQUEIA** — push só depois de verde.
+
+Ordem: primeiro verificar CI, depois executar os demais steps locais (se CI estiver vermelho, nem perde tempo rodando checks locais).
+
+Autenticação: `gh auth login` ou `GH_TOKEN` no `.env`.
