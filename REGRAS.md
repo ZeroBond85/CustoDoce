@@ -75,32 +75,52 @@ git config core.fileMode false         # permissoes nao travam em Windows
 
 **Add (Sprint 11)**: Roda `python scripts/agents_tool.py --check` antes de validar secrets. Falha bloqueia push.
 
-### Resolução Automática de Python (.venv314)
+### Resolução Automática de Python
 
-O hook **sempre** usa `.venv314/Scripts/python.exe` (Windows) ou `.venv314/bin/python` (WSL), independente de quem invocou o git:
+O hook `pre-push` resolve o Python na seguinte ordem:
+
+1. **Env var `CUSTODOCE_PYTHON`** — override explícito (ex: `export CUSTODOCE_PYTHON=~/custodoce-314/bin/python`).
+2. **`~/custodoce-314/bin/python`** — venv WSL/Linux nativo (fora do repo).
+3. **`.venv314/Scripts/python.exe`** — venv Windows nativo (dentro do repo).
+4. **`.venv314/bin/python`** — venv Linux/WSL nativo (dentro do repo).
+5. **`sys.executable`** — fallback (com AVISO se nenhum venv existe).
 
 ```python
 # .githooks/pre-push
 def _resolve_python() -> str:
-    candidates = [
-        REPO_ROOT / ".venv314" / "Scripts" / "python.exe",  # Windows
-        REPO_ROOT / ".venv314" / "bin" / "python",           # WSL/Linux
+    explicit = os.environ.get("CUSTODOCE_PYTHON")
+    if explicit and Path(explicit).exists() and os.access(explicit, os.X_OK):
+        return explicit
+    home_venvs = [Path.home() / "custodoce-314" / "bin" / "python"]
+    candidates = home_venvs + [
+        REPO_ROOT / ".venv314" / "Scripts" / "python.exe",
+        REPO_ROOT / ".venv314" / "bin" / "python",
     ]
     for c in candidates:
         if c.exists() and os.access(c, os.X_OK):
             return str(c)
-    return sys.executable  # fallback apenas se .venv314 não existir
+    return sys.executable  # fallback (AVISO)
 ```
 
-**Por quê?** `sys.executable` no hook resolves o Python que invocou o git → pode ser Python 3.11 global se você rodar `git` fora do venv. O `_resolve_python()` força o uso do venv → **garantia de paridade** com CI/Cloud.
+**Por quê?** `sys.executable` no hook resolves o Python que invocou o git → pode ser Python 3.11 global se você rodar git fora do venv. O `_resolve_python()` força o uso do venv apropriado à plataforma → **paridade total** com CI/Cloud.
 
-**Saída do hook** (a 1ª linha mostra qual Python será usado):
+**Output do hook** mostra qual Python foi resolvido na 1ª linha:
 ```
   [python] usando venv: C:\Zerobond\Code\CustoDoce\.venv314\Scripts\python.exe
 === pre-push: validando...
 ```
+ou
+```
+  [python] usando venv: /home/ericsf/custodoce-314/bin/python
+=== pre-push: validando...
+```
 
-Fallback via `sys.executable` só ocorre se `.venv314/` não existir — nesse caso o hook emite AVISO. **Recomendado**: rodar `pip install -r requirements.lock` em `.venv314` antes do push.
+**Cross-platform**: mesmo hook funciona em Windows PowerShell, WSL bash, e macOS zsh. Cada plataforma tem seu venv canônico:
+- **Windows**: `.venv314/Scripts/python.exe` (Python 3.14.6)
+- **WSL**: `~/custodoce-314/bin/python` (Python 3.14.6 via uv)
+- **macOS**: `~/custodoce-314/bin/python` (similar)
+
+Fallback `sys.executable` só ocorre se nenhum venv existir — nesse caso o hook emite AVISO. **Recomendado**: criar `.venv314/Scripts/python.exe` (Windows) ou `~/custodoce-314/bin/python` (Linux/WSL) antes do push. CI: 9 workflows Python 3.14 (single source of truth).
 
 Opt-in Unit Tests: `set CI_LOCAL_UNIT=1` (cmd) ou `$env:CI_LOCAL_UNIT="1"` (ps).
 

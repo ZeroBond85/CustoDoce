@@ -24,16 +24,30 @@ REPO_ROOT = Path(__file__).parent.parent.resolve()
 
 
 def _resolve_python() -> str:
-    """Prefere .venv314 (paridade); fallback para sys.executable."""
-    candidates = [
-        REPO_ROOT / ".venv314" / "Scripts" / "python.exe",  # Windows
-        REPO_ROOT / ".venv314" / "bin" / "python",           # WSL/Linux
+    """Resolve Python do projeto.
+
+    Ordem de procura:
+    1. Env var CUSTODOCE_PYTHON (override explicito).
+    2. <VENV> env var ou ~/custodoce-314/bin/python (WSL/Linux nativo).
+    3. .venv314/Scripts/python.exe  (Windows nativo no repo).
+    4. .venv314/bin/python          (Linux/WSL nativo no repo).
+    5. sys.executable               (fallback final com aviso).
+    """
+    explicit = os.environ.get("CUSTODOCE_PYTHON")
+    if explicit and Path(explicit).exists() and os.access(explicit, os.X_OK):
+        print(f"  [python] usando CUSTODOCE_PYTHON: {explicit}", file=sys.stderr)
+        return explicit
+
+    home_venvs = [Path.home() / "custodoce-314" / "bin" / "python"]
+    candidates = home_venvs + [
+        REPO_ROOT / ".venv314" / "Scripts" / "python.exe",
+        REPO_ROOT / ".venv314" / "bin" / "python",
     ]
     for candidate in candidates:
         if candidate.exists() and os.access(candidate, os.X_OK):
             print(f"  [python] usando venv: {candidate}", file=sys.stderr)
             return str(candidate)
-    print(f"  [python] AVISO: .venv314 nao encontrado, fallback para sys.executable", file=sys.stderr)
+    print("  [python] AVISO: nenhum venv encontrado (.venv314 ou ~/custodoce-314); fallback para sys.executable", file=sys.stderr)
     return sys.executable
 
 
