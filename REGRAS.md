@@ -126,6 +126,40 @@ Opt-in Unit Tests: `set CI_LOCAL_UNIT=1` (cmd) ou `$env:CI_LOCAL_UNIT="1"` (ps).
 
 Emergência: `git push --no-verify` (não recomendado).
 
+## Regra Obrigatória: Secrets SEMPRE em .env, nunca em comandos
+
+**NUNCA** passar tokens, senhas ou chaves de API diretamente em comandos, args de CLI, URLs ou variáveis inline no terminal.
+
+### ❌ Proibido
+```powershell
+# NUNCA faça isso:
+set GH_TOKEN=ghp_xxx... && gh pr create
+curl -H "Authorization: token ghp_xxx..." https://api.github.com/...
+```
+
+### ✅ Correto
+```powershell
+# .env (gitignored) contém a chave:
+GH_PAT=ghp_xxx...
+
+# Uso via env var do .env:
+$env:GH_TOKEN = (Select-String -Path .env -Pattern "^GH_PAT=(.*)").Matches.Groups[1].Value
+gh pr create
+
+# Ou via script helper:
+python scripts/gh_helper.py create-pr --title "..."
+```
+
+### Por quê?
+1. **Shell history** — comandos ficam no `$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt`
+2. **Process listing** — `Get-Process` pode expor args de outros processos
+3. **Logs de CI** — qualquer echo/vazamento acidental expõe o token publicamente
+4. **Tool calls** — o assistente (OpenCode/AI) exibe o comando completo, incluindo o secret
+
+### Exceção zero
+- Se um secret aparecer em qualquer comando, pare e mova para `.env` imediatamente
+- Se o secret já vazou (logs, histórico, PR), **revoque e rotacione** -- não confie que "ninguém viu"
+
 ## Scripts de Segurança
 
 - `scripts/audit_secrets.py --strict` — varre histórico por chaves
