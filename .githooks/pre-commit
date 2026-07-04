@@ -200,4 +200,26 @@ if echo "${STAGED:-}" | grep -qE '^\.opencode/skills/'; then
   fi
 fi
 
+# ----------------------------------------------------------------
+# 7. RESIDUE GUARD - BLOQUEIA commit com artefatos de runtime no stage
+# ----------------------------------------------------------------
+if [ -n "${STAGED:-}" ]; then
+  RESIDUE_PATTERNS='\.whl$|^miniconda\.sh$|^pyenv_bashrc\.txt$|^C\?Usersericsf/|^CustoDoce\.7z$|\.archive/sanitize/|^data/check_.*\.py$|^data/wf_detail\.py$|^data/dispatch\.json$|^check_alerts\.py$|^check_flyers\.py$|^check_ingredients\.py$|^debug_alert\.py$|^data/audit/|^data/skills_backup/|^skills-lock\.json$'
+  RESIDUE_HITS=$(echo "$STAGED" | grep -E "$RESIDUE_PATTERNS" || true)
+  if [ -n "$RESIDUE_HITS" ]; then
+    echo ""
+    echo "🚨 COMMIT BLOQUEADO: artefatos de runtime detectados nos arquivos staged."
+    echo ""
+    echo "Os seguintes arquivos nao devem ser commitados:"
+    echo "$RESIDUE_HITS"
+    echo ""
+    echo "Acoes:"
+    echo "  - Rode: python scripts/sanitize.py --execute --quick"
+    echo "  - Se o arquivo e intencional, remova-o destas listas em .gitignore"
+    echo "  - Ou use 'git commit --no-verify' para emergencia (NAO recomendado)"
+    echo ""
+    exit 1
+  fi
+fi
+
 exit 0

@@ -1,0 +1,58 @@
+name: Skills Maintenance
+
+on:
+  schedule:
+    - cron: '0 9 1 * *'  # 1st of month, 9am UTC — full validation + backup
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Mode'
+        required: true
+        default: 'validate'
+        type: choice
+        options:
+          - check
+          - validate
+          - full
+  pull_request:
+    paths:
+      - '.opencode/skills/**'
+      - 'scripts/skills_maintenance.py'
+      - 'scripts/sync_docs.py'
+
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run maintenance (scheduled — full)
+        if: github.event_name == 'schedule'
+        run: python scripts/skills_maintenance.py --full
+
+      - name: Run maintenance (PR — validate + check)
+        if: github.event_name == 'pull_request'
+        run: |
+          python scripts/skills_maintenance.py --validate
+          python scripts/skills_maintenance.py --check
+
+      - name: Run maintenance (manual dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        run: python scripts/skills_maintenance.py --${{ inputs.mode }}
+
+      - name: Regenerate docs/skills.md
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+        run: python scripts/sync_docs.py --sync
+
+      - name: Upload backup
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'full')
+        uses: actions/upload-artifact@v4
+        with:
+          name: skills-backup-${{ github.run_number }}
+          path: data/skills_backup/
+          retention-days: 90
