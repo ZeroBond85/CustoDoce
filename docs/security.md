@@ -89,6 +89,8 @@ Dependabot está habilitado no repositório para:
 | Pacote | CVE | Severidade | Status |
 |--------|-----|------------|--------|
 | `transformers` 4.57.6 | PYSEC-2025-217, CVE-2026-1839 | Média | Known risk (fix requires 5.0.0rc3, pre-release) |
+| `diskcache` (transitivo) | CVE-2025-69872 | Média | Falso positivo — não usado em runtime, aceito via `docs/security.md` §Histórico (Sprint 12) |
+| `pytest` 9.x (dev) | CVE-2025-71176 | Média | **Corrigido** — upgrade 8.3.3 → 9.0.3 (Sprint 12) |
 
 O upgrade para `transformers>=5.0.0` será feito quando sair stable.
 
@@ -113,7 +115,14 @@ Resposta em até 48h.
 
 ### Como gerenciamos vulnerabilidades conhecidas
 
-O projeto usa **`pip-audit --strict -r requirements.txt`** em CI (`ci.yml > lint`) para bloquear pushes com vulnerabilidades reais. Quando uma CVE é detectada:
+O projeto usa **`pip-audit --strict -r requirements.txt`** em CI (`ci.yml > lint`) para bloquear pushes com vulnerabilidades reais. Além disso, um workflow mensal (`dependency-audit.yml`) executa auditoria completa em prod + dev + teste:
+
+- **`audit-prod`**: bloqueia PR se `pip-audit --strict -r requirements.txt` falhar
+- **`audit-dev`**: informativo (não bloqueia) — CVEs Medium/Low em dev aceitas conforme política abaixo
+- **`full-scan`**: mensal — `deptry` + `pip-licenses` + relatório consolidado
+- **`lock-validation`**: valida que `requirements.lock` está sincronizado com `requirements*.txt`
+
+Quando uma CVE é detectada:
 
 1. **Atualizar primeiro** — bump do pacote para a versão patched
 2. **Se quebra dependência** — investigar alternativa ou fork
@@ -135,11 +144,28 @@ Em 2026-06, GitHub Dependabot reportou **7 alertas** baseados em versões antiga
 
 Todos foram **dismissed como `inaccurate`** após verificação local com `pip-audit --strict` retornar "No known vulnerabilities found". O ambiente de runtime já usa versões patched (Pillow 12.2.0, pytest 9.x, etc).
 
+### Sprint 12 — Higienização + Auditoria Automatizada (Julho 2026)
+
+Em 2026-07, o projeto passou por higienização completa de dependências como preparação para auditoria recorrente:
+
+| Ação | Detalhe |
+|------|---------|
+| Deps transitivas declaradas | `numpy`, `transformers`, `pillow`, `joblib` adicionados explicitamente ao `requirements.txt` |
+| pytest CVE corrigido | CVE-2025-71176: 8.3.3 → 9.0.3 |
+| pytest-asyncio atualizado | 0.24 → 1.4.0 (compat pytest 9.x) |
+| psycopg2-binary movido | Dev → prod (scripts de deploy precisam dele) |
+| lock-validation CI | Novo job valida `requirements.lock` ↔ `requirements*.txt` a cada PR |
+| dependency-audit workflow | Novo workflow mensal com audit-prod (bloqueante) + audit-dev + full-scan + lock-validation |
+
+**Regra permanente:** Toda mudança em `requirements*.txt` → `pip-compile` + commit do `requirements.lock` atualizado.
+
 ### Política de pins por risco
 
-- **CRITICAL/HIGH** — bloquear push se vulnerabilidade afeta runtime. Atualizar imediatamente.
-- **MEDIUM** — atualizar em até 30 dias via Dependabot PR.
-- **LOW** — aceitar até segunda notificação.
+- **CRITICAL/HIGH (prod)** — bloquear push. Atualizar imediatamente.
+- **MEDIUM (prod)** — atualizar em até 30 dias via PR.
+- **LOW (prod)** — aceitar até segunda notificação.
+- **Dev/test CVEs** — não bloqueiam release. Aceitas até próximo sprint, documentadas nesta seção.
+- **Falsos positivos** — CVEs em dependências transitivas sem uso direto no runtime (ex: `diskcache`) são aceitos. Nunca remover sem `grep import <pkg>` em todo o codebase.
 
 ### Como auditar localmente
 
