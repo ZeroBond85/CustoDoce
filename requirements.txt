@@ -27,3 +27,13 @@ requests>=2.34
 structlog
 opentelemetry-api
 opentelemetry-sdk
+
+# Transitive deps explicitly declared (used directly in code)
+# See: parsers/semantic_matcher.py, services/price_intelligence.py, scrapers/ocr.py
+numpy>=2.4
+transformers>=5.0
+pillow>=12.0
+joblib>=1.5
+
+# psycopg2-binary needed for db deploy/migration scripts (not just dev)
+psycopg2-binary>=2.9
