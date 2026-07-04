@@ -56,6 +56,9 @@ jobs:
       - run: pip install -r requirements.lock
       - name: Check docs are in sync (v2 heading-aware)
         run: python scripts/sync_docs.py --analyze
+      - name: Check docs content drift (strict + experimental)
+        run: python scripts/sync_docs.py --check --strict --experimental
+        timeout-minutes: 3
       - name: Validate AGENTS.md schema
         run: python scripts/agents_tool.py --check
 

@@ -180,4 +180,24 @@ if echo "${STAGED:-}" | grep -q 'AGENTS\.md$'; then
   fi
 fi
 
+# ----------------------------------------------------------------
+# 6. SKILL DRIFT - BLOQUEIA se .opencode/skills/ mudou sem docs/skills.md
+# ----------------------------------------------------------------
+if echo "${STAGED:-}" | grep -qE '^\.opencode/skills/'; then
+  if ! echo "${STAGED:-}" | grep -qE '^docs/skills\.md$'; then
+    echo ""
+    echo "🚨 COMMIT BLOQUEADO: .opencode/skills/ alterado sem docs/skills.md atualizado."
+    echo ""
+    echo "Alteracoes detectadas:"
+    echo "$STAGED" | grep -E '^\.opencode/skills/'
+    echo ""
+    echo "Execute 'python scripts/sync_docs.py' para regenerar docs/skills.md"
+    echo "e stagela docs/skills.md junto com as alteracoes."
+    echo ""
+    echo "Ou 'git commit --no-verify' para pular (NAO recomendado)"
+    echo ""
+    exit 1
+  fi
+fi
+
 exit 0
