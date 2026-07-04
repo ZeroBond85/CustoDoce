@@ -207,3 +207,19 @@ Regra permanente:
 - CVEs Critical/High em prod = bloqueia release sem exceção
 - CVEs Medium/Low em dev/test = aceitas até próximo sprint (documentar em `docs/security.md`)
 - Falsos positivos do `deptry` (transitivas reais): NUNCA remover sem grep `import <pkg>` em todo o codebase
+
+### 33. Sprint 13 — Saneamento de working tree com `scripts/sanitize.py`
+
+**Problema:** 1.5GB de resíduo acumulado no working tree (caches Python, wheels baixados manualmente, resíduo do installer miniconda, modelo ONNX de 465MB, artefatos de skills audit, 12 arquivos apátridas commitados).
+
+**Solução aplicada:**
+1. **Script de saneamento**: `scripts/sanitize.py` — 10 categorias modulares com dry-run por default, snapshot+rollback, lockfile cooperativo, exclusão de `.venv314`/`.git`.
+2. **.gitignore consolidado**: regras cobertas para `C?Usersericsf/`, `CustoDoce.7z`, `docs/skills.md`, `data/audit/`, `data/skills_backup/`, `.archive/`. Override `!.opencode/skills/**` para forçar versionamento das 33 skills.
+3. **Pre-commit RESIDUE GUARD**: 7ª camada do hook — bloqueia commit com `.whl`, `miniconda.sh`, `C?Usersericsf/`, apátridas, `data/audit/`, `data/skills_backup/`, `skills-lock.json`, `.archive/sanitize/`.
+4. **Skills versionadas**: todas as 33 skills (incluindo theme-factory/themes, extras) forçadas no repo via `git add -f`.
+
+**Regra permanente:**
+- `python scripts/sanitize.py --execute --quick` ao final do dia (ou antes de commits grandes)
+- `python scripts/sanitize.py --dry-run` semanalmente (segunda) para auditoria
+- Hook RESIDUE GUARD bloqueia commit acidental de resíduo — `--no-verify` é bypass de emergência
+- `scripts/sanitize.py --rollback` reverte o último `--execute` via snapshot em `.archive/sanitize/`

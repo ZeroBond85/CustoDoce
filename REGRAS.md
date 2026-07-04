@@ -181,3 +181,28 @@ O job `docs-sync` no `ci.yml` roda:
 2. `python scripts/agents_tool.py --check` (schema validation) — **adicionado Sprint 11**
 
 Falha em qualquer um bloqueia o job.
+
+## Saneamento do Working Tree (Sprint 13)
+
+```bash
+# Uso diário (modo rápido, <2s)
+python scripts/sanitize.py --execute --quick
+
+# Completo (com prompts Y/N por categoria)
+python scripts/sanitize.py --execute
+
+# Auditoria semanal (só ver o que seria limpo)
+python scripts/sanitize.py --dry-run
+
+# Rollback do último --execute
+python scripts/sanitize.py --rollback
+```
+
+**Regras de governança:**
+
+1. **`--quick` ao final do dia** — limpa caches Python + wheels baixados manualmente
+2. **`--dry-run` semanalmente (segunda)** — auditoria manual; idealmente antes de push
+3. **Hook RESIDUE GUARD (pre-commit)** — bloqueia commit de `.whl`, `C?Usersericsf/`, apátridas, `data/audit/`, `data/skills_backup/`, `skills-lock.json`, `.archive/sanitize/`
+4. **NUNCA colocar sanitize no pre-push** — manter push rápido (8 verificações já existem)
+5. **Snapshot antes de mutação irreversível** — `--rollback` restaura backup_personal do último `--execute`
+6. **CI semanal dry-run** — workflow `sanitize-check.yml` falha se detectar lixo novo no working tree
