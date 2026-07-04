@@ -25,6 +25,14 @@ import subprocess
 import sys
 from dataclasses import asdict, dataclass
 
+# Skip binary files entirely (false positives from embedded metadata)
+BINARY_EXTENSIONS: frozenset[str] = frozenset({
+    ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".ico", ".zip", ".gz",
+    ".tar", ".7z", ".whl", ".pyc", ".pyo", ".onnx", ".pt", ".pth",
+    ".npy", ".npz", ".bin", ".safetensors", ".pkl", ".h5", ".so",
+    ".dll", ".exe",
+})
+
 HIGH_CONFIDENCE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("openai_key", re.compile(r"sk-(?:proj-)?[A-Za-z0-9_\-]{20,}")),
     ("anthropic_key", re.compile(r"sk-ant-[A-Za-z0-9_\-]{20,}")),
@@ -80,6 +88,8 @@ def scan_tracked_files() -> list[Finding]:
     findings: list[Finding] = []
     for path in ls.stdout.splitlines():
         if path.startswith(".git/"):
+            continue
+        if any(path.lower().endswith(ext) for ext in BINARY_EXTENSIONS):
             continue
         text = _git_blob_text(path)
         if text is None:
