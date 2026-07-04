@@ -24,9 +24,31 @@ on:
       - 'requirements.lock'
 
 env:
-  PYTHON_VERSION: '3.12'
+  PYTHON_VERSION: '3.14'
 
 jobs:
+  lock-validation:
+    name: Validate requirements.lock is in sync (blocks PR)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install pip-tools
+        run: pip install pip-tools
+      - name: Regenerate requirements.lock from scratch
+        run: pip-compile --allow-unsafe --output-file=requirements.lock requirements-dev.txt requirements.txt tests/requirements-test.txt
+      - name: Check if lock file changed
+        run: |
+          git diff --exit-code requirements.lock && echo "requirements.lock is up to date" || {
+            echo "::error::requirements.lock is out of sync with requirements*.txt"
+            echo "::error::Run locally: pip-compile --allow-unsafe --output-file=requirements.lock requirements-dev.txt requirements.txt tests/requirements-test.txt"
+            echo "::error::Then commit the updated requirements.lock"
+            exit 1
+          }
+
   audit-prod:
     name: Audit production deps (blocks PR)
     runs-on: ubuntu-latest
