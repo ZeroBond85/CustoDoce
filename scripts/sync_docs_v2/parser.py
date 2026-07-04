@@ -96,12 +96,14 @@ def scan_all_md() -> list[dict]:
                 for m in pat.finditer(text):
                     line_num = text[: m.start()].count("\n")
                     heading = line_to_heading.get(line_num, "")
-                    findings.append({
-                        "file": rel,
-                        "line": line_num + 1,
-                        "heading": heading,
-                        "pattern": pat_name,
-                        "match": m.group().strip()[:80],
-                    })
+                    findings.append(
+                        {
+                            "file": rel,
+                            "line": line_num + 1,
+                            "heading": heading,
+                            "pattern": pat_name,
+                            "match": m.group().strip()[:80],
+                        }
+                    )
 
     return findings

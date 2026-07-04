@@ -20,13 +20,13 @@ def _safe_ppk(p: dict) -> float:
     if norm and norm.get("price_per_kg"):
         try:
             return float(norm["price_per_kg"])
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return 0.0
     flat = p.get("price_per_kg")
     if flat is not None:
         try:
             return float(flat)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return 0.0
     return 0.0
 
@@ -63,9 +63,7 @@ def render_promocoes():
         missing_mask = df["price_per_kg"].isna()
         if missing_mask.any():
             df.loc[missing_mask, "price_per_kg"] = [
-                _safe_ppk(p)
-                for p, is_missing in zip(promos_raw, missing_mask, strict=True)
-                if is_missing
+                _safe_ppk(p) for p, is_missing in zip(promos_raw, missing_mask, strict=True) if is_missing
             ]
 
     df = df[df["price_per_kg"] > 0].copy() if "price_per_kg" in df.columns else df.copy()

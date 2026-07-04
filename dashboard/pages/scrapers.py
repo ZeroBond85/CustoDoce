@@ -26,7 +26,11 @@ def render_scrapers():
         logs = get_recent_scraper_logs(100)
         if logs:
             df = pd.DataFrame(logs)
-            cols = [c for c in ["store_name", "status", "started_at", "finished_at", "items_found", "items_matched", "errors"] if c in df.columns]
+            cols = [
+                c
+                for c in ["store_name", "status", "started_at", "finished_at", "items_found", "items_matched", "errors"]
+                if c in df.columns
+            ]
             df = df.reindex(columns=cols)
             st.dataframe(df, use_container_width=True)
         else:

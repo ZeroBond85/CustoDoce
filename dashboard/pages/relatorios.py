@@ -160,7 +160,7 @@ def _safe_ppk(r: dict) -> float:
     if isinstance(norm, dict):
         try:
             return float(norm.get("price_per_kg", 0))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return 0.0
     return 0.0
 

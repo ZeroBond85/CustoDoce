@@ -74,11 +74,7 @@ def test_login(page):
 # Single source of truth: import from navigation_config
 from dashboard.navigation_config import MENU_GROUPS
 
-PAGES = [
-    (page_id, label)
-    for _group, group_pages in MENU_GROUPS.items()
-    for label, _icon, page_id in group_pages
-]
+PAGES = [(page_id, label) for _group, group_pages in MENU_GROUPS.items() for label, _icon, page_id in group_pages]
 
 
 @pytest.mark.parametrize("page_id,label", PAGES)

@@ -232,11 +232,7 @@ def get_dashboard_kpis():
     ingredients = {p.get("ingredient_id", "") for p in prices}
     stores = {p.get("store_id", "") for p in prices}
 
-    valid_ppk = [
-        _safe_ppk(p)
-        for p in prices
-        if _safe_ppk(p) > 0
-    ]
+    valid_ppk = [_safe_ppk(p) for p in prices if _safe_ppk(p) > 0]
 
     return {
         "total_prices": len(prices),
@@ -269,11 +265,7 @@ def get_coverage_by_ingredient():
     # Calculate averages
     for ing, data in coverage.items():
         ing_prices = [p for p in prices if p.get("ingredient_id") == ing]
-        valid_ppk = [
-            _safe_ppk(p)
-            for p in ing_prices
-            if _safe_ppk(p) > 0
-        ]
+        valid_ppk = [_safe_ppk(p) for p in ing_prices if _safe_ppk(p) > 0]
         data["avg_ppk"] = sum(valid_ppk) / len(valid_ppk) if valid_ppk else 0
         data["store_count"] = len(data["stores"])
         data["stores"] = list(data["stores"])
@@ -337,7 +329,7 @@ def get_store_health():
                 end_dt = datetime.fromisoformat(completed.replace("Z", "+00:00"))
                 latency_ms = (end_dt - start_dt).total_seconds() * 1000
                 health[store]["latencies"].append(latency_ms)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 pass
 
     result = []
@@ -426,7 +418,7 @@ def _safe_ppk(r: dict) -> float:
     if isinstance(norm, dict):
         try:
             return float(norm.get("price_per_kg", 0))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return 0.0
     return 0.0
 
@@ -445,7 +437,7 @@ def extract_ppk(row: dict) -> float:
             value = float(flat)
             if value > 0:
                 return value
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             pass
     norm = row.get("normalized", {})
     if isinstance(norm, dict):
@@ -455,7 +447,7 @@ def extract_ppk(row: dict) -> float:
                 value = float(flat_top)
                 if value > 0:
                     return value
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 pass
     return 0.0
 
@@ -474,7 +466,7 @@ def extract_pun(row: dict) -> float:
             value = float(flat)
             if value > 0:
                 return value
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             pass
     norm = row.get("normalized", {})
     if isinstance(norm, dict):
@@ -484,7 +476,7 @@ def extract_pun(row: dict) -> float:
                 value = float(flat_top)
                 if value > 0:
                     return value
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 pass
     return 0.0
 

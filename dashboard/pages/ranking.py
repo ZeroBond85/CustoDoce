@@ -49,9 +49,7 @@ def render_ranking():
                 trends = get_price_trends_cached(selected, days)
             if trends:
                 df = pd.DataFrame(trends)
-                fig = px.line(
-                    df, x="date", y="avg_ppk", title=f"Tendência R$/kg - {selected}"
-                )
+                fig = px.line(df, x="date", y="avg_ppk", title=f"Tendência R$/kg - {selected}")
                 fig.add_scatter(x=df["date"], y=df["min_ppk"], mode="lines", name="Mín", line={"dash": "dot"})
                 fig.add_scatter(x=df["date"], y=df["max_ppk"], mode="lines", name="Máx", line={"dash": "dot"})
                 st.plotly_chart(fig, use_container_width=True)
@@ -69,8 +67,11 @@ def render_ranking():
             st.dataframe(df, use_container_width=True)
 
             fig = px.bar(
-                df.head(20), x="top1_count", y="store_name", orientation="h",
-                title="Top Lojas com mais vitórias (1º lugar)"
+                df.head(20),
+                x="top1_count",
+                y="store_name",
+                orientation="h",
+                title="Top Lojas com mais vitórias (1º lugar)",
             )
             st.plotly_chart(fig, use_container_width=True)
         else:

@@ -23,7 +23,7 @@ _TEST_DIRS = [
     ("tests/integration", "integration"),
     ("tests/e2e", "e2e"),
     ("tests/real", "real"),
-    ]
+]
 
 
 def count_tests() -> dict[str, int]:
@@ -36,7 +36,12 @@ def count_tests() -> dict[str, int]:
         try:
             proc = subprocess.run(
                 [sys.executable, "-m", "pytest", str(full_path), "--collect-only", "-q", "--no-header"],
-                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60, cwd=str(_ROOT),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=60,
+                cwd=str(_ROOT),
             )
             sync_count = len(_SYNC_PAT.findall(proc.stdout))
             async_count = len(_ASYNC_PAT.findall(proc.stdout))
@@ -100,9 +105,7 @@ def _count_dashboard_pages() -> int:
     pages_dir = _ROOT / "dashboard" / "pages"
     if not pages_dir.exists():
         return 0
-    return sum(
-        1 for f in pages_dir.iterdir() if f.suffix == ".py" and f.stem != "__init__"
-    )
+    return sum(1 for f in pages_dir.iterdir() if f.suffix == ".py" and f.stem != "__init__")
 
 
 def build_truth() -> dict:
@@ -114,7 +117,9 @@ def build_truth() -> dict:
     total_tests = sum(tc.values())
 
     return {
-        "updated_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        "updated_at": __import__("datetime")
+        .datetime.now(__import__("datetime").timezone.utc)
+        .strftime("%Y-%m-%d %H:%M UTC"),
         "total_tests": total_tests,
         "test_counts": tc,
         "pages": pages,

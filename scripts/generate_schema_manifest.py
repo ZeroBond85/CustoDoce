@@ -3,6 +3,7 @@ Generate a JSON manifest of the Supabase public schema
 by parsing consolidated_migration.sql offline.
 No Supabase dependency — runs in CI without credentials.
 """
+
 import json
 import re
 from pathlib import Path
@@ -23,9 +24,7 @@ def _strip_sql_comments(text: str) -> str:
     return text
 
 
-def _extract_table_columns(
-    text: str, table_name: str, start_pos: int
-) -> list[str]:
+def _extract_table_columns(text: str, table_name: str, start_pos: int) -> list[str]:
     """Extract column names from parenthesized table definition starting at start_pos.
 
     Splits column definitions by commas at parenthesis depth 0 (not commas
@@ -95,9 +94,7 @@ def _extract_table_columns(
 def _parse_materialized_view_columns(text: str, start_pos: int) -> list[str]:
     """Extract column names from CREATE MATERIALIZED VIEW ... AS SELECT ..."""
     # Find SELECT clause after AS
-    select_match = re.search(
-        r"\bSELECT\s+(?:DISTINCT\s+ON\s*\([^)]*\)\s*)?", text[start_pos:], re.I
-    )
+    select_match = re.search(r"\bSELECT\s+(?:DISTINCT\s+ON\s*\([^)]*\)\s*)?", text[start_pos:], re.I)
     if not select_match:
         return []
     sel_start = start_pos + select_match.end()
@@ -176,4 +173,5 @@ def generate_manifest():
 
 if __name__ == "__main__":
     import sys
+
     sys.exit(generate_manifest())

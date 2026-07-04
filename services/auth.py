@@ -80,7 +80,7 @@ def _totp_int(secret: str, time_slice: int) -> int:
 def verify_totp(secret: str, code: str, window: int = 1) -> bool:
     try:
         expected = int(code)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return False
     now = int(time.time()) // TOTP_INTERVAL
     return any(_totp_int(secret, now + i) == expected for i in range(-window, window + 1))

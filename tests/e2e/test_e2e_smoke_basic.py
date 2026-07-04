@@ -11,6 +11,7 @@ Testes sao independentes. Cada um abre/fecha a propria pagina.
 
 O crawl de 19 paginas leva ~3-4min (com screenshot).
 """
+
 import os
 import sys
 from pathlib import Path
@@ -62,6 +63,7 @@ def _load_and_assert_no_errors(page, context):
 def _wait_script_running(page, timeout_ms=60000):
     """Espera ate a pagina entrar em script-state=running. Tolerante a 'notRunning' persistente."""
     import time
+
     start = time.time()
     saw_running = False
     while (time.time() - start) * 1000 < timeout_ms:
@@ -85,8 +87,7 @@ def test_server_responds(browser):
     page = browser.new_page(viewport={"width": 1280, "height": 800})
     response = page.goto(BASE_URL, timeout=60000)
     assert response is not None and response.status == 200, (
-        f"Streamlit nao respondeu 200 em {BASE_URL}: "
-        f"status={response.status if response else 'no response'}"
+        f"Streamlit nao respondeu 200 em {BASE_URL}: status={response.status if response else 'no response'}"
     )
     page.close()
 

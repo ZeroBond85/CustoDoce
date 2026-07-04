@@ -58,10 +58,7 @@ def _render_rules_tab() -> None:
     end = min(start + RULES_PAGE_SIZE, total)
     page_rules = rules[start:end]
 
-    st.caption(
-        f"Mostrando **{start + 1}–{end}** de **{total}** regras. "
-        f"Página **{page}** de **{total_pages}**."
-    )
+    st.caption(f"Mostrando **{start + 1}–{end}** de **{total}** regras. Página **{page}** de **{total_pages}**.")
 
     b1, b2 = st.columns([1, 5])
     with b1:
@@ -101,7 +98,7 @@ def _fallback_pagination(total_pages: int) -> int:
     try:
         raw = st.query_params.get("alerts_page", "1") if hasattr(st, "query_params") else "1"
         current = int(raw)
-    except (ValueError, TypeError, AttributeError):
+    except ValueError, TypeError, AttributeError:
         current = 1
     current = max(1, min(current, total_pages))
 
@@ -117,8 +114,7 @@ def _fallback_pagination(total_pages: int) -> int:
         with col:
             if nav is None:
                 st.markdown(
-                    f"<div style='text-align:center;font-weight:600;'>"
-                    f"Página {current} de {total_pages}</div>",
+                    f"<div style='text-align:center;font-weight:600;'>Página {current} de {total_pages}</div>",
                     unsafe_allow_html=True,
                 )
                 continue
@@ -149,9 +145,7 @@ def _render_new_rule_tab() -> None:
     with st.form("alert_rule_form"):
         col1, col2 = st.columns(2)
         with col1:
-            name = st.text_input(
-                "Nome da Regra*", placeholder="Ex: Preço Leite Condensado > R$ 15/kg"
-            )
+            name = st.text_input("Nome da Regra*", placeholder="Ex: Preço Leite Condensado > R$ 15/kg")
             trigger = st.selectbox(
                 "Gatilho*",
                 [
@@ -249,4 +243,3 @@ def _render_recipients_tab() -> None:
 
 
 __all__ = ["render_alertas"]
-

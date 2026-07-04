@@ -27,7 +27,10 @@ def get_schema_columns(table: str) -> set[str]:
     from services.supabase_client import get_service_client
 
     client = get_service_client()
-    r = client.rpc("exec_sql_query", {"sql": "SELECT column_name, table_name FROM information_schema.columns WHERE table_schema = 'public'"}).execute()
+    r = client.rpc(
+        "exec_sql_query",
+        {"sql": "SELECT column_name, table_name FROM information_schema.columns WHERE table_schema = 'public'"},
+    ).execute()
     cols = set()
     for row in r.data or []:
         if row["table_name"] == table:

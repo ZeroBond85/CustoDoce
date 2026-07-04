@@ -225,9 +225,9 @@ def build_full_report_html(prices_by_ingredient: dict) -> str:
         safe_ing = _html.escape(ing_name)
         sorted_prices = sorted(
             prices,
-            key=lambda x: (
-                x.get("normalized") if isinstance(x.get("normalized"), dict) else {}
-            ).get("price_per_kg", 999999),
+            key=lambda x: (x.get("normalized") if isinstance(x.get("normalized"), dict) else {}).get(
+                "price_per_kg", 999999
+            ),
         )
         best = sorted_prices[0] if sorted_prices else None
         raw_best_norm = best.get("normalized") if best else None

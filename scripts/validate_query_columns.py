@@ -19,6 +19,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MANIFEST_PATH = REPO_ROOT / "config/schema_manifest.json"
 
+
 def load_manifest() -> dict[str, set[str]]:
     if not MANIFEST_PATH.exists():
         print("ERRO: schema_manifest.json nao encontrado. Rode scripts/generate_schema_manifest.py")
@@ -26,6 +27,7 @@ def load_manifest() -> dict[str, set[str]]:
     with open(MANIFEST_PATH, "r", encoding="utf-8") as f:
         data = json.load(f)
         return {k: set(v) for k, v in data.items()}
+
 
 def extract_references(filepath: Path, manifest: dict[str, set[str]]) -> list[dict]:
     """Scan file using AST for dict keys and regex for .select() calls."""
@@ -37,19 +39,21 @@ def extract_references(filepath: Path, manifest: dict[str, set[str]]) -> list[di
         tree = ast.parse(text)
         for node in ast.walk(tree):
             # Check for Subscript access (dict[key])
-            if isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Constant): # Python 3.8+
+            if isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Constant):  # Python 3.8+
                 key = node.slice.value if isinstance(node.slice, ast.Constant) else node.slice.s
                 if isinstance(key, str):
-                        # Heuristic: check if this key looks like a column name
-                        # We don't know the table, so we check if it exists in ANY table's manifest
-                        found_in_any = any(key in cols for cols in manifest.values())
-                        if found_in_any:
-                             results.append({
+                    # Heuristic: check if this key looks like a column name
+                    # We don't know the table, so we check if it exists in ANY table's manifest
+                    found_in_any = any(key in cols for cols in manifest.values())
+                    if found_in_any:
+                        results.append(
+                            {
                                 "file": str(filepath.relative_to(REPO_ROOT)),
                                 "line": node.lineno,
                                 "type": "dict_key",
-                                "column": key
-                            })
+                                "column": key,
+                            }
+                        )
     except SyntaxError:
         pass
 
@@ -57,15 +61,18 @@ def extract_references(filepath: Path, manifest: dict[str, set[str]]) -> list[di
     for m in re.finditer(r'\.table\(["\'](\w+)["\']\)\s*\.select\(["\']([\w\s,]+?)["\']\)', text):
         table = m.group(1)
         cols = [c.strip() for c in m.group(2).split(",")]
-        line_no = text[:m.start()].count("\n") + 1
-        results.append({
-            "file": str(filepath.relative_to(REPO_ROOT)),
-            "line": line_no,
-            "type": "select_call",
-            "table": table,
-            "columns": cols
-        })
+        line_no = text[: m.start()].count("\n") + 1
+        results.append(
+            {
+                "file": str(filepath.relative_to(REPO_ROOT)),
+                "line": line_no,
+                "type": "select_call",
+                "table": table,
+                "columns": cols,
+            }
+        )
     return results
+
 
 def main() -> int:
     manifest = load_manifest()
@@ -103,6 +110,7 @@ def main() -> int:
 
     print("PASS: Schema check passed.")
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -116,8 +116,7 @@ def _render_nav_footer():
 
 def render_skip_link():
     st.markdown(
-        '<a href="#main-content" class="skip-link" tabindex="1">Pular para conteúdo</a>'
-        '<div id="main-content"></div>',
+        '<a href="#main-content" class="skip-link" tabindex="1">Pular para conteúdo</a><div id="main-content"></div>',
         unsafe_allow_html=True,
     )
 

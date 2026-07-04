@@ -23,10 +23,7 @@ def download_latest_artifact(repo: str, prefix: str, token: str, output_dir: str
     resp.raise_for_status()
     data = resp.json()
 
-    artifacts = [
-        a for a in data.get("artifacts", [])
-        if a["name"].startswith(prefix)
-    ]
+    artifacts = [a for a in data.get("artifacts", []) if a["name"].startswith(prefix)]
     artifacts.sort(key=lambda a: a["created_at"], reverse=True)
 
     if not artifacts:
@@ -44,6 +41,7 @@ def download_latest_artifact(repo: str, prefix: str, token: str, output_dir: str
     # Extract zip to output_dir
     import zipfile
     import io
+
     with zipfile.ZipFile(io.BytesIO(resp.content)) as z:
         z.extractall(output_dir)
 

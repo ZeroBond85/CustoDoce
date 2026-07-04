@@ -191,10 +191,7 @@ def _check_skills_sync() -> list[str]:
         return issues
 
     # Skills no disco (pastas com SKILL.md)
-    disk_skills = {
-        d.name for d in _SKILLS_DIR.iterdir()
-        if d.is_dir() and (d / "SKILL.md").exists()
-    }
+    disk_skills = {d.name for d in _SKILLS_DIR.iterdir() if d.is_dir() and (d / "SKILL.md").exists()}
 
     expected = set(APPROVED_SKILLS)
 
@@ -210,9 +207,7 @@ def _check_skills_sync() -> list[str]:
 
     # 3. APPOVED_SKILLS deve cobrir toda skill no disco
     if disk_skills != expected:
-        issues.append(
-            f"Skills count mismatch: {len(disk_skills)} on disk vs {len(expected)} approved"
-        )
+        issues.append(f"Skills count mismatch: {len(disk_skills)} on disk vs {len(expected)} approved")
 
     return issues
 
@@ -229,10 +224,7 @@ def _sync_skills_md(state: dict | None = None, dry_run: bool = False) -> list[st
         changes.append("Skills dir not found, skipping skills.md generation")
         return changes
 
-    disk_skills = sorted(
-        d.name for d in _SKILLS_DIR.iterdir()
-        if d.is_dir() and (d / "SKILL.md").exists()
-    )
+    disk_skills = sorted(d.name for d in _SKILLS_DIR.iterdir() if d.is_dir() and (d / "SKILL.md").exists())
 
     # Build category -> skills mapping (from override + auto-derive)
     category_skills: dict[str, list[str]] = {}
@@ -254,7 +246,7 @@ def _sync_skills_md(state: dict | None = None, dry_run: bool = False) -> list[st
             lines = fm.splitlines()
             for i, line in enumerate(lines):
                 if line.strip().startswith("description:"):
-                    first_val = line.split(":", 1)[1].strip().strip('"\'')
+                    first_val = line.split(":", 1)[1].strip().strip("\"'")
                     if first_val in (">", "|", ">-", "|-"):
                         # YAML block scalar: read indented continuation lines
                         desc_lines = []
@@ -270,7 +262,7 @@ def _sync_skills_md(state: dict | None = None, dry_run: bool = False) -> list[st
                     break
 
     # Build markdown — conteúdo sem timestamp (para comparação estável)
-    now_iso = datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')
+    now_iso = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
 
     def _build_skills_content(timestamp: str) -> str:
         lines: list[str] = [
@@ -327,9 +319,7 @@ def _sync_skills_md(state: dict | None = None, dry_run: bool = False) -> list[st
         old_lines = old_raw.splitlines()
         old_no_ts_lines = [l for l in old_lines if "Última atualização:" not in l]
         old_no_ts = "\n".join(old_no_ts_lines) + "\n"
-    content_compare = "\n".join(
-        l for l in content_no_ts.splitlines() if "Última atualização:" not in l
-    ) + "\n"
+    content_compare = "\n".join(l for l in content_no_ts.splitlines() if "Última atualização:" not in l) + "\n"
 
     if dry_run:
         if not _SKILLS_DOC.exists() or old_no_ts != content_compare:
@@ -355,6 +345,7 @@ def _sync_skills_md(state: dict | None = None, dry_run: bool = False) -> list[st
 def _extract_pages() -> list[tuple[str, str, str]]:
     """Extract PAGES from navigation_config (single source of truth)."""
     from dashboard.navigation_config import PAGES as nav_pages
+
     return list(nav_pages)
 
 
@@ -539,11 +530,7 @@ def _count_dashboard_pages() -> int:
     pages_dir = _ROOT / "dashboard" / "pages"
     if not pages_dir.exists():
         return 0
-    return sum(
-        1
-        for f in pages_dir.iterdir()
-        if f.suffix == ".py" and f.stem != "__init__"
-    )
+    return sum(1 for f in pages_dir.iterdir() if f.suffix == ".py" and f.stem != "__init__")
 
 
 def _fix_tree_test_count(content: str, unit_count: int) -> str:
@@ -600,7 +587,11 @@ def _strict_audit() -> list[dict]:
         (r"\b17\b.*(páginas?|telas?|módulos?|pages?|aba)", "Page count desatualizado (17 -> 18)", "HIGH"),
         (r"\b418\b", "Test count desatualizado (418 -> 483)", "HIGH"),
         (r"\b383\b", "Test count desatualizado (383 -> 483)", "HIGH"),
-        (r"\b512\b.*(testes|passing|passando)", "Test count desatualizado (512 -> 577) - verificar contexto historico", "MEDIUM"),
+        (
+            r"\b512\b.*(testes|passing|passando)",
+            "Test count desatualizado (512 -> 577) - verificar contexto historico",
+            "MEDIUM",
+        ),
         (r"\b630\b.*total", "Total tests desatualizado (630 -> 745)", "HIGH"),
         (r"\b709\b.*total", "Total tests desatualizado (709 -> 745)", "HIGH"),
     ]
@@ -622,7 +613,10 @@ def _strict_audit() -> list[dict]:
         ("docs\\archive\\CUSTO_DOCE_RAIO_X.md", "418"),
         ("docs\\archive\\CUSTO_DOCE_RAIO_X.md", "383"),
         ("docs\\archive\\CUSTO_DOCE_RAIO_X.md", "709 total"),
-        ("docs\\archive\\CUSTO_DOCE_RAIO_X.md", '512** (35 adicionados). Gargalos recalibrados: #1 (service_role) 🔴→🟡 mitigado via Sprint 1.1; #2 (exec_sql_query) 🔴→🟡 parcialmente mitigado via Sprint 2.2 (RPC 443); #3 (testes'),
+        (
+            "docs\\archive\\CUSTO_DOCE_RAIO_X.md",
+            "512** (35 adicionados). Gargalos recalibrados: #1 (service_role) 🔴→🟡 mitigado via Sprint 1.1; #2 (exec_sql_query) 🔴→🟡 parcialmente mitigado via Sprint 2.2 (RPC 443); #3 (testes",
+        ),
         ("docs\\archive\\RAIO-X_CUSTO_DOCE_RESUMIDO.md", "512 em 29/06; Sprint 7-9 adicionou 26 testes"),
     }
 
@@ -664,8 +658,7 @@ def _strict_audit() -> list[dict]:
     return findings
 
 
-def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False,
-             experimental: bool = False) -> bool:
+def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, experimental: bool = False) -> bool:
     """
     Main sync logic. Returns True if in sync, False if out of sync.
 
@@ -730,7 +723,9 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False,
         print(f"  {c}")
 
     if strict:
-        print(f"\nStrict audit (--strict{' experimental' if experimental else ''}): scanning all .md for stale patterns...")
+        print(
+            f"\nStrict audit (--strict{' experimental' if experimental else ''}): scanning all .md for stale patterns..."
+        )
 
         findings = _v2_strict_audit() if experimental else _strict_audit()
 
@@ -772,26 +767,37 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False,
 # ── v2 Classifier ─────────────────────────────────────────────────
 
 _HISTORICAL_HEADING_MARKERS = {
-    "histórico", "histórico de versões",
-    "versão", "changelog",
-    "roadmap", "próximos",
-    "lição", "lições", "lessons",
-    "entregas confirmadas", "entregas",
+    "histórico",
+    "histórico de versões",
+    "versão",
+    "changelog",
+    "roadmap",
+    "próximos",
+    "lição",
+    "lições",
+    "lessons",
+    "entregas confirmadas",
+    "entregas",
     "milestone",
 }
 
 _CURRENT_HEADING_MARKERS = {
     "status atual",
-    "avaliação", "avaliação de riscos",
+    "avaliação",
+    "avaliação de riscos",
     "riscos",
     "métricas finais",
     "métricas de sucesso",
 }
 
 _HISTORICAL_MATCH_MARKERS = [
-    "era ", "em 29/06", "em 30/06",
-    "resolvido", "mitigado",
-    "passou de ", "subiu de",
+    "era ",
+    "em 29/06",
+    "em 30/06",
+    "resolvido",
+    "mitigado",
+    "passou de ",
+    "subiu de",
     "anteriormente",
 ]
 
@@ -914,13 +920,15 @@ def _v2_scan_all_md() -> list[dict]:
                 for m in pat.finditer(text):
                     line_num = text[: m.start()].count("\n")
                     heading = line_to_heading.get(line_num, "")
-                    findings.append({
-                        "file": rel,
-                        "line": line_num + 1,
-                        "heading": heading,
-                        "pattern": pat_name,
-                        "match": m.group().strip()[:80],
-                    })
+                    findings.append(
+                        {
+                            "file": rel,
+                            "line": line_num + 1,
+                            "heading": heading,
+                            "pattern": pat_name,
+                            "match": m.group().strip()[:80],
+                        }
+                    )
 
     return findings
 
@@ -1018,9 +1026,11 @@ def _v2_run_sync(dry_run: bool = False) -> tuple[list[str], list[dict]]:
 
 def _v2_print_findings(findings: list[dict]):
     counts = Counter(f["classification"] for f in findings)
-    print(f"Total: {len(findings)}  CURRENT: {counts.get('CURRENT', 0)}  "
-          f"HISTORICAL: {counts.get('HISTORICAL', 0)}  "
-          f"AMBIGUOUS: {counts.get('AMBIGUOUS', 0)}")
+    print(
+        f"Total: {len(findings)}  CURRENT: {counts.get('CURRENT', 0)}  "
+        f"HISTORICAL: {counts.get('HISTORICAL', 0)}  "
+        f"AMBIGUOUS: {counts.get('AMBIGUOUS', 0)}"
+    )
     print()
 
     if not findings:
@@ -1051,13 +1061,15 @@ def _v2_strict_audit() -> list[dict]:
             sev = "MEDIUM"
         if f["classification"] == "AMBIGUOUS":
             sev = "MEDIUM"
-        result.append({
-            "file": f["file"],
-            "line": f["line"],
-            "match": f["match"],
-            "message": f"Stale {f['pattern']} in '{f['heading']}'",
-            "severity": sev,
-        })
+        result.append(
+            {
+                "file": f["file"],
+                "line": f["line"],
+                "match": f["match"],
+                "message": f"Stale {f['pattern']} in '{f['heading']}'",
+                "severity": sev,
+            }
+        )
     return result
 
 
@@ -1069,6 +1081,7 @@ def _v2_strict_audit() -> list[dict]:
 def _ensure_utf8():
     if sys.stdout and hasattr(sys.stdout, "reconfigure"):
         import contextlib
+
         with contextlib.suppress(Exception):
             sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -1078,8 +1091,12 @@ def main():
     parser = argparse.ArgumentParser(description="Sync project documentation with code state")
     parser.add_argument("--dry-run", action="store_true", help="Preview changes without applying")
     parser.add_argument("--check", action="store_true", help="Exit 1 if docs are out of sync (CI mode)")
-    parser.add_argument("--strict", action="store_true", help="Run full .md audit for stale patterns (page count, test count)")
-    parser.add_argument("--experimental", action="store_true", help="Use v2 classifier for strict audit instead of hardcoded skip set")
+    parser.add_argument(
+        "--strict", action="store_true", help="Run full .md audit for stale patterns (page count, test count)"
+    )
+    parser.add_argument(
+        "--experimental", action="store_true", help="Use v2 classifier for strict audit instead of hardcoded skip set"
+    )
     parser.add_argument("--analyze", action="store_true", help="Classify stale refs via heading hierarchy (v2)")
     parser.add_argument("--sync", action="store_true", help="Auto-update CURRENT blocks with truth values (v2)")
     parser.add_argument("--dump-truth", action="store_true", help="Print truth JSON and exit")
@@ -1111,8 +1128,7 @@ def main():
         print(json.dumps(truth, ensure_ascii=False, indent=2, default=str))
         return
 
-    in_sync = run_sync(dry_run=args.dry_run, check=args.check, strict=args.strict,
-                       experimental=args.experimental)
+    in_sync = run_sync(dry_run=args.dry_run, check=args.check, strict=args.strict, experimental=args.experimental)
 
     if args.check and not in_sync:
         print("\n::error::Documentation is out of sync. Run 'python scripts/sync_docs.py' to update.")

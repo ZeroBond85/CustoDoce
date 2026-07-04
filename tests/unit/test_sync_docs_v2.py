@@ -15,6 +15,7 @@ from scripts.sync_docs_v2 import classifier, cli, parser, truth, updater
 
 # ── truth.py ────────────────────────────────────────────────────────────────
 
+
 def test_build_truth_keys_and_types():
     """build_truth() returns dict with all expected keys."""
     with patch("scripts.sync_docs_v2.truth.count_tests", return_value={"unit": 10, "schema": 5}):
@@ -58,6 +59,7 @@ def test_count_tests_includes_async():
 
 # ── parser.py ───────────────────────────────────────────────────────────────
 
+
 def test_compute_section_spans_extends_to_next_heading():
     """Heading span extends to next same/higher-level heading."""
     text = "# H1\nfoo\n## H2\nbar\n# H1b\nbaz"
@@ -99,6 +101,7 @@ def test_scan_all_md_skips_excluded_dirs(tmp_path):
 
 # ── classifier.py ───────────────────────────────────────────────────────────
 
+
 @pytest.mark.parametrize(
     "heading,match,file,expected",
     [
@@ -127,6 +130,7 @@ def test_classify_matrix(heading: str, match: str, file: str, expected: str):
 
 
 # ── updater.py ──────────────────────────────────────────────────────────────
+
 
 def test_apply_fix_word_boundary():
     """\\bNUMBER\\b replacement preserves larger numbers like 1512."""
@@ -177,6 +181,7 @@ def test_sync_file_dry_run_does_not_write(tmp_path):
 
 # ── cli.py ──────────────────────────────────────────────────────────────────
 
+
 def test_cli_dump_truth_prints_json(capsys):
     """--dump-truth outputs JSON with expected content."""
     with patch("scripts.sync_docs_v2.cli.build_truth", return_value={"total_tests": 42}):
@@ -198,7 +203,10 @@ def test_cli_analyze_exit_code(capsys):
 def test_cli_sync_no_changes(capsys):
     """--sync with no CURRENT findings prints 'No stale' message."""
     with patch("scripts.sync_docs_v2.cli.scan_all_md", return_value=[]):
-        with patch("scripts.sync_docs_v2.cli.build_truth", return_value={"total_tests": 745, "test_counts": {"unit": 483, "schema": 94}, "pages_count": 18}):
+        with patch(
+            "scripts.sync_docs_v2.cli.build_truth",
+            return_value={"total_tests": 745, "test_counts": {"unit": 483, "schema": 94}, "pages_count": 18},
+        ):
             rc = cli.main(["--sync"])
     assert rc == 0
     out = capsys.readouterr().out

@@ -44,11 +44,7 @@ def list_disabled() -> int:
     """Show every store with is_active=False."""
     client = get_service_client()
     res = (
-        client.table("stores")
-        .select("id, name, tier, is_active, type")
-        .eq("is_active", False)
-        .order("name")
-        .execute()
+        client.table("stores").select("id, name, tier, is_active, type").eq("is_active", False).order("name").execute()
     )
     rows = res.data or []
     if not rows:
@@ -57,8 +53,7 @@ def list_disabled() -> int:
     print(f"Disabled stores: {len(rows)}")
     for s in rows:
         print(
-            f"  - id={s['id'][:8] if s.get('id') else '-'} "
-            f"name={s['name']!r} tier={s.get('tier')} type={s.get('type')}"
+            f"  - id={s['id'][:8] if s.get('id') else '-'} name={s['name']!r} tier={s.get('tier')} type={s.get('type')}"
         )
     return len(rows)
 

@@ -12,18 +12,25 @@ from __future__ import annotations
 
 # Heading fragments that mark a section as historical snapshot
 _HISTORICAL_HEADING_MARKERS = {
-    "histórico", "histórico de versões",
-    "versão", "changelog",
-    "roadmap", "próximos",
-    "lição", "lições", "lessons",
-    "entregas confirmadas", "entregas",
+    "histórico",
+    "histórico de versões",
+    "versão",
+    "changelog",
+    "roadmap",
+    "próximos",
+    "lição",
+    "lições",
+    "lessons",
+    "entregas confirmadas",
+    "entregas",
     "milestone",
 }
 
 # Heading fragments that mark a section as current status
 _CURRENT_HEADING_MARKERS = {
     "status atual",
-    "avaliação", "avaliação de riscos",
+    "avaliação",
+    "avaliação de riscos",
     "riscos",
     "métricas finais",
     "métricas de sucesso",
@@ -31,9 +38,13 @@ _CURRENT_HEADING_MARKERS = {
 
 # Match text patterns that indicate a historical reference
 _HISTORICAL_MATCH_MARKERS = [
-    "era ", "em 29/06", "em 30/06",
-    "resolvido", "mitigado",
-    "passou de ", "subiu de",
+    "era ",
+    "em 29/06",
+    "em 30/06",
+    "resolvido",
+    "mitigado",
+    "passou de ",
+    "subiu de",
     "anteriormente",
 ]
 

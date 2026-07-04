@@ -95,7 +95,11 @@ def render_scraper_health():
     with tabs[2]:
         if logs_data:
             df = pd.DataFrame(logs_data)
-            cols = [c for c in ["store_name", "status", "started_at", "finished_at", "items_found", "items_matched", "errors"] if c in df.columns]
+            cols = [
+                c
+                for c in ["store_name", "status", "started_at", "finished_at", "items_found", "items_matched", "errors"]
+                if c in df.columns
+            ]
             df = df.reindex(columns=cols)
             st.dataframe(df, use_container_width=True, hide_index=True)
         else:

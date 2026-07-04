@@ -17,7 +17,7 @@ def _safe_ppk(r: dict) -> float:
     if isinstance(norm, dict):
         try:
             return float(norm.get("price_per_kg", 0))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return 0.0
     return 0.0
 
@@ -37,15 +37,8 @@ def render_insights():
 
     if coverage:
         df_cov = pd.DataFrame(coverage)
-        if (
-            "ingredient" not in df_cov.columns
-            or "avg_ppk" not in df_cov.columns
-            or df_cov["ingredient"].nunique() < 2
-        ):
-            st.info(
-                "Heatmap requer >=2 ingredientes distintos. "
-                "Aguarde maior cobertura antes de visualizar."
-            )
+        if "ingredient" not in df_cov.columns or "avg_ppk" not in df_cov.columns or df_cov["ingredient"].nunique() < 2:
+            st.info("Heatmap requer >=2 ingredientes distintos. Aguarde maior cobertura antes de visualizar.")
         else:
             df_cov_sorted = df_cov.sort_values("avg_ppk", ascending=False).head(20)
             top_value = max(df_cov_sorted["avg_ppk"].max(), 1)

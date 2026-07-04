@@ -47,7 +47,15 @@ def load_schema() -> dict:
             result["allow_new"] = line.split(":", 1)[1].strip() == "true"
         elif current_section == "headings" and line.startswith("  ") and ":" in line:
             candidate = line.strip().rstrip(":")
-            if candidate and not candidate.startswith("type") and not candidate.startswith("max") and not candidate.startswith("description") and not candidate.startswith("mandatory") and not candidate.startswith("auto") and not candidate.startswith("allow"):
+            if (
+                candidate
+                and not candidate.startswith("type")
+                and not candidate.startswith("max")
+                and not candidate.startswith("description")
+                and not candidate.startswith("mandatory")
+                and not candidate.startswith("auto")
+                and not candidate.startswith("allow")
+            ):
                 current_key = candidate
                 result["headings"][current_key] = {}
             elif candidate.startswith("type ") or candidate == "type":
@@ -68,7 +76,7 @@ def load_schema() -> dict:
                 if current_key and current_key in result["headings"]:
                     result["headings"][current_key]["auto_generated"] = val == "true"
             elif candidate.startswith("allow_key ") or candidate == "allow_key":
-                val = line.split(":", 1)[1].strip().strip('"\'')
+                val = line.split(":", 1)[1].strip().strip("\"'")
                 if current_key and current_key in result["headings"]:
                     result["headings"][current_key]["allow_key"] = val
         elif current_section == "blocked" and line.startswith("  ") and ":" in line:
@@ -160,9 +168,7 @@ def check_schema() -> list[str]:
                             break
                     sec_len = sec_end - sec_start
                     if sec_len > max_sec:
-                        issues.append(
-                            f"Secao '{h['heading']}' tem {sec_len} linhas (max {max_sec})"
-                        )
+                        issues.append(f"Secao '{h['heading']}' tem {sec_len} linhas (max {max_sec})")
                     break
 
     # Check mandatory headings
@@ -175,9 +181,7 @@ def check_schema() -> list[str]:
                     found = True
                     break
             if not found:
-                issues.append(
-                    f"Heading mandatorio '{schema_key}' nao encontrado em AGENTS.md"
-                )
+                issues.append(f"Heading mandatorio '{schema_key}' nao encontrado em AGENTS.md")
 
     return issues
 
@@ -187,7 +191,10 @@ def run_v2_analyze() -> list[str]:
     try:
         result = subprocess.run(
             [sys.executable, str(ROOT / "scripts/sync_docs.py"), "--analyze"],
-            capture_output=True, text=False, cwd=str(ROOT), timeout=30,
+            capture_output=True,
+            text=False,
+            cwd=str(ROOT),
+            timeout=30,
         )
         stdout = result.stdout.decode("utf-8", errors="replace")
         stderr = result.stderr.decode("utf-8", errors="replace")
@@ -208,7 +215,10 @@ def run_sync_docs() -> list[str]:
     try:
         result = subprocess.run(
             [sys.executable, str(ROOT / "scripts/sync_docs.py"), "--check", "--strict"],
-            capture_output=True, text=True, cwd=str(ROOT), timeout=60,
+            capture_output=True,
+            text=True,
+            cwd=str(ROOT),
+            timeout=60,
         )
         issues = []
         if result.returncode != 0:
@@ -252,7 +262,7 @@ def show_status() -> str:
         for p in ROOT.rglob("*.md"):
             if not any(s in str(p) for s in skip_dirs):
                 md_files.append(p)
-    except (OSError, PermissionError):
+    except OSError, PermissionError:
         pass
     parts.append(f"Total .md no repo: {len(md_files)}")
 

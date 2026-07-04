@@ -41,7 +41,7 @@ def main():
     if elapsed > threshold_sec:
         msg = (
             f"[TIMEBUDGET] ⚠ '{args.label}' used {elapsed:.0f}s / {timeout_sec}s "
-            f"({pct:.0f}% of timeout). Exceeds {THRESHOLD_RATIO*100:.0f}% threshold "
+            f"({pct:.0f}% of timeout). Exceeds {THRESHOLD_RATIO * 100:.0f}% threshold "
             f"({threshold_sec:.0f}s). Consider reducing test scope or increasing timeout."
         )
         print(f"::warning ::{msg}")

@@ -180,9 +180,7 @@ def test_menu_groups_structure():
 
     expected_groups = {"📊 Painel", "📈 Análises", "📦 Cadastros", "🤖 Operações", "🔧 Ferramentas"}
     actual_groups = set(MENU_GROUPS.keys())
-    assert expected_groups.issubset(actual_groups), (
-        f"Grupos faltando: {expected_groups - actual_groups}"
-    )
+    assert expected_groups.issubset(actual_groups), f"Grupos faltando: {expected_groups - actual_groups}"
 
     seen_pages: set[str] = set()
     for group_pages in MENU_GROUPS.values():

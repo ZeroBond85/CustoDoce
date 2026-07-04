@@ -2,6 +2,7 @@
 Audit tool to check if columns used in DataFrame accesses (df['col'])
 exist in the Supabase schema manifest.
 """
+
 import ast
 import json
 from pathlib import Path
@@ -9,35 +10,39 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MANIFEST_PATH = REPO_ROOT / "config/schema_manifest.json"
 
+
 def load_manifest() -> set[str]:
     with open(MANIFEST_PATH, "r", encoding="utf-8") as f:
         data = json.load(f)
         all_cols = set()
         for cols in data.values():
             all_cols.update(cols)
-        all_cols.update({
-            "ppk",
-            "cost",
-            "Ingrediente",
-            "Qtd (g)",
-            "name",
-            "price_per_kg",
-            "price_per_un",
-            "ingredient",
-            "avg_ppk",
-            "min_ppk",
-            "max_ppk",
-            "date",
-            "error_rate",
-            "runs",
-            "latency_p95_ms",
-            "success_rate",
-            "latency_ms",
-            "price",
-            "qty",
-            "total",
-        })
+        all_cols.update(
+            {
+                "ppk",
+                "cost",
+                "Ingrediente",
+                "Qtd (g)",
+                "name",
+                "price_per_kg",
+                "price_per_un",
+                "ingredient",
+                "avg_ppk",
+                "min_ppk",
+                "max_ppk",
+                "date",
+                "error_rate",
+                "runs",
+                "latency_p95_ms",
+                "success_rate",
+                "latency_ms",
+                "price",
+                "qty",
+                "total",
+            }
+        )
         return all_cols
+
 
 def audit_df_access(filepath: Path, valid_cols: set[str]) -> list[str]:
     text = filepath.read_text(encoding="utf-8")
@@ -49,15 +54,18 @@ def audit_df_access(filepath: Path, valid_cols: set[str]) -> list[str]:
             if (
                 isinstance(node, ast.Subscript)
                 and isinstance(node.value, ast.Name)
-                and node.value.id.startswith('df')
+                and node.value.id.startswith("df")
                 and isinstance(node.slice, ast.Constant)
             ):
                 col = node.slice.value if isinstance(node.slice, ast.Constant) else node.slice.s
                 if col not in valid_cols:
-                    errors.append(f"{filepath.relative_to(REPO_ROOT)}:{node.lineno} - Column '{col}' not in schema manifest")
+                    errors.append(
+                        f"{filepath.relative_to(REPO_ROOT)}:{node.lineno} - Column '{col}' not in schema manifest"
+                    )
     except SyntaxError:
         pass
     return errors
+
 
 def main():
     valid_cols = load_manifest()
@@ -72,6 +80,7 @@ def main():
             print(e)
     else:
         print("All DataFrame column accesses valid.")
+
 
 if __name__ == "__main__":
     main()

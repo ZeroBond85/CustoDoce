@@ -2,6 +2,7 @@
 Validate that all static mock data dicts use column names
 that exist in the real DB schema (parsed from SQL).
 """
+
 import json
 import pytest
 from pathlib import Path
@@ -26,10 +27,12 @@ def get_mock_data(mock_name: str) -> tuple[str, list[dict]]:
     """Import a mock variable from the correct test module and return (table_name, mock_list)."""
     if mock_name == "MOCK_PRICES":
         from tests.unit.test_dashboard_contracts import MOCK_PRICES as data
+
         table = MOCK_TABLE_MAP[mock_name]
         return table, data
     if mock_name == "MOCK_LOGS":
         from tests.unit.test_dashboard_contracts import MOCK_LOGS as data
+
         table = MOCK_TABLE_MAP[mock_name]
         return table, data
     raise ValueError(f"Unknown mock: {mock_name}")
@@ -37,8 +40,7 @@ def get_mock_data(mock_name: str) -> tuple[str, list[dict]]:
 
 def test_manifest_exists():
     assert MANIFEST_PATH.exists(), (
-        f"Schema manifest not found at {MANIFEST_PATH}. "
-        "Run: python scripts/generate_schema_manifest.py"
+        f"Schema manifest not found at {MANIFEST_PATH}. Run: python scripts/generate_schema_manifest.py"
     )
 
 
@@ -48,10 +50,7 @@ def test_mock_keys_exist_in_schema(mock_name: str):
     table_name, mock_data = get_mock_data(mock_name)
     table_cols = manifest.get(table_name)
 
-    assert table_cols is not None, (
-        f"Table '{table_name}' not found in manifest. "
-        f"Available: {sorted(manifest.keys())}"
-    )
+    assert table_cols is not None, f"Table '{table_name}' not found in manifest. Available: {sorted(manifest.keys())}"
 
     if not mock_data:
         pytest.skip(f"{mock_name} is empty")
@@ -60,9 +59,7 @@ def test_mock_keys_exist_in_schema(mock_name: str):
     for i, item in enumerate(mock_data):
         for key in item:
             if key not in table_cols:
-                errors.append(
-                    f"  [{mock_name}][{i}] key '{key}' not in table '{table_name}'"
-                )
+                errors.append(f"  [{mock_name}][{i}] key '{key}' not in table '{table_name}'")
 
     if errors:
         pytest.fail(

@@ -9,6 +9,7 @@ aos requisitos do projeto, e que requirements.lock está íntegro.
 - Local: avisa (warn) se Python != 3.14, mas não bloqueia.
 - requirements.lock dry-run: sempre HARD failure se pip resolve falhar.
 """
+
 from __future__ import annotations
 
 import os
@@ -29,10 +30,7 @@ def _check_python_version() -> list[str]:
     warnings: list[str] = []
     actual = sys.version_info[:2]
     if actual != REQUIRED_PYTHON:
-        msg = (
-            f"Python {actual[0]}.{actual[1]} detectado, "
-            f"mas {REQUIRED_PYTHON[0]}.{REQUIRED_PYTHON[1]} exigido."
-        )
+        msg = f"Python {actual[0]}.{actual[1]} detectado, mas {REQUIRED_PYTHON[0]}.{REQUIRED_PYTHON[1]} exigido."
         if IN_CI:
             errors.append(msg)
         else:
@@ -56,7 +54,10 @@ def _check_lock_valid() -> list[str]:
 
     result = subprocess.run(
         [sys.executable, "-m", "pip", "install", "--dry-run", "-r", str(LOCK_FILE)],
-        capture_output=True, text=True, cwd=REPO_ROOT, timeout=120,
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+        timeout=120,
     )
     if result.returncode != 0:
         errors.append(f"pip dry-run falhou: {result.stderr.strip()[-500:]}")
@@ -79,7 +80,10 @@ def _check_agents_md_rule_10() -> list[str]:
 
 
 def main() -> int:
-    print(f"=== check_environment_parity (CI={IN_CI}, platform={platform.system()}, python={sys.version})", file=sys.stderr)
+    print(
+        f"=== check_environment_parity (CI={IN_CI}, platform={platform.system()}, python={sys.version})",
+        file=sys.stderr,
+    )
 
     all_errors: list[str] = []
     all_warnings: list[str] = []

@@ -28,9 +28,9 @@ def generate_report_html(products: list[dict], ingredients: list[dict]) -> str:
     for ing_name, prices in sorted(by_ingredient.items()):
         best = min(
             prices,
-            key=lambda x: (
-                x.get("normalized") if isinstance(x.get("normalized"), dict) else {}
-            ).get("price_per_kg", 999999),
+            key=lambda x: (x.get("normalized") if isinstance(x.get("normalized"), dict) else {}).get(
+                "price_per_kg", 999999
+            ),
         )
         raw_norm = best.get("normalized")
         norm = raw_norm if isinstance(raw_norm, dict) else {}

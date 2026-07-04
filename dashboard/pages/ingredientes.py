@@ -137,9 +137,7 @@ def _suggest_aliases(canonical: str, brands: list[str], existing: list[str]) -> 
     suggestions.add(remove_accents(canonical).lower())
 
     existing_lower = {a.lower() for a in existing}
-    return sorted(
-        {s for s in suggestions if s and s != canon_lower and s not in existing_lower}
-    )
+    return sorted({s for s in suggestions if s and s != canon_lower and s not in existing_lower})
 
 
 def render_ingredientes():
@@ -218,8 +216,15 @@ def render_ingredientes():
             is_new = False
 
         CANONICAL_CATEGORIES = [
-            "lacteos", "chocolates", "confeitos", "pastas", "secos",
-            "acucares", "farinhas", "essencias", "outros",
+            "lacteos",
+            "chocolates",
+            "confeitos",
+            "pastas",
+            "secos",
+            "acucares",
+            "farinhas",
+            "essencias",
+            "outros",
         ]
 
         with st.form("ingredient_form", clear_on_submit=False):
@@ -228,8 +233,12 @@ def render_ingredientes():
                 canonical = st.text_input("Nome Canônico*", value=ing_data.get("canonical_name", ""))
                 try:
                     default_cat = ing_data.get("category", "outros")
-                    cat_index = CANONICAL_CATEGORIES.index(default_cat) if default_cat in CANONICAL_CATEGORIES else CANONICAL_CATEGORIES.index("outros")
-                except (ValueError, TypeError):
+                    cat_index = (
+                        CANONICAL_CATEGORIES.index(default_cat)
+                        if default_cat in CANONICAL_CATEGORIES
+                        else CANONICAL_CATEGORIES.index("outros")
+                    )
+                except ValueError, TypeError:
                     cat_index = CANONICAL_CATEGORIES.index("outros")
                 category = st.selectbox("Categoria", CANONICAL_CATEGORIES, index=cat_index)
                 unit = st.text_input("Unidade Base", value=ing_data.get("unit_target", "kg"))
@@ -258,9 +267,7 @@ def render_ingredientes():
                         "aliases": [a.strip() for a in aliases.split("\n") if a.strip()],
                         "active": active,
                     }
-                    is_actually_new = is_new or not any(
-                        i.get("canonical_name") == canonical for i in ingredients_yaml
-                    )
+                    is_actually_new = is_new or not any(i.get("canonical_name") == canonical for i in ingredients_yaml)
                     _confirm_yaml_save_dialog(
                         ingredients_yaml=ingredients_yaml,
                         ing_dict=ing_dict,

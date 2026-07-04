@@ -56,9 +56,7 @@ def _render_feature_flags_tab() -> None:
             st.markdown("Edite os toggles abaixo e clique em **Salvar Tudo** para persistir todas as flags:")
             new_states: dict[str, dict] = {}
             for flag in flags:
-                st.markdown(
-                    f"**{flag['key']}** — _{flag.get('description', '(sem descrição)')}_"
-                )
+                st.markdown(f"**{flag['key']}** — _{flag.get('description', '(sem descrição)')}_")
                 enabled = st.checkbox(
                     "Ativo",
                     value=flag.get("enabled", False),
@@ -134,7 +132,10 @@ def _render_alert_rules_tab() -> None:
         st.divider()
 
         for rule in rules:
-            with st.expander(f"{'✅' if rule.get('enabled') else '⛔'} {rule['name']} ({rule['trigger']})"), st.form(f"rule_form_{rule['id']}"):
+            with (
+                st.expander(f"{'✅' if rule.get('enabled') else '⛔'} {rule['name']} ({rule['trigger']})"),
+                st.form(f"rule_form_{rule['id']}"),
+            ):
                 col1, col2 = st.columns(2)
                 with col1:
                     enabled = st.checkbox(
@@ -166,9 +167,7 @@ def _render_alert_rules_tab() -> None:
             if not name.strip():
                 st.error("Nome é obrigatório")
             else:
-                upsert_alert_rule(
-                    {"name": name, "trigger": trigger, "threshold": threshold, "enabled": enabled}
-                )
+                upsert_alert_rule({"name": name, "trigger": trigger, "threshold": threshold, "enabled": enabled})
                 st.success("Regra criada!")
                 st.rerun()
 
@@ -232,11 +231,7 @@ def _render_reload_tab() -> None:
     st.divider()
     st.subheader("Config Atual (get())")
     cfg = get("features", {})
-    safe_cfg = {
-        k: v
-        for k, v in cfg.items()
-        if not any(s in k.upper() for s in ["PASSWORD", "SECRET", "KEY", "TOKEN"])
-    }
+    safe_cfg = {k: v for k, v in cfg.items() if not any(s in k.upper() for s in ["PASSWORD", "SECRET", "KEY", "TOKEN"])}
     st.json(safe_cfg)
 
 

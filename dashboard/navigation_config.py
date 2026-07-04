@@ -93,9 +93,7 @@ MENU_GROUPS: dict[str, list[tuple[str, str, str]]] = {
 
 # ── PAGE_TITLE_ICONS: derived from MENU_GROUPS ────────────────────────────
 PAGE_TITLE_ICONS: dict[str, tuple[str, str]] = {
-    page_id: (label, icon)
-    for _group_label, group_pages in MENU_GROUPS.items()
-    for label, icon, page_id in group_pages
+    page_id: (label, icon) for _group_label, group_pages in MENU_GROUPS.items() for label, icon, page_id in group_pages
 }
 
 DEFAULT_PAGE = "visao_geral"
@@ -104,7 +102,5 @@ DEFAULT_PAGE = "visao_geral"
 # Format: (page_id, icon, label_without_accents)
 # Used by render_legacy_sidebar() in layout.py for pre-1.36 fallback
 PAGES: list[tuple[str, str, str]] = [
-    (page_id, icon, label)
-    for _group_label, group_pages in MENU_GROUPS.items()
-    for label, icon, page_id in group_pages
+    (page_id, icon, label) for _group_label, group_pages in MENU_GROUPS.items() for label, icon, page_id in group_pages
 ]

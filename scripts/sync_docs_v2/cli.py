@@ -60,9 +60,11 @@ def _print_findings(findings: list[dict]):
     from collections import Counter
 
     counts = Counter(f["classification"] for f in findings)
-    print(f"Total: {len(findings)}  CURRENT: {counts.get('CURRENT', 0)}  "
-          f"HISTORICAL: {counts.get('HISTORICAL', 0)}  "
-          f"AMBIGUOUS: {counts.get('AMBIGUOUS', 0)}")
+    print(
+        f"Total: {len(findings)}  CURRENT: {counts.get('CURRENT', 0)}  "
+        f"HISTORICAL: {counts.get('HISTORICAL', 0)}  "
+        f"AMBIGUOUS: {counts.get('AMBIGUOUS', 0)}"
+    )
     print()
 
     if not findings:

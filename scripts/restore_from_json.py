@@ -62,9 +62,12 @@ def dry_run_check(client, table: str, rows: list) -> dict:
     # Check table exists via RPC
     try:
         # ruff: noqa: S608
-        check = client.rpc("exec_sql_query", {
-            "sql": f"SELECT COUNT(*) FROM {table} LIMIT 1",
-        }).execute()
+        check = client.rpc(
+            "exec_sql_query",
+            {
+                "sql": f"SELECT COUNT(*) FROM {table} LIMIT 1",
+            },
+        ).execute()
         result["details"].append(f"Table exists: {check.data}")  # type: ignore
     except Exception as e:
         result["status"] = "WARN"
@@ -93,7 +96,7 @@ def execute_restore(client, table: str, rows: list, dry_run: bool) -> dict:
     # Batch insert in chunks of 100
     chunk_size = 100
     for i in range(0, len(rows), chunk_size):
-        chunk = rows[i:i + chunk_size]
+        chunk = rows[i : i + chunk_size]
         try:
             resp = client.table(table).upsert(chunk, on_conflict="id").execute()
             result["inserted"] += len(resp.data) if resp.data else 0  # type: ignore
@@ -104,7 +107,7 @@ def execute_restore(client, table: str, rows: list, dry_run: bool) -> dict:
                 result["inserted"] += len(resp.data) if resp.data else 0  # type: ignore
             except Exception as e2:
                 result["status"] = "ERROR"
-                result["errors"].append(f"Chunk {i//chunk_size}: {e2}")  # type: ignore
+                result["errors"].append(f"Chunk {i // chunk_size}: {e2}")  # type: ignore
 
     return result
 
