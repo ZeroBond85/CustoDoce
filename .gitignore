@@ -107,9 +107,15 @@ Thumbs.db
 
 # Tooling scratch
 scripts/diagnose.py
+scripts/skills_maintenance.py
 cline.log
 _tmp/
 tmp/
+skills-lock.json
+
+# OpenCode skills cache (user/IDE-specific — IDE reinstala a cada sessao)
+.opencode/skills/
+.github/workflows/skills-maintenance.yml
 
 # Setup files / downloaded artifacts
 *.whl

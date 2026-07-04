@@ -75,6 +75,33 @@ git config core.fileMode false         # permissoes nao travam em Windows
 
 **Add (Sprint 11)**: Roda `python scripts/agents_tool.py --check` antes de validar secrets. Falha bloqueia push.
 
+### Resolução Automática de Python (.venv314)
+
+O hook **sempre** usa `.venv314/Scripts/python.exe` (Windows) ou `.venv314/bin/python` (WSL), independente de quem invocou o git:
+
+```python
+# .githooks/pre-push
+def _resolve_python() -> str:
+    candidates = [
+        REPO_ROOT / ".venv314" / "Scripts" / "python.exe",  # Windows
+        REPO_ROOT / ".venv314" / "bin" / "python",           # WSL/Linux
+    ]
+    for c in candidates:
+        if c.exists() and os.access(c, os.X_OK):
+            return str(c)
+    return sys.executable  # fallback apenas se .venv314 não existir
+```
+
+**Por quê?** `sys.executable` no hook resolves o Python que invocou o git → pode ser Python 3.11 global se você rodar `git` fora do venv. O `_resolve_python()` força o uso do venv → **garantia de paridade** com CI/Cloud.
+
+**Saída do hook** (a 1ª linha mostra qual Python será usado):
+```
+  [python] usando venv: C:\Zerobond\Code\CustoDoce\.venv314\Scripts\python.exe
+=== pre-push: validando...
+```
+
+Fallback via `sys.executable` só ocorre se `.venv314/` não existir — nesse caso o hook emite AVISO. **Recomendado**: rodar `pip install -r requirements.lock` em `.venv314` antes do push.
+
 Opt-in Unit Tests: `set CI_LOCAL_UNIT=1` (cmd) ou `$env:CI_LOCAL_UNIT="1"` (ps).
 
 Emergência: `git push --no-verify` (não recomendado).

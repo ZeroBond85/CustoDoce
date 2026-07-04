@@ -47,7 +47,8 @@ CustoDoce/
 ├── .github/workflows/
 │   ├── scrape.yml, ci.yml, e2e.yml, backup.yml, restore-test.yml
 │   ├── deploy-staging.yml, on_demand_scrape.yml, ci-e2e-only.yml
-│   └── heal-scrapers.yml                             # Cron 15d auto-heal
+│   ├── heal-scrapers.yml                             # Cron 15d auto-heal
+│   └── skills-maintenance.yml                       # Cron mensal (dia 1, 9am UTC)
 ├── .githooks/
 │   ├── pre-commit                                     # 5 camadas (secret, doc sync, size, watchdog, agents)
 │   └── pre-push                                       # Python, 4 steps + agents_tool
@@ -61,7 +62,7 @@ CustoDoce/
 ├── telegram_bot/      # handlers.py
 ├── admin/app.py       # 107 linhas — importa 19 pages
 ├── supabase/          # seed.sql, consolidated_migration.sql, migrations 002-005
-├── scripts/           # deploy, validate, sync, audit, seed, heal, sanity, send_report, etc.
+├── scripts/           # deploy, validate, sync, audit, seed, heal, sanity, send_report, skills_maintenance
 ├── tests/             # unit (518), schema (94), integration, design, e2e, real
 ├── data/prices_latest.json
 ├── pyproject.toml     # Ruff 120 chars, mypy 3.12, pytest config
@@ -186,10 +187,50 @@ python -m pytest tests/integration/ -q -x
 | Python WSL | 3.14 (`custodoce-314`) |
 | Python Cloud (Streamlit) | 3.14 (pending UI update) |
 | requirements.lock | 130+ packages, no hashes |
+| OpenCode Skills | 33 installed (todas no projeto) |
+
+## OpenCode Skills
+
+**33 skills** em `.opencode/skills/`.
+
+### Categorias
+
+| Categoria | Skills | Propósito |
+|-----------|--------|------------|
+| **Vibe Coding** | project-context-primer, code-review, github, dependency-audit, knowledge-base-update, brainstorming, writing-plans, prompt-enhancer, architecture-review, test-driven-execution, documentation-sync, incident-response | Workflows produtivos |
+| **CustoDoce Core** | web-scraper, price-normalizer, llm-integration, self-healing, brand-extractor | Domain-specific |
+| **Streamlit UI** | streamlit, streamlit-theming, streamlit-components, streamlit-responsive, accessibility, design-md | Dashboard excellence |
+| **Ops** | skills-maintenance | Manutenção |
+
+### Manutenção
+
+```bash
+# Verificar status (mensal automático via skills-maintenance.yml)
+python scripts/skills_maintenance.py --check
+
+# Validar estrutura (a cada PR)
+python scripts/skills_maintenance.py --validate
+
+# Backup + Check + Validate (trimestral)
+python scripts/skills_maintenance.py --full
+
+# Listar todas
+python scripts/skills_maintenance.py --list
+```
+
+### Cron
+
+- **Mensal** (1º do mês, 6am SP / 9am UTC): `skills-maintenance.yml` executa `--check`
+- **A cada PR**: CI valida estrutura das skills modificadas
+- **Manual**: `workflow_dispatch` com modos `check | validate | full`
 
 ## Ambiente
 
-Ver `REGRAS.md` para detalhes completos de execução (Windows/WSL, hooks, configurações git).
+**Python local OBRIGATÓRIO: `.venv314`** (PowerShell → `& .\.venv314\Scripts\Activate.ps1`).
+
+O **`pre-push`** detecta `.venv314` automaticamente via `_resolve_python()` (ver `REGRAS.md` §Pre-push). Independente de como o git foi invocado, todo subprocesso do hook usa o Python do venv → **paridade total com CI/Cloud**. Fallback `sys.executable` é apenas aviso, não erro.
+
+Para WSL: `custodoce-314` (Conda, Python 3.14). Detalhes em `REGRAS.md`.
 
 ## Documentação Relacionada
 

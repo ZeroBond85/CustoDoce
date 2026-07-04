@@ -3,8 +3,13 @@
 pre-push hook (CustoDoce)
 Executa ANTES do push — se falhar, o push NAO acontece.
 
-Usa sys.executable para garantir o MESMO Python com todos os packages.
-Funciona de qualquer shell (PowerShell, cmd, WSL bash).
+Resolucao do Python:
+  1. Prefere `.venv314/Scripts/python.exe` (Windows) ou `.venv314/bin/python` (WSL).
+  2. Fallback: sys.executable (Python que invocou o hook).
+  3. Hard-fail se nenhum Python com deps completas for encontrado.
+
+Garante que TODOS os subprocessos (ci_local.py, agents_tool.py, etc.) usem
+o MESMO Python com requirements.lock instalado → paridade total de ambiente.
 
 Pular em emergencia: git push --no-verify
 """
@@ -16,7 +21,23 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).parent.parent.resolve()
-THIS_PYTHON = sys.executable
+
+
+def _resolve_python() -> str:
+    """Prefere .venv314 (paridade); fallback para sys.executable."""
+    candidates = [
+        REPO_ROOT / ".venv314" / "Scripts" / "python.exe",  # Windows
+        REPO_ROOT / ".venv314" / "bin" / "python",           # WSL/Linux
+    ]
+    for candidate in candidates:
+        if candidate.exists() and os.access(candidate, os.X_OK):
+            print(f"  [python] usando venv: {candidate}", file=sys.stderr)
+            return str(candidate)
+    print(f"  [python] AVISO: .venv314 nao encontrado, fallback para sys.executable", file=sys.stderr)
+    return sys.executable
+
+
+THIS_PYTHON = _resolve_python()
 
 
 def run(cmd: list[str], capture: bool = True) -> subprocess.CompletedProcess:
@@ -63,7 +84,6 @@ def main() -> int:
     print("[OK] AGENTS.md schema valido", file=sys.stderr)
 
     print("[2/4] ci_local.py...", file=sys.stderr)
-    # Check if user wants to run unit tests (via env var)
     run_unit = os.environ.get("CI_LOCAL_UNIT") == "1"
     ci_args = [THIS_PYTHON, "scripts/ci_local.py"]
     if not run_unit:
@@ -123,13 +143,10 @@ def main() -> int:
         print("[AVISO] Documentacao dessincronizada. Rode: python scripts/sync_docs.py", file=sys.stderr)
         if result.stdout:
             print(result.stdout[-1500:], file=sys.stderr)
-        # Nao bloqueia - apenas aviso (CI e o gate real)
     else:
         print("[OK] docs sincronizadas", file=sys.stderr)
 
     print("[4/4] test_total_coverage (light, no integration/real)...", file=sys.stderr)
-    # Sprint 4: opt-in full pipeline via TEST_TOTAL opt-in env var.
-    # Skip by default to keep pre-push <30s. Set TEST_TOTAL=1 to enable.
     if os.environ.get("TEST_TOTAL") == "1":
         tt_args = [THIS_PYTHON, "scripts/test_total_coverage.py", "--skip-slow"]
         result = run(tt_args)

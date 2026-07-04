@@ -37,7 +37,7 @@ def extract_references(filepath: Path, manifest: dict[str, set[str]]) -> list[di
         tree = ast.parse(text)
         for node in ast.walk(tree):
             # Check for Subscript access (dict[key])
-            if isinstance(node, ast.Subscript) and isinstance(node.slice, (ast.Constant, ast.Str)): # Python 3.8+
+            if isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Constant): # Python 3.8+
                 key = node.slice.value if isinstance(node.slice, ast.Constant) else node.slice.s
                 if isinstance(key, str):
                         # Heuristic: check if this key looks like a column name

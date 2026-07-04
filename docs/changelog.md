@@ -311,14 +311,20 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 - **`pyproject.toml`**: `target-version=py314`, `python_version="3.14"`, `mypy` target updated.
 - **9 GitHub Actions workflows** (ci.yml, scrape.yml, ci-e2e-only.yml, e2e.yml, deploy-staging.yml, heal-scrapers.yml, on_demand_scrape.yml, restore-test.yml, backup.yml): `PYTHON_VERSION=3.14`; all install via `pip install -r requirements.lock`; `pip-audit --strict -s osv -r requirements.txt` (prod only — dev deps CVEs handled separately).
-- **`.githooks/pre-push`**: Added schema manifest generation + mock validation + environment parity check (steps 3.75–3.875 of 4).
-- **`AGENTS.md`**: Rule #10 replaced with **Paridade Total de Ambiente** (Python + deps + OS + runtime + tools identical local/CI/Cloud). Metrics table updated (Python 3.14.6 local, 3.14 CI/WSL, 3.14 Cloud pending).
-- **`REGRAS.md`**: Environments table → `.venv314` / `custodoce-314`; added §4 Paridade de Versões.
+- **`.githooks/pre-push`**: Added schema manifest generation + mock validation + environment parity check (steps 3.75–3.875 of 4); **`_resolve_python()`** detecta `.venv314/` automaticamente (Windows/WSL) — todos os subprocessos (ci_local, agents_tool, etc.) usam o Python do venv → paridade total, independente de como o git foi invocado.
+- **`AGENTS.md`**: Rule #10 replaced with **Paridade Total de Ambiente** (Python + deps + OS + runtime + tools identical local/CI/Cloud). Metrics table updated (Python 3.14.6 local, 3.14 CI/WSL, 3.14 Cloud pending). Nova seção "Ambiente" explica resolução automática de `.venv314`.
+- **`REGRAS.md`**: Environments table → `.venv314` / `custodoce-314`; added §4 Paridade de Versões; seção "Resolução Automática de Python" no pre-push com exemplo de uso.
 
 ### Fixed
 
 - **CI `--require-hashes` auto-mode conflict**: Lock file originally had hashes → pip auto-enables `--require-hashes` → cp314 wheel hash differs from cp311 → mismatch. Fixed by regenerating lock **without hashes** (version pinning = supply-chain security; hash verification moved to parity checker `--dry-run`).
 - **`pip-audit` false positives**: Scanning full lock file caught pre-existing CVEs in dev deps (pytest 8.3.3 CVE-2025-71176, diskcache 5.6.3 CVE-2025-69872) unrelated to migration. Restricted audit to `requirements.txt` (prod).
+- **`datetime.utcnow()` deprecated in Py3.14**: Replaced com `datetime.now(UTC)` em 5 arquivos (`scripts/sync_docs.py`, `scripts/rpc_backup.py`, `dashboard/pages/promocoes.py`, `dashboard/pages/ingredientes.py`, `scripts/sync_docs_v2/truth.py`).
+- **`pytest-asyncio` 0.24.0 warning `asyncio_default_fixture_loop_scope unset`**: Resolvido adicionando `asyncio_default_fixture_loop_scope = function` em `pytest.ini` (formato `[pytest]` ini section que pytest-asyncio 0.24.0 lê corretamente).
+- **Pre-existing ruf SIM108 lint**: `scripts/sync_docs.py:540` if/else → ternary.
+- **`.agents/skills/` ruff errors**: 26 erros em skill evaluation files (third-party OpenCode cache, .agents/ não tracked). Excluído via `pyproject.toml [tool.ruff] exclude = [".agents/"]`.
+- **Pre-push venv invariavel**: `.githooks/pre-push` agora detecta `.venv314/Scripts/python.exe` (Windows) ou `.venv314/bin/python` (WSL) automaticamente via `_resolve_python()`. Garante que todos os subprocessos (ci_local, agents_tool, pytest, etc.) usem o Python do venv → **paridade total** sem depender de venv ativado manualmente.
+- **OpenCode skills cache cruft**: `scripts/skills_maintenance.py`, `.opencode/skills/`, `skills-lock.json` adicionados ao `.gitignore` (IDE-specific, não código de projeto).
 - **Test pre-existing failures** (unrelated to migration):
   - `test_promocoes_is_promotion_true_via_oferta_tag` → renamed `test_promocoes_is_promotion_false_when_not_flag` (prod `_is_promotion` no longer checks `ai_tags`).
   - `test_promocoes_is_promotion_false_for_normal_item`: removed `ai_tags` assertions.
@@ -420,8 +426,6 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - **`tests/integration/test_collector_pipeline.py::test_pipeline_exact_match`**: tolerância a dados cumulativos no DB real (collected_at = today filtering).
 - **`tests/unit/test_dashboard_full.py::test_build_report_html`**: movido para `tests/integration/test_dashboard_reports.py` (precisa DB real).
 - **`tests/unit/test_services_mocked.py::test_approve_review_item_updates_and_upserts`**: removido (falhava em CI por package version skew; muito acoplado à `httpx`/`postgrest`).
-
-### Removed (operational data)
 
 - `data/prices_latest.json` removido de git tracking (já estava em `.gitignore`).
 - `data/cleanup_track.json` removido de git tracking (já estava em `.gitignore`).

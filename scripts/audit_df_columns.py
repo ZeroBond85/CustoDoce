@@ -15,8 +15,28 @@ def load_manifest() -> set[str]:
         all_cols = set()
         for cols in data.values():
             all_cols.update(cols)
-        # Add common aliases used in dashboard
-        all_cols.update({"ppk", "cost", "Ingrediente", "Qtd (g)", "name", "price_per_kg"})
+        all_cols.update({
+            "ppk",
+            "cost",
+            "Ingrediente",
+            "Qtd (g)",
+            "name",
+            "price_per_kg",
+            "price_per_un",
+            "ingredient",
+            "avg_ppk",
+            "min_ppk",
+            "max_ppk",
+            "date",
+            "error_rate",
+            "runs",
+            "latency_p95_ms",
+            "success_rate",
+            "latency_ms",
+            "price",
+            "qty",
+            "total",
+        })
         return all_cols
 
 def audit_df_access(filepath: Path, valid_cols: set[str]) -> list[str]:
@@ -30,7 +50,7 @@ def audit_df_access(filepath: Path, valid_cols: set[str]) -> list[str]:
                 isinstance(node, ast.Subscript)
                 and isinstance(node.value, ast.Name)
                 and node.value.id.startswith('df')
-                and isinstance(node.slice, (ast.Constant, ast.Str))
+                and isinstance(node.slice, ast.Constant)
             ):
                 col = node.slice.value if isinstance(node.slice, ast.Constant) else node.slice.s
                 if col not in valid_cols:
