@@ -53,10 +53,31 @@ if [ -n "${STAGED:-}" ]; then
 fi
 
 # ----------------------------------------------------------------
-# 2. DOC SYNC - BLOQUEIA se codigo mudou sem docs (bypass: YES, auto: A)
+# 1.5. GITIGNORE IMPORTS GUARD - bloqueia se importa arquivo gitignored
+# ----------------------------------------------------------------
+if [ -n "${STAGED:-}" ]; then
+  if command -v python3 &>/dev/null; then
+    PY_IMP=python3
+  elif command -v python &>/dev/null; then
+    PY_IMP=python
+  else
+    PY_IMP=""
+  fi
+  if [ -n "$PY_IMP" ] && [ -f "scripts/check_gitignore_imports.py" ]; then
+    if ! "$PY_IMP" scripts/check_gitignore_imports.py; then
+      exit 1
+    fi
+  fi
+fi
+
+# ----------------------------------------------------------------
+# 2. DOC SYNC - AVISA se codigo mudou sem docs (non-interactive por default)
 # ----------------------------------------------------------------
 CODE_PATTERNS='^(services|scrapers|parsers|telegram_bot|dashboard|admin)/|main\.py$|^\.github/workflows/|^config/|^tests/'
 DOC_REQUIRED='^docs/changelog\.md$|^README\.md$|^CUSTO_DOCE_RAIO_X\.md$|^RAIO-X_CUSTO_DOCE_RESUMIDO\.md$'
+
+# Force interactive mode: CUSTODOCE_DOC_SYNC_INTERACTIVE=1
+FORCE_INTERACTIVE="${CUSTODOCE_DOC_SYNC_INTERACTIVE:-0}"
 
 if echo "${STAGED:-}" | grep -qE "$CODE_PATTERNS"; then
   if ! echo "${STAGED:-}" | grep -qE "$DOC_REQUIRED"; then
@@ -71,44 +92,36 @@ if echo "${STAGED:-}" | grep -qE "$CODE_PATTERNS"; then
     echo "  - README.md (mudancas visiveis ao usuario)"
     echo "  - CUSTO_DOCE_RAIO_X.md / RAIO-X_CUSTO_DOCE_RESUMIDO.md (referencia interna)"
     echo ""
-    echo "  Opcoes:"
-    echo "    Enter/Y/YES  - confirmar que nao precisa de docs e continuar (default)"
-    echo "    A            - rodar sync_docs.py automaticamente e cancelar commit (para revisar)"
-    echo "    C            - cancelar commit"
-    echo ""
-    # 3 camadas: terminal interativo → PowerShell → default continua
-    CONFIRM=""
-    if [ -t 0 ] && read -r CONFIRM 2>/dev/null; then
-      : # leu via stdin (POSIX terminal real)
-    elif command -v powershell &>/dev/null; then
-      CONFIRM=$(powershell -NoProfile -Command "Read-Host 'Opcao'" 2>/dev/null) || CONFIRM=""
-    fi
-    case "$CONFIRM" in
-      [Aa])
-        echo "[INFO] Rodando sync_docs.py..."
-        if [ -n "$PY" ] && [ -f "scripts/sync_docs.py" ]; then
-          SYNC_OUTPUT=$("$PY" scripts/sync_docs.py 2>&1) || true
-          echo "$SYNC_OUTPUT"
-          MODIFIED=$(echo "$SYNC_OUTPUT" | grep -E "^(MODIFIED|CREATE|UPDATE|->)" || true)
-          if [ -n "$MODIFIED" ]; then
-            echo ""
-            echo "📝 Arquivos alterados pelo sync_docs.py (revise e stageie manualmente):"
-            echo "$MODIFIED"
+    if [ "$FORCE_INTERACTIVE" = "1" ] && [ -t 0 ] && read -r CONFIRM 2>/dev/null; then
+      case "$CONFIRM" in
+        [Aa])
+          echo "[INFO] Rodando sync_docs.py..."
+          if [ -n "$PY" ] && [ -f "scripts/sync_docs.py" ]; then
+            SYNC_OUTPUT=$("$PY" scripts/sync_docs.py 2>&1) || true
+            echo "$SYNC_OUTPUT"
+            MODIFIED=$(echo "$SYNC_OUTPUT" | grep -E "^(MODIFIED|CREATE|UPDATE|->)" || true)
+            if [ -n "$MODIFIED" ]; then
+              echo ""
+              echo "📝 Arquivos alterados pelo sync_docs.py (revise e stageie manualmente):"
+              echo "$MODIFIED"
+            fi
+          else
+            echo "[WARN] scripts/sync_docs.py nao encontrado ou Python indisponivel"
           fi
-        else
-          echo "[WARN] scripts/sync_docs.py nao encontrado ou Python indisponivel"
-        fi
-        echo "Cancelado. Revise os arquivos alterados e commite novamente."
-        exit 1
-        ;;
-      [Cc])
-        echo "Cancelado. Ajuste os docs e commite novamente."
-        exit 1
-        ;;
-      *)
-        echo "[AVISO] Continuando sem docs (default: Enter / YES / sem terminal)"
-        ;;
-    esac
+          echo "Cancelado. Revise os arquivos alterados e commite novamente."
+          exit 1
+          ;;
+        [Cc])
+          echo "Cancelado. Ajuste os docs e commite novamente."
+          exit 1
+          ;;
+        *)
+          echo "[AVISO] Continuando sem docs"
+          ;;
+      esac
+    else
+      echo "[AVISO] Continuando sem docs (non-interactive mode). Para modo interativo: export CUSTODOCE_DOC_SYNC_INTERACTIVE=1"
+    fi
   fi
 fi
 
