@@ -4,17 +4,19 @@ Check if any staged Python files import modules that are gitignored.
 Prevents ModuleNotFoundError in CI when a file exists locally but isn't tracked.
 """
 from __future__ import annotations
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+GIT = shutil.which("git") or "git"
 
 
 def get_staged_python_files() -> list[Path]:
     """Get staged Python files."""
     result = subprocess.run(
-        ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM", "*.py"],
+        [GIT, "diff", "--cached", "--name-only", "--diff-filter=ACM", "*.py"],
         cwd=REPO_ROOT, capture_output=True, text=True
     )
     if result.returncode != 0:
@@ -25,7 +27,7 @@ def get_staged_python_files() -> list[Path]:
 def is_gitignored(path: Path) -> bool:
     """Check if a path is gitignored."""
     result = subprocess.run(
-        ["git", "check-ignore", "-v", str(path.relative_to(REPO_ROOT))],
+        [GIT, "check-ignore", "-v", str(path.relative_to(REPO_ROOT))],
         cwd=REPO_ROOT, capture_output=True, text=True
     )
     return result.returncode == 0
