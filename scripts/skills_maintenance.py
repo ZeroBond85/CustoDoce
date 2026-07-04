@@ -6,7 +6,6 @@ Check, update, backup, and validate OpenCode skills.
 """
 
 import argparse
-import os
 import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -129,7 +128,7 @@ def check_skills():
             print(f"[OK] {skill_name} ({last_modified.strftime('%d/%m/%Y')})")
 
         if skill_name not in APPROVED_SKILLS:
-            print(f"      [INFO] Not in approved list")
+            print("      [INFO] Not in approved list")
 
     print()
     if warnings > 0:
@@ -143,7 +142,7 @@ def backup_skills():
     print("=== Skills Backup ===")
 
     if not SKILLS_DIR.exists():
-        print(f"[ERROR] Skills directory not found")
+        print("[ERROR] Skills directory not found")
         return 1
 
     BACKUP_DIR.mkdir(parents=True, exist_ok=True)
@@ -154,7 +153,7 @@ def backup_skills():
     print(f"Backing up to: {backup_path}")
     shutil.copytree(SKILLS_DIR, backup_path)
 
-    print(f"[OK] Backup created")
+    print("[OK] Backup created")
 
     # Keep last 5 backups
     backups = sorted(BACKUP_DIR.glob("skills_*"))
