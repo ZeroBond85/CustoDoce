@@ -1,6 +1,17 @@
 # Changelog
 
+## [0.2.5] - 2026-07-05
+
+### Added
+
+- **`scripts/sync_md_v2.py`**: Novo sistema de sincronização inteligente para documentação. Introduz regime de frontmatter YAML, snapshots de release em `docs/archive/releases/` e merge semântico incremental para manter Raio-X como referência viva sem perder histórico.
+- **`scripts/doc_utils.py`**: Helpers de I/O de frontmatter e `pulse_check` para auditoria de estado de documentação.
+- **CI `sync-md-v2-pulse`**: Novo step aditivo no job `docs-sync` que realiza auditoria read-only do estado dos docs.
+
+---
+
 Todos os cambios_notáveis deste projeto são documentados aqui.
+
 
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).

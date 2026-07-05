@@ -79,6 +79,9 @@ jobs:
       - name: Validate all MD timestamps (max 14 days)
         run: python scripts/validate_md_timestamps.py --max-age-days 14
         timeout-minutes: 2
+      - name: MD v2 Health Pulse (Read-only check)
+        run: python scripts/sync_md_v2.py --pulse
+        continue-on-error: true
 
   unit:
     needs: [lint, typecheck]

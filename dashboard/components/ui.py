@@ -1,6 +1,7 @@
 import streamlit as st
 import base64
 from pathlib import Path
+from datetime import UTC
 
 _LOGO_PATH = Path(__file__).parent.parent.parent / "custodocelogo3.png"
 _LOGO_BRANCO_PATH = Path(__file__).parent.parent.parent / "custodocelogobranco.png"
@@ -532,6 +533,35 @@ def status_badge(status: str):
         f'<span class="cd-badge {cls}">{status}</span>',
         unsafe_allow_html=True,
     )
+
+
+def freshness_badge(collected_at, now=None):
+    """Badge visual indicando frescor do dado (sucesso/warning/danger)."""
+    from datetime import datetime
+
+    if not collected_at:
+        st.markdown('<span class="cd-badge neutral">n/d</span>', unsafe_allow_html=True)
+        return
+    if isinstance(collected_at, str):
+        s = collected_at.replace("Z", "+00:00")
+        try:
+            ts = datetime.fromisoformat(s)
+        except ValueError:
+            st.markdown('<span class="cd-badge neutral">n/d</span>', unsafe_allow_html=True)
+            return
+    else:
+        ts = collected_at
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=UTC)
+    ref = now or datetime.now(UTC)
+    days = (ref - ts).days
+    if days <= 7:
+        label = f"{days}d" if days > 0 else "hoje"
+        st.markdown(f'<span class="cd-badge success">{label}</span>', unsafe_allow_html=True)
+    elif days <= 30:
+        st.markdown(f'<span class="cd-badge warning">{days}d</span>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<span class="cd-badge danger">{days}d stale</span>', unsafe_allow_html=True)
 
 
 def section_title(title: str, subtitle: str = ""):

@@ -1,5 +1,13 @@
+---
+doc_type: snapshot
+slug: raio-x_custo_doce_resumido
+current_version: 0.0.0
+truth_at:
+  tests_total: 805
+  pages_count: 19
+---
 # 🍬 CUSTO DOCE — RAIO-X RESUMIDO
-> Última revisão: 2026-07-05 14:55 UTC
+> Última revisão: 2026-07-05 16:42 UTC
 ## Visão Executiva e Estratégica do Projeto
 
 ---

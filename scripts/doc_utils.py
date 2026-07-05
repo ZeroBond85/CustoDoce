@@ -227,3 +227,95 @@ def validate_changelog(content: str) -> list[str]:
         warnings.append("  Nenhuma entrada de versão encontrada (## [X.Y.Z])")
 
     return warnings
+
+
+# ── Frontmatter I/O (v2 sync — aditivo, convive com sync_docs) ──
+#
+# Contrato mínimo: frontmatter YAML no topo do .md delimita estado
+# versionado. sync_docs.py (legacy) continua intocado; sync_md_v2.py
+# consome este módulo para pulse/snapshot/diff/apply.
+
+
+_FRONTMATTER_PAT = re.compile(
+    r"\A---\s*\n(?P<fm>.*?\n)---\s*\n(?P<body>.*)\Z",
+    re.DOTALL,
+)
+
+
+def read_frontmatter(path: Path) -> tuple[dict, str]:
+    """Lê YAML frontmatter + corpo de um .md.
+
+    Returns:
+        (frontmatter_dict, body_str). Se ausente, retorna ({}, content).
+        Tolerante: erro de YAML → ({}, content).
+    """
+    try:
+        content = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return {}, ""
+
+    m = _FRONTMATTER_PAT.match(content)
+    if not m:
+        return {}, content
+
+    try:
+        import yaml
+
+        fm = yaml.safe_load(m.group("fm")) or {}
+        if not isinstance(fm, dict):
+            return {}, content
+    except Exception:
+        return {}, content
+
+    return fm, m.group("body")
+
+
+def write_frontmatter(path: Path, fm: dict, body: str) -> None:
+    """Escreve arquivo com frontmatter YAML + corpo.
+
+    Idempotente: ordem das chaves preservada pela dict.
+    """
+    import yaml
+
+    fm_block = yaml.safe_dump(
+        fm, allow_unicode=True, sort_keys=False, default_flow_style=False
+    )
+    body = body.lstrip("\n")
+    content = f"---\n{fm_block}---\n{body}"
+    path.write_text(content, encoding="utf-8")
+
+
+def pulse_check(fm: dict, truth: dict) -> list[str]:
+    """Compara truth_at (no frontmatter) com truth atual do projeto.
+
+    Args:
+        fm: frontmatter com chave 'truth_at' opcional
+            {tests_total, pages_count, nota, risk, ...}.
+        truth: estado real
+            {test_counts: {unit, schema, ...}, pages_count, ...}.
+
+    Returns:
+        Lista de warnings. Vazia se coerente.
+    """
+    warnings: list[str] = []
+    truth_at = fm.get("truth_at") or {}
+    if not isinstance(truth_at, dict) or not truth_at:
+        return warnings
+
+    real_unit = truth.get("test_counts", {}).get("unit", 0)
+    real_schema = truth.get("test_counts", {}).get("schema", 0)
+    real_total = real_unit + real_schema
+    real_pages = truth.get("pages_count", 0)
+
+    if "tests_total" in truth_at and truth_at["tests_total"] != real_total:
+        warnings.append(
+            f"truth_at.tests_total desatualizado: "
+            f"doc={truth_at['tests_total']} real={real_total}"
+        )
+    if "pages_count" in truth_at and truth_at["pages_count"] != real_pages:
+        warnings.append(
+            f"truth_at.pages_count desatualizado: "
+            f"doc={truth_at['pages_count']} real={real_pages}"
+        )
+
+    return warnings

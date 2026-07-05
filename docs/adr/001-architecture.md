@@ -1,5 +1,5 @@
 # ADR 001: Escolha da Stack Tecnológica (Infraestrutura Zero-Cost)
-> Última revisão: 2026-07-05 14:55 UTC
+> Última revisão: 2026-07-05 16:42 UTC
 
 **Status**: Aceito
 **Data**: 27/06/2026

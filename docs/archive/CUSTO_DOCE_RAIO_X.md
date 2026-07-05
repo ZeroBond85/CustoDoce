@@ -1,5 +1,13 @@
+---
+doc_type: snapshot
+slug: custo_doce_raio_x
+current_version: 0.0.0
+truth_at:
+  tests_total: 805
+  pages_count: 19
+---
 # 🍬 CUSTO DOCE RAIO-X
-> Última revisão: 2026-07-05 14:55 UTC
+> Última revisão: 2026-07-05 16:42 UTC
 ## Análise Completa do Projeto
 
 ## 📊 1. VEREDITO EXECUTIVO

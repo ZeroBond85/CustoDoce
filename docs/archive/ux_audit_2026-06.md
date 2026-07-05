@@ -1,5 +1,13 @@
+---
+doc_type: snapshot
+slug: ux_audit_2026-06
+current_version: 0.0.0
+truth_at:
+  tests_total: 805
+  pages_count: 19
+---
 # UX Audit — CustoDoce Dashboard
-> Última revisão: 2026-07-05 14:55 UTC
+> Última revisão: 2026-07-05 16:42 UTC
 
 > Gerado em: 19/06/2026  
 > Escopo: `admin/app.py` (2843 linhas, 18 abas)  
