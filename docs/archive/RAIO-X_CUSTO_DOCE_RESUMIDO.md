@@ -1,4 +1,5 @@
 # 🍬 CUSTO DOCE — RAIO-X RESUMIDO
+> Última revisão: 2026-07-05 13:04 UTC
 ## Visão Executiva e Estratégica do Projeto
 
 ---

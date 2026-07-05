@@ -1,166 +1,71 @@
-# Config DB API
+# `config_db` — API
 
-Camada de acesso ao banco de dados para configurações. Substitui arquivos YAML por tabelas Supabase.
+> Última atualização: 2026-07-05 13:04 UTC
+> Gerado por AST parsing dos serviços em `services/config_db.py`.
 
-## Tabelas
+## Funções Públicas (32)
 
-- `ingredients` — 23 ingredientes canônicos com aliases e search_terms
-- `stores` — 51 lojas (Tier 1-4) com scrapers e URLs
-- `scrape_frequencies` — cronograma por loja (cron_expression, timezone, max_retries)
-- `feature_flags` — flags globais (scrapers_enabled, quality_gates_enabled, etc.)
-- `alert_rules` — regras de alerta (threshold, trigger, channel)
-- `recipients` — canais de notificação (email, telegram)
-- `schedules` — agendamentos de relatórios
+### add_alias_to_ingredient(canonical_name_or_id: str, new_alias: str)
 
-## Ingredientes
+### delete_alert_rule(rule_id: str)
 
-### `get_all_ingredients(include_inactive=False) -> list[Ingredient]`
+### delete_ingredient(ingredient_id: str)
 
-Lista todos os ingredientes. Por padrão só retorna ativos.
+### delete_recipient(recipient_id: str)
 
-```python
-from services.config_db import get_all_ingredients
+### delete_schedule(schedule_id: str)
 
-ingredients = get_all_ingredients(include_inactive=True)
-```
+### delete_scrape_frequency(freq_id: str)
 
----
+### delete_store(store_id: str)
 
-### `get_active_ingredients() -> list[Ingredient]`
+### get_active_ingredients()
 
-Ingredientes com `active=True`.
+### get_active_recipients(channel: str | None)
 
----
+### get_active_stores(tier: int | None, store_type: str | None)
 
-### `get_ingredient_by_name(canonical_name) -> Optional[Ingredient]`
+### get_all_alert_rules(include_disabled: bool)
 
-Busca por nome canônico.
+### get_all_feature_flags()
 
----
+### get_all_ingredients(include_inactive: bool)
 
-### `upsert_ingredient(data) -> Ingredient`
+### get_all_recipients(include_inactive: bool)
 
-Insere ou atualiza. Usa `canonical_name` como conflict target.
+### get_all_schedules(include_disabled: bool)
 
-```python
-from services.config_db import upsert_ingredient
+### get_all_stores(include_inactive: bool)
 
-upsert_ingredient({
-    "canonical_name": "Leite Condensado",
-    "category": "lacteos",
-    "brands": ["Moça", "Piracanjuba"],
-    "search_terms": ["leite condensado", "leite condensado integral"],
-    "aliases": ["leite condensadoIntegral", "leite condensado祭"],
-    "active": True,
-})
-```
+### get_enabled_alert_rules(trigger: str | None)
 
----
+### get_enabled_schedules()
 
-### `delete_ingredient(ingredient_id)`
+### get_feature_flag(key: str, default: bool)
 
-Remove ingrediente e todos os preços/histórico/review_items associados.
+### get_ingredient_by_id(ingredient_id: str)
 
----
+### get_ingredient_by_name(canonical_name: str)
 
-## Lojas
+### get_scrape_frequency(store_id: str | None, tier: int | None)
 
-### `get_all_stores(include_inactive=False) -> list[Store]`
+### get_store_by_id(store_id: str)
 
-Lista todas as lojas com config de scraper.
+### get_store_by_name(name: str)
 
-```python
-stores = get_all_stores(include_inactive=True)
-for s in stores:
-    print(f"{s['name']} (Tier {s['tier']}): {s['scraper']}")
-```
+### update_schedule_run(schedule_id: str, last_run: datetime, next_run: datetime | None)
 
----
+### upsert_alert_rule(data: dict)
 
-### `get_store_by_name(name) -> Optional[Store]`
+### upsert_feature_flag(key: str, enabled: bool, description: str)
 
-Busca loja por nome exato.
+### upsert_ingredient(data: dict[str, Any])
 
----
+### upsert_recipient(data: dict)
 
-### `upsert_store(data) -> Store`
+### upsert_schedule(data: dict)
 
-Insere ou atualiza loja.
+### upsert_scrape_frequency(data: dict)
 
-```python
-upsert_store({
-    "name": "Assaí Santos",
-    "tier": 1,
-    "is_active": True,
-    "scraper": "flyer",
-    "base_url": "https://perfil.asisa.com.br/",
-    "publish_day": "quarta",
-})
-```
+### upsert_store(data: dict[str, Any])
 
----
-
-## Frequências de Scraping
-
-### `get_enabled_schedules() -> list`
-
-Retorna schedules com `enabled=True`.
-
-### `get_all_schedules(include_disabled=False) -> list`
-
----
-
-## Feature Flags
-
-### `get_all_feature_flags() -> dict`
-
-Retorna dict com todas as flags `{flag_name: bool}`.
-
-### `set_feature_flag(name, value) -> bool`
-
-Ativa ou desativa uma flag.
-
-Flags disponíveis: `scrapers_enabled`, `quality_gates_enabled`, `notifications_enabled`, `llm_fuzzy_matching`, `semantic_matching_enabled`, `auto_approve_high_confidence`.
-
----
-
-## Alertas
-
-### `get_enabled_alert_rules(trigger=None) -> list`
-
-Regras de alerta ativas, opcionalmente filtradas por trigger.
-
-Triggers: `no_price_48h`, `price_spike`, `new_store`, `weekly_summary`.
-
----
-
-## Recipients
-
-### `get_active_recipients(channel=None) -> list`
-
-Canais ativos, filtrados por `channel` (email/telegram).
-
-### `upsert_recipient(data) -> dict`
-
----
-
-## Sync YAML → DB
-
-### `sync_ingredients_from_yaml() -> dict`
-
-Lê `config/ingredients.yaml` e faz upsert de todos os ingredientes no DB. Retorna `{added, updated, errors}`.
-
-### `sync_stores_from_yaml() -> dict`
-
-Lê `config/stores.yaml` e faz upsert de todas as lojas.
-
----
-
-## Validação
-
-```python
-from services.config_db import get_all_ingredients, get_all_stores
-
-assert len(get_all_ingredients()) == 23  # 23 ingredientes canônicos
-assert len(get_all_stores()) == 51        # 51 lojas configuradas
-```

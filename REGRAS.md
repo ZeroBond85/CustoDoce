@@ -1,4 +1,5 @@
 # REGRAS.md — Ambiente, Hooks, Comandos
+> Última atualização: 2026-07-05 13:04 UTC
 
 > Ambiente de execução, hooks de git, comandos de rotina e configurações obrigatórias.
 > Extraído de AGENTS.md original (seções "Ambiente", "Pre-commit/pre-push hooks", "OpenCode Skills Strategy").
@@ -34,7 +35,7 @@
 ## Windows (PowerShell) — Padrão para Python
 
 ```powershell
-python --version    # deve ser 3.11+
+python --version    # deve ser 3.14+
 python -m ruff check .
 python -m mypy .
 python -m pytest tests/unit tests/schema -q

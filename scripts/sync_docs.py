@@ -3,8 +3,11 @@ Sync Docs — keeps project documentation in sync with actual code state.
 
 Extracts current state from code and updates:
 - AGENTS.md (project memory — test counts, phases, files)
-- docs/api/*.md (auto-generated from code when needed)
-- README.md tree (when new files are added)
+- docs/api/*.md (auto-generated via AST from services/)
+- README.md (badges, stats)
+- REGRAS.md (hooks, Python versions)
+- docs/archive/*.md (Raio X — timestamp + counter validation)
+- ALL .md files (generic timestamp injection)
 
 Run manually:
     python scripts/sync_docs.py --dry-run   # preview changes
@@ -39,6 +42,16 @@ os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
+
+from scripts.doc_utils import (  # noqa: E402
+    inject_timestamp,
+    extract_counters_cited,
+    check_counters_against_truth,
+    parse_services_ast,
+    generate_api_md,
+    validate_changelog,
+)
+from scripts.skills_maintenance import APPROVED_SKILLS, skill_to_category  # noqa: E402
 _AGENTS = _ROOT / "AGENTS.md"
 _README = _ROOT / "README.md"
 _DOCS_API = _ROOT / "docs" / "api"
@@ -46,8 +59,6 @@ _TEST_DIR = _ROOT / "tests"
 _SERVICES_DIR = _ROOT / "services"
 _SKILLS_DIR = _ROOT / ".opencode" / "skills"
 _SKILLS_DOC = _ROOT / "docs" / "skills.md"
-
-from scripts.skills_maintenance import APPROVED_SKILLS, skill_to_category  # noqa: E402
 
 _OK = "OK"
 _FAIL = "FAIL"
@@ -484,46 +495,6 @@ def _update_agents_md(state: dict, dry_run: bool = False) -> list[str]:
     return changes
 
 
-def _update_readme_tree(dry_run: bool = False) -> list[str]:
-    """Update README.md directory tree if new files were added."""
-    key_files = [
-        "README.md",
-        "AGENTS.md",
-        "pyproject.toml",
-        "requirements.txt",
-        "Makefile",
-        "main.py",
-        "services/price_service.py",
-        "dashboard/pages/precos.py",
-        "config/ingredients.yaml",
-        "config/stores.yaml",
-    ]
-    missing = [f for f in key_files if not (_ROOT / f).exists()]
-
-    changes = []
-    if missing:
-        changes.append(f"Missing key files: {missing}")
-
-    return changes
-
-
-def _check_api_docs() -> list[str]:
-    """Verify API docs exist and are not empty."""
-    required_api = [
-        "docs/api/price_service.md",
-        "docs/api/dashboard_queries.md",
-        "docs/api/config_db.md",
-        "docs/api/flyer_service.md",
-    ]
-    issues = []
-    for api_file in required_api:
-        path = _ROOT / api_file
-        if not path.exists():
-            issues.append(f"Missing: {api_file}")
-        elif path.stat().st_size < 100:
-            issues.append(f"Empty or too small: {api_file}")
-    return issues
-
 
 def _count_dashboard_pages() -> int:
     """Count actual page modules in dashboard/pages/, excluding __init__.py and orphans."""
@@ -574,6 +545,199 @@ def _fix_agents_tree(content: str, state: dict) -> str:
     return content
 
 
+# ── Extra Constants ────────────────────────────────────────────
+_ARCHIVE_DIR = _ROOT / "docs" / "archive"
+_REGRAS = _ROOT / "REGRAS.md"
+_LESSONS = _ROOT / "LESSONS.md"
+_TESTS_README = _ROOT / "tests" / "README.md"
+
+_GENERIC_MD_FILES: list[str] = [
+    "LESSONS.md",
+    "tests/README.md",
+    "docs/architecture.md",
+    "docs/troubleshooting.md",
+    "docs/security.md",
+    "docs/contributing.md",
+    "docs/deployment.md",
+    "docs/deployment-staging.md",
+    "docs/migration-guide.md",
+    "docs/ROLLBACK_PROD.md",
+]
+
+
+def _update_archive_md(state: dict, dry_run: bool = False) -> list[str]:
+    """Atualiza timestamp + valida contadores em docs/archive/*.md (Raio X).
+
+    Usa label "revisão" (snapshot histórico).
+    Valida contadores de testes/páginas citados no texto contra a verdade.
+    """
+    changes: list[str] = []
+    if not _ARCHIVE_DIR.exists():
+        return changes
+
+    for md_file in sorted(_ARCHIVE_DIR.glob("*.md")):
+        content = md_file.read_text(encoding="utf-8")
+        cited = extract_counters_cited(content)
+        warnings = check_counters_against_truth(cited, state)
+
+        new_content = inject_timestamp(content, label="revisão")
+        if new_content == content and not warnings:
+            continue
+
+        rel = md_file.relative_to(_ROOT)
+        if dry_run:
+            changes.append(f"  Would update {rel}")
+            for w in warnings:
+                changes.append(f"    [WARN] {w}")
+        else:
+            md_file.write_text(new_content, encoding="utf-8")
+            changes.append(f"  {rel}: timestamp updated")
+            for w in warnings:
+                changes.append(f"    [WARN] {w}")
+    return changes
+
+
+def _update_readme_md(state: dict, dry_run: bool = False) -> list[str]:
+    """Atualiza README.md com badges dinâmicos e timestamp."""
+    changes: list[str] = []
+    tc = state["test_counts"]
+    unit = tc.get("unit", 0)
+    schema = tc.get("schema", 0)
+    total = state["total_tests"]
+    pages_count = state["pages_count"]
+
+    content = _README.read_text(encoding="utf-8")
+    new_content = content
+
+    # Atualizar badge de deploy pages
+    new_content = re.sub(
+        r"(18|19|20)( módulos?| pages?| abas?)",
+        f"{pages_count}\\2",
+        new_content,
+    )
+
+    # Atualizar test count mencionado no texto
+    new_content = re.sub(
+        r"(\d+)( testes? (unit|passing))",
+        f"{total}\\2",
+        new_content,
+    )
+
+    # Atualizar badge version if present (version-X.X.X--mvp)
+    new_content = re.sub(
+        r"(badge/version-)\d+\.\d+\.\d+(--mvp)",
+        f"\\g<1>{pages_count}.{unit}.{schema}\\2",
+        new_content,
+    )
+
+    # Injetar/atualizar timestamp
+    new_content = inject_timestamp(new_content)
+
+    if new_content != content:
+        if dry_run:
+            changes.append("  Would update README.md")
+        else:
+            _README.write_text(new_content, encoding="utf-8")
+            changes.append("  README.md: badges + timestamp updated")
+    return changes
+
+
+def _update_rules_md(state: dict, dry_run: bool = False) -> list[str]:
+    """Atualiza REGRAS.md com Python version, hooks layers, comandos."""
+    changes: list[str] = []
+    if not _REGRAS.exists():
+        return changes
+
+    content = _REGRAS.read_text(encoding="utf-8")
+    new_content = content
+
+    # Atualizar referências de Python version: "3.11+" -> real
+    new_content = re.sub(
+        r"(deve ser )3\.\d+(\+)",
+        r"\g<1>3.14\g<2>",
+        new_content,
+    )
+
+    # Atualizar timestamp
+    new_content = inject_timestamp(new_content)
+
+    if new_content != content:
+        if dry_run:
+            changes.append("  Would update REGRAS.md")
+        else:
+            _REGRAS.write_text(new_content, encoding="utf-8")
+            changes.append("  REGRAS.md: Python version + timestamp updated")
+    return changes
+
+
+def _generate_api_docs(state: dict, dry_run: bool = False) -> list[str]:
+    """Gera docs/api/*.md a partir de AST dos services/*.py.
+
+    Sobrescreve arquivos existentes — source of truth é o código.
+    """
+    changes: list[str] = []
+    api = parse_services_ast(_SERVICES_DIR)
+
+    if not api:
+        return changes
+
+    _DOCS_API.mkdir(parents=True, exist_ok=True)
+
+    for module_name, funcs in api.items():
+        md_content = generate_api_md(module_name, funcs)
+        dest = _DOCS_API / f"{module_name}.md"
+
+        if dry_run:
+            existing = dest.read_text(encoding="utf-8") if dest.exists() else ""
+            if existing != md_content:
+                changes.append(f"  Would regenerate docs/api/{module_name}.md ({len(funcs)} funcs)")
+        else:
+            dest.write_text(md_content, encoding="utf-8")
+            changes.append(f"  docs/api/{module_name}.md: {len(funcs)} funcs generated")
+
+    return changes
+
+
+def _update_generic_md(state: dict, dry_run: bool = False) -> list[str]:
+    """Atualiza timestamp em todos os .md que não têm updater específico.
+
+    Whitelist explícita: LESSONS.md, tests/README.md, docs/*.md (excluindo
+    archive/, api/, skills.md, changelog.md).
+    Também inclui docs/adr/*.md com label "revisão".
+    """
+    changes: list[str] = []
+
+    # ADRs (imutáveis, label revisão)
+    adr_dir = _ROOT / "docs" / "adr"
+    if adr_dir.exists():
+        for adr_file in sorted(adr_dir.glob("*.md")):
+            content = adr_file.read_text(encoding="utf-8")
+            new_content = inject_timestamp(content, label="revisão")
+            if new_content != content:
+                rel = adr_file.relative_to(_ROOT)
+                if dry_run:
+                    changes.append(f"  Would update {rel}")
+                else:
+                    adr_file.write_text(new_content, encoding="utf-8")
+                    changes.append(f"  {rel}: timestamp (revisão) updated")
+
+    # Generic whitelisted files
+    for rel_path in _GENERIC_MD_FILES:
+        md_file = _ROOT / rel_path
+        if not md_file.exists():
+            continue
+        content = md_file.read_text(encoding="utf-8")
+        new_content = inject_timestamp(content)
+        if new_content != content:
+            if dry_run:
+                changes.append(f"  Would update {rel_path}")
+            else:
+                md_file.write_text(new_content, encoding="utf-8")
+                changes.append(f"  {rel_path}: timestamp updated")
+
+    return changes
+
+
 def _strict_audit() -> list[dict]:
     """Varre todos os .md do repo com patterns previsíveis e reporta divergências.
 
@@ -610,14 +774,6 @@ def _strict_audit() -> list[dict]:
         ("docs\\changelog.md", "17→18 módulos"),
         ("docs\\changelog.md", "418"),
         ("docs\\changelog.md", "383"),
-        ("docs\\archive\\CUSTO_DOCE_RAIO_X.md", "418"),
-        ("docs\\archive\\CUSTO_DOCE_RAIO_X.md", "383"),
-        ("docs\\archive\\CUSTO_DOCE_RAIO_X.md", "709 total"),
-        (
-            "docs\\archive\\CUSTO_DOCE_RAIO_X.md",
-            "512** (35 adicionados). Gargalos recalibrados: #1 (service_role) 🔴→🟡 mitigado via Sprint 1.1; #2 (exec_sql_query) 🔴→🟡 parcialmente mitigado via Sprint 2.2 (RPC 443); #3 (testes",
-        ),
-        ("docs\\archive\\RAIO-X_CUSTO_DOCE_RESUMIDO.md", "512 em 29/06; Sprint 7-9 adicionou 26 testes"),
     }
 
     findings = []
@@ -695,17 +851,11 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, e
     else:
         print("  [OK] All skills match between disk and APPROVED_SKILLS")
 
-    api_issues = _check_api_docs()
-    if api_issues:
-        issues.extend(api_issues)
-
-    print("\nUpdating AGENTS.md...")
+    print("\nUpdating AGENTS.md + auto-fixers...")
     agent_changes = _update_agents_md(state, dry_run=dry_run)
     if dry_run:
         for c in agent_changes:
             print(f"  {c}")
-
-    print("\nApplying auto-fixers (tree count, page import, skill row)...")
     if not dry_run:
         agents_content = _AGENTS.read_text(encoding="utf-8")
         fixed = _fix_agents_tree(agents_content, state)
@@ -721,6 +871,41 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, e
     skill_md_changes = _sync_skills_md(state, dry_run=dry_run)
     for c in skill_md_changes:
         print(f"  {c}")
+
+    print("\nUpdating docs/archive/ (Raio X - timestamp + counter validation)...")
+    archive_changes = _update_archive_md(state, dry_run=dry_run)
+    for c in archive_changes:
+        print(f"  {c}")
+
+    print("\nUpdating README.md...")
+    readme_changes = _update_readme_md(state, dry_run=dry_run)
+    for c in readme_changes:
+        print(f"  {c}")
+
+    print("\nUpdating REGRAS.md...")
+    rules_changes = _update_rules_md(state, dry_run=dry_run)
+    for c in rules_changes:
+        print(f"  {c}")
+
+    print("\nGenerating API docs (AST from services/)...")
+    api_changes = _generate_api_docs(state, dry_run=dry_run)
+    for c in api_changes:
+        print(f"  {c}")
+
+    print("\nUpdating generic .md files (timestamps)...")
+    generic_changes = _update_generic_md(state, dry_run=dry_run)
+    for c in generic_changes:
+        print(f"  {c}")
+
+    # Changelog format validation (advisory only)
+    changelog_path = _ROOT / "docs" / "changelog.md"
+    if changelog_path.exists():
+        changelog_content = changelog_path.read_text(encoding="utf-8")
+        changelog_issues = validate_changelog(changelog_content)
+        if changelog_issues:
+            print("\nChangelog format notes (advisory):")
+            for ci in changelog_issues:
+                print(f"  [NOTE] {ci}")
 
     if strict:
         print(
@@ -742,12 +927,6 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, e
             print("  [OK] No stale patterns found in any .md file")
     else:
         print("\n  (pass --strict for full .md audit)")
-
-    print("\nChecking README tree...")
-    tree_issues = _update_readme_tree(dry_run=dry_run)
-    issues.extend(tree_issues)
-    for issue in tree_issues:
-        print(f"  [WARN] {issue}")
 
     print()
     if issues:

@@ -1,4 +1,5 @@
 # ADR 002: Estratégia de Matching de Ingredientes (Cascata de Confiança)
+> Última revisão: 2026-07-05 13:04 UTC
 
 **Status**: Aceito
 **Data**: 27/06/2026

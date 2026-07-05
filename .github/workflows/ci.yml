@@ -76,6 +76,9 @@ jobs:
         timeout-minutes: 3
       - name: Validate AGENTS.md schema
         run: python scripts/agents_tool.py --check
+      - name: Validate all MD timestamps (max 14 days)
+        run: python scripts/validate_md_timestamps.py --max-age-days 14
+        timeout-minutes: 2
 
   unit:
     needs: [lint, typecheck]

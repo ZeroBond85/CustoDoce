@@ -1,117 +1,33 @@
-# Flyer Service API
+# `flyer_service` — API
 
-Gestão de flyers (catálogos PDF de ofertas) — upload, processamento, e cleanup.
+> Última atualização: 2026-07-05 13:04 UTC
+> Gerado por AST parsing dos serviços em `services/flyer_service.py`.
 
-## Flyers
+## Funções Públicas (9)
 
-### `upsert_flyer(flyer: dict) -> dict`
+### cleanup_non_food_flyers()
 
-Inscreve ou atualiza um flyer. Usa `source` + `url` como unique constraint.
+Deleta flyers de lojas nao-alimenticias (ex: Boticario, Magazine).
 
-```python
-flyer = upsert_flyer({
-    "store_id": "uuid",
-    "store_name": "Assaí",
-    "source": "website",
-    "url": "https://example.com/flyer.pdf",
-    "published_at": "2026-06-25",
-    "status": "pending",
-    "raw_content": b"...pdf bytes...",
-})
-print(f"Flyer {flyer['id']} - status: {flyer['status']}")
-```
+### cleanup_old_flyers(retention_days: int)
 
-**Campos:**
-| Campo | Tipo | Descrição |
-|-------|------|-----------|
-| `store_id` | `uuid` | FK para stores |
-| `store_name` | `str` | Nome da loja |
-| `source` | `str` | `website`, `email`, `manual` |
-| `url` | `str` | URL do PDF |
-| `published_at` | `date` | Data de publicação |
-| `status` | `str` | `pending`, `processing`, `done`, `failed` |
-| `thumbnail_url` | `str` | URL da thumbnail (opcional) |
-| `raw_content` | `bytes` | Bytes do PDF (opcional) |
+Deleta flyers com OCR failed mais antigos que retention_days.
 
----
+### delete_flyer(flyer_id: str)
 
-### `mark_processed(flyer_id: str, products_count=0) -> dict`
+Delete a flyer by ID.
 
-Marca flyer como processado (`status="done"`).
+### get_flyer_detail(flyer_id: str)
 
----
+Get detailed flyer information by ID.
 
-### `mark_failed(flyer_id: str) -> dict`
+### get_pending_flyers(limit: int)
 
-Marca flyer como falho (`status="failed"`).
+### get_recent_flyers(days: int, source: str | None)
 
----
+### mark_failed(flyer_id: str)
 
-### `get_pending_flyers(limit=20) -> list[dict]`
+### mark_processed(flyer_id: str, products_count: int)
 
-Retorna flyers com `status="pending"`, ordenados por `created_at`.
+### upsert_flyer(flyer: dict)
 
-```python
-pending = get_pending_flyers(limit=10)
-for f in pending:
-    print(f"Processar: {f['store_name']} - {f['url']}")
-```
-
----
-
-### `get_recent_flyers(days=7, source=None) -> list[dict]`
-
-Flyers dos últimos `days` dias.
-
-```python
-recent = get_recent_flyers(days=7)
-# ou filtrado por source:
-tendeo = get_recent_flyers(days=7, source="tiendoo")
-```
-
----
-
-### `get_flyer_detail(flyer_id: str) -> dict`
-
-Detalhe de um flyer (com contagem de produtos).
-
----
-
-### `delete_flyer(flyer_id: str) -> dict`
-
-Remove flyer e thumbnail asociada.
-
----
-
-## Cleanup
-
-### `cleanup_old_flyers(retention_days=60) -> dict`
-
-Remove flyers com `created_at` > `retention_days` dias e `status IN ('done','failed')`.
-
-Retorna `{deleted, errors}`.
-
-```python
-result = cleanup_old_flyers(retention_days=30)
-print(f"Deleted: {result['deleted']}, Errors: {result['errors']}")
-```
-
----
-
-### `cleanup_non_food_flyers() -> dict`
-
-Remove flyers whose extracted text does not contain food-related keywords. Usa uma blocklist de categorias (Limpeza, Beleza, etc.).
-
----
-
-## Storage
-
-### `_upload_flyer_thumbnail(store_name, thumbnail_bytes) -> str`
-
-Upload de thumbnail PNG para Supabase Storage (`thumbnails` bucket). Retorna public URL ou string vazia em caso de erro.
-
----
-
-## Alertas
-
-O serviço monitora execuções de cleanup e faz log de alerta se 3+ dias consecutivos sem deleções.

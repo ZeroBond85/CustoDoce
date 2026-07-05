@@ -1,141 +1,113 @@
-# Dashboard Queries API
+# `dashboard_queries` — API
 
-Funções de query para o dashboard Streamlit. Todas usam cache LRU e Supabase client.
+> Última atualização: 2026-07-05 13:04 UTC
+> Gerado por AST parsing dos serviços em `services/dashboard_queries.py`.
 
-## Configuração
+## Funções Públicas (37)
 
-```python
-from services.dashboard_queries import (
-    get_latest_prices_cached,
-    get_prices_for_ingredient_cached,
-)
-```
+### approve_review_item_cached(item_id: str, ingredient_id: str, brand_override: str)
 
-## Preços (com cache)
+### cached_get_active_ingredients()
 
-### `get_latest_prices_cached(valid_only=True, limit=2000)`
+### cached_get_active_recipients(channel)
 
-Retorna preços mais recentes (view materializada `prices_latest`).
+### cached_get_all_alert_rules(include_disabled)
 
-```python
-prices = get_latest_prices_cached(valid_only=True, limit=5000)
-```
+### cached_get_all_feature_flags()
 
----
+### cached_get_all_ingredients(include_inactive)
 
-### `get_prices_for_ingredient_cached(ingredient, valid_only=True)`
+### cached_get_all_recipients(include_inactive)
 
-Busca preços por ingrediente (usa `search_prices` por baixo).
+### cached_get_all_schedules(include_disabled)
 
-```python
-prices = get_prices_for_ingredient_cached("Leite Condensado")
-```
+### cached_get_all_stores(include_inactive)
 
----
+### cached_get_enabled_alert_rules(trigger)
 
-### `get_price_history_cached(ingredient, days=30, valid_only=False)`
+### cached_get_enabled_schedules()
 
-Histórico cacheado.
+### clear_all_caches()
 
----
+Clear all LRU caches - useful after data mutations.
 
-### `get_cheapest_prices_cached(ingredient, top_n=3)`
+### extract_ppk(row: dict)
 
-Top N preços mais baratos (cache LRU 128 entries).
+Extract price_per_kg from a row, handling both nested and flat schemas.
 
-```python
-cheapest = get_cheapest_prices_cached("Creme de Leite", top_n=5)
-```
+### extract_pun(row: dict)
 
----
+Extract price_per_un from a row, handling both nested and flat schemas.
 
-## Analytics
+### get_active_promotions()
 
-### `get_longitudinal_winners_cached(days=90)`
+Get currently active promotions.
 
-Ranking de lojas vencedoras por ingrediente no período.
+### get_active_stores_by_tier(tier: int | None)
 
-### `get_price_trends_cached(ingredient, days=90)`
+Get active stores, optionally filtered by tier.
 
-Tendência de preço (min, max, avg) por loja.
+### get_cheapest_prices_cached(ingredient: str, top_n: int)
 
-### `get_cross_ingredient_ranking_cached(days=90)`
+### get_coverage_by_ingredient()
 
-Ranking transversal de preço médio por ingrediente.
+Get coverage statistics per ingredient.
 
----
+### get_cross_ingredient_ranking_cached(days: int)
 
-## Scrapers / Logs
+### get_dashboard_kpis()
 
-### `get_recent_scraper_logs(limit=50)`
+Calculate KPIs for dashboard overview.
 
-Retorna logs recentes da tabela `scraping_logs`.
+### get_ingredient_by_canonical(canonical: str)
 
-```python
-logs = get_recent_scraper_logs(100)
-```
+Find ingredient by canonical name.
 
----
+### get_ingredients_with_brands()
 
-### `get_store_health()`
+Get ingredients with their brands and search terms.
 
-Saúde por loja (últimas 200 execuções). Retorna dict com:
-- `runs`, `errors`, `success_rate`
-- `total_found`, `total_matched`
-- `last_run`, `latencies[]`, `latency_p95_ms`
+### get_latest_prices_cached(valid_only: bool, limit: int)
 
----
+Get latest prices using materialized view.
 
-### `get_stores_with_frequencies()`
+### get_longitudinal_winners_cached(days: int)
 
-Stores com `scrape_frequency` (tier, scraper, is_active, cron_expression, timezone, max_retries).
+### get_price_history_cached(ingredient: str, days: int, valid_only: bool)
 
----
+### get_price_trends_cached(ingredient: str, days: int)
 
-## Cobertura
+### get_prices_for_ingredient_cached(ingredient: str, valid_only: bool)
 
-### `get_dashboard_kpis()`
+Get prices for an ingredient using the new server-side sorting.
 
-KPIs agregados: `total_prices`, `ingredients_covered`, `stores_active`, `avg_price_per_kg`.
+### get_recent_flyers_cached(days: int, source: str | None)
 
-```python
-kpis = get_dashboard_kpis()
-```
+### get_recent_scraper_logs(limit: int)
 
----
+### get_review_queue_cached(limit: int)
 
-### `get_coverage_by_ingredient()`
+Get review queue using service client for write operations if needed.
 
-Cobertura por ingrediente: `{ingredient, store_count, prices, min_ppk, avg_ppk}`.
+### get_scraper_health_dashboard()
 
----
+Get dashboard-ready scraper health with color-coded status.
 
-## Review Queue
+### get_store_health()
 
-### `get_review_queue_cached(limit=500)`
+Get health status for all stores based on recent logs.
 
-Itens pendentes de revisão.
+### get_store_scraper_config(store_name: str)
 
-### `approve_review_item_cached(item_id, ingredient_id, brand_override="")`
+Get scraper configuration for a store.
 
-Aprova item (escreve via service client).
+### get_stores_with_frequencies()
 
-### `reject_review_item_cached(item_id)`
+Get all stores with their scrape frequencies merged.
 
-Rejeita item.
+### load_ingredients_yaml()
 
----
+### load_stores_yaml()
 
-## Utilidades
+### reject_review_item_cached(item_id: str)
 
-### `extract_ppk(row) -> float`
-
-Extrai `price_per_kg` de um row de preço normalizado.
-
-### `extract_pun(row) -> float`
-
-Extrai `price_per_un` de um row.
-
-### `clear_all_caches()`
-
-Limpa todos os LRU caches (usar após mutações de dados).
