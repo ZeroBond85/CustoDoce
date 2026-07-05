@@ -55,26 +55,31 @@ def _get_branch() -> str:
     return _run(["git", "rev-parse", "--abbrev-ref", "HEAD"]).stdout.strip()
 
 
-def _get_run_id(branch: str, exclude: str | None = None, deadline_sec: int = 60) -> str | None:
-    """Poll for a new (or freshly running) CI run on the branch."""
+def _get_run_ids(branch: str, exclude: set[str] | None = None, deadline_sec: int = 60) -> list[str]:
+    """Poll for ALL CI runs on the branch. Returns list of run IDs."""
     deadline = time.time() + deadline_sec
+    seen: set[str] = set(exclude) if exclude else set()
     while time.time() < deadline:
         result = _run([
-            "gh", "run", "list", "--branch", branch, "--limit", "5",
+            "gh", "run", "list", "--branch", branch, "--limit", "10",
             "--json", "databaseId,conclusion,status,workflowName,headSha",
         ])
         if result.returncode == 0 and result.stdout.strip():
             try:
+                found = []
                 for r in json.loads(result.stdout):
                     rid = str(r["databaseId"])
-                    if exclude and rid == exclude:
+                    if rid in seen:
                         continue
                     if r.get("status") in ("queued", "in_progress", ""):
-                        return rid
+                        found.append(rid)
+                        seen.add(rid)
+                if found:
+                    return found
             except (json.JSONDecodeError, KeyError, IndexError):
                 pass
         time.sleep(2)
-    return None
+    return []
 
 
 def _parse_error(log: str) -> tuple[str, str]:
@@ -104,9 +109,10 @@ def _parse_error(log: str) -> tuple[str, str]:
     return ("unknown", "")
 
 
-def _watch_ci(run_id: str) -> tuple[int, str]:
-    """Bloqueia até CI terminar. Retorna (exit_code, erro_log)."""
-    print(f"⏳  Assistindo CI (run #{run_id})...", file=sys.stderr)
+def _watch_one(run_id: str) -> tuple[int, str]:
+    """Bloqueia até um run específico terminar. Retorna (exit_code, erro_log)."""
+    wf = _get_workflow_name(run_id) or "?"
+    print(f"⏳  Assistindo {wf} (run #{run_id})...", file=sys.stderr)
     try:
         watch = subprocess.run(
             ["gh", "run", "watch", run_id, "--exit-status"],  # noqa: S607
@@ -117,6 +123,30 @@ def _watch_ci(run_id: str) -> tuple[int, str]:
         return (watch.returncode, "")
     except subprocess.TimeoutExpired:
         return (124, "timeout")
+
+
+def _get_workflow_name(run_id: str) -> str:
+    result = _run(["gh", "run", "view", run_id, "--json", "workflowName"])
+    if result.returncode == 0 and result.stdout.strip():
+        try:
+            d = json.loads(result.stdout)
+            return d.get("workflowName", "?")
+        except json.JSONDecodeError:
+            pass
+    return "?"
+
+
+def _watch_all(run_ids: list[str]) -> dict[str, tuple[int, str]]:
+    """Watch ALL runs. Returns dict of {run_id: (exit_code, error_log)}."""
+    results: dict[str, tuple[int, str]] = {}
+    for rid in run_ids:
+        code, _ = _watch_one(rid)
+        if code != 0:
+            elog = _failed_log(rid)
+        else:
+            elog = ""
+        results[rid] = (code, elog)
+    return results
 
 
 def _failed_log(run_id: str) -> str:
@@ -162,74 +192,92 @@ def main() -> int:
     branch = _get_branch()
     print(f"🔍  Aguardando CI em {branch} ...", file=sys.stderr)
 
-    run_id = _get_run_id(branch, deadline_sec=60)
-    if not run_id:
+    all_run_ids = _get_run_ids(branch, deadline_sec=60)
+    if not all_run_ids:
         print("⚠️   Nenhum run do CI encontrado para este branch.", file=sys.stderr)
         return 0
 
-    # ── 3. Watch + auto-retry loop ───────────────────────────────────────
-    last_signature = ""
-    last_run_id = run_id
+    print(f"📊  Trabalhos detectados: {len(all_run_ids)}", file=sys.stderr)
+
+    # ── 3. Watch ALL + auto-retry loop ───────────────────────────────────
+    seen: set[str] = set()
+    failed_run_ids: list[str] = []
+    has_new_runs = True
 
     for attempt in range(MAX_RETRIES + 1):
-        exit_code, _ = _watch_ci(last_run_id)
+        # Collect all runs (including new ones from re-runs)
+        run_ids = _get_run_ids(branch, exclude=seen, deadline_sec=15)
+        if not run_ids and not failed_run_ids:
+            # No new runs and no previous failures → all good
+            break
 
-        if exit_code == 0:
+        all_ids = list(seen) + run_ids
+        seen.update(run_ids)
+
+        if not all_ids:
+            break
+
+        # Watch ALL runs
+        results = _watch_all(all_ids)
+
+        # Separate passed and failed
+        failed = [rid for rid, (code, _) in results.items() if code != 0]
+        any_timeout = False
+        any_ruff = False
+        ruff_rids: list[str] = []
+
+        for rid in failed:
+            elog = results[rid][1]
+            etype, sig = _parse_error(elog)
+            if etype == "ruff" and sig:
+                any_ruff = True
+                ruff_rids.append(rid)
+            if etype == "timeout":
+                any_timeout = True
+
+        if not failed:
             print("✅  CI passou com sucesso!", file=sys.stderr)
             return 0
 
-        error_log = _failed_log(last_run_id)
-        error_type, signature = _parse_error(error_log)
-
-        # Diferente do erro anterior → stop
-        if signature and last_signature and signature != last_signature:
-            print(f"❌  Erro mudou: '{signature}' (era '{last_signature}')", file=sys.stderr)
-            print("    Auto-fix pode ter introduzido regressão. Humano assume.", file=sys.stderr)
-            break
-
         if attempt >= MAX_RETRIES:
+            failed_run_ids = failed
             break
 
-        last_signature = signature
-
-        # ── Auto-fix ruff ────────────────────────────────────────────────
-        if error_type == "ruff" and signature:
+        # ── Auto-fix ruff ───────────────────────────────────────────────
+        if any_ruff:
             print("🔄  Auto-fix ruff → re-push...", file=sys.stderr)
             if not _auto_fix_ruff():
                 print("⚠️   ruff --fix falhou.", file=sys.stderr)
+                failed_run_ids = failed
                 break
             if not _amend_and_force_push():
-                print("❌  Force-push falhou (branch atualizada?). Humano assume.", file=sys.stderr)
+                print("❌  Force-push falhou. Humano assume.", file=sys.stderr)
+                failed_run_ids = failed
                 break
-
-            new_id = _get_run_id(branch, exclude=last_run_id, deadline_sec=60)
-            if new_id:
-                last_run_id = new_id
-                continue
-            print("⚠️   Novo run não detectado após auto-fix.", file=sys.stderr)
-            break
+            # Don't clear seen — force-push creates new run IDs
+            continue
 
         # ── Re-run flaky ─────────────────────────────────────────────────
-        if error_type == "timeout":
-            print("🔄  Re-executando workflow (flaky)...", file=sys.stderr)
-            rerun = _run(["gh", "run", "rerun", last_run_id])
-            if rerun.returncode != 0:
-                print("❌  Re-run falhou.", file=sys.stderr)
-                break
-            time.sleep(5)
+        if any_timeout:
+            print("🔄  Re-executando workflow(s) (flaky)...", file=sys.stderr)
+            for rid in failed:
+                if _parse_error(results[rid][1])[0] == "timeout":
+                    _run(["gh", "run", "rerun", rid], timeout=15)
+                    time.sleep(3)
             continue
 
         # ── Outros erros ─────────────────────────────────────────────────
-        print(f"❌  Erro não-fixável: {error_type} {signature}".strip(), file=sys.stderr)
+        failed_run_ids = failed
         break
 
     # ── 4. Relatório de falha ────────────────────────────────────────────
     print("\n❌  CI FALHOU após todas as tentativas.", file=sys.stderr)
-    log = _failed_log(last_run_id)
-    if log:
-        print("\n--- Log de erro (últimas 1500 chars) ---", file=sys.stderr)
-        print(log[-1500:], file=sys.stderr)
-        print("--- Fim do log ---", file=sys.stderr)
+    for rid in failed_run_ids:
+        wf = _get_workflow_name(rid)
+        log = _failed_log(rid)
+        print(f"\n--- {wf} (run #{rid}) ---", file=sys.stderr)
+        if log:
+            print(log[-1000:], file=sys.stderr)
 
     print("\nSugestão:", file=sys.stderr)
     print("  1. python scripts/ci_local.py --lint --typecheck", file=sys.stderr)
@@ -237,7 +285,7 @@ def main() -> int:
     print("  3. python scripts/git_push.py", file=sys.stderr)
     print("  (use 'git push' para pular o CI watch)", file=sys.stderr)
 
-    return 1
+    return 1 if failed_run_ids else 0
 
 
 if __name__ == "__main__":
