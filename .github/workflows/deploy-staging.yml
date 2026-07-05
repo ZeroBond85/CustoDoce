@@ -1,8 +1,8 @@
 name: Deploy - Staging
 
+# DESABILITADO — sem projeto Supabase staging no momento
+# Reativar quando STAGING_SUPABASE_URL + secrets estiverem configurados
 on:
-  pull_request:
-    branches: [develop, master]
   workflow_dispatch:
     inputs:
       skip_seed:
