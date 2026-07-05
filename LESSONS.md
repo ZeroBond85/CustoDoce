@@ -234,3 +234,28 @@ Antes de qualquer push para `master`, verificar se o CI está verde. O pre-push 
 Ordem: primeiro verificar CI, depois executar os demais steps locais.
 
 Autenticação: `gh auth login` ou `GH_TOKEN` no `.env`. Responsabilidade do desenvolvedor de não pushar sobre CI vermelho a menos que seja a correção.
+
+### 39. Monitoração é essencial — se não é monitorado, assuma que está quebrado
+
+**Causa raiz:** Phase 0 security baseline descobriu 6 RLS policies inseguras, 3 RPCs `SECURITY DEFINER` sem `REVOKE`, fallback silencioso de `get_service_client()`, admin app gerando senha aleatória invisível, e JWT morto — tudo passando despercebido por meses porque **não havia monitoração em nenhum desses pontos**.
+
+Toda mitigação foi reativa. Com monitoração, teriam sido descobertas proativamente semanas antes.
+
+**Abrangência (monitore tudo que pode falhar silenciosamente):**
+
+| Domínio | O que monitorar | Como |
+|---------|----------------|------|
+| Segurança | RLS policies, permissões de funções, tentativas de auth falhas | `db_security_lint.py` + Supabase audit log |
+| Scrapers | Failure rate, circuit breaker, auto-disable | `scraper_health.py` + `heal-scrapers.yml` |
+| CI/CD | Pass/fail rate, duração, timeout | `git pw` com `gh run watch` |
+| Database | Migration drift, schema changes, query perf | `validate_db_schema.py` + cron |
+| Dependências | CVEs em prod e dev, licenças | `dependency-audit.yml` (mensal) |
+| Código morto | Funções/classes não utilizadas | `vulture` (mensal) |
+| Secrets | Exposição acidental em working tree | `detect-secrets` (pre-commit) |
+| Free tier budget | GHA minutos, Supabase storage, Streamlit horas | Alerta manual por email |
+
+**Regra permanente:**
+- Toda nova funcionalidade DEVE incluir pelo menos um ponto de observabilidade (log estruturado, métrica, alerta)
+- Nada que pode falhar silenciosamente deve ficar sem monitoração por mais de um sprint
+- `git pw` (CI watch) é obrigatório para todo push — não monitorar CI é aceitar merge silencioso de breaking change
+- Se um componente quebrou e ninguém percebeu, a culpa não é do componente — é da falta de monitoração

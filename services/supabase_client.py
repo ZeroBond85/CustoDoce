@@ -43,9 +43,11 @@ def get_service_client() -> Client:
     key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
     url = os.environ.get("SUPABASE_URL")
 
-    if url and key:
-        _service_client = create_client(url, key)
-        return _service_client
+    if not url or not key:
+        raise ValueError(
+            "SUPABASE_SERVICE_ROLE_KEY not set — cannot create service client. "
+            "Set SUPABASE_SERVICE_ROLE_KEY in environment variables."
+        )
 
-    _service_client = get_supabase()
+    _service_client = create_client(url, key)
     return _service_client

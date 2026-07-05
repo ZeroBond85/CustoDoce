@@ -4,7 +4,6 @@ from dashboard.components.ui import get_logo_branco_base64
 from services.auth import (
     load_config,
     verify_password,
-    create_token,
     verify_totp,
     get_totp_uri,
     generate_totp_secret,
@@ -193,9 +192,7 @@ def render_login():
                 return False
 
             _limiter.clear_attempts(ip)
-            token = create_token(username, config.secret_key)
             st.session_state.authenticated = True
-            st.session_state.token = token
             st.session_state.user = username
             st.rerun()
 

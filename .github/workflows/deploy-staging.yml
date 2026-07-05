@@ -1,8 +1,8 @@
 name: Deploy - Staging
 
+# DESABILITADO — sem projeto Supabase staging no momento
+# Reativar quando STAGING_SUPABASE_URL + secrets estiverem configurados
 on:
-  pull_request:
-    branches: [develop, master]
   workflow_dispatch:
     inputs:
       skip_seed:
@@ -31,7 +31,7 @@ jobs:
           cache: 'pip'
       - run: pip install -r requirements.lock 2>/dev/null
       - name: Deploy schema to staging
-        run: python scripts/deploy_database.py --execute --env staging
+        run: python scripts/deploy_database.py --execute
         env:
           SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}

@@ -49,20 +49,10 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
 
-      - name: Install System Dependencies (OCR)
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-por poppler-utils
-
       - name: Install Python Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.lock
-
-      - name: Install Playwright Browser
-        run: |
-          python -m playwright install chromium --with-deps
-          python -m playwright install-deps chromium
 
       - name: Cache PDF Hashes
         uses: actions/cache@v6
@@ -85,6 +75,18 @@ jobs:
           else
             echo "should_run=false" >> $GITHUB_OUTPUT
           fi
+
+      - name: Install System Dependencies (OCR)
+        if: steps.check-day.outputs.should_run == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-por poppler-utils
+
+      - name: Install Playwright Browser
+        if: steps.check-day.outputs.should_run == 'true'
+        run: |
+          python -m playwright install chromium --with-deps
+          python -m playwright install-deps chromium
 
       - name: Run Playwright Aggregators + OCR
         if: steps.check-day.outputs.should_run == 'true'

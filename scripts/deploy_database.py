@@ -642,6 +642,22 @@ CREATE INDEX IF NOT EXISTS idx_flyers_store_active ON flyers(store_name, is_acti
         gen.append("============================================================")
         gen.append(health_log_path.read_text(encoding="utf-8"))
 
+    # ─── PHASE 22: RLS fix — service_role-only policies ────────────────
+    rls_fix_path = REPO_ROOT / "supabase" / "006_fix_rls_service_role_only.sql"
+    if rls_fix_path.exists():
+        gen.append("\n-- ============================================================")
+        gen.append("-- PHASE 22: RLS fix — service_role-only policies on 6 tables")
+        gen.append("-- ============================================================")
+        gen.append(rls_fix_path.read_text(encoding="utf-8"))
+
+    # ─── PHASE 23: REVOKE public EXECUTE + SET search_path on RPCs ────
+    revoke_path = REPO_ROOT / "supabase" / "007_revoke_exec_functions.sql"
+    if revoke_path.exists():
+        gen.append("\n-- ============================================================")
+        gen.append("-- PHASE 23: REVOKE public EXECUTE + SET search_path on RPCs")
+        gen.append("-- ============================================================")
+        gen.append(revoke_path.read_text(encoding="utf-8"))
+
     return "\n".join(gen)
 
 

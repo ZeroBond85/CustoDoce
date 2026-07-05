@@ -219,7 +219,7 @@ python -m pytest tests/integration/ -q -x
 | pytest (integration) | 112 passing |
 | pytest (real, slow) | 6 passing |
 | AGENTS.md | 974→~370 linhas (Sprint 11 sanitization) |
-| LESSONS.md | 32 lições movidas |
+| LESSONS.md | 39 lições |
 | REGRAS.md | Ambiente + hooks + comandos |
 | CI lint/type/test | ✅ Todos verdes (Python 3.14) |
 | E2E (cloud) | ⏳ Mensal (Playwright) |
@@ -268,7 +268,7 @@ Para WSL: `custodoce-314` (Conda, Python 3.14). Detalhes em `REGRAS.md`.
 
 ## Documentação Relacionada
 
-- `LESSONS.md` — 32 lições aprendidas (CI, mocks, schema, scrapers)
+- `LESSONS.md` — 39 lições (CI, mocks, schema, scrapers, monitoração, segurança)
 - `REGRAS.md` — Ambiente, hooks, comandos, arquitetura
 - `docs/skills.md` — Skills OpenCode (globais + overlays locais)
 - `docs/changelog.md` — Histórico por fase/sprint
