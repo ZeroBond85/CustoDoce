@@ -29,6 +29,17 @@ jobs:
       - run: pip install -r requirements.lock
       - run: python scripts/check_environment_parity.py
       - run: ruff check . --output-format=github
+      - name: Security lint (Supabase RLS + RPC)
+        run: python scripts/db_security_lint.py --quick
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - name: detect-secrets scan
+        run: |
+          python -m detect_secrets scan --baseline .secrets.baseline \
+            admin/ dashboard/ services/ scrapers/ parsers/ scripts/ telegram_bot/ config/ .github/workflows/
+        continue-on-error: true
       - name: Validate schema manifest (SQL → mock alignment)
         run: |
           python scripts/generate_schema_manifest.py
