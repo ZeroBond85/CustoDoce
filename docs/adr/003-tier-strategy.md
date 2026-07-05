@@ -1,5 +1,5 @@
 # ADR 003: Estratégia de Tiers de Lojas
-> Última revisão: 2026-07-05 13:32 UTC
+> Última revisão: 2026-07-05 14:03 UTC
 
 **Status**: Aceito
 **Data**: 27/06/2026

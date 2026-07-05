@@ -818,10 +818,14 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, e
     """
     Main sync logic. Returns True if in sync, False if out of sync.
 
-    With check=True: drift detection runs against pytest --collect-only. If the
-    source of truth (sync_docs count) disagrees with pytest's reported total,
-    --check fails. This prevents silent drift between declared and actual numbers.
+    With check=True: validates docs but does NOT modify files (acts as dry_run).
+    Drift detection runs against pytest --collect-only. If the source of truth
+    (sync_docs count) disagrees with pytest's reported total, --check fails.
+    This ensures checks are pure read-only operations, safe for hooks/CI.
     """
+    if check:
+        dry_run = True
+
     issues: list[str] = []
 
     state = _build_agents_state()
