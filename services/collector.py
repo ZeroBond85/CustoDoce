@@ -4,7 +4,7 @@ Collector Service - Coordinates scrapers and processes product matches.
 
 import re
 import os
-from datetime import datetime as dt_now, date
+from datetime import datetime as dt_now, date, UTC
 from inspect import signature
 from contextlib import suppress
 
@@ -287,6 +287,56 @@ def process_price_match(
     return None
 
 
+def _get_default_frequency_minutes(store: Store) -> int:
+    """Default scrape frequency by tier if not in scrape_frequencies table."""
+    tier = store.get("tier", 3)
+    return {1: 10080, 2: 1440, 3: 1440, 4: 43200}.get(tier, 1440)
+
+
+def _should_skip_store(store: Store) -> tuple[bool, str]:
+    """Check if this store was recently scraped. Returns (skip, reason)."""
+    store_id = store.get("id") or store["name"].lower().replace(" ", "_")
+    try:
+        client = get_supabase()
+        # Get frequency
+        freq = (
+            client.table("scrape_frequencies")
+            .select("frequency_minutes")
+            .eq("store_id", store_id)
+            .limit(1)
+            .execute()
+        )
+        frequency_minutes = (
+            freq.data[0]["frequency_minutes"]
+            if freq.data and freq.data[0].get("frequency_minutes")
+            else _get_default_frequency_minutes(store)
+        )
+        # Get last successful run
+        last = (
+            client.table("scraping_logs")
+            .select("started_at")
+            .eq("store_name", store["name"])
+            .eq("status", "completed")
+            .order("started_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if not last.data:
+            return False, ""  # Never scraped before
+        last_run = dt_now.fromisoformat(last.data[0]["started_at"].replace("Z", "+00:00"))
+        elapsed = (dt_now.now(UTC) - last_run).total_seconds() / 60
+        if elapsed < frequency_minutes * 0.8:
+            remaining = int(frequency_minutes * 0.8 - elapsed)
+            return True, (
+                f"skip: last run {int(elapsed)}m ago (freq={frequency_minutes}m), "
+                f"{remaining}m remaining until threshold"
+            )
+        return False, ""
+    except Exception as e:
+        logger.debug("[should_skip] %s: %s", store.get("name", "unknown"), e)
+        return False, ""
+
+
 def _auto_disable_if_needed(store_name: str, threshold: int = 3):
     try:
         client = get_service_client()
@@ -330,6 +380,19 @@ def _check_zero_products_alert(store_name: str, threshold: int = 3):
         logger.debug("zero-products check failed for %s: %s", store_name, e)
 
 
+def _verify_scrape_results(all_products: list[PriceEntry], store_count: int, skipped_count: int) -> None:
+    """Post-scrape verification checklist (Phase 3a)."""
+    if not all_products:
+        logger.warning("[VERIFY] 0 products collected across %d stores (%d skipped)", store_count, skipped_count)
+        return
+    matched_stores = len({p.get("store_name") for p in all_products if p.get("store_name")})
+    if matched_stores < store_count - skipped_count:
+        logger.info(
+            "[VERIFY] %d/%d stores produced matches (%d skipped)",
+            matched_stores, store_count, skipped_count,
+        )
+
+
 def _collect_generic(
     stores: list[Store],
     scraper_cls: type,
@@ -339,6 +402,7 @@ def _collect_generic(
     post_process=None,
 ) -> list[PriceEntry]:
     all_products = []
+    skipped_count = 0
 
     # Map class names to feature flag keys
     class_to_flag = {
@@ -350,7 +414,16 @@ def _collect_generic(
 
     for store in stores:
         store_name = store.get("name", "unknown")
-        started_at = dt_now.now(dt_now.timezone.utc)
+        started_at = dt_now.now(UTC)
+
+        # Phase 3a: should_skip — check freshness before scraping
+        skip, skip_reason = _should_skip_store(store)
+        if skip:
+            logger.info("[%s] %s", store_name, skip_reason)
+            log_scraper_run(store_name, "skipped", 0, 0, errors=[skip_reason], started_at=started_at)
+            skipped_count += 1
+            continue
+
         try:
             # Per-ingredient scraper filter
             from services.config import get_feature
@@ -457,6 +530,7 @@ def _collect_generic(
                     attempted_by="collector",
                 )
 
+    _verify_scrape_results(all_products, len(stores), skipped_count)
     return all_products
 
 
