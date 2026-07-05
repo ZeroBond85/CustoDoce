@@ -4,27 +4,7 @@ Testes de integração do pipeline de coleta:
 Texto do Produto -> Processamento (Match/Normalize) -> Supabase.
 """
 
-import os
-import sys
-from pathlib import Path
-import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-
-def _has_db_creds():
-    url = os.environ.get("SUPABASE_URL", "")
-    pwd = os.environ.get("SUPABASE_DB_PASSWORD", "")
-    return bool(url and pwd)
-
-
-pytestmark = pytest.mark.skipif(
-    not _has_db_creds(),
-    reason="SUPABASE_URL / SUPABASE_DB_PASSWORD not set",
-)
-
-from services.collector import process_price_match
-from services.supabase_client import get_supabase
+import pytest  # noqa: F401 - pytest fixtures used implicitly
 
 
 class TestCollectorPipeline:
@@ -40,18 +20,25 @@ class TestCollectorPipeline:
             "logistics": "pickup_local",
         }
 
-    def _setup_store(self, store):
-        client = get_supabase()
+    def _setup_store(self, client, store):
         client.table("stores").upsert(store).execute()
         client.table("prices").delete().eq("store_id", store["id"]).execute()
         client.table("price_history").delete().eq("store_id", store["id"]).execute()
         client.table("review_queue").delete().eq("store_name", store["name"]).execute()
 
-    def test_pipeline_exact_match(self):
+    def _cleanup_store(self, client, store):
+        client.table("prices").delete().eq("store_id", store["id"]).execute()
+        client.table("price_history").delete().eq("store_id", store["id"]).execute()
+        client.table("review_queue").delete().eq("store_name", store["name"]).execute()
+
+    def test_pipeline_exact_match(self, real_supabase):
         """Produto com match exato deve ir direto para a tabela prices."""
-        client = get_supabase()
+        client = real_supabase
+        from services.collector import process_price_match
+        from datetime import date
+
         store = self._get_test_store("exact")
-        self._setup_store(store)
+        self._setup_store(client, store)
 
         ingredients = client.table("ingredients").select("*").eq("active", True).execute().data
         ing = ingredients[0]
@@ -64,8 +51,6 @@ class TestCollectorPipeline:
 
         # Verifica que EXISTE uma row para (ingredient_id, store_id, collected_at=hoje).
         # Tolerância a dados cumulativos de runs anteriores (collected_at diferente).
-        from datetime import date
-
         today_iso = date.today().isoformat()
         res = client.table("prices").select("*").eq("store_id", store["id"]).execute()
         today_rows = [r for r in res.data if r.get("collected_at", "")[:10] == today_iso]
@@ -83,15 +68,15 @@ class TestCollectorPipeline:
         )
 
         # Cleanup after to ensure test isolation for next runs
-        client.table("prices").delete().eq("store_id", store["id"]).execute()
-        client.table("price_history").delete().eq("store_id", store["id"]).execute()
-        client.table("review_queue").delete().eq("store_name", store["name"]).execute()
+        self._cleanup_store(client, store)
 
-    def test_pipeline_fuzzy_match_to_review_queue(self):
+    def test_pipeline_fuzzy_match_to_review_queue(self, real_supabase):
         """Produto com confidence baixa deve ir para a review_queue."""
-        client = get_supabase()
+        client = real_supabase
+        from services.collector import process_price_match
+
         store = self._get_test_store("fuzzy")
-        self._setup_store(store)
+        self._setup_store(client, store)
 
         ingredients = client.table("ingredients").select("*").eq("active", True).execute().data
         ing = ingredients[0]
@@ -107,11 +92,13 @@ class TestCollectorPipeline:
 
         assert len(price_res.data) + len(review_res.data) >= 1, "Produto sumiu do pipeline"
 
-    def test_pipeline_no_match_ignored(self):
+    def test_pipeline_no_match_ignored(self, real_supabase):
         """Produto sem qualquer relação com ingredientes deve ser ignorado."""
-        client = get_supabase()
+        client = real_supabase
+        from services.collector import process_price_match
+
         store = self._get_test_store("no_match")
-        self._setup_store(store)
+        self._setup_store(client, store)
 
         ingredients = client.table("ingredients").select("*").eq("active", True).execute().data
         product_text = "Parafuso de Aço 10mm"
@@ -125,3 +112,6 @@ class TestCollectorPipeline:
 
         assert len(price_res.data) == 0
         assert len(review_res.data) == 0
+
+        # Cleanup
+        self._cleanup_store(client, store)

@@ -433,30 +433,26 @@ def test_real_telegram_report_generation():
 # ============================================================
 
 
-def test_real_db_unique_constraints():
-    """Verify UNIQUE constraints exist on prices and price_history via REST API."""
-    from services.supabase_client import get_supabase
-
-    client = get_supabase()
+def test_real_db_unique_constraints(db_conn):
+    """Verify UNIQUE constraints exist on prices and price_history via RPC."""
+    cur = db_conn.cursor()
 
     # Check prices table constraint
-    sql_prices = """
+    cur.execute("""
         SELECT conname FROM pg_constraint
         WHERE conrelid = 'prices'::regclass AND contype = 'u'
-    """
-    res_prices = client.rpc("exec_sql_query", {"sql": sql_prices}).execute()
-    price_constraints = [r["conname"] for r in res_prices.data]
+    """)
+    price_constraints = [r[0] for r in cur.fetchall()]
     assert any("ingredient_id" in c and "store_id" in c and "collected_at" in c for c in price_constraints), (
         f"Missing UNIQUE constraint on prices: {price_constraints}"
     )
 
     # Check price_history constraint
-    sql_history = """
+    cur.execute("""
         SELECT conname FROM pg_constraint
         WHERE conrelid = 'price_history'::regclass AND contype = 'u'
-    """
-    res_history = client.rpc("exec_sql_query", {"sql": sql_history}).execute()
-    history_constraints = [r["conname"] for r in res_history.data]
+    """)
+    history_constraints = [r[0] for r in cur.fetchall()]
     assert any("ingredient_id" in c and "store_id" in c and "collected_at" in c for c in history_constraints), (
         f"Missing UNIQUE constraint on price_history: {history_constraints}"
     )
