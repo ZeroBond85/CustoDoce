@@ -140,6 +140,42 @@ price_per_un = raw_price / qty
 | Email falha | Loga erro, não bloqueia pipeline |
 | Porta 5432 bloqueada | `exec_sql_query` RPC (porta 443) |
 
+## CI Watch (push + monitoramento automático)
+
+Para evitar "push → CI falha → ninguém vê", substitua `git push` por:
+
+```bash
+# Direto
+python scripts/git_push.py [args]
+
+# Via alias (recomendado)
+git config --local alias.pw '!python scripts/git_push.py'
+git pw [args]
+```
+
+**Comportamento:**
+1. Roda `git push` (pre-push hook executa normalmente com todos os checks)
+2. Após push bem-sucedido, detecta o run do CI no GitHub Actions
+3. Trava o terminal com `gh run watch --exit-status`
+4. Se CI falhar:
+   - **ruff**: auto-fix + amend commit + force-push + re-watch (1 tentativa)
+   - **timeout/flaky**: re-run do workflow (1 tentativa)
+   - **Erro diferente** do anterior: **PARA** (auto-fix pode ter introduzido regressão)
+   - **bandit/pip-audit/pytest**: **PARA** (não-fixável, humano assume)
+5. Se esgotar tentativas, mostra log de erro + sugestões
+
+**Variáveis de ambiente:**
+
+| Var | Default | Descrição |
+|-----|---------|-----------|
+| `CI_MAX_RETRIES` | 1 | Máximo de auto-retry |
+| `CI_WATCH_TIMEOUT` | 600 | Timeout do watch (segundos) |
+
+**Notas:**
+- O `git push` normal (sem watch) continua funcionando — pular o CI watch é intencional
+- `gh` precisa estar autenticado (`gh auth login`). Caso contrário, watch é pulado com aviso
+- Auto-fix usa `--force-with-lease` (seguro: só force-push se ninguém mais alterou o branch)
+
 ## ⚠️ Regra Obrigatória: DB Sync
 
 **Toda alteração em SQL/funções/triggers deve ser verificada na base real do Supabase via RPC (`exec_sql_query`, porta 443).** NUNCA `psycopg2` direto.
@@ -161,6 +197,10 @@ python scripts/agents_tool.py --full       # Validação completa
 python scripts/agents_tool.py --status     # Estado atual
 python scripts/agents_tool.py --add-rule   # Adicionar regra top 10
 python scripts/agents_tool.py --add-lesson # Adicionar lição
+
+# Push + CI Watch (recomendado, substitui git push)
+python scripts/git_push.py [args]          # git push + assiste CI até o fim
+git config --local alias.pw '!python scripts/git_push.py' && git pw [args]
 
 # Schema / DB
 python scripts/deploy_database.py --dry-run

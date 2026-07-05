@@ -329,7 +329,7 @@ def get_store_health():
                 end_dt = datetime.fromisoformat(completed.replace("Z", "+00:00"))
                 latency_ms = (end_dt - start_dt).total_seconds() * 1000
                 health[store]["latencies"].append(latency_ms)
-            except ValueError, TypeError:
+            except (ValueError, TypeError):
                 pass
 
     result = []
@@ -418,7 +418,7 @@ def _safe_ppk(r: dict) -> float:
     if isinstance(norm, dict):
         try:
             return float(norm.get("price_per_kg", 0))
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             return 0.0
     return 0.0
 
@@ -437,7 +437,7 @@ def extract_ppk(row: dict) -> float:
             value = float(flat)
             if value > 0:
                 return value
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             pass
     norm = row.get("normalized", {})
     if isinstance(norm, dict):
@@ -447,7 +447,7 @@ def extract_ppk(row: dict) -> float:
                 value = float(flat_top)
                 if value > 0:
                     return value
-            except TypeError, ValueError:
+            except (TypeError, ValueError):
                 pass
     return 0.0
 
@@ -466,7 +466,7 @@ def extract_pun(row: dict) -> float:
             value = float(flat)
             if value > 0:
                 return value
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             pass
     norm = row.get("normalized", {})
     if isinstance(norm, dict):
@@ -476,7 +476,7 @@ def extract_pun(row: dict) -> float:
                 value = float(flat_top)
                 if value > 0:
                     return value
-            except TypeError, ValueError:
+            except (TypeError, ValueError):
                 pass
     return 0.0
 

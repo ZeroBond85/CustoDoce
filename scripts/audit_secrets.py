@@ -97,7 +97,7 @@ def _git_blob_text(path: str) -> str | None:
             timeout=10,
         )
         return result.stdout.decode("utf-8", errors="replace")
-    except subprocess.CalledProcessError, subprocess.TimeoutExpired:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return None
 
 

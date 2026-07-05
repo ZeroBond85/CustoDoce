@@ -35,7 +35,7 @@ def import_spreadsheet(filepath: str) -> int:
 
         try:
             raw_price = float(raw_price_raw)
-        except ValueError, TypeError:
+        except (ValueError, TypeError):
             print(f"  Preço inválido: {raw_price_raw}")
             continue
 

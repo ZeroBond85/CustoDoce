@@ -20,13 +20,13 @@ def _safe_ppk(p: dict) -> float:
     if norm and norm.get("price_per_kg"):
         try:
             return float(norm["price_per_kg"])
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             return 0.0
     flat = p.get("price_per_kg")
     if flat is not None:
         try:
             return float(flat)
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             return 0.0
     return 0.0
 

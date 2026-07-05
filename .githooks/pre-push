@@ -196,7 +196,15 @@ def main() -> int:
         print("[SKIP] test_total_coverage (set TEST_TOTAL=1 to enable)", file=sys.stderr)
 
     print("", file=sys.stderr)
-    print("=== pre-push: TODOS os checks passaram. Push liberdo. ===", file=sys.stderr)
+    print("=== pre-push: TODOS os checks passaram. Push liberado. ===", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("💡 Para assistir o CI ate o fim:", file=sys.stderr)
+    print("     python scripts/git_push.py [args]", file=sys.stderr)
+    print("   Ou configure o alias e use:", file=sys.stderr)
+    print("     git config --local alias.pw '!python scripts/git_push.py'", file=sys.stderr)
+    print("     git pw [args]", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("   (git push sem watch continua funcionando normalmente)", file=sys.stderr)
     return 0
 
 

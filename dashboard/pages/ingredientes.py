@@ -238,7 +238,7 @@ def render_ingredientes():
                         if default_cat in CANONICAL_CATEGORIES
                         else CANONICAL_CATEGORIES.index("outros")
                     )
-                except ValueError, TypeError:
+                except (ValueError, TypeError):
                     cat_index = CANONICAL_CATEGORIES.index("outros")
                 category = st.selectbox("Categoria", CANONICAL_CATEGORIES, index=cat_index)
                 unit = st.text_input("Unidade Base", value=ing_data.get("unit_target", "kg"))

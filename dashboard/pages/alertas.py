@@ -98,7 +98,7 @@ def _fallback_pagination(total_pages: int) -> int:
     try:
         raw = st.query_params.get("alerts_page", "1") if hasattr(st, "query_params") else "1"
         current = int(raw)
-    except ValueError, TypeError, AttributeError:
+    except (ValueError, TypeError, AttributeError):
         current = 1
     current = max(1, min(current, total_pages))
 

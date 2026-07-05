@@ -262,7 +262,7 @@ def show_status() -> str:
         for p in ROOT.rglob("*.md"):
             if not any(s in str(p) for s in skip_dirs):
                 md_files.append(p)
-    except OSError, PermissionError:
+    except (OSError, PermissionError):
         pass
     parts.append(f"Total .md no repo: {len(md_files)}")
 

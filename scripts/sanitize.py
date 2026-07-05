@@ -151,7 +151,7 @@ def prompt_yes_no(question: str, default: bool = True) -> bool:
     while True:
         try:
             ans = input(question + suffix).strip().lower()
-        except EOFError, KeyboardInterrupt:
+        except (EOFError, KeyboardInterrupt):
             ans = ""
         if ans in ("", "y", "yes"):
             return True

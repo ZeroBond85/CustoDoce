@@ -222,7 +222,7 @@ def auto_reject_stale_review_items(max_age_days: int = 7, min_confidence: float 
             if isinstance(conf, str):
                 try:
                     conf = float(conf)
-                except ValueError, TypeError:
+                except (ValueError, TypeError):
                     conf = 0
             if conf < min_confidence:
                 client.table("review_queue").update({"status": "rejected"}).eq("id", item["id"]).execute()
