@@ -36,13 +36,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Password from env or generated
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
-if not ADMIN_PASSWORD:
-    import secrets
-
-    ADMIN_PASSWORD = secrets.token_urlsafe(16)
-    os.environ.setdefault("ADMIN_PASSWORD", ADMIN_PASSWORD)
 
 
 # ── Helpers (re-exported for test compatibility) ─────────────
@@ -124,6 +118,12 @@ def main():
         st.session_state.page = DEFAULT_PAGE
 
     if not st.session_state.authenticated:
+        if not ADMIN_PASSWORD:
+            st.error(
+                "ADMIN_PASSWORD nao configurada. Defina a variavel de ambiente "
+                "ADMIN_PASSWORD no .env ou Streamlit Secrets."
+            )
+            st.stop()
         render_login()
         st.stop()
 
