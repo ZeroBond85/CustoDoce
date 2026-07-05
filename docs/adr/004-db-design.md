@@ -1,5 +1,5 @@
 # ADR 004: Design do Banco de Dados e Otimização de Query
-> Última revisão: 2026-07-05 16:42 UTC
+> Última revisão: 2026-07-05 19:08 UTC
 
 **Status**: Aceito
 **Data**: 27/06/2026

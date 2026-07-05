@@ -7,7 +7,7 @@ truth_at:
   pages_count: 19
 ---
 # 🍬 CUSTO DOCE — RAIO-X RESUMIDO
-> Última revisão: 2026-07-05 16:42 UTC
+> Última revisão: 2026-07-05 19:08 UTC
 ## Visão Executiva e Estratégica do Projeto
 
 ---
