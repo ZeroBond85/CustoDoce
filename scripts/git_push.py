@@ -55,8 +55,15 @@ def _get_branch() -> str:
     return _run(["git", "rev-parse", "--abbrev-ref", "HEAD"]).stdout.strip()
 
 
+def _get_sha() -> str:
+    """Get current commit SHA."""
+    p = _run(["git", "rev-parse", "HEAD"], capture=True)
+    return p.stdout.strip() if p.returncode == 0 else ""
+
+
 def _get_run_ids(branch: str, exclude: set[str] | None = None, deadline_sec: int = 60) -> list[str]:
-    """Poll for ALL CI runs on the branch. Returns list of run IDs."""
+    """Poll for runs triggered by current commit on the branch."""
+    sha = _get_sha()
     deadline = time.time() + deadline_sec
     seen: set[str] = set(exclude) if exclude else set()
     while time.time() < deadline:
@@ -70,6 +77,8 @@ def _get_run_ids(branch: str, exclude: set[str] | None = None, deadline_sec: int
                 for r in json.loads(result.stdout):
                     rid = str(r["databaseId"])
                     if rid in seen:
+                        continue
+                    if sha and r.get("headSha") != sha:
                         continue
                     if r.get("status") in ("queued", "in_progress", ""):
                         found.append(rid)
