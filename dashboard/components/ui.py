@@ -535,20 +535,18 @@ def status_badge(status: str):
     )
 
 
-def freshness_badge(collected_at, now=None):
-    """Badge visual indicando frescor do dado (sucesso/warning/danger)."""
+def _freshness_badge_html(collected_at, now=None):
+    """HTML puro do badge de frescor (sem side-effect streamlit)."""
     from datetime import datetime
 
     if not collected_at:
-        st.markdown('<span class="cd-badge neutral">n/d</span>', unsafe_allow_html=True)
-        return
+        return '<span class="cd-badge neutral">n/d</span>'
     if isinstance(collected_at, str):
         s = collected_at.replace("Z", "+00:00")
         try:
             ts = datetime.fromisoformat(s)
         except ValueError:
-            st.markdown('<span class="cd-badge neutral">n/d</span>', unsafe_allow_html=True)
-            return
+            return '<span class="cd-badge neutral">n/d</span>'
     else:
         ts = collected_at
     if ts.tzinfo is None:
@@ -557,11 +555,21 @@ def freshness_badge(collected_at, now=None):
     days = (ref - ts).days
     if days <= 7:
         label = f"{days}d" if days > 0 else "hoje"
-        st.markdown(f'<span class="cd-badge success">{label}</span>', unsafe_allow_html=True)
+        return f'<span class="cd-badge success">{label}</span>'
     elif days <= 30:
-        st.markdown(f'<span class="cd-badge warning">{days}d</span>', unsafe_allow_html=True)
+        return f'<span class="cd-badge warning">{days}d</span>'
     else:
-        st.markdown(f'<span class="cd-badge danger">{days}d stale</span>', unsafe_allow_html=True)
+        return f'<span class="cd-badge danger">{days}d stale</span>'
+
+
+def freshness_badge(collected_at, now=None):
+    """Renderiza badge de frescor no streamlit (para uso fora de dataframe)."""
+    st.markdown(_freshness_badge_html(collected_at, now), unsafe_allow_html=True)
+
+
+def freshness_column(collected_at, now=None):
+    """Retorna HTML do badge para uso em st.dataframe column_config."""
+    return _freshness_badge_html(collected_at, now)
 
 
 def section_title(title: str, subtitle: str = ""):

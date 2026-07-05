@@ -8,7 +8,7 @@ from services.dashboard_queries import (
     extract_ppk,
     extract_pun,
 )
-from dashboard.components.ui import inject_css
+from dashboard.components.ui import inject_css, freshness_column
 
 
 def _sync_query_params():
@@ -38,7 +38,7 @@ def render_precos():
     inject_css()
     _sync_query_params()
 
-    st.title("Pre\u00e7os")
+    st.title("Preços")
 
     col1, col2, col3 = st.columns(3)
 
@@ -64,7 +64,7 @@ def render_precos():
 
     df = pd.DataFrame(prices)
     if df.empty:
-        st.info("Nenhum pre\u00e7o encontrado.")
+        st.info("Nenhum preço encontrado.")
         return
 
     df = df[df["ingredient_id"] == selected_ingredient]
@@ -79,6 +79,8 @@ def render_precos():
     df["price_per_un"] = df.apply(extract_pun, axis=1)
     df = df.sort_values("price_per_kg")
 
+    df["freshness"] = df["collected_at"].apply(lambda x: freshness_column(x))
+
     st.dataframe(
         df[
             [
@@ -91,25 +93,28 @@ def render_precos():
                 "brand",
                 "is_promotion",
                 "valid_until",
-                "collected_at",
+                "freshness",
             ]
         ],
         use_container_width=True,
         column_config={
             "store_name": "Loja",
             "raw_product": "Produto",
-            "raw_price": "Pre\u00e7o",
+            "raw_price": "Preço",
             "raw_unit": "Unidade",
             "price_per_kg": "R$/kg",
             "price_per_un": "R$/un",
             "brand": "Marca",
             "is_promotion": "Promoção",
             "valid_until": "Válido até",
-            "collected_at": "Coletado em",
+            "freshness": st.column_config.TextColumn(
+                "Frescor",
+                help="Tempo desde coleta: ✅≤7d ⚠️8–30d ❌>30d",
+            ),
         },
     )
 
-    st.info(f"Total: {len(df)} pre\u00e7os para {selected_ingredient}")
+    st.info(f"Total: {len(df)} preços para {selected_ingredient}")
 
 
 __all__ = ["render_precos"]
