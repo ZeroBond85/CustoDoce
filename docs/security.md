@@ -48,10 +48,15 @@ Todos os dados de scrapers passam por validação:
 
 ```python
 # parsers/normalizer.py
-def normalize_price(raw_price: float, raw_unit: str) -> dict:
-    assert raw_price > 0, "raw_price must be positive"
-    assert raw_unit, "raw_unit cannot be empty"
-    # ... parsing logic
+def normalize_price(raw_price: float, raw_unit: str) -> NormalizedPrice | None:
+    if raw_price <= 0:
+        return None
+    parsed = parse_unit(raw_unit)
+    if parsed is None:
+        return None
+    parsed.price_per_kg = round(raw_price / parsed.total_kg, 4)
+    parsed.price_per_un = round(raw_price / parsed.qty, 4)
+    return parsed
 ```
 
 ### SQL Injection Prevention
