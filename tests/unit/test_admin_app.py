@@ -2,8 +2,6 @@ import importlib
 import os
 from unittest.mock import patch
 
-import pytest
-
 
 def test_admin_password_none_when_missing():
     """Verifica que ADMIN_PASSWORD fica None quando env var nao definida."""
