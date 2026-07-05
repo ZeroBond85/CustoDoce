@@ -1,5 +1,5 @@
 import streamlit as st
-from dashboard.components.ui import get_logo_sidebar_base64
+from dashboard.components.ui import get_logo_sidebar_base64, render_user_badge
 
 # Single source of truth — all navigation constants from dashboard/navigation_config.py
 from dashboard.navigation_config import PAGES, DEFAULT_PAGE
@@ -54,10 +54,7 @@ def render_legacy_sidebar():
         auth = st.session_state.get("authenticated", False)
         user = st.session_state.get("user", "admin")
         if auth:
-            st.markdown(
-                f'<div style="text-align:center;padding:0.5rem 0;font-size:0.78rem;"><strong>{user}</strong></div>',
-                unsafe_allow_html=True,
-            )
+            render_user_badge(user)
             col1, col2 = st.columns([1, 1])
             with col1:
                 if st.button("Limpar Cache", key="clear_cache_btn", width="stretch"):
@@ -97,10 +94,7 @@ def _render_nav_footer():
     user = st.session_state.get("user", "admin")
     with st.sidebar:
         st.markdown("---")
-        st.markdown(
-            f'<div style="text-align:center;padding:0.5rem 0;font-size:0.78rem;"><strong>{user}</strong></div>',
-            unsafe_allow_html=True,
-        )
+        render_user_badge(user)
         col1, col2 = st.columns([1, 1])
         with col1:
             if st.button("Limpar Cache", key="clear_cache_btn", width="stretch"):

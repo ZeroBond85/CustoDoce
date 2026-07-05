@@ -578,6 +578,27 @@ def logo_full(width: int = 220):
         )
 
 
+def render_logo_branco_centered(width: int = 200, margin_bottom: str = "0.5rem"):
+    """Logo branco centralizado — usado em login/setup pages."""
+    logo_b64 = get_logo_branco_base64()
+    if not logo_b64:
+        return
+    st.markdown(
+        f'<div style="text-align:center;margin-bottom:{margin_bottom}">'
+        f'<img src="data:image/png;base64,{logo_b64}" '
+        f'style="width:{width}px" alt="CustoDoce"></div>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_user_badge(username: str):
+    """Badge de usuário pequeno, centralizado (footer da sidebar)."""
+    st.markdown(
+        f'<div style="text-align:center;padding:0.5rem 0;font-size:0.78rem;"><strong>{username}</strong></div>',
+        unsafe_allow_html=True,
+    )
+
+
 def plotly_theme():
     import plotly.graph_objects as go
     import plotly.io as pio
