@@ -55,6 +55,8 @@ APPROVED_SKILLS = [
     "design-md",
     # Maintenance
     "skills-maintenance",
+    # Security
+    "supabase-pentest",
 ]
 
 SKILL_CATEGORIES: dict[str, list[str]] = {
