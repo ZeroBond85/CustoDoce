@@ -141,10 +141,7 @@ def _watch_all(run_ids: list[str]) -> dict[str, tuple[int, str]]:
     results: dict[str, tuple[int, str]] = {}
     for rid in run_ids:
         code, _ = _watch_one(rid)
-        if code != 0:
-            elog = _failed_log(rid)
-        else:
-            elog = ""
+        elog = _failed_log(rid) if code != 0 else ""
         results[rid] = (code, elog)
     return results
 
@@ -202,7 +199,6 @@ def main() -> int:
     # ── 3. Watch ALL + auto-retry loop ───────────────────────────────────
     seen: set[str] = set()
     failed_run_ids: list[str] = []
-    has_new_runs = True
 
     for attempt in range(MAX_RETRIES + 1):
         # Collect all runs (including new ones from re-runs)
