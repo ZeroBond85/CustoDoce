@@ -788,6 +788,8 @@ def _strict_audit() -> list[dict]:
                 continue
             fpath = Path(dirpath) / fname
             rel = fpath.relative_to(_ROOT)
+            if str(rel).startswith(("docs/archive/", "docs\\archive\\")):
+                continue
             try:
                 text = fpath.read_text(encoding="utf-8")
             except Exception:

@@ -7,7 +7,7 @@ truth_at:
   pages_count: 19
 ---
 # UX Audit — CustoDoce Dashboard
-> Última revisão: 2026-07-05 19:08 UTC
+> Última revisão: 2026-07-06 02:38 UTC
 
 > Gerado em: 19/06/2026  
 > Escopo: `admin/app.py` (2843 linhas, 18 abas)  

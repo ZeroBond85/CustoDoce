@@ -3,11 +3,11 @@ doc_type: snapshot
 slug: raio-x_custo_doce_resumido
 current_version: 0.0.0
 truth_at:
-  tests_total: 805
+  tests_total: 729
   pages_count: 19
 ---
 # 🍬 CUSTO DOCE — RAIO-X RESUMIDO
-> Última revisão: 2026-07-05 19:08 UTC
+> Última revisão: 2026-07-06 02:38 UTC
 ## Visão Executiva e Estratégica do Projeto
 
 ---
@@ -41,7 +41,7 @@ O diferencial está no **pipeline de matching com IA de 6 estágios**: combina r
 
 | Camada | Tecnologia | Por que foi escolhida? |
 | :--- | :--- | :--- |
-| Interface | **Streamlit** | Rápido de desenvolver, gratuito no Cloud, 18 módulos analíticos |
+| Interface | **Streamlit** | Rápido de desenvolver, gratuito no Cloud, 19 módulos analíticos |
 | Banco de Dados | **Supabase (PostgreSQL 15)** | Gratuito (500 MB), autenticação embutida, RLS, RPCs |
 | Orquestração | **GitHub Actions** | Automação de scraping 2x/dia sem custo (2.000 min/mês) |
 | IA/Matching | **Sentence-Transformers ONNX + Groq LLM** | Pipeline de 6 estágios com fallback entre 3 providers de LLM |
@@ -57,7 +57,7 @@ O diferencial está no **pipeline de matching com IA de 6 estágios**: combina r
 
 2. **Custo Zero (Free Tier):** Infraestrutura 100% gratuita — Supabase (500 MB DB), GitHub Actions (2.000 min/mês), Streamlit Cloud (1 app privado), Gmail SMTP (500 e-mails/dia). Viável para MVP sem investimento inicial.
 
-3. **Multi-Canal de Acesso:** Dashboard Web (18 telas analíticas) + Telegram Bot (consultas rápidas) + Relatórios Diários por E-mail.
+3. **Multi-Canal de Acesso:** Dashboard Web (19 telas analíticas) + Telegram Bot (consultas rápidas) + Relatórios Diários por E-mail.
 
 4. **Calculadora de Receitas Inteligente:** Calcula custo real (monofonte ou multifonte) baseado nos preços atuais do banco, com overhead, margem de lucro e sugestão de lojas mais baratas.
 
@@ -72,7 +72,7 @@ O diferencial está no **pipeline de matching com IA de 6 estágios**: combina r
 | Ingredientes monitorados | **23** canônicos (leite condensado, chocolate, farinha, etc.) | Expansível via YAML |
 | Lojas/fornecedores | **51** lojas em 4 tiers (PDF, API VTEX, sites, manual) | Cobre atacados + e-commerces |
 | Precisão do Matching | **~85-90%** estimado | Via pipeline 6 estágios + fila de revisão manual |
-| Testes automatizados | **577** testes (483 unit + 94 schema) + 13 integration files + 6 real — atualizado 2026-06-30 (era 512 em 29/06; Sprint 7-9 adicionou 26 testes + 23 feature tests + 3 menu-group tests) | Pendente: E2E (Playwright requer setup) |
+| Testes automatizados | **729** testes (635 unit + 94 schema, sem slow) + 112 integration + 4 diagnostics | Pendente: E2E (Playwright requer setup) |
 | Dashboard | **18** módulos analíticos (era 17; promocoes integrada) | Visão geral, preços, histórico, ranking, calculadora, scrapers, promocoes, etc. |
 | Alertas configurados | 5 triggers de alerta (price_drop, scrape_failure, etc.) | 3 canais: e-mail, Telegram, WhatsApp |
 | Consumo GitHub Actions | **~400 min/mês** de 2.000 disponíveis | Margem para 5x expansão |
@@ -97,7 +97,7 @@ O diferencial está no **pipeline de matching com IA de 6 estágios**: combina r
 
 | Fase | Objetivo | Principais Entregas | Prazo |
 | :--- | :--- | :--- | :--- |
-| **Atual** | MVP Consolidado | 51 lojas, 23 ingredientes, **577 testes** (era 512), 18 telas, Telegram, alertas, calculadora | Concluído |
+| **Atual** | MVP Consolidado | 51 lojas, 23 ingredientes, **729 testes** (era 577), 19 telas, Telegram, alertas, calculadora | Concluído |
 | **Pós-MVP ✅ (Fase 9 + Sprint 1 + Sprint 2, 28-29/06)** | Higiene & Robustez | ✅ CI Hygiene (filter-branch removeu 11 arquivos sensíveis; pack 444MB→8.7MB); ✅ Pillow 12.2.0 patched / Dependabot 7 alerts dismissed; ✅ Pre-push Python rewrite + auditoría-secrets; ✅ Sprint 1.1: `.env` editor & `stores.yaml` editor removidos do dashboard; ✅ Sprint 1.2: Bot Telegram agora lê do DB (`config_db.get_active_ingredients()`) com fallback YAML; fuzzy search `rapidfuzz.fuzz.token_set_ratio`; paginação inline keyboard; ✅ Sprint 1.3-1.5: Mobile CSS, Query Params URL↔session_state, Acessibilidade (skip-link + prefers-reduced-motion); ✅ Sprint 2.1-2.4: Test Hardening (normalizer 11→32 casos), conftest migrated para RPC 443, contract tests dashboard_queries, `CI_LOCAL_UNIT=1` opt-in. | Concluído |
 | **Curto Prazo** | Confiabilidade | Finalizar role `dashboard_user` (segurança residual) + sanitizar RPCs (GRANT EXECUTE TO service_role ONLY) + finalizar setup Playwright para E2E + fallback no normalizer para "un"/"pacote" + implementar Peso Mínimo (`unit_kg < 0.01` ignora) | 1-2 meses |
 | **Médio Prazo** | Escalabilidade | Expansão para novas regiões (interior SP), novas fontes de dados, cache Redis, self-learning de aliases | 3-6 meses |
