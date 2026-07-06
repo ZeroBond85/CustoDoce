@@ -30,7 +30,10 @@ def warmup(
     password: str | None = None,
     max_retries: int = 3,
 ) -> None:
-    pw = password or os.getenv("ADMIN_PASSWORD", "custodoce123")
+    pw = os.getenv("ADMIN_PASSWORD")
+    if not pw:
+        _trace("ERRO: ADMIN_PASSWORD não definido no environment")
+        sys.exit(1)
     _trace(f"warming {url} (max_retries={max_retries})")
 
     for attempt in range(max_retries):

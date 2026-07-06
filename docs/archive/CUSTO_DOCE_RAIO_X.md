@@ -375,7 +375,7 @@ Reexporta: upsert_price, search_prices, get_prices_for_ingredient, get_latest_pr
 | **Alerta Zero Produtos** | 3 coletas seguidas com 0 itens → log warning | `collector.py:311-329` | 🟡 |
 | **Filtragem por Ingrediente** | Scrapers desabilitáveis por ingrediente via feature flags (`features.scrapers.{scraper}.{ingredient}`) | `collector.py:356-359` | 🟠 |
 | **Coleta por Dia da Semana** | Tier 1 PDF só coleta se `publish_day` da loja ou quinta-feira | `collector.py:492-496` | 🟡 |
-| **Scrape On-Demand** | Telegram `/scrape <loja>` → INSERT scrape_requests → worker em ~15min | `handlers.py:156-187` | 🟢 |
+| **Scrape On-Demand** | Telegram `/scrape <loja>` → INSERT scrape_requests → worker em ~15min | `handlers.py:221-243` | 🟢 |
 
 ### 7.2. Normalização de Preço
 
@@ -437,7 +437,7 @@ Reexporta: upsert_price, search_prices, get_prices_for_ingredient, get_latest_pr
 | `/preco <ing>` | `startswith` no canonical_name → top 10 com 🥇🥈🥉 e R$/kg | `handlers.py:39-80` |
 | `/lista` | Ingredientes por categoria | `handlers.py:83-102` |
 | `/status` | Última coleta, total preços, lojas, confiáveis ≥80% | `handlers.py:105-122` |
-| `/scrape <loja>` | Enfileira coleta via scrape_requests | `handlers.py:156-187` |
+| `/scrape <loja>` | Enfileira coleta via scrape_requests | `handlers.py:221-243` |
 | `/start` | Boas-vindas + comandos | `handlers.py:125-136` |
 | `/ajuda` / `/help` | Ajuda detalhada | `handlers.py:139-153` |
 

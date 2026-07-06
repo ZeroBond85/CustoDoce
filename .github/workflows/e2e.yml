@@ -53,10 +53,18 @@ jobs:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
 
       - name: Run E2E Tests (all pages)
-        run: python -m pytest tests/e2e/test_e2e_real.py -v --tb=short --html=report.html --self-contained-html
+        run: python -m pytest tests/e2e/test_e2e_real.py -v --tb=short --html=report.html --self-contained-html -m "not flyer_health"
         env:
           STREAMLIT_URL: http://localhost:8501
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+
+      - name: Flyer Images Health Check (external URLs)
+        if: always()
+        continue-on-error: true
+        run: python -m pytest tests/e2e/test_e2e_real.py::TestFlyerImages -v --tb=short
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Visual Regression
         if: ${{ !inputs.skip_visual }}

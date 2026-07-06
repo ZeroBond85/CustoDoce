@@ -67,7 +67,7 @@ jobs:
 
       - name: Show recent failure log
         if: always()
-        run: python scripts/heal_scrapers.py failures "Pao de Acucar Fresh" --days 30
+        run: python scripts/heal_scrapers.py failures "${{ inputs.store_name || 'Pao de Acucar Fresh' }}" --days 30
 
       - name: Notify on result
         if: always()

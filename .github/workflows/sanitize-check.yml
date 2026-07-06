@@ -9,13 +9,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.14'
+          cache: 'pip'
       - name: Install deps
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt -q
+          pip install -r requirements.lock -q
       - name: Dry-run sanitize (fail if residue detected)
         run: |
           python scripts/sanitize.py --dry-run 2>&1

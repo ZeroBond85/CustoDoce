@@ -5,6 +5,10 @@ on:
     - cron: '0 */4 * * *'
   workflow_dispatch:
 
+# Workaround: GHA não tem trigger nativo para "DB row created"
+# Trade-off: latência de até 4h entre /scrape no Telegram e execução
+# Alternativa futura: Supabase Edge Function + webhook para reduzir latência
+
 jobs:
   process_requests:
     runs-on: ubuntu-latest

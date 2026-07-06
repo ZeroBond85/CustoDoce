@@ -33,9 +33,10 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
       - name: Install pip-tools
         run: pip install pip-tools
       - name: Regenerate requirements.lock from scratch
@@ -55,9 +56,10 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
       - name: Install pip-audit
         run: pip install pip-audit
       - name: Audit production deps (blocks if High/Critical)
@@ -71,9 +73,10 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
       - name: Install pip-audit
         run: pip install pip-audit
       - name: Audit dev deps (informational)
@@ -91,9 +94,10 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
       - name: Install full toolchain
         run: pip install deptry pip-licenses
       - name: Scan for unused/transitive deps

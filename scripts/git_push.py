@@ -61,15 +61,15 @@ def _get_sha() -> str:
     return p.stdout.strip() if p.returncode == 0 else ""
 
 
-def _get_run_ids(branch: str, exclude: set[str] | None = None, deadline_sec: int = 60) -> list[str]:
-    """Poll for runs triggered by current commit on the branch."""
+def _get_run_ids(branch: str, start_time: float, exclude: set[str] | None = None, deadline_sec: int = 60) -> list[str]:
+    """Poll for runs triggered by current commit on the branch since start_time."""
     sha = _get_sha()
     deadline = time.time() + deadline_sec
     seen: set[str] = set(exclude) if exclude else set()
     while time.time() < deadline:
         result = _run([
             "gh", "run", "list", "--branch", branch, "--limit", "10",
-            "--json", "databaseId,conclusion,status,workflowName,headSha",
+            "--json", "databaseId,conclusion,status,workflowName,headSha,createdAt",
         ])
         if result.returncode == 0 and result.stdout.strip():
             try:
@@ -80,12 +80,22 @@ def _get_run_ids(branch: str, exclude: set[str] | None = None, deadline_sec: int
                         continue
                     if sha and r.get("headSha") != sha:
                         continue
-                    if r.get("status") in ("queued", "in_progress", ""):
-                        found.append(rid)
-                        seen.add(rid)
+
+                    # Filter by time: only runs created after the push started
+                    created_at_str = r.get("createdAt", "")
+                    if created_at_str:
+                        # GitHub ISO format: 2024-01-01T00:00:00Z
+                        # Simple string comparison works for ISO dates
+                        # Or convert to timestamp
+                        from datetime import datetime
+                        created_at = datetime.strptime(created_at_str, "%Y-%m-%dT%H:%M:%SZ").timestamp()
+                        if created_at < start_time:
+                            continue
+
+                    found.append(rid)
                 if found:
                     return found
-            except (json.JSONDecodeError, KeyError, IndexError):
+            except (json.JSONDecodeError, KeyError, IndexError, ValueError):
                 pass
         time.sleep(2)
     return []
@@ -177,6 +187,7 @@ def _amend_and_force_push() -> bool:
 
 def main() -> int:
     push_args = sys.argv[1:]
+    start_time = time.time()
 
     # ── 1. Push ──────────────────────────────────────────────────────────
     print("🚀  git push...", file=sys.stderr)
@@ -198,7 +209,7 @@ def main() -> int:
     branch = _get_branch()
     print(f"🔍  Aguardando CI em {branch} ...", file=sys.stderr)
 
-    all_run_ids = _get_run_ids(branch, deadline_sec=60)
+    all_run_ids = _get_run_ids(branch, start_time, deadline_sec=60)
     if not all_run_ids:
         print("⚠️   Nenhum run do CI encontrado para este branch.", file=sys.stderr)
         return 0
@@ -211,7 +222,7 @@ def main() -> int:
 
     for attempt in range(MAX_RETRIES + 1):
         # Collect all runs (including new ones from re-runs)
-        run_ids = _get_run_ids(branch, exclude=seen, deadline_sec=15)
+        run_ids = _get_run_ids(branch, start_time, exclude=seen, deadline_sec=15)
         if not run_ids and not failed_run_ids:
             # No new runs and no previous failures → all good
             break

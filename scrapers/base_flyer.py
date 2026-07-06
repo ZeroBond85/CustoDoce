@@ -116,11 +116,11 @@ class BaseFlyerScraper(ABC):
             head = self._http.head(url)
             etag = head.headers.get("etag", "")
             if etag and etag == cached_etag:
-                logger.info("[%s] ETag unchanged, skipping download", self.name)
+                logger.info("[%s] Cache hit (ETag unchanged), skipping download", self.name)
                 return None, False
             head_md5 = head.headers.get("content-md5", "")
             if head_md5 and head_md5 == cached_md5:
-                logger.info("[%s] Content-MD5 unchanged, skipping download", self.name)
+                logger.info("[%s] Cache hit (Content-MD5 unchanged), skipping download", self.name)
                 return None, False
         except Exception:
             logger.debug("[%s] HEAD check failed, proceeding with GET", self.name)
@@ -138,9 +138,10 @@ class BaseFlyerScraper(ABC):
         content = resp.content
         current_md5 = self._compute_md5(content)
         if current_md5 == cached_md5:
-            logger.info("[%s] MD5 unchanged, skipping", self.name)
+            logger.info("[%s] Cache hit (MD5 unchanged), skipping", self.name)
             return None, False
 
+        logger.info("[%s] Cache miss — new content downloaded (%d bytes)", self.name, len(content))
         md5_path.write_text(current_md5)
         etag = resp.headers.get("etag", "")
         if etag:

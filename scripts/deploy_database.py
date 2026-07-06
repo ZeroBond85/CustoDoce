@@ -658,6 +658,14 @@ CREATE INDEX IF NOT EXISTS idx_flyers_store_active ON flyers(store_name, is_acti
         gen.append("-- ============================================================")
         gen.append(revoke_path.read_text(encoding="utf-8"))
 
+    # ─── PHASE 20: scrape_requests table (formalization) ────────────────
+    migration_006_path = REPO_ROOT / "supabase" / "migrations" / "006_scrape_requests.sql"
+    if migration_006_path.exists():
+        gen.append("\n-- ============================================================")
+        gen.append("-- PHASE 20: formalize scrape_requests table (006_scrape_requests.sql)")
+        gen.append("-- ============================================================")
+        gen.append(migration_006_path.read_text(encoding="utf-8"))
+
     return "\n".join(gen)
 
 
@@ -735,7 +743,7 @@ def main():
     args = parser.parse_args()
 
     sql = generate_consolidated()
-    total_tables = 16  # prices, price_history, review_queue, scraping_logs, stores, flyers, ingredients, schedules, scrape_frequencies, alert_recipients, alert_rules, feature_flags, recipes, recipe_items, llm_match_cache, scraper_health_log
+    total_tables = 17  # prices, price_history, review_queue, scraping_logs, stores, flyers, ingredients, schedules, scrape_frequencies, alert_recipients, alert_rules, feature_flags, recipes, recipe_items, llm_match_cache, scraper_health_log, scrape_requests
 
     if args.dry_run:
         statements_count = sum(1 for s in sql.split(";") if s.strip())

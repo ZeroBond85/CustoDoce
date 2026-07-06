@@ -202,6 +202,8 @@ def test_visual_regression(page):
     baseline_dir.mkdir(parents=True, exist_ok=True)
     diff_dir.mkdir(parents=True, exist_ok=True)
 
+    UPDATE_BASELINES = os.getenv("UPDATE_BASELINES", "0") == "1"
+
     for page_id, label in PAGES:
         page.click(f"button:has-text('{label}')")
         page.wait_for_load_state("networkidle")
@@ -222,11 +224,14 @@ def test_visual_regression(page):
                 diff.save(diff_path)
                 pytest.fail(f"Visual regression detected on {page_id}. Diff saved to {diff_path}")
         else:
-            # First run: save baseline
-            with open(current_path, "rb") as f_in:
-                content = f_in.read()
-            with open(baseline_path, "wb") as f_out:
-                f_out.write(content)
+            if UPDATE_BASELINES:
+                # First run or explicit update: save baseline
+                with open(current_path, "rb") as f_in:
+                    content = f_in.read()
+                with open(baseline_path, "wb") as f_out:
+                    f_out.write(content)
+            else:
+                pytest.skip(f"Baseline {baseline_path} missing. Set UPDATE_BASELINES=1 to create.")
 
 
 if __name__ == "__main__":

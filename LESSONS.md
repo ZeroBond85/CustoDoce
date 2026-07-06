@@ -260,3 +260,7 @@ Toda mitigação foi reativa. Com monitoração, teriam sido descobertas proativ
 - Nada que pode falhar silenciosamente deve ficar sem monitoração por mais de um sprint
 - `git pw` (CI watch) é obrigatório para todo push — não monitorar CI é aceitar merge silencioso de breaking change
 - Se um componente quebrou e ninguém percebeu, a culpa não é do componente — é da falta de monitoração
+
+### 40. Tabela operacional criada sem migration = drift invisível
+Sprints 12-13 revelaram que a tabela `scrape_requests` (usada pelo Bot Telegram) foi criada via Dashboard do Supabase, sem migration SQL ou entrada no `schema_manifest.json`. Isso causou invisibilidade para o CI/CD e mocks. Toda tabela nova DEVE ter migration `.sql` e estar no manifest.
+

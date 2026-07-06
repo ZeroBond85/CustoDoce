@@ -98,7 +98,7 @@ jobs:
         run: |
           python -c "from services.price_intelligence import PriceIntelligence; from services.price_service import get_all_current_prices; prices = get_all_current_prices(valid_only=True, limit=2000); pi = PriceIntelligence(); enriched = pi.enrich_prices(prices); anomalies = [p for p in enriched if p.get('ai_anomaly',{}).get('is_anomaly')]; offers = [p for p in enriched if 'OFERTA_REAL' in p.get('ai_tags',[])]; print(f'IA: {len(enriched)} precos analisados, {len(anomalies)} anomalias, {len(offers)} ofertas')"
 
-      - name: Commit Latest Prices
+      - name: Commit Latest Pushing latest prices
         run: |
           mkdir -p data/cache
           git config user.name "custodoce-bot"
@@ -107,7 +107,14 @@ jobs:
           git add data/prices_latest.json data/cache/
           git diff --staged --quiet || git commit -m "📊 Update prices $(date +'%Y-%m-%d %H:%M')"
           git push
-        continue-on-error: true
+
+      - name: Alert on commit failure
+        if: failure()
+        run: |
+          python -c "import os, httpx; token = os.environ.get('TELEGRAM_TOKEN', ''); chat = os.environ.get('TELEGRAM_CHAT_ID', ''); msg = '❌ Scrape commit falhou: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'; httpx.post(f'https://api.telegram.org/bot{token}/sendMessage', json={'chat_id': chat, 'text': msg}, timeout=10) if token and chat else print('Telegram not configured')"
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
       - name: Monthly History Archive (1st of month)
         if: github.event_name == 'schedule' && github.event.schedule == '0 12 1 * *'
@@ -126,4 +133,11 @@ jobs:
 
       - name: Send Daily Email Report
         run: python scripts/send_daily_report.py
-        continue-on-error: true
+
+      - name: Alert on email failure
+        if: failure()
+        run: |
+          python -c "import os, httpx; token = os.environ.get('TELEGRAM_TOKEN', ''); chat = os.environ.get('TELEGRAM_CHAT_ID', ''); msg = '❌ Email report falhou: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'; httpx.post(f'https://api.telegram.org/bot{token}/sendMessage', json={'chat_id': chat, 'text': msg}, timeout=10) if token and chat else print('Telegram not configured')"
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

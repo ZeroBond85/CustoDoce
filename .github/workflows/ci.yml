@@ -208,6 +208,40 @@ jobs:
         run: python scripts/check_time_budget.py --timeout-minutes 25 --label "e2e-smoke"
         if: always()
 
+  e2e-smoke-pr:
+    needs: [lint, typecheck]
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - run: pip install -r requirements.lock
+      - name: Install Playwright browsers
+        run: python -m playwright install chromium
+      - name: Start Streamlit local server
+        run: |
+          nohup streamlit run admin/app.py --server.port 8501 --server.headless true > /tmp/streamlit.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:8501 > /dev/null 2>&1; then
+              echo "Streamlit ready after ${i}s"
+              break
+            fi
+            sleep 2
+          done
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+      - name: E2E smoke PR — crawl basico
+        run: python -m pytest tests/e2e/test_e2e_smoke_basic.py -v --tb=short --no-header --durations=5
+        env:
+          STREAMLIT_URL: http://localhost:8501
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+
   real:
     needs: [integration]
     runs-on: ubuntu-latest

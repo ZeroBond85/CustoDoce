@@ -63,7 +63,7 @@ CustoDoce/
 ├── dashboard/         # login_page, components/ (ui, layout), pages/ (18 módulos)
 ├── telegram_bot/      # handlers.py
 ├── admin/app.py       # 107 linhas — importa 19 pages
-├── supabase/          # seed.sql, consolidated_migration.sql, migrations 002-005
+├── supabase/          # seed.sql, consolidated_migration.sql, migrations 002-006
 ├── scripts/           # deploy, validate, sync, audit, seed, heal, sanity, send_report, skills_maintenance
 ├── tests/             # unit (729), schema (94), integration, design, e2e, real
 │   ├── unit/fixtures/                                # Mock data central (16 tabelas em mock_data.py)
@@ -258,10 +258,10 @@ python -m pytest tests/diagnostics/ -q -m slow
 | pytest (unit + schema, no slow) | 727 passing |
 | pytest (integration) | 112 passing |
 | pytest (diagnostics, slow) | 4 passing |
-| Schema manifest | 16 tabelas/views com types, not_null, defaults, constraints |
+| Schema manifest | 17 tabelas/views com types, not_null, defaults, constraints |
 | Mock validation tests | 97 parametrizados (colunas, tipos, not_null, FKs, CHECK, jsonb) |
 | AGENTS.md | 974→~370 linhas (Sprint 11 sanitization) |
-| LESSONS.md | 39 lições |
+| LESSONS.md | 40 lições |
 | REGRAS.md | Ambiente + hooks + comandos |
 | CI lint/type/test | ✅ Todos verdes (Python 3.14) |
 | E2E (cloud) | ⏳ Mensal (Playwright) |
@@ -310,7 +310,7 @@ Para WSL: `custodoce-314` (Conda, Python 3.14). Detalhes em `REGRAS.md`.
 
 ## Documentação Relacionada
 
-- `LESSONS.md` — 39 lições (CI, mocks, schema, scrapers, monitoração, segurança)
+- `LESSONS.md` — 40 lições (CI, mocks, schema, scrapers, monitoração, segurança)
 - `REGRAS.md` — Ambiente, hooks, comandos, arquitetura
 - `docs/skills.md` — Skills OpenCode (globais + overlays locais)
 - `docs/changelog.md` — Histórico por fase/sprint

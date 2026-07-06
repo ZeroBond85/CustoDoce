@@ -444,6 +444,10 @@ def _collect_generic(
                 else:
                     raw_products = scraper.run([])
 
+            # Cache hit/miss logging
+            cache_status = "hit" if not raw_products else "miss"
+            logger.info("[%s] Cache %s: %d raw products found", store_name, cache_status, len(raw_products))
+
             if hasattr(scraper, "_thumbnail") and scraper._thumbnail:
                 try:
                     from services.flyer_service import _upload_flyer_thumbnail

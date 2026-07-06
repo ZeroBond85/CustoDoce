@@ -33,70 +33,28 @@ jobs:
           python-version: '3.14'
           cache: 'pip'
 
-      - name: Install psql client
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-client gzip > /dev/null 2>&1
-
       - name: Install Python deps
         run: pip install -r requirements.lock
 
-      - name: Derive connection params
-        id: parse_ref
-        run: |
-          URL="${{ secrets.SUPABASE_URL }}"
-          REF="${URL#https://}"
-          REF="${REF%.supabase.co}"
-          echo "ref=$REF" >> $GITHUB_OUTPUT
-          echo "host=db.$REF.supabase.co" >> $GITHUB_OUTPUT
-          echo "port=5432" >> $GITHUB_OUTPUT
-
-      - name: Run pg_dump (direct)
-        id: dump
-        continue-on-error: true
-        env:
-          PGHOST: ${{ steps.parse_ref.outputs.host }}
-          PGPORT: ${{ steps.parse_ref.outputs.port }}
-          PGUSER: postgres
-          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-          PGDATABASE: postgres
-        run: |
-          TIMESTAMP=$(date -u +"%Y%m%d_%H%M%S")
-          FILENAME="custodoce_backup_${TIMESTAMP}.sql.gz"
-          pg_dump --format=custom --compress=9 --clean --if-exists --no-acl --no-owner \
-            | gzip -9 > "$FILENAME"
-          echo "filename=$FILENAME" >> $GITHUB_OUTPUT
-          echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT
-          echo "size=$(stat -c%s "$FILENAME" 2>/dev/null || stat -f%z "$FILENAME")" >> $GITHUB_OUTPUT
-
-      - name: Fallback to RPC-based backup (always runs — uses whichever worked)
-        id: rpc
-        continue-on-error: true
+      - name: Run RPC backup (porta 443 — sem bloqueio)
+        id: backup
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python scripts/rpc_backup.py
-
-      - name: Discover final filename
-        id: file
         run: |
-          FINAL="${{ steps.rpc.outputs.filename }}"
-          if [ -z "$FINAL" ]; then
-            FINAL="${{ steps.dump.outputs.filename }}"
-          fi
-          TIMESTAMP="${{ steps.rpc.outputs.timestamp }}"
-          if [ -z "$TIMESTAMP" ]; then
-            TIMESTAMP="${{ steps.dump.outputs.timestamp }}"
-          fi
-          echo "filename=$FINAL" >> $GITHUB_OUTPUT
-          echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT
+          python scripts/rpc_backup.py
+          TIMESTAMP=$(date -u +"%Y%m%d_%H%M%S")
+          FILENAME="custodoce_backup_rpc_${TIMESTAMP}.json.gz"
+          echo "filename=${FILENAME}" >> $GITHUB_OUTPUT
+          echo "timestamp=${TIMESTAMP}" >> $GITHUB_OUTPUT
+          echo "size=$(stat -c%s "${FILENAME}" 2>/dev/null || stat -f%z "${FILENAME}")" >> $GITHUB_OUTPUT
 
       - name: Upload backup to GitHub Artifacts
         uses: actions/upload-artifact@v7
-        if: steps.file.outputs.filename != ''
+        if: steps.backup.outputs.filename != ''
         with:
-          name: db-backup-${{ steps.file.outputs.timestamp }}
-          path: ${{ steps.file.outputs.filename }}
+          name: db-backup-${{ steps.backup.outputs.timestamp }}
+          path: ${{ steps.backup.outputs.filename }}
           retention-days: 14
           compression-level: 9
 
@@ -119,6 +77,6 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Campo | Valor |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Timestamp | ${{ steps.file.outputs.timestamp || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Arquivo | ${{ steps.file.outputs.filename || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Timestamp | ${{ steps.backup.outputs.timestamp || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Arquivo | ${{ steps.backup.outputs.filename || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Retention | 14 dias (GitHub Artifacts) |" >> $GITHUB_STEP_SUMMARY

@@ -347,8 +347,13 @@ class TestE2EReal:
 
 
 class TestFlyerImages:
-    """D9 — Health check das URLs de imagem dos flyers"""
+    """D9 — Health check das URLs de imagem dos flyers
 
+    Isolado em job separado (e2e.yml) com continue-on-error: true
+    pois faz HEAD requests a URLs externas (flaky por rede).
+    """
+
+    @pytest.mark.flyer_health
     def test_flyer_image_urls_accessible(self):
         """Verifica se URLs de imagem dos flyers são acessíveis (HEAD request)"""
         import httpx
