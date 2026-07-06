@@ -11,11 +11,11 @@ on:
         default: 'audit'
         type: choice
         options:
-          - audit    # pip-audit on prod only (requirements.txt)
-          - audit-dev  # pip-audit on dev + test deps
-          - deptry   # unused/transitive deps scan
-          - licenses # license compliance check
-          - full     # all of the above + generate report
+          - audit
+          - audit-dev
+          - deptry
+          - licenses
+          - full
   pull_request:
     paths:
       - 'requirements.txt'
@@ -32,11 +32,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
+      - name: Record start time
+        run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - name: Install pip-tools
         run: pip install pip-tools
       - name: Regenerate requirements.lock from scratch
@@ -49,21 +51,31 @@ jobs:
             echo "::error::Then commit the updated requirements.lock"
             exit 1
           }
+      - name: Check time budget for lock validation
+        run: python scripts/check_time_budget.py --timeout-minutes 5 --label "lock-validation"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
 
   audit-prod:
     name: Audit production deps (blocks PR)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
+      - name: Record start time
+        run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - name: Install pip-audit
         run: pip install pip-audit
       - name: Audit production deps (blocks if High/Critical)
         run: pip-audit --strict -s osv -r requirements.txt
+      - name: Check time budget for audit-prod
+        run: python scripts/check_time_budget.py --timeout-minutes 5 --label "audit-prod"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
 
   audit-dev:
     name: Audit dev/test deps (informational)
@@ -72,17 +84,25 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
+      - name: Record start time
+        run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - name: Install pip-audit
         run: pip install pip-audit
       - name: Audit dev deps (informational)
         continue-on-error: true
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
         run: pip-audit --strict -s osv -r requirements-dev.txt || true
-      - name: Audit test deps (informational — known FPs accepted per docs/security.md)
+      - name: Check time budget for dev audit
+        run: python scripts/check_time_budget.py --timeout-minutes 5 --label "audit-dev"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+      - name: Audit test deps (informational)
         continue-on-error: true
         run: pip-audit --strict -s osv -r tests/requirements-test.txt || echo "Known dev/test CVEs accepted — see docs/security.md"
 
@@ -93,38 +113,53 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
+      - name: Record start time
+        run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - name: Install full toolchain
         run: pip install deptry pip-licenses
       - name: Scan for unused/transitive deps
         continue-on-error: true
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
         run: deptry . || true
+      - name: Check time budget for deptry scan
+        run: python scripts/check_time_budget.py --timeout-minutes 10 --label "deptry-scan"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
       - name: Generate license report
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
         run: |
           mkdir -p .agent/audits
           pip-licenses --format=markdown > .agent/audits/license-report.md
+      - name: Check time budget for license scan
+        run: python scripts/check_time_budget.py --timeout-minutes 10 --label "license-scan"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
       - name: Generate monthly audit report
         if: always()
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
         run: |
           mkdir -p .agent/audits
           date_marker=$(date -u +%Y-%m-%d)
           cat > ".agent/audits/dependency-audit-${date_marker}.md" << EOF
           # Monthly Dependency Audit — ${date_marker}
-
           ## Summary
           - **Production audit**: see \`audit-prod\` job above
           - **Dev/test audit**: see \`audit-dev\` job (informational)
           - **Unused/transitive**: see \`full-scan\` deptry output
           - **Licenses**: see license-report.md
-          - **Policy**: test deps CVEs accepted per \`docs/security.md\` §Histórico (Sprint 12)
+          - **Policy**: test deps CVEs accepted per \`docs/security.md\` (Sprint 12)
           EOF
       - name: Upload reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dep-audit-${{ github.run_number }}
           path: .agent/audits/

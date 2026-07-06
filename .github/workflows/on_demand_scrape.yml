@@ -1,46 +1,22 @@
 name: On Demand Scrape
 
 on:
-  schedule:
-    - cron: '0 */4 * * *'
+  repository_dispatch:
+    types: [scrape]
   workflow_dispatch:
-
-# Workaround: GHA não tem trigger nativo para "DB row created"
-# Trade-off: latência de até 4h entre /scrape no Telegram e execução
-# Alternativa futura: Supabase Edge Function + webhook para reduzir latência
+    inputs:
+      stores_filter:
+        description: 'Filtro de lojas para scraping (opcional)'
+        required: false
+        type: string
 
 jobs:
-  process_requests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - name: Check for pending requests
-        id: check-pending
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: |
-          COUNT=$(curl -s -X GET "${SUPABASE_URL}/rest/v1/scrape_requests?status=eq.pending&select=count" \
-            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Accept: application/json" | jq 'if type=="array" then length else 0 end')
-          echo "pending_count=${COUNT:-0}" >> $GITHUB_OUTPUT
-          echo "Found $COUNT pending requests"
-      - name: Set up Python
-        if: steps.check-pending.outputs.pending_count != '0'
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.14'
-          cache: 'pip'
-      - name: Install dependencies
-        if: steps.check-pending.outputs.pending_count != '0'
-        run: |
-          pip install -r requirements.lock
-          playwright install --with-deps chromium
-      - name: Process Requests
-        if: steps.check-pending.outputs.pending_count != '0'
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-        run: python scripts/process_scrape_requests.py
+  scrape:
+    uses: ./.github/workflows/scrape-reusable.yml
+    with:
+      mode: on_demand
+      stores_filter: ${{ github.event.inputs.stores_filter }}
+    secrets:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

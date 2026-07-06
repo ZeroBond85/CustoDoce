@@ -263,17 +263,19 @@ python -m pytest tests/diagnostics/ -q -m slow
 | pytest (diagnostics, slow) | 4 passing |
 | Schema manifest | 17 tabelas/views com types, not_null, defaults, constraints |
 | Mock validation tests | 97 parametrizados (colunas, tipos, not_null, FKs, CHECK, jsonb) |
-| AGENTS.md | 974→~370 linhas (Sprint 11 sanitization) |
+| AGENTS.md | ~370 linhas (Sprint 12 workflow optimization) |
 | LESSONS.md | 43 lições |
 | REGRAS.md | Ambiente + hooks + comandos |
-| CI lint/type/test | ✅ Todos verdes (Python 3.14) |
+| CI lint/type/test | ✅ Todos verdes (Python 3.14.6) |
 | E2E (cloud) | ⏳ Mensal (Playwright) |
 | Python local (Windows) | 3.14.6 (`.venv314`) |
-| Python CI (GitHub Actions) | 3.14 (`PYTHON_VERSION=3.14`) |
-| Python WSL | 3.14 (`custodoce-314`) |
-| Python Cloud (Streamlit) | 3.14 (pending UI update) |
+| Python CI (GitHub Actions) | 3.14.6 (`PYTHON_VERSION=3.14.6`) |
+| Python WSL | 3.14.6 (`custodoce-314`) |
+| Python Cloud (Streamlit) | 3.14.6 |
 | requirements.lock | 130+ packages, no hashes |
 | OpenCode Skills | 33 installed (todas no projeto) |
+| Dashboard pages | 19 módulos (inclui CI Telemetria) |
+| Workflows GitHub Actions | 8 otimizados, validados, com check_time_budget |
 
 ## OpenCode Skills
 

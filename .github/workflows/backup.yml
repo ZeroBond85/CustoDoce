@@ -30,11 +30,14 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.14'
+          python-version: '3.14.6'
           cache: 'pip'
 
       - name: Install Python deps
         run: pip install -r requirements.lock
+
+      - name: Record start time
+        run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
 
       - name: Run RPC backup (porta 443 — sem bloqueio)
         id: backup
@@ -48,28 +51,28 @@ jobs:
           echo "filename=${FILENAME}" >> $GITHUB_OUTPUT
           echo "timestamp=${TIMESTAMP}" >> $GITHUB_OUTPUT
           echo "size=$(stat -c%s "${FILENAME}" 2>/dev/null || stat -f%z "${FILENAME}")" >> $GITHUB_OUTPUT
+          echo "sha256sum=$(sha256sum "${FILENAME}" | awk '{print $1}')" >> $GITHUB_OUTPUT
+          echo "CI_JOB_START=${{ env.CI_JOB_START }}" >> $GITHUB_ENV
 
-      - name: Upload backup to GitHub Artifacts
-        uses: actions/upload-artifact@v7
+      - name: Check time budget for backup
+        run: python scripts/check_time_budget.py --timeout-minutes 15 --label "backup"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+
+      - name: Generate SHA256 checksum
+        run: sha256sum "${{ steps.backup.outputs.filename }}" > "${{ steps.backup.outputs.filename }}.sha256"
+        if: steps.backup.outputs.filename != ''
+
+      - name: Upload backup to GitHub Releases
+        uses: softprops/action-gh-release@v2
         if: steps.backup.outputs.filename != ''
         with:
-          name: db-backup-${{ steps.backup.outputs.timestamp }}
-          path: ${{ steps.backup.outputs.filename }}
-          retention-days: 14
-          compression-level: 9
-
-      - name: Cleanup old artifacts
-        if: github.event_name == 'schedule'
-        env:
-          KEEP: ${{ github.event.inputs.keep_count || '4' }}
-        run: |
-          pip install github-artifacts-manager 2>/dev/null || true
-          python scripts/cleanup_old_artifacts.py \
-            --repo ${{ github.repository }} \
-            --artifact-prefix db-backup- \
-            --keep $KEEP \
-            --token ${{ secrets.GITHUB_TOKEN }} || \
-          echo "Cleanup skipped (github-artifacts-manager not available)"
+          tag_name: backup-${{ steps.backup.outputs.timestamp }}
+          files:
+            - "${{ steps.backup.outputs.filename }}"
+            - "${{ steps.backup.outputs.filename }}.sha256"
+          fail_on_unmatched_files: true
+          generate_release_notes: false
 
       - name: Backup summary
         run: |
@@ -79,4 +82,18 @@ jobs:
           echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Timestamp | ${{ steps.backup.outputs.timestamp || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Arquivo | ${{ steps.backup.outputs.filename || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Retention | 14 dias (GitHub Artifacts) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tamanho | ${{ steps.backup.outputs.size || 'N/A' }} bytes |" >> $GITHUB_STEP_SUMMARY
+          echo "| Checksum | ${{ steps.backup.outputs.sha256sum || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Retention | 30 dias (GitHub Releases) |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify backup result
+        if: always()
+        run: |
+          if [ "$GITHUB_CONCLUSION" == "success" ]; then
+            python scripts/notify_security_issue.py "SUCCESS" "Backup gerado com sucesso: ${{ steps.backup.outputs.filename }}" "0"
+          else
+            python scripts/notify_security_issue.py "FAILURE" "Falha no backup: ${{ steps.backup.outputs.filename || 'N/A' }}" "0"
+          fi
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

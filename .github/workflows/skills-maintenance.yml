@@ -24,7 +24,7 @@ jobs:
   maintenance:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -32,27 +32,54 @@ jobs:
           python-version: '3.14'
           cache: 'pip'
 
+      - name: Record start time
+        run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
+
       - name: Run maintenance (scheduled — full)
         if: github.event_name == 'schedule'
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
         run: python scripts/skills_maintenance.py --full
+      - name: Check time budget for skills maintenance (scheduled)
+        run: python scripts/check_time_budget.py --timeout-minutes 60 --label "skills-maintenance-scheduled"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
 
       - name: Run maintenance (PR — validate + check)
         if: github.event_name == 'pull_request'
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
         run: |
           python scripts/skills_maintenance.py --validate
           python scripts/skills_maintenance.py --check
+      - name: Check time budget for skills maintenance (PR)
+        run: python scripts/check_time_budget.py --timeout-minutes 30 --label "skills-maintenance-pr"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
 
       - name: Run maintenance (manual dispatch)
         if: github.event_name == 'workflow_dispatch'
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
         run: python scripts/skills_maintenance.py --${{ inputs.mode }}
+      - name: Check time budget for skills maintenance (dispatch)
+        run: python scripts/check_time_budget.py --timeout-minutes 60 --label "skills-maintenance-dispatch"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
 
       - name: Regenerate docs/skills.md
         if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
         run: python scripts/sync_docs.py --sync
+      - name: Check time budget for docs sync
+        run: python scripts/check_time_budget.py --timeout-minutes 30 --label "docs-sync"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
 
       - name: Upload backup
         if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'full')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: skills-backup-${{ github.run_number }}
           path: data/skills_backup/

@@ -1,0 +1,196 @@
+name: Scrape Reusable
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: 'Modo de execução: cron, on_demand ou heal'
+        required: true
+        type: string
+        default: 'cron'
+      stores_filter:
+        description: 'Filtro de lojas para scraping (opcional)'
+        required: false
+        type: string
+      dry_run:
+        description: 'Modo de teste (não executa scraping real)'
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      TELEGRAM_BOT_TOKEN:
+        required: true
+      TELEGRAM_CHAT_ID:
+        required: true
+      GITHUB_TOKEN:
+        required: true
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      stores: ${{ steps.sync_stores.outputs.stores }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.14.6'
+          cache: 'pip'
+          cache-dependency-path: requirements.lock
+        
+      - name: Install dependencies
+        run: pip install -r requirements.lock
+      - name: Notify scrape start
+        if: always()
+        run: python scripts/notify_scrape_result.py "${{ inputs.mode }}" "STARTED"
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      - name: Record start time
+        run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
+      - name: Sync stores
+        id: sync_stores
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/sync_store_fields.py
+      - name: Check time budget for sync stores
+        run: python scripts/check_time_budget.py --timeout-minutes 5 --label "sync-stores"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+      - name: Acquire scrape lock
+        run: python scripts/scrape_lock.py acquire ${{ github.run_id }}
+        if: inputs.dry_run == false
+
+  scrape:
+    needs: setup
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        tier: [1, 2a, 2b, 3]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.14.6'
+          cache: 'pip'
+          cache-dependency-path: requirements.lock
+        
+      - name: Install dependencies
+        run: pip install -r requirements.lock
+      - name: Record start time
+        run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
+      - name: Run scraping for tier ${{ matrix.tier }}
+        id: scrape_tier
+        run: python main.py --tier ${{ matrix.tier }} --mode ${{ inputs.mode }} --dry-run ${{ inputs.dry_run }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+      - name: Check time budget for scraping
+        run: python scripts/check_time_budget.py --timeout-minutes 120 --label "scrape-tier-${{ matrix.tier }}"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+
+  enrich:
+    needs: scrape
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.14.6'
+          cache: 'pip'
+          cache-dependency-path: requirements.lock
+        
+      - name: Install dependencies
+        run: pip install -r requirements.lock
+      - name: Record start time
+        run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
+      - name: Enrich prices
+        run: python scripts/enrich_prices.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+      - name: Check time budget for enrich
+        run: python scripts/check_time_budget.py --timeout-minutes 60 --label "enrich"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+
+  commit:
+    needs: enrich
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.14.6'
+          cache: 'pip'
+          cache-dependency-path: requirements.lock
+        
+      - name: Install dependencies
+        run: pip install -r requirements.lock
+      - name: Record start time
+        run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
+      - name: Commit prices_latest.json
+        run: python scripts/commit_prices.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check time budget for commit
+        run: python scripts/check_time_budget.py --timeout-minutes 10 --label "commit"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+
+  notify:
+    needs: [commit, scrape]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.14.6'
+          cache: 'pip'
+          cache-dependency-path: requirements.lock
+      - name: Install dependencies
+        run: pip install -r requirements.lock
+      - name: Record start time
+        run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
+      - name: Send notification
+        if: always()
+        run: python scripts/notify_scrape_result.py ${{ inputs.mode }} ${{ job.conclusion || 'cancelled' }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      - name: Check time budget for notify
+        run: python scripts/check_time_budget.py --timeout-minutes 5 --label "notify"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+
+  cleanup:
+    needs: [commit, notify]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.14.6'
+          cache: 'pip'
+          cache-dependency-path: requirements.lock
+      - name: Install dependencies
+        run: pip install -r requirements.lock
+      - name: Record start time
+        run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
+      - name: Release scrape lock
+        run: python scripts/scrape_lock.py release ${{ github.run_id }}
+        if: always()
+      - name: Check time budget for cleanup
+        run: python scripts/check_time_budget.py --timeout-minutes 5 --label "cleanup"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}

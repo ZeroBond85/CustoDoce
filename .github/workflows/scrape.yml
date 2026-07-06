@@ -1,146 +1,32 @@
-name: CustoDoce - Coleta de Preços
+name: Scrape
 
 on:
   schedule:
-    - cron: '0 12 * * 1,3,4,5'   # 09:00 BRT Seg, Qua, Qui, Sex (4×/sem)
-    - cron: '0 12 * * 6'        # 09:00 BRT Sáb (coleta + Playwright + OCR)
-    - cron: '0 12 1 * *'        # 09:00 BRT dia 1 (release + relatório mensal)
+    - cron: '0 0 * * *'  # Diariamente às 00:00 UTC
   workflow_dispatch:
     inputs:
-      force_full:
-        description: 'Forçar coleta completa (ignorar cache)'
-        type: boolean
-        default: false
-      run_playwright:
-        description: 'Executar Playwright + OCR (agregadores JS)'
-        type: boolean
-        default: false
-
-env:
-  PYTHON_VERSION: '3.14'
-  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-  SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-  TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-  TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-  SMTP_HOST: ${{ secrets.SMTP_HOST }}
-  SMTP_PORT: ${{ secrets.SMTP_PORT }}
-  SMTP_USER: ${{ secrets.SMTP_USER }}
-  SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-  SMTP_FROM: ${{ secrets.SMTP_FROM }}
-  ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
-  GH_PAT: ${{ secrets.GH_PAT }}
-  GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      stores_filter:
+        description: 'Filtro de lojas para scraping (opcional)'
+        required: false
+        type: string
 
 jobs:
-  collect:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-
+  scrape:
+    uses: ./.github/workflows/scrape-reusable.yml
+    with:
+      mode: cron
+      stores_filter: ${{ github.event.inputs.stores_filter }}
+    secrets:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    concurrency:
+      group: scrape-cron-${{ github.ref }}
+      cancel-in-progress: false
     steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-
-      - name: Setup Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-
-      - name: Install Python Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.lock
-
-      - name: Cache PDF Hashes
-        uses: actions/cache@v6
-        with:
-          path: data/cache
-          key: pdf-cache-${{ github.run_id }}
-          restore-keys: pdf-cache-
-
-      - name: Run Scrapers (Daily)
-        run: python main.py
+      - name: Notify scrape start
+        if: always()
+        run: python scripts/notify_scrape_result.py "cron" "STARTED"
         env:
-          FORCE_FULL: ${{ github.event.inputs.force_full == 'true' }}
-
-      - name: Determine if Playwright + OCR should run
-        id: check-day
-        run: |
-          DAY=$(date +%u)  # 6 = Saturday
-          if [ "$DAY" = "6" ] || [ "${{ github.event.inputs.run_playwright }}" = "true" ]; then
-            echo "should_run=true" >> $GITHUB_OUTPUT
-          else
-            echo "should_run=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Install System Dependencies (OCR)
-        if: steps.check-day.outputs.should_run == 'true'
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-por poppler-utils
-
-      - name: Install Playwright Browser
-        if: steps.check-day.outputs.should_run == 'true'
-        run: |
-          python -m playwright install chromium --with-deps
-          python -m playwright install-deps chromium
-
-      - name: Run Playwright Aggregators + OCR
-        if: steps.check-day.outputs.should_run == 'true'
-        run: |
-          python -c "from services.collector import collect_aggregators_js, process_ocr_queue; flyers = collect_aggregators_js(); print(f'JS Aggregators: {len(flyers)} flyers'); processed = process_ocr_queue(); print(f'OCR processed: {processed} flyers')"
-
-      - name: Run AI Intelligence Layer
-        if: steps.check-day.outputs.should_run == 'true'
-        run: |
-          python -c "from services.price_intelligence import PriceIntelligence; from services.price_service import get_all_current_prices; prices = get_all_current_prices(valid_only=True, limit=2000); pi = PriceIntelligence(); enriched = pi.enrich_prices(prices); anomalies = [p for p in enriched if p.get('ai_anomaly',{}).get('is_anomaly')]; offers = [p for p in enriched if 'OFERTA_REAL' in p.get('ai_tags',[])]; print(f'IA: {len(enriched)} precos analisados, {len(anomalies)} anomalias, {len(offers)} ofertas')"
-
-      - name: Commit Latest Pushing latest prices
-        run: |
-          mkdir -p data/cache
-          git config user.name "custodoce-bot"
-          git config user.email "bot@custodoce.com.br"
-          git remote set-url origin https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git
-          git add data/prices_latest.json data/cache/
-          git diff --staged --quiet || git commit -m "📊 Update prices $(date +'%Y-%m-%d %H:%M')"
-          git push
-
-      - name: Alert on commit failure
-        if: failure()
-        run: |
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
-            -H "Content-Type: application/json" \
-            -d '{"chat_id": "${{ secrets.TELEGRAM_CHAT_ID }}", "text": "❌ Scrape commit falhou: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' || echo "Telegram alert failed"
-        env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-
-      - name: Monthly History Archive (1st of month)
-        if: github.event_name == 'schedule' && github.event.schedule == '0 12 1 * *'
-        run: |
-          mkdir -p history
-          cp data/prices_latest.json "history/prices_$(date -d 'last month' +%Y-%m).json"
-          gzip "history/prices_$(date -d 'last month' +%Y-%m).json"
-
-          gh release create "historico-$(date -d 'last month' +%Y-%m)" \
-            "history/prices_$(date -d 'last month' +%Y-%m).json.gz" \
-            --title "Histórico $(date -d 'last month' +%Y-%m)" \
-            --notes "Snapshot mensal consolidado de preços CustoDoce." \
-            --repo ${{ github.repository }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-      - name: Send Daily Email Report
-        run: python scripts/send_daily_report.py
-
-      - name: Alert on email failure
-        if: failure()
-        run: |
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
-            -H "Content-Type: application/json" \
-            -d '{"chat_id": "${{ secrets.TELEGRAM_CHAT_ID }}", "text": "❌ Email report falhou: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}' || echo "Telegram alert failed"
-        env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

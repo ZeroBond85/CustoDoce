@@ -33,6 +33,7 @@ from dashboard.pages.relatorios import render_relatorios
 from dashboard.pages.revisao import render_revisao
 from dashboard.pages.scraper_health import render_scraper_health
 from dashboard.pages.scrapers import render_scrapers
+from dashboard.pages.ci_telemetry import render_ci_telemetry
 from dashboard.pages.visao_geral import render_visao_geral
 
 # ── PAGE_FUNCTIONS: page_id → render function ────────────────────────────────
@@ -56,6 +57,7 @@ PAGE_FUNCTIONS: dict[str, Callable] = {
     "diagnostico": render_diagnostico,
     "promocoes": render_promocoes,
     "capacity_planning": render_capacity_planning,
+    "ci_telemetry": render_ci_telemetry,
 }
 
 # ── MENU_GROUPS: st.navigation() source of truth ──────────────────────────
@@ -82,6 +84,7 @@ MENU_GROUPS: dict[str, list[tuple[str, str, str]]] = {
         ("Alertas", "🔔", "alertas"),
         ("Scrapers & Logs", "🤖", "scrapers"),
         ("Scraper Health", "🏥", "scraper_health"),
+        ("CI Telemetria", "📊", "ci_telemetry"),
         ("Relatórios", "📬", "relatorios"),
         ("Flyers", "📄", "flyers"),
     ],

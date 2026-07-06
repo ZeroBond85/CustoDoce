@@ -133,7 +133,7 @@ def test_all_imports():
     )
     from dashboard.components.layout import PAGES
 
-    assert len(PAGES) == 19, f"Esperado 19 paginas (18 + capacity_planning Phase 3), encontrado {len(PAGES)}"
+    assert len(PAGES) == 20, f"Esperado 20 paginas (19 + ci_telemetry), encontrado {len(PAGES)}"
     for page_id, icon, label in PAGES:
         assert page_id in PAGE_FUNCTIONS, f"Faltando handler para {page_id}"
 

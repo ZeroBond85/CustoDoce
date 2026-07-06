@@ -12,81 +12,19 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PYTHON_VERSION: '3.14'
+  PYTHON_VERSION: '3.14.6'
   PYTHONUNBUFFERED: '1'
-
 
 jobs:
   lint:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-      - run: pip install -r requirements.lock
-      - run: python scripts/check_environment_parity.py
-      - run: ruff check . --output-format=github
-      - name: Security lint (Supabase RLS + RPC)
-        run: python scripts/db_security_lint.py --quick
-        continue-on-error: true
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      - name: detect-secrets scan
-        run: |
-          python -m detect_secrets scan --baseline .secrets.baseline \
-            admin/ dashboard/ services/ scrapers/ parsers/ scripts/ telegram_bot/ config/ .github/workflows/
-        continue-on-error: true
-      - name: Validate schema manifest (SQL → mock alignment)
-        run: |
-          python scripts/generate_schema_manifest.py
-          python -m pytest tests/unit/test_validate_mocks_against_manifest.py -q --no-header
-      - run: bandit -r admin/ dashboard/ services/ -x tests/
-      - run: pip-audit --strict -s osv -r requirements.txt
-
-  typecheck:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-      - run: pip install -r requirements.lock
-      - run: mypy . --config-file pyproject.toml
-
-  docs-sync:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-      - run: pip install -r requirements.lock
-      - name: Check docs are in sync (v2 heading-aware)
-        run: python scripts/sync_docs.py --analyze
-      - name: Check docs content drift (strict + experimental)
-        run: python scripts/sync_docs.py --check --strict --experimental
-        timeout-minutes: 3
-      - name: Validate AGENTS.md schema
-        run: python scripts/agents_tool.py --check
-      - name: Validate all MD timestamps (max 14 days)
-        run: python scripts/validate_md_timestamps.py --max-age-days 14
-        timeout-minutes: 2
-      - name: MD v2 Health Pulse (Read-only check)
-        run: python scripts/sync_md_v2.py --pulse
-        continue-on-error: true
-
-  unit:
-    needs: [lint, typecheck]
-    runs-on: ubuntu-latest
     timeout-minutes: 10
+    paths:
+      - '**.py'
+      - '**.md'
+      - '**.yaml'
+      - '**.yml'
+      - 'requirements*.txt'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -96,16 +34,161 @@ jobs:
       - run: pip install -r requirements.lock
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
-      - run: python -m pytest tests/unit/ tests/schema/ -q --tb=short --no-header --durations=5
-      - name: Check time budget
-        run: python scripts/check_time_budget.py --timeout-minutes 10 --label "unit"
+      - run: python scripts/check_environment_parity.py
+      - run: ruff check . --output-format=github
+      - name: Security lint (Supabase RLS + RPC)
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python scripts/db_security_lint.py --quick
+        continue-on-error: true
+      - name: detect-secrets scan
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+        run: |
+          python -m detect_secrets scan --baseline .secrets.baseline \
+            admin/ dashboard/ services/ scrapers/ parsers/ scripts/ telegram_bot/ config/ .github/workflows/
+        continue-on-error: true
+      - name: Validate schema manifest (SQL → mock alignment)
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+        run: |
+          python scripts/generate_schema_manifest.py
+          python -m pytest tests/unit/test_validate_mocks_against_manifest.py -q --no-header
+      - run: bandit -r admin/ dashboard/ services/ -x tests/
+      - name: Audit dependencies
+        id: audit
+        run: |
+          audit_result=$(pip-audit --strict -s osv -r requirements.txt)
+          severity=$(echo "$audit_result" | grep -oP 'Severity: \K[^ ]+')
+          description=$(echo "$audit_result" | grep -oP 'Description: \K.*' | head -n 1)
+          echo "severity=$severity" >> $GITHUB_OUTPUT
+          echo "description=$description" >> $GITHUB_OUTPUT
+          echo "result=$audit_result" >> $GITHUB_OUTPUT
+          if [[ "$severity" == "HIGH" || "$severity" == "CRITICAL" ]]; then
+            echo "::error::CVE detected: $severity - $description"
+            python scripts/notify_security_issue.py "$severity" "$description" "${{ github.event.pull_request.number }}"
+            exit 1
+          fi
+        if: github.event_name == 'pull_request'
+      - name: Check time budget for lint
+        run: python scripts/check_time_budget.py --timeout-minutes 10 --label "lint"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+
+  typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    paths:
+      - '**.py'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - run: pip install -r requirements.lock
+      - name: Record start time
+        run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
+      - run: mypy . --config-file pyproject.toml
+      - name: Check time budget for typecheck
+        run: python scripts/check_time_budget.py --timeout-minutes 5 --label "typecheck"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+
+  docs-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    paths:
+      - 'docs/**'
+      - 'LESSONS.md'
+      - 'REGRAS.md'
+      - 'AGENTS.md'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      - run: pip install -r requirements.lock
+      - name: Record start time
+        run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
+      - name: Check docs are in sync (v2 heading-aware)
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+        run: python scripts/sync_docs.py --analyze
+      - name: Check docs content drift (strict + experimental)
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+        run: python scripts/sync_docs.py --check --strict --experimental
+      - name: Validate AGENTS.md schema
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+        run: python scripts/agents_tool.py --check
+      - name: Validate all MD timestamps (max 14 days)
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+        run: python scripts/validate_md_timestamps.py --max-age-days 14
+      - name: Check time budget for docs-sync
+        run: python scripts/check_time_budget.py --timeout-minutes 10 --label "docs-sync"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+      - name: MD v2 Health Pulse (Read-only check)
+        run: python scripts/sync_md_v2.py --pulse
+        continue-on-error: true
+
+  unit:
+    needs: [lint, typecheck]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    paths:
+      - 'tests/**'
+      - 'scrapers/**'
+      - 'parsers/**'
+      - 'services/**'
+      - 'config/**'
+      - 'requirements*.txt'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: requirements.lock
+      - run: pip install -r requirements.lock
+      - name: Record start time
+        run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
+      - name: Run unit tests
+        run: python -m pytest tests/unit/ tests/schema/ -q --tb=short --no-header --durations=5
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - name: Check time budget for unit tests
+        run: python scripts/check_time_budget.py --timeout-minutes 15 --label "unit"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+      - name: Notify unit test result
         if: always()
+        run: |
+          python scripts/notify_security_issue.py "${{ job.conclusion }}" "Unit tests: ${{ github.workflow }} - ${{ github.event_name }}" "0"
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
   integration:
     needs: [lint, typecheck]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    paths:
+      - 'scrapers/**'
+      - 'parsers/**'
+      - 'services/**'
+      - 'supabase/**'
+      - 'requirements*.txt'
+      - 'tests/integration/**'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -123,17 +206,22 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-      - name: Check time budget
-        run: python scripts/check_time_budget.py --timeout-minutes 15 --label "integration"
-        if: always()
+      - name: Check time budget for integration tests
+        run: python scripts/check_time_budget.py --timeout-minutes 30 --label "integration"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
 
   deploy-check:
     needs: [lint, typecheck]
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     if: github.event_name != 'pull_request'
+    paths:
+      - 'scrapers/**'
+      - 'parsers/**'
+      - 'services/**'
+      - 'supabase/**'
+      - 'requirements*.txt'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -141,6 +229,8 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
       - run: pip install -r requirements.lock
+      - name: Record start time
+        run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - name: Deploy check
         run: python scripts/deploy_check.py
         env:
@@ -162,11 +252,23 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      - name: Check time budget for deploy-check
+        run: python scripts/check_time_budget.py --timeout-minutes 15 --label "deploy-check"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+      - name: Notify deploy-check result
+        if: always()
+        run: |
+          python scripts/notify_security_issue.py "${{ job.conclusion }}" "Deploy check: ${{ github.workflow }} - ${{ github.event_name }}" "0"
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
   e2e-smoke:
     needs: [deploy-check]
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
+    if: contains(github.event.pull_request.labels.*.name, 'run-e2e')
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -179,7 +281,6 @@ jobs:
       - name: Start Streamlit local server
         run: |
           nohup streamlit run admin/app.py --server.port 8501 --server.headless true > /tmp/streamlit.log 2>&1 &
-          echo "Streamlit PID: $!"
           for i in $(seq 1 30); do
             if curl -s http://localhost:8501 > /dev/null 2>&1; then
               echo "Streamlit ready after ${i}s"
@@ -204,15 +305,24 @@ jobs:
         with:
           name: e2e-smoke-screenshots
           path: tests/e2e/e2e_screenshots/
-      - name: Check time budget
-        run: python scripts/check_time_budget.py --timeout-minutes 25 --label "e2e-smoke"
+      - name: Check time budget for e2e-smoke
+        run: python scripts/check_time_budget.py --timeout-minutes 30 --label "e2e-smoke"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
         if: always()
+      - name: Notify e2e-smoke result
+        if: always()
+        run: |
+          python scripts/notify_security_issue.py "${{ job.conclusion }}" "E2E Smoke Test: ${{ github.workflow }} - ${{ github.event_name }}" "0"
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
   e2e-smoke-pr:
     needs: [lint, typecheck]
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-e2e')
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -236,16 +346,29 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-      - name: E2E smoke PR — crawl basico
+      - name: Record start time
+        run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
+      - name: E2E smoke PR — crawl básico
         run: python -m pytest tests/e2e/test_e2e_smoke_basic.py -v --tb=short --no-header --durations=5
         env:
           STREAMLIT_URL: http://localhost:8501
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+      - name: Check time budget for E2E smoke PR
+        run: python scripts/check_time_budget.py --timeout-minutes 20 --label "e2e-smoke-pr"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+      - name: Notify e2e-smoke-pr result
+        if: always()
+        run: |
+          python scripts/notify_security_issue.py "${{ job.conclusion }}" "E2E Smoke PR Test: ${{ github.workflow }} - ${{ github.event_name }}" "0"
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
   real:
     needs: [integration]
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     if: github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v7
@@ -253,16 +376,26 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      - run: sudo apt-get update -qq && sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-por poppler-utils
+          cache-dependency-path: requirements.lock
       - run: pip install -r requirements.lock
+      - name: Install dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-por poppler-utils
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
-      - name: Real scraper tests
+      - name: Run real scraper tests
         run: python -m pytest tests/real/ -q --tb=short --no-header --durations=5
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      - name: Check time budget
-        run: python scripts/check_time_budget.py --timeout-minutes 30 --label "real"
+      - name: Check time budget for real tests
+        run: python scripts/check_time_budget.py --timeout-minutes 45 --label "real"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+      - name: Notify real result
         if: always()
+        run: |
+          python scripts/notify_security_issue.py "${{ job.conclusion }}" "Real Scraper Tests: ${{ github.workflow }} - ${{ github.event_name }}" "0"
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

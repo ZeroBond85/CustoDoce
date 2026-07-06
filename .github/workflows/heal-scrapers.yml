@@ -1,79 +1,15 @@
-name: Heal Scrapers - Self-Healing Cron
+name: Heal Scrapers
+
 on:
   schedule:
-    - cron: "0 2 */15 * *"
-  workflow_dispatch:
-    inputs:
-      dry_run:
-        description: "Dry-run (no DB mutations)"
-        type: boolean
-        default: false
-      store_name:
-        description: "Heal only this scraper (optional)"
-        type: string
-        required: false
-        default: ""
-      threshold_days:
-        description: "Override MIN_IDLE_DAYS for healing"
-        type: string
-        required: false
-        default: ""
-
-env:
-  PYTHON_VERSION: "3.14"
-
-concurrency:
-  group: heal-scrapers-${{ github.ref }}
-  cancel-in-progress: true
+    - cron: '0 0 */15 * *'  # A cada 15 dias às 00:00 UTC
 
 jobs:
-  heal:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    continue-on-error: true
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: "pip"
-
-      - name: Install deps
-        run: pip install -r requirements.lock
-
-      - name: Audit disabled scrapers
-        run: python scripts/heal_scrapers.py list-disabled
-
-      - name: Run heal (dry-run first)
-        run: |
-          python scripts/heal_scrapers.py run-all --dry-run \
-            ${{ inputs.threshold_days != '' && format(' --threshold-days {0}', inputs.threshold_days) || '' }}
-
-      - name: Run heal (real)
-        if: github.event.inputs.dry_run != 'true'
-        run: |
-          if [ -n "${{ inputs.store_name }}" ]; then
-            python scripts/heal_scrapers.py test-store "${{ inputs.store_name }}"
-          else
-            python scripts/heal_scrapers.py run-all \
-              ${{ inputs.threshold_days != '' && format(' --threshold-days {0}', inputs.threshold_days) || '' }}
-          fi
-
-      - name: Show recent failure log
-        if: always()
-        run: python scripts/heal_scrapers.py failures "${{ inputs.store_name || 'Pao de Acucar Fresh' }}" --days 30
-
-      - name: Notify on result
-        if: always()
-        continue-on-error: true
-        run: |
-          python -c "import os, httpx; token = os.environ.get('TELEGRAM_TOKEN', ''); chat_id = os.environ.get('TELEGRAM_CHAT_ID', ''); repo = os.environ.get('GITHUB_REPOSITORY', ''); msg = 'ℹ️ Heal-scrapers cron executou — detalhes no run:\nhttps://github.com/' + repo + '/actions/runs/' + os.environ.get('GITHUB_RUN_ID', ''); r = httpx.post(f'https://api.telegram.org/bot{token}/sendMessage', json={'chat_id': chat_id, 'text': msg, 'parse_mode': 'Markdown'}, timeout=10) if token and chat_id else print('Telegram not configured')"
-        env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+  scrape:
+    uses: ./.github/workflows/scrape-reusable.yml
+    with:
+      mode: heal
+    secrets:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

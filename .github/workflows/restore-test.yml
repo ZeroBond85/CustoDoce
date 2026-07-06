@@ -1,15 +1,10 @@
 name: Backup - Restore Test
 
 on:
-  schedule:
-    - cron: "0 9 1 * *"
-  workflow_dispatch:
-    inputs:
-      artifact_name:
-        description: "Nome do artifact a testar (vazio = mais recente)"
-        required: false
-        default: ""
-        type: string
+  workflow_run:
+    workflows: ['Backup - Database']
+    types:
+      - completed
 
 concurrency:
   group: db-restore-test
@@ -30,53 +25,81 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.14'
+          python-version: '3.14.6'
           cache: 'pip'
 
       - name: Install dependencies
         run: pip install -r requirements.lock
 
-      - name: Download latest backup artifact
-        if: github.event.inputs.artifact_name == ''
+      - name: Download latest backup release
+        if: github.event.workflow_run.conclusion == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          python scripts/download_latest_artifact.py \
+          python scripts/download_latest_release.py \
             --repo "${{ github.repository }}" \
-            --prefix "db-backup-" \
+            --prefix "backup-" \
             --token "$GH_TOKEN" \
             --output-dir ./backup/
-
-      - name: Download specified backup artifact
-        if: github.event.inputs.artifact_name != ''
-        uses: actions/download-artifact@v7
-        with:
-          name: ${{ github.event.inputs.artifact_name }}
-          path: ./backup/
 
       - name: List downloaded files
         run: ls -lh backup/ || echo "No backup dir"
 
+      - name: Record start time
+        run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
+
       - name: Validate backup file integrity
+        id: validate_backup
         run: |
-          BACKUP_FILE=$(ls backup/custodoce_backup_rpc_*.json.gz 2>/dev/null | head -1)
+          BACKUP_FILE=$(ls backup/*.sql.gz 2>/dev/null | head -1)
           if [ -z "$BACKUP_FILE" ]; then
-            echo "No .json.gz file found in backup/"
+            echo "Erro: Arquivo de backup não encontrado."
             ls -la backup/
             exit 1
           fi
           echo "Backup file: $BACKUP_FILE"
-          gzip -t "$BACKUP_FILE" && echo "Gzip integrity: OK"
-          gunzip -l "$BACKUP_FILE"
+          gzip -t "$BACKUP_FILE" && echo "Gzip integrity: OK" || (echo "Erro: Integridade do arquivo gzip inválida." && exit 1)
           echo "BACKUP_FILE=$BACKUP_FILE" >> $GITHUB_OUTPUT
-        id: find_file
+          
+          # Verificar checksum SHA256
+          SHA256_FILE="${BACKUP_FILE}.sha256"
+          if [ -f "$SHA256_FILE" ]; then
+            EXPECTED_SHA256=$(head -c 64 "$SHA256_FILE" | awk '{print $1}')
+            ACTUAL_SHA256=$(sha256sum "$BACKUP_FILE" | awk '{print $1}')
+            if [ "$EXPECTED_SHA256" != "$ACTUAL_SHA256" ]; then
+              echo "Erro: Checksum SHA256 não corresponde."
+              exit 1
+            fi
+            echo "SHA256 integrity: OK"
+          else
+            echo "Aviso: Arquivo de checksum SHA256 não encontrado."
+          fi
+          echo "SHA256_FILE=$SHA256_FILE" >> $GITHUB_OUTPUT
 
-      - name: Dry-run restore validation (JSON via RPC)
+      - name: Dry-run restore validation
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+        run: python scripts/rpc_restore.py "${{ steps.validate_backup.outputs.BACKUP_FILE }}" --dry-run
+      - name: Check time budget for restore test
+        run: python scripts/check_time_budget.py --timeout-minutes 20 --label "restore-test"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+          
+      - name: Notify restore test result
+        if: always()
         run: |
-          python scripts/restore_from_json.py "${{ steps.find_file.outputs.BACKUP_FILE }}" --dry-run
+          if [ "$GITHUB_CONCLUSION" == "success" ]; then
+            echo "::notice::Teste de restauração concluído com sucesso."
+            python scripts/notify_security_issue.py "SUCCESS" "Teste de restauração concluído com sucesso: ${{ steps.validate_backup.outputs.BACKUP_FILE }}" "0"
+          else
+            echo "::error::Teste de restauração falhou."
+            python scripts/notify_security_issue.py "FAILURE" "Teste de restauração falhou: ${{ steps.validate_backup.outputs.BACKUP_FILE }}" "0"
+          fi
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
       - name: Restore test summary
         run: |
@@ -86,5 +109,5 @@ jobs:
           echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Status | **Dry-run via RPC (port 443)** - sem modificar dados |" >> $GITHUB_STEP_SUMMARY
           echo "| Executado | $(date -u +'%Y-%m-%d %H:%M:%S UTC') |" >> $GITHUB_STEP_SUMMARY
-          echo "| Artefato | ${{ github.event.inputs.artifact_name || 'mais recente' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Arquivo | ${{ steps.find_file.outputs.BACKUP_FILE }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Backup | ${{ steps.validate_backup.outputs.BACKUP_FILE }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Checksum | ${{ steps.validate_backup.outputs.SHA256_FILE || 'Não aplicável' }} |" >> $GITHUB_STEP_SUMMARY

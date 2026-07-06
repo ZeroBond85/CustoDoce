@@ -1,129 +1,119 @@
 """
-Testes para validar a configuração do workflow scrape.yml.
+Testes para validar a configuração dos workflows de scraping.
 
-Objetivo: Garantir que o Checkout não usa token custom (GH_PAT) em scheduled workflows,
-evitando falha "fatal: could not read Username for 'https://github.com': terminal prompts disabled".
+Objetivo: Garantir que a arquitetura consolidada (scrape-reusable.yml) está corretamente
+referenciada pelos callers (scrape.yml, on_demand_scrape.yml, heal-scrapers.yml).
+
+Sprint 12: consolidação de workflows — lint desses callers substitui checks legados
+de jobs/ steps individuais (collect, alert, etc) que foram movidos para o reusable.
 """
 
 from pathlib import Path
 
-import pytest
 import yaml
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCRAPE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "scrape.yml"
+WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 
 
-def load_scrape_workflow() -> dict:
-    """Carrega o workflow scrape.yml a partir da raiz do repo."""
-    assert SCRAPE_WORKFLOW.is_file(), f"scrape.yml não encontrado em {SCRAPE_WORKFLOW}"
-    with SCRAPE_WORKFLOW.open(encoding="utf-8") as f:
+def _load_workflow(filename: str) -> dict:
+    """Carrega um workflow a partir do diretório .github/workflows."""
+    path = WORKFLOWS_DIR / filename
+    assert path.is_file(), f"{filename} não encontrado em {path}"
+    with path.open(encoding="utf-8") as f:
         workflow = yaml.safe_load(f)
-    assert workflow and "jobs" in workflow, "scrape.yml sem bloco 'jobs'"
+    assert workflow and "jobs" in workflow, f"{filename} sem bloco 'jobs'"
     return workflow
 
 
-def find_collect_job(workflow: dict) -> dict:
-    """Seleciona o job 'collect' do scrape.yml (nome ou id 'collect')."""
-    jobs = workflow.get("jobs", {}) or {}
-    if "collect" in jobs:
-        job = jobs["collect"]
-        if isinstance(job, dict):
-            return job
-    for job in jobs.values():
-        if isinstance(job, dict) and job.get("name") == "collect":
-            return job
-    pytest.fail("Job 'collect' não encontrado em scrape.yml")
+def _scrape_callers() -> list[str]:
+    """Retorna a lista de callers do workflow reutilizável."""
+    return ["scrape.yml", "on_demand_scrape.yml", "heal-scrapers.yml"]
 
 
-def find_step(steps, name: str):
-    found = next((s for s in steps if s.get("name") == name), None)
-    if found is None:
-        pytest.fail(f"Step '{name}' não encontrado em scrape.yml/jobs.collect")
-    return found
-
-
-def test_checkout_no_custom_token():
-    """
-    Valida que o step 'Checkout' do job 'collect' não usa 'with: token: ${{ secrets.GH_PAT }}'.
-    Causa raiz: scheduled workflow falhava com 'terminal prompts disabled' por token custom.
-    """
-    workflow = load_scrape_workflow()
-    job = find_collect_job(workflow)
-    steps = job.get("steps", []) or []
-    checkout = find_step(steps, "Checkout")
-    with_section = checkout.get("with") or {}
-    if with_section:
-        assert "token" not in with_section or with_section.get("token") != "${{ secrets.GH_PAT }}", (
-            "Checkout não deve usar 'with: token: ${{ secrets.GH_PAT }}' em scheduled workflows. "
-            "Use checkout default (sem token) para evitar falha em scheduled runs."
-        )
-
-
-def test_alert_steps_use_curl_not_httpx():
-    """
-    Valida que os steps 'Alert on commit failure' e 'Alert on email failure' usam 'curl'
-    (não 'python -c \"import httpx\"') para evitar cascata de falhas em ambientes restritos.
-    """
-    workflow = load_scrape_workflow()
-    job = find_collect_job(workflow)
-    steps = job.get("steps", []) or []
-
-    alert_names = {"Alert on commit failure", "Alert on email failure"}
-    found_names = {s.get("name") for s in steps if s.get("name") in alert_names}
-
-    # Segue convenção CustoDoce: alertas usam `curl` (out-of-the-box) e não Python inline.
-    assert "Alert on commit failure" in found_names
-    assert "Alert on email failure" in found_names
-
-    for step in steps:
-        if step.get("name") not in alert_names:
-            continue
-        run_script = step.get("run", "") or ""
-        assert "python -c \"import httpx\"" not in run_script, (
-            f"Step '{step.get('name')}' ainda usa 'python -c \"import httpx\"'. "
-            "Substituir por 'curl' para evitar dependência externa em caso de falha."
-        )
-        assert "curl" in run_script, (
-            f"Step '{step.get('name')}' deve usar 'curl' para alertas Telegram."
-        )
-
-
-def test_gh_pat_used_only_in_commit_push_step():
-    """
-    Valida que o GH_PAT é referenciado apenas no step 'Commit Latest Pushing latest prices',
-    e não em nenhum outro step do job 'collect'.
-    """
-    workflow = load_scrape_workflow()
-    job = find_collect_job(workflow)
-    steps = job.get("steps", []) or []
-
-    commit_push_step = find_step(steps, "Commit Latest Pushing latest prices")
-    commit_dumped = yaml.safe_dump(commit_push_step)
-    assert "secrets.GH_PAT" in commit_dumped, (
-        "Step 'Commit Latest Pushing latest prices' deve referenciar 'secrets.GH_PAT' "
-        "(necessário para git push)."
-    )
-
-    for step in steps:
-        if step is commit_push_step:
-            continue
-        dumped = yaml.safe_dump(step)
-        assert "secrets.GH_PAT" not in dumped, (
-            f"Step '{step.get('name', '?')}' referencia 'secrets.GH_PAT' "
-            "mas apenas 'Commit Latest Pushing latest prices' deve fazê-lo."
-        )
-        # Defensivo: nenhum step exceto o git push deve definir token custom no checkout.
-        with_block = step.get("with") or {}
-        if "uses" in step and "checkout" in str(step.get("uses", "")):
-            assert "token" not in with_block, (
-                f"Step '{step.get('name')}' (checkout) NÃO deve usar 'with: token:' custom."
+def test_all_scrape_callers_use_reusable():
+    """Garante que todos os callers referenciam scrape-reusable.yml via 'uses'."""
+    for filename in _scrape_callers():
+        workflow = _load_workflow(filename)
+        jobs = workflow.get("jobs", {}) or {}
+        assert jobs, f"{filename} deve ter ao menos um job"
+        for job_id, job in jobs.items():
+            assert isinstance(job, dict), f"{filename} job {job_id} inválido"
+            assert "uses" in job, (
+                f"{filename} job {job_id} deve referenciar um workflow reutilizável via 'uses:'. "
+                "Sprint 12: jobs diretos só devem permanecer se forem complementares ao reusable."
+            )
+            assert "scrape-reusable.yml" in str(job["uses"]), (
+                f"{filename} job {job_id} deve referenciar './.github/workflows/scrape-reusable.yml'."
             )
 
 
+def test_scrape_reusable_has_required_jobs():
+    """Garante que scrape-reusable.yml tem todos os jobs esperados: setup, scrape, enrich, commit, notify, cleanup."""
+    workflow = _load_workflow("scrape-reusable.yml")
+    jobs = workflow.get("jobs", {}) or {}
+    required = {"setup", "scrape", "enrich", "commit", "notify", "cleanup"}
+    missing = required - set(jobs.keys())
+    assert not missing, f"scrape-reusable.yml está sem jobs obrigatórios: {missing}"
+
+
+def test_scrape_jobs_have_time_budget_check():
+    """Garante que jobs críticos do scrape-reusable têm check_time_budget para evitar estouro de minutos."""
+    workflow = _load_workflow("scrape-reusable.yml")
+    jobs_with_time_budget = {"scrape", "enrich", "commit", "notify", "cleanup"}
+    for job_id in jobs_with_time_budget:
+        if job_id not in workflow.get("jobs", {}):
+            continue
+        job = workflow["jobs"][job_id]
+        steps = job.get("steps", []) or []
+        has_check = any("check_time_budget" in str(s.get("run", "")) for s in steps)
+        assert has_check, (
+            f"Job '{job_id}' em scrape-reusable.yml deve ter um step com "
+            "'python scripts/check_time_budget.py' para monitorar tempo de execução."
+        )
+
+
+def test_ci_workflow_jobs_have_record_start_time():
+    """Garante que jobs do ci.yml registram CI_JOB_START (necessário para check_time_budget)."""
+    workflow = _load_workflow("ci.yml")
+    for job_id, job in workflow.get("jobs", {}).items():
+        steps = job.get("steps", []) or []
+        has_record = any(
+            "CI_JOB_START" in str(s.get("run", "")) and "GITHUB_ENV" in str(s.get("run", ""))
+            for s in steps
+        )
+        assert has_record, (
+            f"Job '{job_id}' em ci.yml deve ter um step 'Record start time' que define "
+            "CI_JOB_START (necessário para check_time_budget)."
+        )
+
+
+def test_pull_request_workflows_have_pr_guard():
+    """Garante que workflows com jobs destrutivos (invasivos) ficam restritos a branches."""
+    workflow = _load_workflow("scrape-reusable.yml")
+    on = workflow.get(True, workflow.get("on", {})) or {}
+    # workflow_call não tem 'branches' filter — caller é quem decide
+    assert "workflow_call" in on, "scrape-reusable.yml deve usar trigger 'workflow_call'"
+
+
+def test_cleaners_have_release_lock_step():
+    """Garante que o job cleanup do scrape-reusable libera o lock distribuído."""
+    workflow = _load_workflow("scrape-reusable.yml")
+    cleanup = workflow["jobs"].get("cleanup")
+    assert cleanup is not None, "Job 'cleanup' ausente em scrape-reusable.yml"
+    steps = cleanup.get("steps", []) or []
+    has_release = any(
+        "scrape_lock.py release" in str(s.get("run", "")) for s in steps
+    )
+    assert has_release, "Job 'cleanup' deve liberar o lock via 'python scripts/scrape_lock.py release'"
+
+
 if __name__ == "__main__":
-    test_checkout_no_custom_token()
-    test_alert_steps_use_curl_not_httpx()
-    test_gh_pat_used_only_in_commit_push_step()
-    print("All tests passed!")
+    test_all_scrape_callers_use_reusable()
+    test_scrape_reusable_has_required_jobs()
+    test_scrape_jobs_have_time_budget_check()
+    test_ci_workflow_jobs_have_record_start_time()
+    test_pull_request_workflows_have_pr_guard()
+    test_cleaners_have_release_lock_step()
+    print("All workflow check tests passed!")
