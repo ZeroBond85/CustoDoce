@@ -8,7 +8,7 @@ Roda com: pytest tests/test_review_queue_e2e.py -v
 
 import os
 import sys
-from datetime import date, datetime, UTC
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest

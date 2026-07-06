@@ -1,7 +1,8 @@
 """Search Tenda for flyer keywords."""
 
-import httpx
 import re
+
+import httpx
 
 urls = [
     "https://www.tendaatacado.com.br/institucional/nossas-ofertas",

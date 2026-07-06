@@ -1,14 +1,14 @@
-import streamlit as st
 import pandas as pd
 import plotly.express as px
+import streamlit as st
 
+from dashboard.components.ui import inject_css
 from services.dashboard_queries import (
-    get_price_history_cached,
-    get_active_ingredients,
     extract_ppk,
     extract_pun,
+    get_active_ingredients,
+    get_price_history_cached,
 )
-from dashboard.components.ui import inject_css
 
 
 def _sync_query_params():

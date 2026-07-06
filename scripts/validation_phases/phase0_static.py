@@ -1,5 +1,6 @@
 import os
-from scripts.validation_utils import run_cmd, open_editor_at
+
+from scripts.validation_utils import open_editor_at, run_cmd
 
 
 def run():

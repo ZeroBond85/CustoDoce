@@ -1,11 +1,12 @@
 import hashlib
 import io
-from services.logger import logger
 from abc import ABC, abstractmethod
 from datetime import date
 from pathlib import Path
 
 import httpx
+
+from services.logger import logger
 
 
 class BaseFlyerScraper(ABC):
@@ -51,6 +52,7 @@ class BaseFlyerScraper(ABC):
         most flyer-only paths). Errors swallowing is intentional.
         """
         from contextlib import suppress
+
         from services.scraper_health import record_failure
 
         with suppress(Exception):
@@ -67,6 +69,7 @@ class BaseFlyerScraper(ABC):
     def report_success(self, items_found: int, flyer_count: int, products_matched: int = 0) -> dict:
         """Record a successful execution (resets failure counter)."""
         from contextlib import suppress
+
         from services.scraper_health import record_success
 
         with suppress(Exception):

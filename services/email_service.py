@@ -9,8 +9,6 @@ from email.mime.application import MIMEApplication
 from email.mime.image import MIMEImage
 from pathlib import Path
 
-import httpx
-
 _LOG = logging.getLogger(__name__)
 
 # ── Brand ( cores do logo CustoDoce ) ─────────────────────────────────
@@ -436,91 +434,3 @@ def send_daily_report(
         server.ehlo()
         server.login(user, password)
     server.send_message(msg)
-
-
-def _store_info_telegram(store_name: str) -> str:
-    """Retorna string com info da loja para Telegram se disponível."""
-    stores = _load_stores()
-    info = stores.get(store_name, {})
-    parts = []
-    if info.get("address"):
-        parts.append(f"📍 {info['address']}")
-    if info.get("phone"):
-        parts.append(f"📞 {info['phone']}")
-    if info.get("whatsapp"):
-        parts.append(f"💬 {info['whatsapp']}")
-    if info.get("city") and not info.get("address"):
-        parts.append(f"🏙️ {info['city']}")
-    if not parts:
-        return ""
-    return "   " + "  •  ".join(parts)
-
-
-# ── Telegram: 1 mensagem consolidada ──────────────────────────────────
-def send_telegram_report(token: str, chat_id: str, ingredients: list[dict], prices_by_ingredient: dict):
-    """Envia 1 única mensagem Telegram com top-5 por ingrediente (deduplicado por loja)."""
-
-    today = date.today().strftime("%d/%m/%Y")
-    lines = ["📊 *CustoDoce — Cotação de Preços*", f"📅 {today}\n"]
-    n_with_prices = 0
-
-    for ing in ingredients:
-        name = ing["canonical_name"]
-        prices = prices_by_ingredient.get(name, [])
-        if not prices:
-            continue
-
-        # Deduplica: melhor preço por loja
-        best_per_store = {}
-        for p in prices:
-            store_id = p.get("store_id", p.get("store_name", "?"))
-            raw_norm = p.get("normalized")
-            norm = raw_norm if isinstance(raw_norm, dict) else {}
-            ppk = norm.get("price_per_kg", 999999)
-            if store_id not in best_per_store or ppk < best_per_store[store_id][0]:
-                best_per_store[store_id] = (ppk, p)
-
-        deduped = sorted(best_per_store.values(), key=lambda x: x[0])
-        if not deduped:
-            continue
-
-        n_with_prices += 1
-        best_entry = deduped[0]
-        _, best_p = best_entry
-        raw_best_norm = best_p.get("normalized")
-        best_ppk = (raw_best_norm if isinstance(raw_best_norm, dict) else {}).get("price_per_kg", 0)
-
-        lines.append(f"🏷️ *{name}*")
-        lines.append(f"   Melhor: R\\$ {best_ppk:.2f}/kg")
-
-        for i, entry in enumerate(deduped[:5], 1):
-            _, p = entry
-            store = p.get("store_name", "?")
-            raw_p = float(p.get("raw_price", 0))
-            raw_norm = p.get("normalized")
-            norm = raw_norm if isinstance(raw_norm, dict) else {}
-            ppk = norm.get("price_per_kg", 0)
-            unit = p.get("raw_unit", "")
-            medal = ["🥇", "🥈", "🥉"][i - 1] if i <= 3 else f"  {i}."
-            promo = " 🏷️" if p.get("is_promotion") else ""
-            lines.append(f"{medal} {store}{promo}")
-            info = _store_info_telegram(store)
-            if info:
-                lines.append(info)
-            lines.append(f"   R\\$ {raw_p:.2f} {unit} → R\\$ {ppk:.2f}/kg")
-
-        lines.append("")  # separador entre ingredientes
-
-    if not n_with_prices:
-        lines.append("❌ Nenhum preço encontrado hoje.")
-
-    text = "\n".join(lines)
-    try:
-        httpx.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
-            timeout=15,
-        )
-    except httpx.HTTPError as exc:
-        _LOG.warning("Falha ao enviar telegram: %s", exc)
-        raise

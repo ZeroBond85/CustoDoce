@@ -1,7 +1,7 @@
 import os
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
 HEADERS = [
     ("store_name", "Nome da Loja"),

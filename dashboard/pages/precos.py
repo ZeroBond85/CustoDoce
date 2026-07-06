@@ -1,14 +1,14 @@
-import streamlit as st
 import pandas as pd
+import streamlit as st
 
+from dashboard.components.ui import freshness_column, inject_css
 from services.dashboard_queries import (
-    get_latest_prices_cached,
-    get_active_ingredients,
-    get_all_stores,
     extract_ppk,
     extract_pun,
+    get_active_ingredients,
+    get_all_stores,
+    get_latest_prices_cached,
 )
-from dashboard.components.ui import inject_css, freshness_column
 
 
 def _sync_query_params():

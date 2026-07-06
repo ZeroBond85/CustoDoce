@@ -13,9 +13,8 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from pathlib import Path
-
 
 _TIMESTAMP_PAT = re.compile(
     r"> Última (atualização|revisão): (\d{4}-\d{2}-\d{2}) \d{2}:\d{2} UTC"

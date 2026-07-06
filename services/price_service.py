@@ -2,7 +2,7 @@
 Price Service Facade - Maintains backward compatibility by routing calls to specialized services.
 """
 
-from services import price_repository, review_queue_service, price_analytics, maintenance_service, recipe_service
+from services import maintenance_service, price_analytics, price_repository, recipe_service, review_queue_service
 
 # --- Price Repository ---
 upsert_price = price_repository.upsert_price

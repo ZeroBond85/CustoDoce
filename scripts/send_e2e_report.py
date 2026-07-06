@@ -4,14 +4,14 @@ Envia relatório E2E por e-mail (custodoce@gmail.com).
 Gera HTML com resumo, screenshots diffs, timing, status Supabase, status IA.
 """
 
-import os
 import json
-from pathlib import Path
+import os
+import smtplib
 from datetime import datetime
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
-import smtplib
+from pathlib import Path
 
 REPORT_PATH = Path("report.html")
 DIFF_DIR = Path("tests/visual_diffs")

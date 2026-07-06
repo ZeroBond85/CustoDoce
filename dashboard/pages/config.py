@@ -5,7 +5,8 @@ Dashboard Page: Configuração
 import streamlit as st
 
 from dashboard.components.ui import inject_css
-from services.config import get, reload as reload_config
+from services.config import get
+from services.config import reload as reload_config
 from services.config_db import (
     get_all_alert_rules,
     get_all_feature_flags,

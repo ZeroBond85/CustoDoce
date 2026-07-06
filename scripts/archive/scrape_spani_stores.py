@@ -1,7 +1,8 @@
 """Scrape Spani store pages for PDF links."""
 
-import httpx
 import re
+
+import httpx
 
 # Test a few Spani store pages
 stores = [

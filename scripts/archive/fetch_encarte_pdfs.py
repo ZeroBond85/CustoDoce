@@ -1,7 +1,8 @@
 """Fetch encarte.br.com pages for PDF links."""
 
-import httpx
 import re
+
+import httpx
 
 urls = [
     ("Assai", "https://assai.encarte.br.com/"),

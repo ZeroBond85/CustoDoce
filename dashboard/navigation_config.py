@@ -15,25 +15,25 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from dashboard.pages.visao_geral import render_visao_geral
-from dashboard.pages.precos import render_precos
-from dashboard.pages.historico import render_historico
+from dashboard.pages.alertas import render_alertas
+from dashboard.pages.calculadora import render_calculadora
+from dashboard.pages.capacity_planning import render_capacity_planning
+from dashboard.pages.config import render_config
+from dashboard.pages.diagnostico import render_diagnostico
 from dashboard.pages.flyers import render_flyers
-from dashboard.pages.revisao import render_revisao
 from dashboard.pages.fontes import render_fontes
-from dashboard.pages.ranking import render_ranking
+from dashboard.pages.historico import render_historico
+from dashboard.pages.ingredientes import render_ingredientes
 from dashboard.pages.insights import render_insights
 from dashboard.pages.lojas import render_lojas
-from dashboard.pages.ingredientes import render_ingredientes
-from dashboard.pages.alertas import render_alertas
-from dashboard.pages.scrapers import render_scrapers
-from dashboard.pages.scraper_health import render_scraper_health
-from dashboard.pages.relatorios import render_relatorios
-from dashboard.pages.config import render_config
-from dashboard.pages.calculadora import render_calculadora
-from dashboard.pages.diagnostico import render_diagnostico
+from dashboard.pages.precos import render_precos
 from dashboard.pages.promocoes import render_promocoes
-from dashboard.pages.capacity_planning import render_capacity_planning
+from dashboard.pages.ranking import render_ranking
+from dashboard.pages.relatorios import render_relatorios
+from dashboard.pages.revisao import render_revisao
+from dashboard.pages.scraper_health import render_scraper_health
+from dashboard.pages.scrapers import render_scrapers
+from dashboard.pages.visao_geral import render_visao_geral
 
 # ── PAGE_FUNCTIONS: page_id → render function ────────────────────────────────
 PAGE_FUNCTIONS: dict[str, Callable] = {

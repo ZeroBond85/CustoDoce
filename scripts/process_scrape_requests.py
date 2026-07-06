@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-import sys
 import logging
-from datetime import datetime, UTC
+import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from services.supabase_client import get_supabase, get_service_client
-from services.telegram_service import send_telegram_message
-from services.config_db import get_active_ingredients
 from services.collector import process_price_match
+from services.config_db import get_active_ingredients
+from services.supabase_client import get_service_client, get_supabase
+from services.telegram_service import send_telegram_message
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -48,16 +48,16 @@ def main():
             # Since we don't have a full scraper orchestration here,
             # we'll try to use the corresponding scraper class based on the store's scraper field
             from services.collector import (
-                FlyerScraper,
+                CarrefourScraper,
                 ExtraFlyerScraper,
+                FlyerScraper,
+                MaxApiScraper,
                 PaoFlyerScraper,
+                PlaywrightPriceScraper,
+                RoldaoApiScraper,
+                TendaApiScraper,
                 VtexScraper,
                 WebsiteScraper,
-                CarrefourScraper,
-                TendaApiScraper,
-                RoldaoApiScraper,
-                MaxApiScraper,
-                PlaywrightPriceScraper,
             )
 
             SCRAPER_MAP = {

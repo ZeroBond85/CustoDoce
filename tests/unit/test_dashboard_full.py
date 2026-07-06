@@ -48,13 +48,13 @@ print("\n=== 1. SERVICES ===\n")
 
 def test_auth():
     from services.auth import (
-        hash_password,
-        verify_password,
         create_token,
-        verify_token,
         generate_totp_secret,
         get_totp_uri,
+        hash_password,
         load_config,
+        verify_password,
+        verify_token,
     )
 
     # Password
@@ -74,8 +74,9 @@ def test_auth():
     assert verify_token("invalid.token.here", "key") is None
 
     # Token expirado (manipulado)
-    import jwt as pyjwt
     from datetime import datetime, timedelta
+
+    import jwt as pyjwt
 
     short_key = "k" * 32
     expired = pyjwt.encode(
@@ -127,10 +128,10 @@ def test_rate_limiter():
 
 
 def test_all_imports():
-    from dashboard.components.layout import PAGES
     from admin.app import (
         PAGE_FUNCTIONS,
     )
+    from dashboard.components.layout import PAGES
 
     assert len(PAGES) == 19, f"Esperado 19 paginas (18 + capacity_planning Phase 3), encontrado {len(PAGES)}"
     for page_id, icon, label in PAGES:
@@ -153,9 +154,10 @@ def test_calculadora_imports():
 
 def test_cleanup_imports():
     """Verifica que cleanup_old_flyers e cleanup_old_logs sao importaveis."""
-    from services.price_service import cleanup_old_prices, cleanup_old_logs
-    from services.flyer_service import cleanup_old_flyers
     import inspect
+
+    from services.flyer_service import cleanup_old_flyers
+    from services.price_service import cleanup_old_logs, cleanup_old_prices
 
     # Verifica assinaturas
     assert callable(cleanup_old_prices)
@@ -180,30 +182,10 @@ def test_cleanup_imports():
 print("=== 2. UI COMPONENTS ===\n")
 
 
-def test_metric_card_api():
-    from dashboard.components.ui import metric_card
-
-    # só verifica que a função existe com os parâmetros certos
-    import inspect
-
-    sig = inspect.signature(metric_card)
-    params = list(sig.parameters.keys())
-    assert "label" in params
-    assert "value" in params
-    assert "delta" in params
-
-
 def test_status_badge_api():
     for status in ["active", "pending", "error", "success", "warning", "info"]:
         # não levanta exceção
         pass
-
-
-def test_section_title_api():
-    from dashboard.components.ui import section_title
-
-    # função existe
-    assert callable(section_title)
 
 
 def test_info_box_api():
@@ -295,7 +277,7 @@ def test_app_module_loads():
 
 
 def test_env_auth_flow():
-    from services.auth import verify_password, hash_password
+    from services.auth import hash_password, verify_password
 
     # Com ADMIN_PASSWORD setado, verifica fluxo
     pw_plain = os.environ.get("ADMIN_PASSWORD", "")
@@ -415,6 +397,7 @@ def test_format_kg():
 
 def test_get_kg():
     import pandas as pd
+
     from admin.app import _get_kg
 
     df = pd.DataFrame({"normalized": [{"price_per_kg": 10.0}, {"price_per_kg": 20.0}, {}, None]})
@@ -453,8 +436,14 @@ def test_flyer_service_get_pending():
 
 
 def test_price_service_search():
-    from services.price_service import search_prices, get_latest_prices, get_price_history
-    from services.price_service import insert_review_item, approve_review_item, reject_review_item
+    from services.price_service import (
+        approve_review_item,
+        get_latest_prices,
+        get_price_history,
+        insert_review_item,
+        reject_review_item,
+        search_prices,
+    )
 
     assert callable(search_prices)
     assert callable(get_latest_prices)
@@ -466,7 +455,7 @@ def test_price_service_search():
 
 def test_home_kpi_flyer_structure():
     """Verifica que os KPIs de flyer tem os selectors corretos"""
-    with open("dashboard/components/ui.py", encoding="utf-8") as f:
+    with open("dashboard/static/style.css", encoding="utf-8") as f:
         content = f.read()
 
     assert ".cd-metric" in content
@@ -497,7 +486,7 @@ def test_history_chart_types():
 
 def test_flyer_detail_section():
     """Verifica que o detalhe do flyer tem os campos obrigatorios"""
-    with open("dashboard/components/ui.py", encoding="utf-8") as f:
+    with open("dashboard/static/style.css", encoding="utf-8") as f:
         content = f.read()
     with open("dashboard/pages/flyers.py", encoding="utf-8") as f2:
         content2 = f2.read()
@@ -516,8 +505,9 @@ def test_generate_secret_key():
 
 
 def test_rate_limiter_window_expires():
-    from services.rate_limiter import RateLimiter
     import time
+
+    from services.rate_limiter import RateLimiter
 
     rl = RateLimiter(max_attempts=1, window_seconds=1)
     rl.record_attempt("expire-test")
@@ -727,7 +717,8 @@ def test_features_yaml_exists():
 
 
 def test_config_loader():
-    from services.config import get as get_config, reload as reload_config
+    from services.config import get as get_config
+    from services.config import reload as reload_config
 
     assert get_config("features.telegram.enabled", None) is True
     assert get_config("features.matcher.threshold", None) == 80
@@ -786,6 +777,7 @@ def test_detect_promotion():
 
 def test_weekday_pt():
     from datetime import datetime
+
     from services.price_service import _weekday_pt
 
     # Segunda = 0, Terça = 1 ... Domingo = 6
@@ -873,7 +865,7 @@ def test_build_full_report_html():
 
 
 def test_send_telegram_report_message_structure():
-    from services.email_service import send_telegram_report
+    from services.telegram_service import send_telegram_report
 
     # Verifica que a função existe e aceita os parâmetros corretos
     assert callable(send_telegram_report)
@@ -925,8 +917,9 @@ def test_features_yaml_new_flags_loaded():
 
 
 def test_search_prices_valid_only_param():
-    from services.price_service import search_prices
     import inspect
+
+    from services.price_service import search_prices
 
     sig = inspect.signature(search_prices)
     params = list(sig.parameters.keys())
@@ -934,8 +927,9 @@ def test_search_prices_valid_only_param():
 
 
 def test_get_latest_prices_valid_only_param():
-    from services.price_service import get_latest_prices
     import inspect
+
+    from services.price_service import get_latest_prices
 
     sig = inspect.signature(get_latest_prices)
     params = list(sig.parameters.keys())
@@ -943,8 +937,9 @@ def test_get_latest_prices_valid_only_param():
 
 
 def test_get_price_history_valid_only_param():
-    from services.price_service import get_price_history
     import inspect
+
+    from services.price_service import get_price_history
 
     sig = inspect.signature(get_price_history)
     params = list(sig.parameters.keys())
@@ -973,9 +968,7 @@ tests = [
     (test_all_imports, "all_imports: todos os módulos carregam"),
     (test_cleanup_imports, "cleanup: imports e assinaturas corretas"),
     # UI Components
-    (test_metric_card_api, "ui: metric_card existe"),
     (test_status_badge_api, "ui: status_badge existe"),
-    (test_section_title_api, "ui: section_title existe"),
     (test_info_box_api, "ui: info_box existe"),
     # Login
     (test_login_render_function, "login: render_login callable"),

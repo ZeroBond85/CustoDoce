@@ -1,7 +1,8 @@
 """Check Spani SJC store page."""
 
-import httpx
 import re
+
+import httpx
 
 # Try different SJC slugs
 sjc_slugs = [

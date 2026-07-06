@@ -5,6 +5,7 @@ Check if any staged Python files import modules that are gitignored.
 Prevents ModuleNotFoundError in CI when a file exists locally but isn't tracked.
 """
 from __future__ import annotations
+
 import shutil
 import subprocess
 import sys

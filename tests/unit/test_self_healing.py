@@ -16,7 +16,6 @@ import pytest
 
 from services import scraper_health
 
-
 # ─── 1. SelfHealingMixin presence ────────────────────────────────────────────
 
 

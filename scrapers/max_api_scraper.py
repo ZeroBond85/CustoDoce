@@ -1,5 +1,6 @@
-from scrapers.base_web_scraper import BaseWebScraper
 import hashlib
+
+from scrapers.base_web_scraper import BaseWebScraper
 
 
 class MaxApiScraper(BaseWebScraper):

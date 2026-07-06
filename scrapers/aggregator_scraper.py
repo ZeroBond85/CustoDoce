@@ -1,6 +1,6 @@
 import asyncio
 import re
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 import httpx
 from selectolax.parser import HTMLParser

@@ -18,7 +18,7 @@ class ForceSaturday:
             stores = [s for s in load_stores() if s.get("tier") == 1 and s.get("type") == "pdf_flyer"]
 
             # Use the same internal _collect_prices logic as original
-            from services.collector import _collect_prices, FlyerScraper
+            from services.collector import FlyerScraper, _collect_prices
 
             return _collect_prices(stores, FlyerScraper, ingredients, "PDF (FORCED)")
 

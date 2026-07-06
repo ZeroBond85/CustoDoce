@@ -5,6 +5,7 @@ Download the most recent GitHub Actions artifact matching a prefix.
 import argparse
 import os
 import sys
+
 import requests
 
 
@@ -39,8 +40,8 @@ def download_latest_artifact(repo: str, prefix: str, token: str, output_dir: str
     resp.raise_for_status()
 
     # Extract zip to output_dir
-    import zipfile
     import io
+    import zipfile
 
     with zipfile.ZipFile(io.BytesIO(resp.content)) as z:
         z.extractall(output_dir)

@@ -16,8 +16,8 @@ import httpx
 import yaml
 from dotenv import load_dotenv
 
-from services.supabase_client import get_service_client  # noqa: E402
 from services.config_db import get_all_stores  # noqa: E402
+from services.supabase_client import get_service_client  # noqa: E402
 
 load_dotenv()
 

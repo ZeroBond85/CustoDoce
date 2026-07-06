@@ -1,7 +1,8 @@
 """Discover real Tier 1 PDF URLs for each store."""
 
-import httpx
 import re
+
+import httpx
 
 today = "2026-06-18"
 week = "25"

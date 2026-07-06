@@ -1,7 +1,9 @@
+import hashlib
+
+import httpx
+
 from scrapers.base_web_scraper import BaseWebScraper
 from services.logger import logger
-import httpx
-import hashlib
 
 
 class RoldaoApiScraper(BaseWebScraper):

@@ -1,7 +1,8 @@
 """Test Roldão ofertas page."""
 
-import httpx
 import re
+
+import httpx
 
 url = "https://roldao.com.br/ofertas-do-roldao/"
 with httpx.Client(timeout=20, follow_redirects=True, verify=False) as client:

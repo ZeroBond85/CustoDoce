@@ -1,7 +1,8 @@
 """Test user-provided URLs."""
 
-import httpx
 import re
+
+import httpx
 
 urls = [
     ("Max", "https://www.maxatacadista.com.br/lojas/encartes-e-videos/?loja=129"),

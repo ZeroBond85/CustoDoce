@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from tests.unit.test_services.conftest import MockSupabaseClient, MockQueryBuilder
+from tests.unit.test_services.conftest import MockQueryBuilder, MockSupabaseClient
 
 
 class TestLongitudinalWinners:

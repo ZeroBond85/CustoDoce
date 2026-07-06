@@ -5,14 +5,13 @@ Usage:
     python scripts/rpc_backup.py [--schema]
 """
 
-import json
-import gzip
-import datetime
-import os
 import argparse
+import datetime
+import gzip
+import json
+import os
 
 from supabase import create_client
-
 
 ALL_TABLES = [
     "prices",

@@ -227,7 +227,7 @@ python -m pytest tests/diagnostics/ -q -m slow
 
 | Métrica | Valor |
 |---------|-------|
-| pytest (unit + schema, no slow) | 729 passing |
+| pytest (unit + schema, no slow) | 727 passing |
 | pytest (integration) | 112 passing |
 | pytest (diagnostics, slow) | 4 passing |
 | Schema manifest | 16 tabelas/views com types, not_null, defaults, constraints |

@@ -3,12 +3,14 @@ Serviço de inteligência de preços: detecção de anomalias, tendências, tags
 Usa Z-score + Isolation Forest. Puramente estatístico, sem IA generativa.
 """
 
-from services.logger import logger
-import numpy as np
-import joblib
-from pathlib import Path
 from datetime import datetime, timedelta
+from pathlib import Path
+
+import joblib
+import numpy as np
 from sklearn.ensemble import IsolationForest
+
+from services.logger import logger
 from services.price_service import get_price_history
 
 _IF_CACHE_DIR = Path("data/if_cache")

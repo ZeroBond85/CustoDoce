@@ -13,7 +13,7 @@ Features:
 import argparse
 import re
 import sys
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Use Path objects for consistency
@@ -21,9 +21,9 @@ _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
 from scripts.doc_utils import (  # noqa: E402
+    pulse_check,
     read_frontmatter,
     write_frontmatter,
-    pulse_check,
 )
 
 # To avoid duplicating complex logic, we import the state builder from sync_docs

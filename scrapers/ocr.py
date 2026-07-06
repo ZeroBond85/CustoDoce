@@ -1,8 +1,9 @@
 import io
-from services.logger import logger
 
 from pdf2image import convert_from_bytes
 from pytesseract import image_to_string
+
+from services.logger import logger
 
 
 def ocr_pdf(pdf_bytes: bytes, lang: str = "por") -> str:

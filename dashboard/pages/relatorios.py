@@ -7,12 +7,12 @@ import os
 import pandas as pd
 import streamlit as st
 
+from dashboard.components.ui import inject_css
 from services.dashboard_queries import (
     get_latest_prices_cached,
 )
 from services.email_service import send_email
 from services.telegram_service import send_telegram_message
-from dashboard.components.ui import inject_css
 
 
 @st.dialog("Confirmar envio de relatório")

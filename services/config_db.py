@@ -4,9 +4,10 @@ Replaces YAML configs with Supabase tables.
 All functions use service_client for write operations.
 """
 
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Any
-from services.supabase_client import get_supabase, get_service_client
+
+from services.supabase_client import get_service_client, get_supabase
 from services.types import Ingredient, Store
 
 

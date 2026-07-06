@@ -13,15 +13,16 @@ Compatibilidade:
     - Internamente normaliza o resultado do Provider/LLM para esta shape.
 """
 
-from services.logger import logger
+import contextlib
+
 from parsers.llm_cache import get_cache, set_cache
 from parsers.llm_strategies import (
     GroqStrategy,
-    OpenRouterStrategy,
     HuggingFaceStrategy,
     LLMResult,
+    OpenRouterStrategy,
 )
-import contextlib
+from services.logger import logger
 
 
 def _legacy_shape(result: LLMResult) -> dict:

@@ -1,8 +1,9 @@
 """Comprehensive production validation — no browser needed."""
 
 import os
-import httpx
 import sys
+
+import httpx
 
 url = os.environ.get("SUPABASE_URL", "")
 proj = url.split("//")[1].split(".")[0] if "//" in url else ""

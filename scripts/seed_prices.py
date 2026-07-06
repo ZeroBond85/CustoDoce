@@ -19,9 +19,8 @@ import hashlib
 import json
 import random
 import sys
-from datetime import datetime, timedelta, date, UTC
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -369,9 +368,8 @@ def main():
     if args.execute:
         print("\nInserindo no Supabase...")
         try:
-            from services.price_service import upsert_price
             from services.flyer_service import upsert_flyer
-            from services.price_service import insert_review_item
+            from services.price_service import insert_review_item, upsert_price
         except Exception as e:
             print(f"  ERRO: Não foi possível conectar ao Supabase: {e}")
             print("  Certifique-se que SUPABASE_URL e SUPABASE_SERVICE_KEY estão no .env")

@@ -1,7 +1,9 @@
-from abc import ABC, abstractmethod
 import time
-import httpx
+from abc import ABC, abstractmethod
 from urllib.parse import quote
+
+import httpx
+
 from services.logger import logger
 
 
@@ -150,6 +152,7 @@ class BaseWebScraper(ABC):
         swallowed because health-tracking must never interrupt the pipeline.
         """
         from contextlib import suppress
+
         from services.scraper_health import record_failure
 
         with suppress(Exception):
@@ -166,6 +169,7 @@ class BaseWebScraper(ABC):
     def report_success(self, items_found: int, products_matched: int, flyer_count: int = 0) -> dict:
         """Report a successful execution (resets failure counter)."""
         from contextlib import suppress
+
         from services.scraper_health import record_success
 
         with suppress(Exception):

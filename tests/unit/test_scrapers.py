@@ -1,6 +1,8 @@
-import pytest
-from unittest.mock import MagicMock, patch
 from datetime import date
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 from scrapers.base_flyer import BaseFlyerScraper
 
 

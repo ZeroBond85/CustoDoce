@@ -1,9 +1,11 @@
 import asyncio
 import re
+
 from selectolax.parser import HTMLParser
+
+from parsers.unit_extractor import extract_unit
 from scrapers.base_web_scraper import DEFAULT_SELECTORS, BaseWebScraper
 from scrapers.playwright_pool import get_browser_pool
-from parsers.unit_extractor import extract_unit
 from services.logger import logger
 
 

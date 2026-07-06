@@ -6,8 +6,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from dotenv import load_dotenv
 import yaml
+from dotenv import load_dotenv
+
 from services.supabase_client import get_service_client
 
 load_dotenv()

@@ -1,8 +1,8 @@
 from scripts.sync_md_v2 import (
-    pulse,
-    snapshot,
     apply_intelligent,
     inject_frontmatter,
+    pulse,
+    snapshot,
 )
 
 # Mock truth for testing

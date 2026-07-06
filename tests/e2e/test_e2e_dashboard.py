@@ -5,10 +5,11 @@ Executa em CI via .github/workflows/e2e.yml
 """
 
 import os
-import pytest
 from pathlib import Path
-from playwright.sync_api import sync_playwright, expect
+
+import pytest
 from PIL import Image, ImageChops
+from playwright.sync_api import expect, sync_playwright
 
 BASE_URL = os.getenv("STREAMLIT_URL", "https://custodoce.streamlit.app")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")

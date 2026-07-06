@@ -1,7 +1,9 @@
 import os
 import sys
-from supabase import create_client
+
 from dotenv import load_dotenv
+
+from supabase import create_client
 
 
 def sync_core_data(prod_client, staging_client):

@@ -5,12 +5,14 @@ Valida a integridade dos dados no Supabase usando Great Expectations.
 若是 dadosruins, o CI deve falhar (exit code 1).
 """
 
+import logging
 import os
 import sys
-import logging
-from supabase import create_client
+
 import great_expectations as gx
 from great_expectations.core import ExpectationSuite
+
+from supabase import create_client
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)

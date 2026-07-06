@@ -2,19 +2,20 @@
 Dashboard Page: Diagnóstico
 """
 
-import streamlit as st
 import time
-import pandas as pd
 
-from services.dashboard_queries import (
-    get_latest_prices_cached,
-    cached_get_all_stores,
-    cached_get_all_ingredients,
-    clear_all_caches,
-)
-from services.supabase_client import get_supabase
+import pandas as pd
+import streamlit as st
+
 from dashboard.components.ui import inject_css
 from dashboard.pages.capacity_planning import render_capacity_planning
+from services.dashboard_queries import (
+    cached_get_all_ingredients,
+    cached_get_all_stores,
+    clear_all_caches,
+    get_latest_prices_cached,
+)
+from services.supabase_client import get_supabase
 
 
 def render_diagnostico():

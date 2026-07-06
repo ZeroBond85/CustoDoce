@@ -2,12 +2,12 @@ import streamlit as st
 
 from dashboard.components.ui import get_logo_branco_base64
 from services.auth import (
+    generate_totp_secret,
+    get_totp_uri,
+    hash_password,
     load_config,
     verify_password,
     verify_totp,
-    get_totp_uri,
-    generate_totp_secret,
-    hash_password,
 )
 from services.rate_limiter import RateLimiter
 
@@ -166,8 +166,8 @@ def render_login():
                 )
                 return False
 
-            import os as _os
             import hmac as _hmac
+            import os as _os
 
             pw_plain = _os.environ.get("ADMIN_PASSWORD", "")
             stored_hash = config.admin_password_hash

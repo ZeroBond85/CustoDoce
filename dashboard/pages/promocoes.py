@@ -2,7 +2,7 @@
 Dashboard Page: Promoções em Destaque
 """
 
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 import pandas as pd
 import streamlit as st

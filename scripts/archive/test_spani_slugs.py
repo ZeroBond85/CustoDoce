@@ -1,7 +1,8 @@
 """Test Spani store slugs for PDF links."""
 
-import httpx
 import re
+
+import httpx
 
 stores = {
     "Barra Funda": "sao-paulo-barra-funda",

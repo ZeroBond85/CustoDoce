@@ -1,7 +1,8 @@
 """Test Assai offer pages for PDF links."""
 
-import httpx
 import re
+
+import httpx
 
 cities = [
     ("Santos", "sao-paulo/assai-santos"),

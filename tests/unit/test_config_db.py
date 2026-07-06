@@ -2,8 +2,9 @@ from unittest.mock import MagicMock
 
 
 def test_get_ingredient_by_name():
-    from services.config_db import get_ingredient_by_name
     from unittest.mock import patch
+
+    from services.config_db import get_ingredient_by_name
 
     with patch("services.config_db.get_supabase") as mock_get_supabase:
         mock_client = MagicMock()
@@ -16,8 +17,9 @@ def test_get_ingredient_by_name():
 
 
 def test_get_ingredient_by_name_none():
-    from services.config_db import get_ingredient_by_name
     from unittest.mock import patch
+
+    from services.config_db import get_ingredient_by_name
 
     with patch("services.config_db.get_supabase") as mock_get_supabase:
         mock_client = MagicMock()
@@ -30,8 +32,9 @@ def test_get_ingredient_by_name_none():
 
 
 def test_get_active_ingredients():
-    from services.config_db import get_active_ingredients
     from unittest.mock import patch
+
+    from services.config_db import get_active_ingredients
 
     with patch("services.config_db.get_supabase") as mock_get_supabase:
         mock_client = MagicMock()
@@ -55,8 +58,9 @@ def test_upsert_store_validation():
         ({"name": "Store G", "priority": "invalid"}, True),
     ]
 
-    from services.config_db import upsert_store
     from unittest.mock import patch
+
+    from services.config_db import upsert_store
 
     for store_data, expected_raise in test_cases:
         with patch("services.config_db.get_service_client") as mock_get_service_client:
@@ -86,8 +90,9 @@ def test_get_feature_flag():
         ("feature.missing", None, False, False),
     ]
 
-    from services.config_db import get_feature_flag
     from unittest.mock import patch
+
+    from services.config_db import get_feature_flag
 
     for key, mock_data, default, expected in test_cases:
         with patch("services.config_db.get_supabase") as mock_get_supabase:

@@ -1,7 +1,8 @@
 """Search Roldão for flyer keywords."""
 
-import httpx
 import re
+
+import httpx
 
 urls = [
     "https://roldao.com.br/ofertas-do-roldao/",

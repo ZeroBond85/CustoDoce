@@ -4,9 +4,9 @@ Dashboard Page: Flyers
 
 import streamlit as st
 
-from services.dashboard_queries import get_recent_flyers_cached
-from services.flyer_service import get_flyer_detail, delete_flyer
 from dashboard.components.ui import inject_css
+from services.dashboard_queries import get_recent_flyers_cached
+from services.flyer_service import delete_flyer, get_flyer_detail
 
 
 @st.dialog("Confirmar exclusão")

@@ -1,10 +1,10 @@
 import asyncio
 import re
 
-from playwright.async_api import Page, Browser
+from playwright.async_api import Browser, Page
 
-from services.logger import logger
 from scrapers.playwright_pool import get_browser_pool
+from services.logger import logger
 
 CITY_SLUGS = {
     "santos": "Santos",

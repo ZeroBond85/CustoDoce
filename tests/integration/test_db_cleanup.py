@@ -6,10 +6,11 @@ Valida que registros antigos são removidos e registros novos são mantidos.
 
 import os
 import sys
-from pathlib import Path
-from datetime import datetime, timedelta, UTC
-import pytest
 import uuid
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 

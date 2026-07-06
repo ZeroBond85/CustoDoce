@@ -1,4 +1,5 @@
 import pytest
+
 from parsers.normalizer import normalize_price
 
 

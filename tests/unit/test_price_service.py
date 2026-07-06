@@ -1,6 +1,8 @@
-import pytest
 from unittest.mock import MagicMock, patch
-from services.price_service import upsert_price, _detect_promotion, search_prices, cleanup_old_prices
+
+import pytest
+
+from services.price_service import _detect_promotion, cleanup_old_prices, search_prices, upsert_price
 
 
 @pytest.fixture

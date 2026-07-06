@@ -8,8 +8,8 @@ We do a warm-up request first, then check the actual app.
 import os
 import sys
 import time
-import urllib.request
 import urllib.error
+import urllib.request
 
 APP_URL = os.environ.get("STREAMLIT_APP_URL", "https://custodoce.streamlit.app")
 

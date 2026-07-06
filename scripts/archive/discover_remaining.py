@@ -1,7 +1,8 @@
 """Discover PDF patterns for remaining stores."""
 
-import httpx
 import re
+
+import httpx
 
 with httpx.Client(timeout=30, follow_redirects=True, verify=False) as client:
     # 1. Tenda - check the nossas-ofertas page for PDF links

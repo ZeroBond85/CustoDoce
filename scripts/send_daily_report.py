@@ -5,9 +5,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from services.price_service import get_latest_prices
-from services.email_service import send_daily_report, send_telegram_report, build_full_report_html
 from services.config import get as get_config
+from services.email_service import build_full_report_html, send_daily_report
+from services.price_service import get_latest_prices
+from services.telegram_service import send_telegram_report
 
 
 def load_ingredients():

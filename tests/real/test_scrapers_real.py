@@ -21,8 +21,9 @@ class TestScrapersReal:
 
     def test_d4_1_assai_flyer(self):
         """Assaí Tier 1: download PDF + parse ≥ 10 produtos"""
-        from scrapers.flyer_scraper import FlyerScraper
         import yaml
+
+        from scrapers.flyer_scraper import FlyerScraper
 
         with open("config/stores.yaml", encoding="utf-8") as f:
             stores = yaml.safe_load(f).get("stores", [])
@@ -41,8 +42,9 @@ class TestScrapersReal:
 
     def test_d4_2_rizzo_website(self):
         """Rizzo (website_catalog): search + parse ≥ 5 produtos"""
-        from scrapers.website_scraper import WebsiteScraper
         import yaml
+
+        from scrapers.website_scraper import WebsiteScraper
 
         with open("config/stores.yaml", encoding="utf-8") as f:
             stores = yaml.safe_load(f).get("stores", [])

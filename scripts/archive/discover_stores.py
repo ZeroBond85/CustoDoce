@@ -1,7 +1,8 @@
 """Discover all store locations for each chain."""
 
-import httpx
 import re
+
+import httpx
 
 with httpx.Client(timeout=20, follow_redirects=True, verify=False) as client:
     # 1. Max - find all loja IDs

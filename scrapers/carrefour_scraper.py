@@ -1,9 +1,11 @@
-from services.logger import logger
 import re
 from urllib.parse import quote
+
 from selectolax.parser import HTMLParser
+
 from parsers.unit_extractor import extract_unit
 from scrapers.base_web_scraper import BaseWebScraper
+from services.logger import logger
 
 
 class CarrefourScraper(BaseWebScraper):

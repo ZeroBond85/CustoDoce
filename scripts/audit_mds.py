@@ -1,6 +1,7 @@
-import sys
 import re
+import sys
 from pathlib import Path
+
 sys.path.insert(0, '.')
 from scripts.doc_utils import read_frontmatter
 

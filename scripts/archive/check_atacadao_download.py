@@ -1,7 +1,8 @@
 """Check Atacadão download page content."""
 
-import httpx
 import re
+
+import httpx
 
 url = "https://atacadao.encarte.br.com/download"
 with httpx.Client(timeout=30, follow_redirects=True, verify=False) as client:

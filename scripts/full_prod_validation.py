@@ -4,8 +4,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from scripts.validation_utils import notify_telegram, log_event
-
 # Import phases
 from scripts.validation_phases import (
     phase0_static,
@@ -16,6 +14,7 @@ from scripts.validation_phases import (
     phase5_tests,
     phase6_health,
 )
+from scripts.validation_utils import log_event, notify_telegram
 
 
 def _has_real_env() -> bool:

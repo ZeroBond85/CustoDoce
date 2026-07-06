@@ -5,8 +5,9 @@ Price Analytics Service - Reports and data analysis.
 from collections import defaultdict
 from datetime import date, timedelta
 from typing import Any
-from services.supabase_client import get_supabase
+
 from services.price_repository import get_latest_prices as get_all_current_prices
+from services.supabase_client import get_supabase
 from services.types import Ingredient, PriceEntry
 
 

@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 from unittest.mock import patch
 
-from tests.unit.test_services.conftest import make_mocks, SAMPLE_PRICES, SAMPLE_HISTORY
+from tests.unit.test_services.conftest import SAMPLE_HISTORY, SAMPLE_PRICES, make_mocks
 
 
 class TestPriceService:
@@ -403,6 +403,7 @@ class TestPriceService:
 
     def test_weekday_pt(self):
         from datetime import datetime
+
         from services.price_service import _weekday_pt
 
         for dt, expected in [

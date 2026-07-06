@@ -6,15 +6,16 @@ Run after applying migration 001_config_tables.sql
 
 import os
 import sys
-import yaml
 from pathlib import Path
 
+import yaml
+
 from services.config_db import (
+    upsert_feature_flag,
     upsert_ingredient,
-    upsert_store,
     upsert_schedule,
     upsert_scrape_frequency,
-    upsert_feature_flag,
+    upsert_store,
 )
 
 # Add repo root to path

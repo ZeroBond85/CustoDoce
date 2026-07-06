@@ -12,7 +12,6 @@ import pytest
 
 from scripts.sync_docs_v2 import classifier, cli, parser, truth, updater
 
-
 # ── truth.py ────────────────────────────────────────────────────────────────
 
 

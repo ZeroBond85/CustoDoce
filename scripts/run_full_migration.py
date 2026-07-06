@@ -1,7 +1,8 @@
 """Run ALL pending migrations on Supabase production DB."""
 
-import psycopg2
 import os
+
+import psycopg2
 
 url = os.environ.get("SUPABASE_URL", "")
 proj = url.split("//")[1].split(".")[0]

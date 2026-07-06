@@ -2,8 +2,8 @@
 """Cleanup review_queue: remove test data and reject out-of-scope items."""
 
 import sys
-from pathlib import Path
 from collections import Counter
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 

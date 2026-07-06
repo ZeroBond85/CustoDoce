@@ -2,12 +2,12 @@
 Dashboard Page: Lojas
 """
 
-import streamlit as st
 import pandas as pd
+import streamlit as st
 
-from services.dashboard_queries import cached_get_all_stores, cached_get_all_schedules
-from services.config_db import upsert_store
 from dashboard.components.ui import inject_css
+from services.config_db import upsert_store
+from services.dashboard_queries import cached_get_all_schedules, cached_get_all_stores
 
 
 def render_lojas():

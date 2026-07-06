@@ -4,13 +4,12 @@ Coordinates collection, cleaning, intelligence, and reporting.
 """
 
 import json
-from services.logger import logger
-from datetime import datetime, date, UTC
+from datetime import UTC, date, datetime
 from pathlib import Path
 
-from services import collector, price_service, price_intelligence, price_analytics, flyer_service, email_service, otel
-from scripts.sync_all_store_fields import sync_store_fields, sync_scrape_frequencies
-
+from scripts.sync_all_store_fields import sync_scrape_frequencies, sync_store_fields
+from services import collector, email_service, flyer_service, otel, price_analytics, price_intelligence, price_service
+from services.logger import logger
 
 DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)

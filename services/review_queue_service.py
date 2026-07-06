@@ -2,11 +2,12 @@
 Review Queue Service - Manages items awaiting manual approval.
 """
 
-from services.logger import logger
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from typing import Any
-from services.supabase_client import get_supabase, get_service_client
-from services.config_db import add_alias_to_ingredient, get_store_by_name, get_all_stores
+
+from services.config_db import add_alias_to_ingredient, get_all_stores, get_store_by_name
+from services.logger import logger
+from services.supabase_client import get_service_client, get_supabase
 from services.types import ReviewItem, Store
 
 
@@ -79,8 +80,9 @@ def approve_review_item(item_id: str, ingredient_id: str, brand_override: str = 
 
     client = get_service_client()
 
-    from services.config_db import get_ingredient_by_name, get_ingredient_by_id, get_all_ingredients
     import re
+
+    from services.config_db import get_all_ingredients, get_ingredient_by_id, get_ingredient_by_name
 
     is_uuid = re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", ingredient_id, re.I)
     ingredient_obj = get_ingredient_by_id(ingredient_id) if is_uuid else None
@@ -152,9 +154,10 @@ def approve_review_item(item_id: str, ingredient_id: str, brand_override: str = 
 
     if get_config("features.ai.auto_learning", True):
         try:
+            import json
+
             from parsers.semantic_matcher import get_matcher
             from services.config_db import get_ingredient_by_id, upsert_ingredient
-            import json
 
             sm = get_matcher()
             ingredient_obj = get_ingredient_by_id(resolved_ingredient_id)

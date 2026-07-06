@@ -4,17 +4,19 @@ Testes unitários para handlers do Telegram Bot.
 Valida lógica de resposta, formatação e integração com serviços.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from telegram import Update
 from telegram.ext import ContextTypes
+
 from telegram_bot.handlers import (
-    precos_command,
-    lista_command,
-    status_command,
-    start_command,
-    help_command,
     format_price_entry,
+    help_command,
+    lista_command,
+    precos_command,
+    start_command,
+    status_command,
 )
 
 

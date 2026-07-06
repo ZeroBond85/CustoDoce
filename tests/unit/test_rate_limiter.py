@@ -1,5 +1,7 @@
-import pytest
 import time
+
+import pytest
+
 from services.rate_limiter import RateLimiter
 
 

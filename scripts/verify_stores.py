@@ -5,10 +5,11 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-import yaml
 import httpx
+import yaml
 from selectolax.parser import HTMLParser
-from scrapers.website_scraper import WebsiteScraper, DEFAULT_SELECTORS
+
+from scrapers.website_scraper import DEFAULT_SELECTORS, WebsiteScraper
 
 CONFIG_DIR = Path(__file__).parent.parent / "config"
 

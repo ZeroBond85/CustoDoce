@@ -8,10 +8,10 @@ Objetivo (RFC Recurso 3): Reduzir chamadas redundantes à API Groq.
 - Função de cleanup `cleanup_ttl()` deve ser chamada na rotina de housekeeping.
 """
 
-import os
-import sqlite3
 import hashlib
 import json
+import os
+import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
 

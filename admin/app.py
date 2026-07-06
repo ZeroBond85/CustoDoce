@@ -24,9 +24,9 @@ from dashboard.login_page import render_login
 
 # Single source of truth — all navigation constants from one place
 from dashboard.navigation_config import (
-    PAGE_FUNCTIONS,
-    MENU_GROUPS,
     DEFAULT_PAGE,
+    MENU_GROUPS,
+    PAGE_FUNCTIONS,
 )
 
 st.set_page_config(

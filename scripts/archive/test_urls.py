@@ -1,6 +1,7 @@
 """Test Tier 1 PDF URLs."""
 
 from datetime import date
+
 import httpx
 
 today = date.today()

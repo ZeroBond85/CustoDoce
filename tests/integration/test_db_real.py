@@ -16,8 +16,9 @@ load_dotenv()
 
 pytestmark = pytest.mark.slow
 
+from datetime import UTC, datetime
+
 from supabase import create_client
-from datetime import datetime, UTC
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
@@ -213,8 +214,9 @@ class TestPipelineReal:
 
     def test_d3_1_insert_read_cycle(self):
         """Insert preço via upsert_price → get_all_current_prices retorna ele"""
-        from services.price_service import upsert_price
         from datetime import date
+
+        from services.price_service import upsert_price
 
         today = date.today().isoformat()
         c = db()
@@ -253,7 +255,7 @@ class TestPipelineReal:
 
     def test_d3_2_review_approve_cycle(self):
         """Insert review → approve → price upsertado + alias adicionado"""
-        from services.price_service import insert_review_item, approve_review_item
+        from services.price_service import approve_review_item, insert_review_item
 
         c = db()
         ing = c.table("ingredients").select("id,canonical_name,aliases").limit(1).execute()

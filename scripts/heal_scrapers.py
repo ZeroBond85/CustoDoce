@@ -26,14 +26,14 @@ import json
 import os
 import sys
 from collections import defaultdict
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from services.supabase_client import get_service_client  # noqa: E402
 from services.scraper_health import (  # noqa: E402
     attempt_heal,
 )
+from services.supabase_client import get_service_client  # noqa: E402
 
 
 def _utc_iso(dt: datetime) -> str:

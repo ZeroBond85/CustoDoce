@@ -2,15 +2,15 @@
 Dashboard Page: Ranking
 """
 
-import streamlit as st
 import pandas as pd
 import plotly.express as px
+import streamlit as st
 
 from services.dashboard_queries import (
+    cached_get_active_ingredients,
+    get_cross_ingredient_ranking_cached,
     get_longitudinal_winners_cached,
     get_price_trends_cached,
-    get_cross_ingredient_ranking_cached,
-    cached_get_active_ingredients,
 )
 
 

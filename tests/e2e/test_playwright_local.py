@@ -1,7 +1,7 @@
 """Automated Streamlit dashboard test with Playwright."""
 
-import sys  # noqa: E402
 import io
+import sys  # noqa: E402
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 from playwright.sync_api import sync_playwright  # noqa: E402

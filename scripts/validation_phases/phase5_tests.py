@@ -1,5 +1,6 @@
-from scripts.validation_utils import run_cmd, open_editor_at
 import re
+
+from scripts.validation_utils import open_editor_at, run_cmd
 
 
 def run():

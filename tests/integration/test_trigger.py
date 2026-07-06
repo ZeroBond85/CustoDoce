@@ -5,8 +5,8 @@ Cobre: price_history trigger, unique constraints, ON CONFLICT behavior.
 
 import os
 import sys
+from datetime import UTC, date, datetime
 from pathlib import Path
-from datetime import date, datetime, UTC
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 

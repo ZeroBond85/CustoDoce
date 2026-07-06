@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from services.logger import logger
 
-from playwright.async_api import async_playwright, Browser, BrowserContext
+from playwright.async_api import Browser, BrowserContext, async_playwright
+
+from services.logger import logger
 
 
 class BrowserPool:

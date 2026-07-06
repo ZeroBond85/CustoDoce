@@ -186,8 +186,9 @@ class TestLLMClassifier:
     """Testes para LLMClassifier via Groq API (mockado)."""
 
     def test_no_api_key_returns_none(self):
-        from parsers.llm_classifier import LLMClassifier
         import os
+
+        from parsers.llm_classifier import LLMClassifier
 
         old_groq = os.environ.pop("GROQ_API_KEY", None)
         old_or = os.environ.pop("OPENROUTER_API_KEY", None)

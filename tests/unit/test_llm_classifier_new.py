@@ -41,6 +41,7 @@ def isolate_each_test(monkeypatch, tmp_path):
     monkeypatch.setenv("LLM_CACHE_DIR", str(tmp_path))
     monkeypatch.setenv("LLM_CACHE_TTL_DAYS", "30")
     import importlib
+
     import parsers.llm_cache as lc
 
     importlib.reload(lc)

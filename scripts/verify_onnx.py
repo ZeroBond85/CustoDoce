@@ -3,8 +3,10 @@ CustoDoce - ONNX Verification
 Compares embeddings produced by PyTorch vs ONNX to ensure consistency.
 """
 
-import numpy as np
 import logging
+
+import numpy as np
+
 from parsers.semantic_matcher import SemanticMatcher
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")

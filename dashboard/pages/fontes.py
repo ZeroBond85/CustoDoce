@@ -2,16 +2,16 @@
 Dashboard Page: Fontes
 """
 
-import streamlit as st
 import pandas as pd
 import plotly.express as px
+import streamlit as st
 
+from dashboard.components.ui import inject_css
 from services.dashboard_queries import (
-    get_coverage_by_ingredient,
     get_active_promotions,
+    get_coverage_by_ingredient,
     get_stores_with_frequencies,
 )
-from dashboard.components.ui import inject_css
 
 
 def render_fontes():

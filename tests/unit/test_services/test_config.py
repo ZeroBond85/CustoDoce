@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from tests.unit.test_services.conftest import MockSupabaseClient, MockQueryBuilder, MockQueryResult, make_mocks
+from tests.unit.test_services.conftest import MockQueryBuilder, MockQueryResult, MockSupabaseClient, make_mocks
 
 
 class TestConfigDb:
@@ -166,8 +166,9 @@ class TestConfigDb:
 
     @patch("services.config_db.get_service_client")
     def test_update_schedule_run(self, mock_get_client):
-        from services.config_db import update_schedule_run
         from datetime import datetime
+
+        from services.config_db import update_schedule_run
 
         mock_client, _, _ = make_mocks()
         mock_get_client.return_value = mock_client

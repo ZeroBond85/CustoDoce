@@ -1,8 +1,9 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from services.dashboard_queries import (
-    get_dashboard_kpis,
-    get_coverage_by_ingredient,
     get_active_promotions,
+    get_coverage_by_ingredient,
+    get_dashboard_kpis,
     get_scraper_health_dashboard,
 )
 from tests.unit.fixtures.mock_data import MOCK_LATEST_PRICES, MOCK_SCRAPING_LOGS

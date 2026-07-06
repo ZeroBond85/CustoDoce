@@ -1,8 +1,9 @@
 import streamlit as st
+
 from dashboard.components.ui import get_logo_sidebar_base64, render_user_badge
 
 # Single source of truth — all navigation constants from dashboard/navigation_config.py
-from dashboard.navigation_config import PAGES, DEFAULT_PAGE
+from dashboard.navigation_config import DEFAULT_PAGE, PAGES
 
 
 def render_legacy_sidebar():
@@ -113,8 +114,3 @@ def render_skip_link():
         '<a href="#main-content" class="skip-link" tabindex="1">Pular para conteúdo</a><div id="main-content"></div>',
         unsafe_allow_html=True,
     )
-
-
-def page_container(content_fn):
-    render_skip_link()
-    content_fn()

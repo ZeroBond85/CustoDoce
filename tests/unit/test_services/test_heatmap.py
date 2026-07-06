@@ -6,8 +6,9 @@ class TestCoverageHeatmapTzAware:
 
     def test_datetime_subtraction_tz_aware(self):
         """Test that datetime.now() (naive) works with tz-aware timestamps from DB."""
-        import pandas as pd
         from datetime import datetime
+
+        import pandas as pd
 
         tz_aware_now = pd.Timestamp.now(tz=UTC)
         tz_aware_week_ago = tz_aware_now - pd.Timedelta(days=7)
@@ -35,8 +36,9 @@ class TestCoverageHeatmapTzAware:
 
     def test_datetime_subtraction_fails_with_utc_now(self):
         """Verify that using datetime.now(timezone.utc) would fail (the original bug)."""
-        import pandas as pd
         from datetime import datetime
+
+        import pandas as pd
 
         tz_aware_now = pd.Timestamp.now(tz=UTC)
         dt = pd.to_datetime(tz_aware_now)

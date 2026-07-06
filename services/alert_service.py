@@ -2,13 +2,12 @@
 Alert Service - Proactive notifications for price drops and system status.
 """
 
+from datetime import UTC, datetime, timedelta
+
+from services.email_service import send_email_notification
 from services.logger import logger
-from datetime import datetime, timedelta, UTC
-
-
 from services.supabase_client import get_supabase
 from services.telegram_service import send_telegram_message
-from services.email_service import send_email_notification
 
 # removed logger = logging.getLogger(__name__)
 

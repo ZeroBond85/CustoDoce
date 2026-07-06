@@ -1,7 +1,9 @@
-import pytest
-from unittest.mock import patch
 import os
-from services.email_service import send_email, _get_smtp_config
+from unittest.mock import patch
+
+import pytest
+
+from services.email_service import _get_smtp_config, send_email
 
 
 @pytest.fixture

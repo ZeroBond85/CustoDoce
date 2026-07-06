@@ -1,6 +1,7 @@
 """Pao de Acucar Fresh flyer scraper — herda de ExtraFlyerScraper."""
 
 from __future__ import annotations
+
 from scrapers.extra_flyer_scraper import ExtraFlyerScraper
 
 

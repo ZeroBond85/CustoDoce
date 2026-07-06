@@ -1,7 +1,8 @@
 """Check other stores sitemaps."""
 
-import httpx
 import re
+
+import httpx
 
 urls = [
     "https://www.tendaatacado.com.br/sitemap.xml",

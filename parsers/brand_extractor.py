@@ -1,6 +1,8 @@
 import re
 import unicodedata
+
 from rapidfuzz import fuzz
+
 from services.types import Ingredient
 
 

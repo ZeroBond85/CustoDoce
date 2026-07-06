@@ -2,12 +2,12 @@
 Dashboard Page: Calculadora de Receitas
 """
 
-import streamlit as st
 import pandas as pd
+import streamlit as st
 
-from services.dashboard_queries import get_cheapest_prices_cached, get_active_ingredients
-from services.price_service import upsert_recipe, upsert_recipe_item
 from dashboard.components.ui import inject_css
+from services.dashboard_queries import get_active_ingredients, get_cheapest_prices_cached
+from services.price_service import upsert_recipe, upsert_recipe_item
 
 
 def _sync_calc_query_params():

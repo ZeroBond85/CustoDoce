@@ -2,15 +2,15 @@
 Dashboard Page: Scrapers
 """
 
-import streamlit as st
 import pandas as pd
+import streamlit as st
 
+from dashboard.components.ui import inject_css
 from services.dashboard_queries import (
-    get_stores_with_frequencies,
     get_recent_scraper_logs,
     get_store_health,
+    get_stores_with_frequencies,
 )
-from dashboard.components.ui import inject_css
 
 
 def render_scrapers():

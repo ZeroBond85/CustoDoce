@@ -1,13 +1,15 @@
-import pytest
 import time
+
+import pytest
+
 from services.auth import (
+    _totp_int,
+    create_token,
+    generate_totp_secret,
     hash_password,
     verify_password,
-    create_token,
     verify_token,
-    generate_totp_secret,
     verify_totp,
-    _totp_int,
 )
 
 

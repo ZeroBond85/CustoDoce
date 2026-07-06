@@ -1,9 +1,11 @@
 import os
-import sys
 import random
+import sys
 from datetime import datetime, timedelta
-from supabase import create_client
+
 from dotenv import load_dotenv
+
+from supabase import create_client
 
 
 def seed_staging_data(client):

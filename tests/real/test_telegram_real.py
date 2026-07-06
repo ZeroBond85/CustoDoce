@@ -10,8 +10,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import pytest
 import httpx
+import pytest
 from dotenv import load_dotenv
 
 load_dotenv()

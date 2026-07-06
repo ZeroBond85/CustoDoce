@@ -1,6 +1,7 @@
-import subprocess
-import os
 import json
+import os
+import subprocess
+
 from services.logger import logger
 
 
@@ -19,8 +20,9 @@ def run_cmd(cmd: str, timeout: int = 3600, cwd: str = None) -> tuple[int, str, s
 def notify_telegram(message: str):
     """Sends a notification to the Telegram bot."""
     try:
-        from services.telegram_service import send_telegram_message
         from dotenv import load_dotenv
+
+        from services.telegram_service import send_telegram_message
 
         load_dotenv()
         chat_id = os.environ.get("TELEGRAM_CHAT_ID")

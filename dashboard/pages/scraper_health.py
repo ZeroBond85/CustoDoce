@@ -3,15 +3,15 @@ Dashboard Page: Scraper Health
 Detailed health monitoring with last_run, success_rate, latency_p95, items/store.
 """
 
-import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+import streamlit as st
 
-from services.dashboard_queries import (
-    get_scraper_health_dashboard,
-    get_recent_scraper_logs,
-)
 from dashboard.components.ui import inject_css
+from services.dashboard_queries import (
+    get_recent_scraper_logs,
+    get_scraper_health_dashboard,
+)
 
 
 def render_scraper_health():

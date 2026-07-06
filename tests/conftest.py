@@ -9,10 +9,10 @@ Uso:
     pytest tests/schema/         # validação schema DB via RPC
 """
 
-import os
-import sys
 import importlib
 import importlib.util
+import os
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -52,16 +52,6 @@ def _has_playwright() -> bool:
 
 
 # ── Fixtures Mock (Unit Tests) ──────────────────────────────────
-@pytest.fixture
-def mock_supabase():
-    """Cliente Supabase 100% mockado para testes unitários."""
-    from tests.test_services_mocked import make_mocks
-
-    mock_client, table, qb = make_mocks()
-    return mock_client
-
-
-@pytest.fixture
 def mock_config_db():
     """config_db mockado com dados de teste determinísticos."""
     mock = MagicMock()

@@ -68,21 +68,21 @@ def test_css_variables():
         "--cd-shadow",
         "--cd-shadow-lg",
     ]
-    with open("dashboard/components/ui.py") as f:
+    with open("dashboard/static/style.css") as f:
         content = f.read()
     for var in expected_vars:
-        assert var in content, f"Variável CSS {var} não encontrada em ui.py"
+        assert var in content, f"Variável CSS {var} não encontrada em style.css"
 
 
 def test_responsive_breakpoints():
-    with open("dashboard/components/ui.py") as f:
+    with open("dashboard/static/style.css") as f:
         content = f.read()
     assert "@media (max-width: 768px)" in content, "Faltando breakpoint mobile"
     assert "@media" in content, "Nenhum media query encontrado"
 
 
 def test_flyer_css_breakpoints():
-    with open("dashboard/components/ui.py", encoding="utf-8") as f:
+    with open("dashboard/static/style.css", encoding="utf-8") as f:
         content = f.read()
     assert ".cd-flyer-grid" in content
     assert ".cd-flyer-card" in content
@@ -95,7 +95,7 @@ def test_flyer_css_breakpoints():
 
 
 def test_focus_rings_css():
-    with open("dashboard/components/ui.py", encoding="utf-8") as f:
+    with open("dashboard/static/style.css", encoding="utf-8") as f:
         content = f.read()
     assert "focus-visible" in content
     assert "outline" in content

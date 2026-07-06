@@ -1,5 +1,6 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
-from datetime import datetime, timedelta, UTC
 
 
 def _assert_html(html, expected_class, expected_text=None):
@@ -120,10 +121,10 @@ def test_freshness_badge_html_threshold_boundaries():
 
 def test_freshness_badge_st_widget():
     """Ensure the widget function still works (smoke test)."""
-    from dashboard.components.ui import freshness_badge
+    from dashboard.components.ui import freshness_column
 
-    freshness_badge(datetime.now(UTC))
-    freshness_badge(None)
+    freshness_column(datetime.now(UTC))
+    freshness_column(None)
 
 
 if __name__ == "__main__":

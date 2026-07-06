@@ -5,6 +5,7 @@ Mark with @pytest.mark.real to run separately from fast mock tests.
 """
 
 import os
+
 import pytest
 from dotenv import load_dotenv
 
@@ -109,6 +110,7 @@ def test_real_matcher_uses_canonical_name():
 def test_real_website_scraper_selectors_are_dict():
     """Website scrapers with selectors in YAML should have them as dict."""
     import yaml
+
     from services.supabase_client import get_service_client
 
     # Load YAML to know which stores should have selectors
@@ -132,8 +134,9 @@ def test_real_website_scraper_selectors_are_dict():
 
 def test_real_playwright_price_scraper_has_parse_products():
     """PlaywrightPriceScraper must implement parse_products."""
-    from scrapers.playwright_price_scraper import PlaywrightPriceScraper
     import inspect
+
+    from scrapers.playwright_price_scraper import PlaywrightPriceScraper
 
     assert hasattr(PlaywrightPriceScraper, "parse_products")
     assert not inspect.isabstract(PlaywrightPriceScraper)
@@ -275,10 +278,12 @@ def test_real_tiendeo_scraper():
 @pytest.mark.slow
 def test_real_ocr_processing():
     """Test real OCR processing on a sample flyer."""
-    from services.flyer_service import get_pending_flyers, upsert_flyer
-    import httpx
-    from services.supabase_client import get_service_client
     from unittest.mock import patch
+
+    import httpx
+
+    from services.flyer_service import get_pending_flyers, upsert_flyer
+    from services.supabase_client import get_service_client
 
     # Ensure there is at least one pending flyer for the test
     client = get_service_client()

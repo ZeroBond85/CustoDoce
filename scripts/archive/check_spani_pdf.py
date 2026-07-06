@@ -1,7 +1,8 @@
 """Check Spani lojas page for PDF pattern."""
 
-import httpx
 import re
+
+import httpx
 
 url = "https://lojas.spani.com.br/lojas/sao-paulo-barra-funda"
 with httpx.Client(timeout=20, follow_redirects=True, verify=False) as client:

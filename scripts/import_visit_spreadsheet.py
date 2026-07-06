@@ -6,9 +6,9 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from services.price_service import upsert_price
 from parsers.matcher import load_ingredients_yaml
 from parsers.normalizer import normalize_price
+from services.price_service import upsert_price
 
 
 def import_spreadsheet(filepath: str) -> int:

@@ -2,11 +2,12 @@
 Maintenance Service - Database cleanup and health checks.
 """
 
-from services.logger import logger
 import json
-from datetime import datetime, date, UTC
-from typing import Any
+from datetime import UTC, date, datetime
 from pathlib import Path
+from typing import Any
+
+from services.logger import logger
 from services.supabase_client import get_service_client
 
 _CLEANUP_TRACK_FILE = Path("data/cleanup_track.json")

@@ -35,7 +35,7 @@ import os
 import re
 import sys
 from collections import Counter
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from pathlib import Path
 
 os.environ.setdefault("PYTHONIOENCODING", "utf-8")
@@ -44,14 +44,15 @@ _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
 from scripts.doc_utils import (  # noqa: E402
-    inject_timestamp,
-    extract_counters_cited,
     check_counters_against_truth,
-    parse_services_ast,
+    extract_counters_cited,
     generate_api_md,
+    inject_timestamp,
+    parse_services_ast,
     validate_changelog,
 )
 from scripts.skills_maintenance import APPROVED_SKILLS, skill_to_category  # noqa: E402
+
 _AGENTS = _ROOT / "AGENTS.md"
 _README = _ROOT / "README.md"
 _DOCS_API = _ROOT / "docs" / "api"

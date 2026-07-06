@@ -2,43 +2,44 @@
 Collector Service - Coordinates scrapers and processes product matches.
 """
 
-import re
 import os
-from datetime import datetime as dt_now, date, UTC
-from inspect import signature
+import re
 from contextlib import suppress
+from datetime import UTC, date
+from datetime import datetime as dt_now
+from inspect import signature
 
-from services.logger import logger
-from services.types import Ingredient, Store, PriceEntry
-from services.supabase_client import get_supabase, get_service_client
-from services.config_db import get_active_ingredients, get_active_stores
-from services.price_service import upsert_price, insert_review_item, log_scraper_run
-from services.flyer_service import upsert_flyer
 import httpx
+
+from parsers.brand_extractor import extract_brand
 from parsers.matcher import (
-    rank_ingredients,
-    has_ingredient_keyword,
-    has_excluded_terms,
-    match_ingredient,
     clean_text,
     extract_all_keywords,
+    has_excluded_terms,
+    has_ingredient_keyword,
+    match_ingredient,
+    rank_ingredients,
 )
-from parsers.semantic_matcher import get_matcher
 from parsers.normalizer import normalize_price
-from parsers.brand_extractor import extract_brand
-
-from scrapers.tenda_api_scraper import TendaApiScraper
-from scrapers.roldao_api_scraper import RoldaoApiScraper
-from scrapers.max_api_scraper import MaxApiScraper
-from scrapers.flyer_scraper import FlyerScraper
+from parsers.semantic_matcher import get_matcher
+from scrapers.aggregator_scraper import TiendeoScraper
+from scrapers.carrefour_scraper import CarrefourScraper
 from scrapers.extra_flyer_scraper import ExtraFlyerScraper
+from scrapers.flyer_scraper import FlyerScraper
+from scrapers.max_api_scraper import MaxApiScraper
 from scrapers.pao_flyer_scraper import PaoFlyerScraper
+from scrapers.playwright_price_scraper import PlaywrightPriceScraper
+from scrapers.roldao_api_scraper import RoldaoApiScraper
+from scrapers.roldao_flyer_scraper import RoldaoFlyerScraperSync
+from scrapers.tenda_api_scraper import TendaApiScraper
 from scrapers.vtex_scraper import VtexScraper
 from scrapers.website_scraper import WebsiteScraper
-from scrapers.carrefour_scraper import CarrefourScraper
-from scrapers.playwright_price_scraper import PlaywrightPriceScraper
-from scrapers.aggregator_scraper import TiendeoScraper
-from scrapers.roldao_flyer_scraper import RoldaoFlyerScraperSync
+from services.config_db import get_active_ingredients, get_active_stores
+from services.flyer_service import upsert_flyer
+from services.logger import logger
+from services.price_service import insert_review_item, log_scraper_run, upsert_price
+from services.supabase_client import get_service_client, get_supabase
+from services.types import Ingredient, PriceEntry, Store
 
 API_SCRAPER_MAP = {
     "tenda_api_scraper": TendaApiScraper,
@@ -83,7 +84,7 @@ def build_product_entry(
     validity_raw: str = "",
     brand: str = "",
 ) -> PriceEntry:
-    from services.price_service import _weekday_pt, _detect_promotion
+    from services.price_service import _detect_promotion, _weekday_pt
 
     normalized = normalize_price(raw_price, raw_unit)
     validity = validity_raw or _extract_validity_from_product(raw_product)
@@ -694,8 +695,8 @@ def collect_roldao_flyer(ingredients: list[Ingredient]) -> list[PriceEntry]:
 
 
 def process_ocr_queue() -> int:
-    from services.flyer_service import get_pending_flyers, mark_processed, mark_failed
     from scrapers.flyer_parser import extract_lines_from_text, parse_flyer_lines
+    from services.flyer_service import get_pending_flyers, mark_failed, mark_processed
 
     pending = get_pending_flyers(limit=10)
     if not pending:

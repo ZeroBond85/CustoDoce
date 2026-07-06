@@ -1,7 +1,8 @@
 """Extract links from Atacadão ofertas page."""
 
-import httpx
 import re
+
+import httpx
 
 url = "https://www.atacadao.com.br/ofertas"
 with httpx.Client(timeout=20, follow_redirects=True, verify=False) as client:

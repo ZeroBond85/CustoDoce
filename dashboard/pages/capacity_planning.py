@@ -9,12 +9,11 @@ Monitoramento de saúde do Free Tier:
 Cada métrica retorna um widget `st.metric` e `st.progress` para limite.
 """
 
-from datetime import datetime, date, timedelta
+from datetime import date, datetime, timedelta
 
 import streamlit as st
 
 from services.supabase_client import get_supabase
-
 
 # Limites do Free Tier
 SUPABASE_DISK_LIMIT_MB = 500  # 500 MB

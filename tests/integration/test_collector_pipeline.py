@@ -34,8 +34,9 @@ class TestCollectorPipeline:
     def test_pipeline_exact_match(self, real_supabase):
         """Produto com match exato deve ir direto para a tabela prices."""
         client = real_supabase
-        from services.collector import process_price_match
         from datetime import date
+
+        from services.collector import process_price_match
 
         store = self._get_test_store("exact")
         self._setup_store(client, store)

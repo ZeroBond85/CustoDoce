@@ -9,11 +9,11 @@ Objetivo (RFC Recurso 2): Evitar crashes do pipeline quando APIs externas caem.
 - Try/except robusto: timeout, rate limit, erro de rede → todos capturados.
 """
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, asdict
-import os
 import json
+import os
 import time
+from abc import ABC, abstractmethod
+from dataclasses import asdict, dataclass
 
 import httpx
 

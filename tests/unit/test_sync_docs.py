@@ -9,7 +9,7 @@ These are pure unit tests — no DB, no network. subprocess.run for _count_tests
 is mocked via unittest.mock where needed.
 """
 
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from scripts import sync_docs
 

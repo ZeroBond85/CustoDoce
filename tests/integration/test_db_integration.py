@@ -9,8 +9,8 @@ Usa dados de teste descartáveis (prefixo _test_*) que são limpos ao final.
 
 import os
 import sys
-from pathlib import Path
 from datetime import date
+from pathlib import Path
 
 import pytest
 

@@ -137,7 +137,7 @@ def validate_cheapest_prices():
 
 
 def validate_config_db_ingredients():
-    from services.config_db import get_all_ingredients, get_active_ingredients
+    from services.config_db import get_active_ingredients, get_all_ingredients
 
     all_ing = get_all_ingredients(include_inactive=True)
     if not check("get_all_ingredients() retorna dados", len(all_ing) > 0, f"{len(all_ing)} rows"):

@@ -2,14 +2,15 @@
 Import Service - Handles manual data import (Tier 2b/4) from files.
 """
 
-import pandas as pd
-from typing import Any
 from datetime import datetime
+from typing import Any
 
-from services.logger import logger
-from services.config_db import get_all_ingredients, get_all_stores
-from services.price_service import upsert_price
+import pandas as pd
+
 from parsers.normalizer import normalize_price
+from services.config_db import get_all_ingredients, get_all_stores
+from services.logger import logger
+from services.price_service import upsert_price
 
 
 def import_manual_prices(file_path: str) -> dict[str, Any]:

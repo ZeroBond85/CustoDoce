@@ -3,7 +3,7 @@ Dashboard Page: Ingredientes
 """
 
 import shutil
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -13,8 +13,8 @@ import yaml
 from dashboard.components.ui import inject_css
 from parsers.matcher import match_ingredient
 from parsers.normalizer import normalize_price
-from services.config_db import upsert_ingredient, add_alias_to_ingredient
-from services.dashboard_queries import get_all_ingredients, get_active_ingredients
+from services.config_db import add_alias_to_ingredient, upsert_ingredient
+from services.dashboard_queries import get_active_ingredients, get_all_ingredients
 
 INGREDIENTS_YAML = Path("config/ingredients.yaml")
 INGREDIENTS_BACKUP_DIR = Path("data/ingredient_backups")

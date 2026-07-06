@@ -1,10 +1,9 @@
-from datetime import datetime, timedelta, date, UTC
 import json
-from services.logger import logger
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
-from services.supabase_client import get_supabase, get_service_client
-
+from services.logger import logger
+from services.supabase_client import get_service_client, get_supabase
 
 _CLEANUP_TRACK_FILE = Path("data/cleanup_track.json")
 

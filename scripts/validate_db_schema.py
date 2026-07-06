@@ -8,6 +8,7 @@ Sempre usa REST API (RPC exec_sql_query) para ser compatível com CI/CD.
 
 import os
 import sys
+
 from supabase import create_client
 
 EXPECTED_TABLES = [

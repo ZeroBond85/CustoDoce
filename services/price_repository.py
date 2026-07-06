@@ -2,10 +2,11 @@
 Price Repository - Raw DB access for prices and price history.
 """
 
-from services.logger import logger
-from datetime import datetime, date, timedelta, UTC
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
-from services.supabase_client import get_supabase, get_service_client
+
+from services.logger import logger
+from services.supabase_client import get_service_client, get_supabase
 from services.types import PriceEntry
 
 

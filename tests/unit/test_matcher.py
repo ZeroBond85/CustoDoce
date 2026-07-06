@@ -1,4 +1,5 @@
 import pytest
+
 from parsers.matcher import match_ingredient
 
 
@@ -112,7 +113,7 @@ def test_build_alias_list(sample_ingredients):
     ],
 )
 def test_has_ingredient_keyword(sample_ingredients, text, expected_len):
-    from parsers.matcher import has_ingredient_keyword, extract_all_keywords
+    from parsers.matcher import extract_all_keywords, has_ingredient_keyword
 
     kw = extract_all_keywords(sample_ingredients)
     assert has_ingredient_keyword(text, kw) == expected_len

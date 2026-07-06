@@ -6,8 +6,8 @@ Uses Playwright to render JavaScript-rendered flyer page.
 import asyncio
 import re
 
-from services.logger import logger
 from scrapers.playwright_pool import get_browser_pool
+from services.logger import logger
 
 PRICE_RE = re.compile(r"(?:R\$\s*)?([1-9]\d{0,2}(?:\.\d{3})*\s*,\d{2})\b")
 

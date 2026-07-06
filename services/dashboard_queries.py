@@ -6,30 +6,29 @@ All functions use cached Supabase clients for performance.
 
 from functools import lru_cache
 
-from services.supabase_client import get_supabase
-from services.price_service import (
-    search_prices,
-    get_price_history,
-    get_all_current_prices,
-    get_longitudinal_winners,
-    get_price_trends,
-    get_cross_ingredient_ranking,
-    get_cheapest_prices,
-)
 from services.config_db import (
-    get_all_ingredients,
     get_active_ingredients,
-    get_all_stores,
-    get_all_schedules,
-    get_all_recipients,
+    get_active_recipients,
     get_all_alert_rules,
     get_all_feature_flags,
-    get_enabled_schedules,
-    get_active_recipients,
+    get_all_ingredients,
+    get_all_recipients,
+    get_all_schedules,
+    get_all_stores,
     get_enabled_alert_rules,
+    get_enabled_schedules,
 )
 from services.flyer_service import get_recent_flyers
-
+from services.price_service import (
+    get_all_current_prices,
+    get_cheapest_prices,
+    get_cross_ingredient_ranking,
+    get_longitudinal_winners,
+    get_price_history,
+    get_price_trends,
+    search_prices,
+)
+from services.supabase_client import get_supabase
 
 # ============================================================
 # Cached Data Loaders
@@ -302,8 +301,8 @@ def get_store_health():
         .execute()
     )
 
-    from collections import defaultdict
     import statistics
+    from collections import defaultdict
 
     health = defaultdict(
         lambda: {"runs": 0, "errors": 0, "total_found": 0, "total_matched": 0, "last_run": None, "latencies": []}

@@ -6,7 +6,9 @@ CPU-only, determinístico, cache em disco e suporte a ONNX para performance.
 import hashlib
 import logging
 from pathlib import Path
+
 import numpy as np
+
 from services.types import Ingredient
 
 _CACHE_DIR = Path(__file__).resolve().parent.parent / "data" / "embedding_cache"

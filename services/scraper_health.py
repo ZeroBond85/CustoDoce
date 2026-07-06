@@ -28,11 +28,10 @@ record_failure / record_success from their failure / success branches.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 
 from services.logger import logger
 from services.supabase_client import get_service_client
-
 
 # Caller can override via env or features.yaml reading later.
 THRESHOLD_FAILURES = int(os.environ.get("SCRAPER_HEALTH_THRESHOLD", "3"))

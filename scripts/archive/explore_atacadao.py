@@ -1,7 +1,8 @@
 """Explore Atacadao and other sites for PDF/flyer patterns."""
 
-import httpx
 import re
+
+import httpx
 
 urls = [
     "https://www.atacadao.com.br/institucional/nossas-lojas",

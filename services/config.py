@@ -1,6 +1,7 @@
 import os
-import yaml
 from functools import lru_cache
+
+import yaml
 
 _CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config", "features.yaml")
 

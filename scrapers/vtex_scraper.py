@@ -1,7 +1,7 @@
-from scrapers.base_web_scraper import BaseWebScraper
-from services.logger import logger
 from parsers.brand_extractor import extract_brand
 from parsers.unit_extractor import extract_unit
+from scrapers.base_web_scraper import BaseWebScraper
+from services.logger import logger
 
 
 class VtexScraper(BaseWebScraper):
@@ -35,8 +35,8 @@ class VtexScraper(BaseWebScraper):
         self, query: str, page_size: int = 100, max_pages: int = 20, timeout_total: int = 60
     ) -> list[dict]:
         """Busca produtos com paginação para obter todos os resultados."""
-        from urllib.parse import quote
         import time as _time
+        from urllib.parse import quote
 
         all_results = []
         page = 1

@@ -23,6 +23,7 @@ def isolated_cache(monkeypatch, tmp_path):
     monkeypatch.setenv("LLM_CACHE_DB_PATH", ":memory:")  # Opcional
 
     import importlib
+
     import parsers.llm_cache as lc
 
     importlib.reload(lc)

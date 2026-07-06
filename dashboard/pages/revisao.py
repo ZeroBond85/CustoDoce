@@ -4,13 +4,13 @@ Dashboard Page: Revisão (Review Queue)
 
 import streamlit as st
 
-from services.dashboard_queries import (
-    get_review_queue_cached,
-    approve_review_item_cached,
-    reject_review_item_cached,
-    get_all_ingredients,
-)
 from dashboard.components.ui import inject_css
+from services.dashboard_queries import (
+    approve_review_item_cached,
+    get_all_ingredients,
+    get_review_queue_cached,
+    reject_review_item_cached,
+)
 
 
 def render_revisao():

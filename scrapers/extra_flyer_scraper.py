@@ -1,12 +1,11 @@
 import json
-from services.logger import logger
 import re
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 
 import httpx
 
 from parsers.unit_extractor import extract_unit as _extract_unit
-
+from services.logger import logger
 
 CAMPANHAS_URL = "https://folheteria.clubeextra.com.br/home/sites/assets/js/campanhas.js"
 SP_OFFSET = timedelta(hours=-3)

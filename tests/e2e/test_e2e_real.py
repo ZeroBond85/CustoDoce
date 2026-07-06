@@ -355,8 +355,9 @@ class TestFlyerImages:
         from dotenv import load_dotenv
 
         load_dotenv()
-        from supabase import create_client
         import os
+
+        from supabase import create_client
 
         c = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
         r = c.table("flyers").select("image_url").neq("image_url", "").limit(30).execute()

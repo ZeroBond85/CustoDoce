@@ -12,11 +12,11 @@ Uso:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import re
 import subprocess
 import sys
 from pathlib import Path
-import contextlib
 
 ROOT = Path(__file__).resolve().parent.parent
 AGENTS = ROOT / "AGENTS.md"

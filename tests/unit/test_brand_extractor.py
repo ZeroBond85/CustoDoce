@@ -1,4 +1,5 @@
 import pytest
+
 from parsers.brand_extractor import extract_brand
 
 

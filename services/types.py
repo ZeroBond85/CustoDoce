@@ -5,7 +5,7 @@ Ensures consistency across services, parsers, and the database.
 
 from __future__ import annotations
 
-from typing import TypedDict, Any, Protocol, runtime_checkable
+from typing import Any, Protocol, TypedDict, runtime_checkable
 
 # --- Base Entities ---
 

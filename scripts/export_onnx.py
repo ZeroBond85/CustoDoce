@@ -5,6 +5,7 @@ Exports the Sentence-Transformer model to ONNX format for faster cold starts.
 
 import logging
 from pathlib import Path
+
 from optimum.onnxruntime import ORTModelForFeatureExtraction
 from transformers import AutoTokenizer
 

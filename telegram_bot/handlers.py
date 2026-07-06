@@ -1,12 +1,12 @@
-import os
 import logging
+import os
 
 from rapidfuzz import fuzz
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
-from services.price_service import get_prices_for_ingredient, get_latest_prices
 from services.config_db import get_active_ingredients
+from services.price_service import get_latest_prices, get_prices_for_ingredient
 from services.supabase_client import get_service_client
 
 INGREDIENTS_FILE = "config/ingredients.yaml"

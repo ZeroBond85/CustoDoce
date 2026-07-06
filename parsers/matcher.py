@@ -1,8 +1,8 @@
 import re
 
-from services.types import Ingredient
-
 from rapidfuzz import fuzz
+
+from services.types import Ingredient
 
 
 def extract_all_keywords(ingredients: list[Ingredient]) -> set:

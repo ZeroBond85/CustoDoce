@@ -5,7 +5,7 @@ import os
 import struct
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 
 import jwt as pyjwt
 

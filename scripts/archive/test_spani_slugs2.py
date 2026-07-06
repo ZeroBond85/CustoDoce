@@ -1,7 +1,8 @@
 """Test Spani slugs that failed."""
 
-import httpx
 import re
+
+import httpx
 
 stores = {
     "Parelheiros": [
