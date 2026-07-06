@@ -261,15 +261,15 @@ Toda mitigação foi reativa. Com monitoração, teriam sido descobertas proativ
 - `git pw` (CI watch) é obrigatório para todo push — não monitorar CI é aceitar merge silencioso de breaking change
 - Se um componente quebrou e ninguém percebeu, a culpa não é do componente — é da falta de monitoração
 
-### 41. Falha no CI = Gap de Teste (Protocolo de Auto-Cura)
+### 42. Monitoração de CI em shells com timeout (Polling vs Watch)
  
- Toda falha no GitHub Actions que não foi detectada localmente indica um gap de teste. O protocolo obrigatório é:
- 1. **Análise**: Identificar a causa raiz (ambiente, mock insuficiente, caso de borda).
- 2. **Reprodução**: Criar um novo teste (Unitário ou Integração) que reproduza a falha localmente.
- 3. **Correção**: Implementar o fix e validar que o novo teste passa.
- 4. **Formalização**: Registrar a causa e a solução no `LESSONS.md` para evitar regressão.
- 5. **Verificação**: Push e acompanhamento do CI via `gh run watch` até o PASS.
+ **Causa raiz:** O comando `gh run watch` mantém uma conexão aberta e aguarda a conclusão do run. Em ambientes de shell com timeout estrito (ex: 120s), o comando é interrompido prematuramente, impedindo o acompanhamento do CI até o fim.
  
- "Tentar de novo e ver se passa" não é solução; a única solução aceitável é a adição de um teste que impeça a volta do bug.
+ **Solução:** Substituir o "Watch" por "Polling" (consultas repetidas e curtas).
+ 
+ **Técnica de Polling:**
+ `gh run view <run_id> --json conclusion --jq '.conclusion'`
+ 
+ **Regra permanente:** Agentes devem implementar loops de polling com intervalos (ex: 30s) para monitorar a conclusão do CI, evitando a dependência de comandos de watch de longa duração.
 
 
