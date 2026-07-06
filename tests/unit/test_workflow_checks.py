@@ -51,4 +51,3 @@ def test_alert_steps_use_curl():
 if __name__ == "__main__":
     test_checkout_no_custom_token()
     test_alert_steps_use_curl()
-    print("All tests passed!")
