@@ -89,11 +89,15 @@ jobs:
       - name: Notify backup result
         if: always()
         run: |
-          if [ "$GITHUB_CONCLUSION" == "success" ]; then
-            python scripts/notify_security_issue.py "SUCCESS" "Backup gerado com sucesso: ${{ steps.backup.outputs.filename }}" "0"
-          else
-            python scripts/notify_security_issue.py "FAILURE" "Falha no backup: ${{ steps.backup.outputs.filename || 'N/A' }}" "0"
-          fi
+          python scripts/notify_security_issue.py "SUCCESS" "Backup gerado com sucesso: ${{ steps.backup.outputs.filename }}" "0"
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+      - name: Notify backup failure
+        if: failure()
+        run: |
+          python scripts/notify_security_issue.py "FAILURE" "Falha no backup: ${{ steps.backup.outputs.filename || 'N/A' }}" "0"
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
