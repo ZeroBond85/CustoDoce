@@ -14,6 +14,7 @@
 8. **Migration SQL nova → adicionar em `scripts/deploy_database.py::generate_consolidated()`**.
 9. **`httpx` pinado `<1.0`** no `requirements.txt`.
 10. **Paridade Total de Ambiente**: Python, deps (requirements.lock), runtime, OS e versões de ferramentas devem ser IDÊNTICOS entre local (Windows/WSL), CI (GitHub Actions) e Cloud (Streamlit). Qualquer divergência bloqueia merge — CI valida no alvo real. (Ver `REGRAS.md` §4)
+11. **Falha no CI = Gap de Teste**: Toda falha no CI não detectada localmente EXIGE: reprodução via novo teste local $\rightarrow$ correção $\rightarrow$ registro no `LESSONS.md`. "Tentar de novo" é proibido.
 
 ## Sobre
 
