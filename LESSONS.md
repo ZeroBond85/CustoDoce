@@ -261,6 +261,15 @@ Toda mitigação foi reativa. Com monitoração, teriam sido descobertas proativ
 - `git pw` (CI watch) é obrigatório para todo push — não monitorar CI é aceitar merge silencioso de breaking change
 - Se um componente quebrou e ninguém percebeu, a culpa não é do componente — é da falta de monitoração
 
-### 40. Tabela operacional criada sem migration = drift invisível
-Sprints 12-13 revelaram que a tabela `scrape_requests` (usada pelo Bot Telegram) foi criada via Dashboard do Supabase, sem migration SQL ou entrada no `schema_manifest.json`. Isso causou invisibilidade para o CI/CD e mocks. Toda tabela nova DEVE ter migration `.sql` e estar no manifest.
+### 41. Falha no CI = Gap de Teste (Protocolo de Auto-Cura)
+ 
+ Toda falha no GitHub Actions que não foi detectada localmente indica um gap de teste. O protocolo obrigatório é:
+ 1. **Análise**: Identificar a causa raiz (ambiente, mock insuficiente, caso de borda).
+ 2. **Reprodução**: Criar um novo teste (Unitário ou Integração) que reproduza a falha localmente.
+ 3. **Correção**: Implementar o fix e validar que o novo teste passa.
+ 4. **Formalização**: Registrar a causa e a solução no `LESSONS.md` para evitar regressão.
+ 5. **Verificação**: Push e acompanhamento do CI via `gh run watch` até o PASS.
+ 
+ "Tentar de novo e ver se passa" não é solução; a única solução aceitável é a adição de um teste que impeça a volta do bug.
+
 
