@@ -19,7 +19,10 @@ from pathlib import Path
 import pytest
 from playwright.sync_api import sync_playwright
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+_repo_root = str(Path(__file__).resolve().parent.parent.parent)
+sys.path.insert(0, _repo_root)
+
+from dashboard.navigation_config import MENU_GROUPS
 
 BASE_URL = os.getenv("STREAMLIT_URL", "http://localhost:8501")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
@@ -155,29 +158,24 @@ def test_login_submit_completes_without_exception(browser):
     page.close()
 
 
-# ── Page crawl: navega por todas as 19 paginas via sidebar ──────────────
-# Cada entrada: (nav_link_text, expected_url_path, expected_text_snippet)
-PAGES_TO_CRAWL: list[tuple[str, str, str]] = [
-    ("Visão Geral", "visao_geral", "Total Preços"),
-    ("Preços", "precos", "Preços"),
-    ("Histórico", "historico", "Histórico"),
-    ("Promoções", "promocoes", "Promoções"),
-    ("Insights", "insights", "Insights"),
-    ("Fontes & Ofertas", "fontes", "Fontes"),
-    ("Ranking", "ranking", "Ranking"),
-    ("Calculadora", "calculadora", "Calculadora"),
-    ("Revisão", "revisao", "Revisão"),
-    ("Capacidade", "capacity_planning", "Capacidade"),
-    ("Lojas", "lojas", "Lojas"),
-    ("Ingredientes", "ingredientes", "Ingredientes"),
-    ("Alertas", "alertas", "Alertas"),
-    ("Scrapers & Logs", "scrapers", "Scrapers"),
-    ("Scraper Health", "scraper_health", "Health"),
-    ("Relatórios", "relatorios", "Relatórios"),
-    ("Flyers", "flyers", "Flyers"),
-    ("Configuração", "config", "Configuração"),
-    ("Diagnóstico", "diagnostico", "Diagnóstico"),
-]
+# ── Page crawl: navega por todas as paginas do MENU_GROUPS ──
+# Single source of truth: derive from MENU_GROUPS (auto-adapta-se a mudancas)
+_EXPECTED_TEXT_OVERRIDES: dict[str, str] = {
+    "visao_geral": "Total Preços",
+    "fontes": "Fontes",
+    "scrapers": "Scrapers",
+    "scraper_health": "Health",
+}
+
+def _build_pages_to_crawl() -> list[tuple[str, str, str]]:
+    result: list[tuple[str, str, str]] = []
+    for _group_label, group_pages in MENU_GROUPS.items():
+        for nav_label, _icon, page_id in group_pages:
+            expected = _EXPECTED_TEXT_OVERRIDES.get(page_id, nav_label)
+            result.append((nav_label, page_id, expected))
+    return result
+
+PAGES_TO_CRAWL = _build_pages_to_crawl()
 
 
 def test_all_pages_crawl(browser):

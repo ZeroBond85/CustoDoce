@@ -182,6 +182,34 @@ git pw [args]
 - `gh` precisa estar autenticado (`gh auth login`). Caso contrário, watch é pulado com aviso
 - Auto-fix usa `--force-with-lease` (seguro: só force-push se ninguém mais alterou o branch)
 
+## Teste Full Manual (disparo manual único)
+
+Workflow `Teste_Full_Manual` — execute quando quiser **testar TUDO** de uma vez:
+
+```bash
+# Via GitHub Actions
+# Actions → Teste_Full_Manual → Run workflow
+```
+
+**O que é testado:**
+| Fase | Jobs | Testes |
+|------|------|--------|
+| Lint + Typecheck | `lint`, `typecheck` | ruff, bandit, mypy, pip-audit, detect-secrets |
+| Docs + Schema | `docs-sync` | sync_docs, agents schema, timestamps |
+| Unit + Schema | `unit` | 727 testes (unit + schema) |
+| Integration | `integration` | 112 testes |
+| Deploy Check | `deploy-check` | valida DB, queries, SMTP |
+| Real | `real` | 6 testes reais |
+| E2E Completo | `e2e-full` | smoke + interactions + real e2e |
+| Visual | `visual` | regressão visual (28 testes) |
+
+**Tempo total:** ~45 minutos
+
+**Auto-adaptação:**
+- Todas as listas de páginas vêm de `navigation_config.MENU_GROUPS`
+- Se adicionar página em `dashboard/pages/`, aparece automaticamente nos testes
+- Se remover, desaparece automaticamente
+
 ## ⚠️ Regra Obrigatória: DB Sync
 
 **Toda alteração em SQL/funções/triggers deve ser verificada na base real do Supabase via RPC (`exec_sql_query`, porta 443).** NUNCA `psycopg2` direto.
