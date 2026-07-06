@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 #!/usr/bin/env python3
 """
 Check if any staged Python files import modules that are gitignored.

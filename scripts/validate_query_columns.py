@@ -26,7 +26,15 @@ def load_manifest() -> dict[str, set[str]]:
         sys.exit(1)
     with open(MANIFEST_PATH, "r", encoding="utf-8") as f:
         data = json.load(f)
-        return {k: set(v) for k, v in data.items()}
+    result: dict[str, set[str]] = {}
+    for tbl, info in data.items():
+        if tbl == "_meta":
+            continue
+        if isinstance(info, dict) and "columns" in info:
+            result[tbl] = set(info["columns"])
+        elif isinstance(info, list):
+            result[tbl] = set(info)
+    return result
 
 
 def extract_references(filepath: Path, manifest: dict[str, set[str]]) -> list[dict]:

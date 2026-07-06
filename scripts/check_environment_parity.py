@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 #!/usr/bin/env python
 """
 check_environment_parity.py

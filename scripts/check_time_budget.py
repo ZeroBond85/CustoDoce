@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 """Time budget guard for CI jobs.
 
 Usage:

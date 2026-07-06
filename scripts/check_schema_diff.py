@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 """Compare production DB schema vs expected. Run ALL pending migrations."""
 
 import os

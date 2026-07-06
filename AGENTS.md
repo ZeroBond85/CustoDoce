@@ -5,7 +5,7 @@
 ## Regras Mandatórias (Top 10)
 
 1. **Schema contracts**: `config/agents_schema.yaml` define o que entra aqui. CI valida.
-2. **Mocks na boundary, não na definição**: `@patch("onde.usado.import")`, não `@patch("onde.definido")`.
+2. **Mocks derivam do schema manifest**: `config/schema_manifest.json` (gerado offline do SQL) é a fonte única. Mocks em `tests/unit/fixtures/mock_data.py` devem passar 97 checks (nomes, types, not_null, defaults, FKs, enums, jsonb). CI valida em todo PR no job `lint`.
 3. **Padrão de Testes**: Novo código = novos testes (`test_<modulo>.py`); testes com Supabase real devem usar `@pytest.mark.integration`.
 4. **`exec_sql_query` RPC (porta 443), NUNCA `psycopg2`**: GH Actions bloqueia 5432.
 5. **<55% vai pra review_queue**: `match_type`, `match_reason`, brand, top3 candidatos.
@@ -55,7 +55,8 @@ CustoDoce/
 │   └── pre-push                                       # Python, 4 steps + agents_tool
 ├── config/
 │   ├── ingredients.yaml, stores.yaml, features.yaml
-│   ├── schema_prices.json, agents_schema.yaml         << NOVO
+│   ├── schema_manifest.json                          # Schema offline (gerado por scripts/generate_schema_manifest.py)
+│   ├── schema_prices.json, agents_schema.yaml
 ├── scrapers/          # base_flyer, vtex, playwright, flyer, parser, ocr, etc.
 ├── parsers/           # normalizer, matcher, brand_extractor, llm_cache, llm_strategies, llm_classifier
 ├── services/          # supabase_client, price_*, collector, email, telegram, alert, logger, otel, etc.
@@ -64,7 +65,12 @@ CustoDoce/
 ├── admin/app.py       # 107 linhas — importa 19 pages
 ├── supabase/          # seed.sql, consolidated_migration.sql, migrations 002-005
 ├── scripts/           # deploy, validate, sync, audit, seed, heal, sanity, send_report, skills_maintenance
-├── tests/             # unit (518), schema (94), integration, design, e2e, real
+├── tests/             # unit (729), schema (94), integration, design, e2e, real
+│   ├── unit/fixtures/                                # Mock data central (16 tabelas em mock_data.py)
+│   ├── unit/test_services/                           # 13 módulos decompostos (119 tests)
+│   │   ├── conftest.py                               # Mock helpers compartilhados
+│   │   ├── test_price.py, test_config.py, ...
+│   └── diagnostics/                                  # Testes lentos (pip-audit, ruff, mypy, secrets)
 ├── data/prices_latest.json
 ├── pyproject.toml     # Ruff 120 chars, mypy 3.12, pytest config
 ├── requirements.txt   # httpx<1.0, supabase, streamlit, groq, torch, etc.
@@ -208,16 +214,24 @@ python scripts/validate_db_schema.py
 
 # Testes específicos
 python -m pytest tests/unit/ tests/schema/ -q
-python -m pytest tests/integration/ -q -x
+
+# Schema / DB
+python scripts/generate_schema_manifest.py
+python -m pytest tests/unit/test_validate_mocks_against_manifest.py -q
+
+# Testes lentos (diagnóstico)
+python -m pytest tests/diagnostics/ -q -m slow
 ```
 
 ## Status Atual
 
 | Métrica | Valor |
 |---------|-------|
-| pytest (unit + schema) | 612 passing |
+| pytest (unit + schema, no slow) | 729 passing |
 | pytest (integration) | 112 passing |
-| pytest (real, slow) | 6 passing |
+| pytest (diagnostics, slow) | 4 passing |
+| Schema manifest | 16 tabelas/views com types, not_null, defaults, constraints |
+| Mock validation tests | 97 parametrizados (colunas, tipos, not_null, FKs, CHECK, jsonb) |
 | AGENTS.md | 974→~370 linhas (Sprint 11 sanitization) |
 | LESSONS.md | 39 lições |
 | REGRAS.md | Ambiente + hooks + comandos |
