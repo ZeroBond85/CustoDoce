@@ -15,6 +15,7 @@
 9. **`httpx` pinado `<1.0`** no `requirements.txt`.
 10. **Paridade Total de Ambiente**: Python, deps (requirements.lock), runtime, OS e versões de ferramentas devem ser IDÊNTICOS entre local (Windows/WSL), CI (GitHub Actions) e Cloud (Streamlit). Qualquer divergência bloqueia merge — CI valida no alvo real. (Ver `REGRAS.md` §4)
 11. **Falha no CI = Gap de Teste**: Toda falha no CI não detectada localmente EXIGE: reprodução via novo teste local $\rightarrow$ correção $\rightarrow$ registro no `LESSONS.md`. "Tentar de novo" é proibido.
+12. **Monitoração Total do CI**: O acompanhamento do push deve ir até o status FINAL (success/failure). Em shells com timeout, o uso de polling (consultas repetidas ao `gh run view`) é a estratégia mandatória para evitar interrupções prematuras.
 
 ## Sobre
 
@@ -182,6 +183,7 @@ git pw [args]
 - O `git push` normal (sem watch) continua funcionando — pular o CI watch é intencional
 - `gh` precisa estar autenticado (`gh auth login`). Caso contrário, watch é pulado com aviso
 - Auto-fix usa `--force-with-lease` (seguro: só force-push se ninguém mais alterou o branch)
+- **Para Agentes**: Devido a timeouts de shell, substitua `gh run watch` por polling repetitivo de `gh run view --json conclusion` até a conclusão final.
 
 ## Teste Full Manual (disparo manual único)
 
