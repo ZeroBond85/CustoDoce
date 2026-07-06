@@ -264,7 +264,7 @@ python -m pytest tests/diagnostics/ -q -m slow
 | Schema manifest | 17 tabelas/views com types, not_null, defaults, constraints |
 | Mock validation tests | 97 parametrizados (colunas, tipos, not_null, FKs, CHECK, jsonb) |
 | AGENTS.md | 974→~370 linhas (Sprint 11 sanitization) |
-| LESSONS.md | 40 lições |
+| LESSONS.md | 43 lições |
 | REGRAS.md | Ambiente + hooks + comandos |
 | CI lint/type/test | ✅ Todos verdes (Python 3.14) |
 | E2E (cloud) | ⏳ Mensal (Playwright) |
@@ -313,7 +313,7 @@ Para WSL: `custodoce-314` (Conda, Python 3.14). Detalhes em `REGRAS.md`.
 
 ## Documentação Relacionada
 
-- `LESSONS.md` — 40 lições (CI, mocks, schema, scrapers, monitoração, segurança)
+- `LESSONS.md` — 43 lições (CI, mocks, schema, scrapers, monitoração, segurança)
 - `REGRAS.md` — Ambiente, hooks, comandos, arquitetura
 - `docs/skills.md` — Skills OpenCode (globais + overlays locais)
 - `docs/changelog.md` — Histórico por fase/sprint

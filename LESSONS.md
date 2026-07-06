@@ -262,14 +262,20 @@ Toda mitigação foi reativa. Com monitoração, teriam sido descobertas proativ
 - Se um componente quebrou e ninguém percebeu, a culpa não é do componente — é da falta de monitoração
 
 ### 42. Monitoração de CI em shells com timeout (Polling vs Watch)
- 
+  
  **Causa raiz:** O comando `gh run watch` mantém uma conexão aberta e aguarda a conclusão do run. Em ambientes de shell com timeout estrito (ex: 120s), o comando é interrompido prematuramente, impedindo o acompanhamento do CI até o fim.
- 
+  
  **Solução:** Substituir o "Watch" por "Polling" (consultas repetidas e curtas).
- 
+  
  **Técnica de Polling:**
  `gh run view <run_id> --json conclusion --jq '.conclusion'`
- 
+  
  **Regra permanente:** Agentes devem implementar loops de polling com intervalos (ex: 30s) para monitorar a conclusão do CI, evitando a dependência de comandos de watch de longa duração.
+ 
+### 43. Scheduled workflows não devem usar GH_PAT custom token no Checkout
+**Causa raiz:** No run https://github.com/ZeroBond85/CustoDoce/actions/runs/28803088935 (scheduled, master), o Checkout falhou 3× com `fatal: could not read Username for 'https://github.com': terminal prompts disabled` porque `with: token: ${{ secrets.GH_PAT }}` força prompt interativo ausente em modo scheduled; e o `python -c "import httpx"` nos alertas de commit/e-mail também quebrou (provavelmente por ambiente restrito).
+**Solução:** Remover `with: token:` do step "Checkout" em `.github/workflows/scrape.yml` (mantido o default); substituir `python -c "import httpx"` por `curl -X POST` direto nos passos "Alert on commit failure" e "Alert on email failure"; GH_PAT preservado apenas no step "Commit Latest Pushing latest prices" (git push).
+**Validação:** Run https://github.com/ZeroBond85/CustoDoce/actions/runs/28803210736 (on_demand_scrape.yml, scheduled) rodou verde com checkout sem token. Novo teste unitário `tests/unit/test_scrape_workflow.py` garantindo que `.github/workflows/scrape.yml` NÃO contém `token: ${{ secrets.GH_PAT` no step de checkout.
+**Data:** 2026-07-06
 
 
