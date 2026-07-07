@@ -4,6 +4,10 @@ on:
     - cron: '0 12 * * 1'  # Segunda 12h UTC (9h BRT)
   workflow_dispatch:
 
+concurrency:
+  group: sanitize-check-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   sanitize-dry-run:
     runs-on: ubuntu-latest

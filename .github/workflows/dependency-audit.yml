@@ -26,6 +26,10 @@ on:
 env:
   PYTHON_VERSION: '3.14'
 
+concurrency:
+  group: dependency-audit-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lock-validation:
     name: Validate requirements.lock is in sync (blocks PR)

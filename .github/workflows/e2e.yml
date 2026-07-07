@@ -17,13 +17,14 @@ on:
 env:
   PYTHON_VERSION: '3.14'
 
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   e2e-local:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    concurrency:
-      group: e2e-${{ github.ref }}
-      cancel-in-progress: true
 
     steps:
       - uses: actions/checkout@v7

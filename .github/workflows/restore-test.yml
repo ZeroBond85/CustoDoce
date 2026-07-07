@@ -87,16 +87,20 @@ jobs:
         env:
           CI_JOB_START: ${{ env.CI_JOB_START }}
           
-      - name: Notify restore test result
-        if: always()
+      - name: Notify restore test success
+        if: success()
         run: |
-          if [ "$GITHUB_CONCLUSION" == "success" ]; then
-            echo "::notice::Teste de restauração concluído com sucesso."
-            python scripts/notify_security_issue.py "SUCCESS" "Teste de restauração concluído com sucesso: ${{ steps.validate_backup.outputs.BACKUP_FILE }}" "0"
-          else
-            echo "::error::Teste de restauração falhou."
-            python scripts/notify_security_issue.py "FAILURE" "Teste de restauração falhou: ${{ steps.validate_backup.outputs.BACKUP_FILE }}" "0"
-          fi
+          echo "::notice::Teste de restauração concluído com sucesso."
+          python scripts/notify_security_issue.py "SUCCESS" "Teste de restauração concluído com sucesso: ${{ steps.validate_backup.outputs.BACKUP_FILE }}" "0"
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+      - name: Notify restore test failure
+        if: failure()
+        run: |
+          echo "::error::Teste de restauração falhou."
+          python scripts/notify_security_issue.py "FAILURE" "Teste de restauração falhou: ${{ steps.validate_backup.outputs.BACKUP_FILE }}" "0"
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

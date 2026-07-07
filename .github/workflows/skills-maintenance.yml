@@ -20,6 +20,10 @@ on:
       - 'scripts/skills_maintenance.py'
       - 'scripts/sync_docs.py'
 
+concurrency:
+  group: skills-maintenance-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   maintenance:
     runs-on: ubuntu-latest

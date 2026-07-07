@@ -8,6 +8,10 @@ on:
         required: false
         default: 'master'
 
+concurrency:
+  group: ci-e2e-only-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   e2e-smoke:
     runs-on: ubuntu-latest

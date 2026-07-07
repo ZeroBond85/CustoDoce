@@ -3,8 +3,40 @@ name: CI - Testes e Qualidade
 on:
   push:
     branches: [master]
+    paths:
+      - '**.py'
+      - '**.md'
+      - '**.yaml'
+      - '**.yml'
+      - 'requirements*.txt'
+      - 'docs/**'
+      - 'LESSONS.md'
+      - 'REGRAS.md'
+      - 'AGENTS.md'
+      - 'tests/**'
+      - 'scrapers/**'
+      - 'parsers/**'
+      - 'services/**'
+      - 'config/**'
+      - 'supabase/**'
   pull_request:
     branches: [master]
+    paths:
+      - '**.py'
+      - '**.md'
+      - '**.yaml'
+      - '**.yml'
+      - 'requirements*.txt'
+      - 'docs/**'
+      - 'LESSONS.md'
+      - 'REGRAS.md'
+      - 'AGENTS.md'
+      - 'tests/**'
+      - 'scrapers/**'
+      - 'parsers/**'
+      - 'services/**'
+      - 'config/**'
+      - 'supabase/**'
   workflow_dispatch:
 
 concurrency:
@@ -19,12 +51,6 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    paths:
-      - '**.py'
-      - '**.md'
-      - '**.yaml'
-      - '**.yml'
-      - 'requirements*.txt'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -80,8 +106,6 @@ jobs:
   typecheck:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    paths:
-      - '**.py'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -100,11 +124,6 @@ jobs:
   docs-sync:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    paths:
-      - 'docs/**'
-      - 'LESSONS.md'
-      - 'REGRAS.md'
-      - 'AGENTS.md'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -142,13 +161,6 @@ jobs:
     needs: [lint, typecheck]
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    paths:
-      - 'tests/**'
-      - 'scrapers/**'
-      - 'parsers/**'
-      - 'services/**'
-      - 'config/**'
-      - 'requirements*.txt'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -182,13 +194,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    paths:
-      - 'scrapers/**'
-      - 'parsers/**'
-      - 'services/**'
-      - 'supabase/**'
-      - 'requirements*.txt'
-      - 'tests/integration/**'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -216,12 +221,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     if: github.event_name != 'pull_request'
-    paths:
-      - 'scrapers/**'
-      - 'parsers/**'
-      - 'services/**'
-      - 'supabase/**'
-      - 'requirements*.txt'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
