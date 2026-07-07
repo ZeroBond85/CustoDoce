@@ -43,4 +43,4 @@ Para garantir que apenas um scraping ocorra por vez, usar `scripts/scrape_lock.p
 - `scripts/scrape_lock.py` (a ser criado)
 
 ---
-Última atualização: $(date +%Y-%m-%d)
+> Última atualização: 2026-07-06 00:00 UTC

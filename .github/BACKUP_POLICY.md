@@ -63,4 +63,4 @@ Em caso de falha crítica no Supabase:
 - `.github/workflows/restore-test.yml`
 
 ---
-Última atualização: $(date +%Y-%m-%d)
+> Última atualização: 2026-07-06 00:00 UTC

@@ -6,6 +6,7 @@ Uso:
   python notify_security_issue.py <cve_severity> <cve_description> <pr_number>
 """
 
+import json
 import os
 import subprocess
 import sys
@@ -35,7 +36,7 @@ def send_telegram_message(message: str) -> bool:
 
     try:
         response = subprocess.check_output(
-            ["curl", "-s", "-X", "POST", url, "-d", str(payload)],
+            ["curl", "-s", "-X", "POST", url, "-d", json.dumps(payload)],
             stderr=subprocess.STDOUT,
             text=True,
         )
@@ -43,7 +44,6 @@ def send_telegram_message(message: str) -> bool:
         return True
     except subprocess.CalledProcessError as e:
         print(f"ERRO: Falha ao enviar mensagem para Telegram: {e.output}", file=sys.stderr)
-        print(f"Detalhes: {e.stderr}", file=sys.stderr)
         return False
 
 
@@ -66,9 +66,9 @@ def send_github_comment(pr_number: int, message: str) -> bool:
     try:
         response = subprocess.check_output(
             ["curl", "-s", "-X", "POST", url,
-             "-H", "Authorization: token {GITHUB_TOKEN}",
+             "-H", f"Authorization: token {GITHUB_TOKEN}",
              "-H", "Accept: application/vnd.github.v3+json",
-             "-d", str(payload)],
+             "-d", json.dumps(payload)],
             stderr=subprocess.STDOUT,
             text=True,
         )
@@ -76,6 +76,9 @@ def send_github_comment(pr_number: int, message: str) -> bool:
         return True
     except subprocess.CalledProcessError as e:
         print(f"ERRO: Falha ao adicionar comentário no PR: {e.output}", file=sys.stderr)
+        return False
+    except Exception as e:
+        print(f"ERRO inesperado ao adicionar comentário no PR: {e}", file=sys.stderr)
         return False
 
 
@@ -94,17 +97,20 @@ def notify_security_issue(severity: str, description: str, pr_number: int) -> bo
     # Enviar mensagem para Telegram
     telegram_success = send_telegram_message(message)
 
-    # Adicionar comentário no PR
-    comment_message = f"""
+    # Adicionar comentário no PR (apenas se for PR real, não #0)
+    if pr_number is not None and pr_number > 0:
+        comment_message = f"""
 Este PR contém uma vulnerabilidade de segurança classificada como **{severity}**.
 
 **Descrição:** {description}
 
 Por favor, revise e corrija antes de mergear.
 """
-    github_success = send_github_comment(pr_number, comment_message)
+        github_success = send_github_comment(pr_number, comment_message)
+        return telegram_success and github_success
 
-    return telegram_success and github_success
+    # Só precisa do Telegram se não for PR
+    return telegram_success
 
 
 if __name__ == "__main__":
