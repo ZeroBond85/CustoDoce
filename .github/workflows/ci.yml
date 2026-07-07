@@ -3,8 +3,6 @@ name: CI - Testes e Qualidade
 on:
   push:
     branches: [master]
-    paths-ignore:
-      - 'docs/**'
     paths:
       - '**.py'
       - '**.md'
@@ -22,10 +20,9 @@ on:
       - 'services/**'
       - 'config/**'
       - 'supabase/**'
+      - '!docs/**'
   pull_request:
     branches: [master]
-    paths-ignore:
-      - 'docs/**'
     paths:
       - '**.py'
       - '**.md'
@@ -43,6 +40,7 @@ on:
       - 'services/**'
       - 'config/**'
       - 'supabase/**'
+      - '!docs/**'
   workflow_dispatch:
 
 concurrency:
