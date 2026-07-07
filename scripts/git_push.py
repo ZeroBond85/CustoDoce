@@ -129,19 +129,38 @@ def _parse_error(log: str) -> tuple[str, str]:
 
 
 def _watch_one(run_id: str) -> tuple[int, str]:
-    """Bloqueia até um run específico terminar. Retorna (exit_code, erro_log)."""
+    """Bloqueia até um run específico terminar via polling. Retorna (exit_code, erro_log)."""
     wf = _get_workflow_name(run_id) or "?"
-    print(f"⏳  Assistindo {wf} (run #{run_id})...", file=sys.stderr)
-    try:
-        watch = subprocess.run(
-            ["gh", "run", "watch", run_id, "--exit-status"],  # noqa: S607
-            capture_output=False,
-            timeout=TIMEOUT,
-            cwd=REPO_ROOT,
-        )
-        return (watch.returncode, "")
-    except subprocess.TimeoutExpired:
-        return (124, "timeout")
+    print(f"⏳  Assistindo {wf} (run #{run_id}) via polling...", file=sys.stderr)
+    
+    deadline = time.time() + TIMEOUT
+    while time.time() < deadline:
+        result = _run(["gh", "run", "view", run_id, "--json", "conclusion,status"], timeout=15)
+        if result.returncode == 0 and result.stdout.strip():
+            try:
+                d = json.loads(result.stdout)
+                conclusion = d.get("conclusion")
+                status = d.get("status")
+                if conclusion == "success":
+                    print(f"✅  {wf} (run #{run_id}) concluído: SUCCESS", file=sys.stderr)
+                    return (0, "")
+                elif conclusion in ("failure", "cancelled"):
+                    print(f"❌  {wf} (run #{run_id}) concluído: {conclusion.upper()}", file=sys.stderr)
+                    return (1, conclusion)
+                elif status in ("queued", "in_progress"):
+                    # Still running, wait and poll again
+                    time.sleep(30)
+                    continue
+                else:
+                    # Unknown state, keep polling
+                    time.sleep(30)
+                    continue
+            except json.JSONDecodeError:
+                pass
+        time.sleep(30)
+    
+    print(f"⏰  Timeout ({TIMEOUT}s) esperando {wf} (run #{run_id})", file=sys.stderr)
+    return (124, "timeout")
 
 
 def _get_workflow_name(run_id: str) -> str:

@@ -283,3 +283,14 @@ Toda mitigação foi reativa. Com monitoração, teriam sido descobertas proativ
 ### 44. GH Actions Step Validation
 
 Steps sem 'run:' ou 'uses:' geram 'failure' com 0 jobs. yaml.safe_load nao detecta. Validar com test_all_steps_have_run_or_uses() antes de push.
+
+### 45. git_push.py timeout — Polling obrigatório para CI Watch em shells com timeout
+
+**Causa raiz:** O script `scripts/git_push.py` usa `gh run watch --exit-status` (linha 136-141) que mantém conexão aberta até o CI completar. Em shells com timeout estrito (ex: 120s padrão), o comando é interrompido prematuramente, perdendo o status final do CI (success/failure) e impedindo o auto-retry.
+
+**Solução:** Substituir `gh run watch` por polling assíncrono com `gh run view <run_id> --json conclusion` em loop (intervalo 30s) — igual à técnica da Lição #42. O timeout do subprocesso deve ser `CI_WATCH_TIMEOUT` (padrão 600s), não o timeout do shell.
+
+**Regra permanente:** 
+- `git_push.py` DEVE implementar polling, não `gh run watch`
+- Todo agente que monitorar CI deve usar polling repetitivo até conclusão final
+- Se shell timeout < tempo do CI, o watch falha e perde a conclusão
