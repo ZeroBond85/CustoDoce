@@ -186,6 +186,29 @@ def test_no_bash_github_conclusion_in_notify_steps():
                         )
 
 
+def test_no_mixed_paths_and_paths_ignore():
+    """'paths' e 'paths-ignore' sao mutuamente exclusivos no mesmo trigger do GitHub Actions.
+
+    Se ambos aparecerem no mesmo evento (ex: on.push), o GitHub rejeita o workflow
+    com 'failure' e 0 jobs — erro silencioso que yaml.safe_load nao detecta.
+    Use '!docs/**' (negative pattern) dentro de 'paths' em vez de 'paths-ignore'.
+    """
+    for path in WORKFLOWS_DIR.glob("*.yml"):
+        with path.open(encoding="utf-8") as f:
+            workflow = yaml.safe_load(f)
+
+        on = workflow.get("on", workflow.get(True, {})) or {}
+        for event in ("push", "pull_request"):
+            trigger = on.get(event, {}) or {}
+            if isinstance(trigger, dict):
+                has_paths = "paths" in trigger
+                has_paths_ignore = "paths-ignore" in trigger
+                assert not (has_paths and has_paths_ignore), (
+                    f"{path.name}: trigger '{event}' tem ambos 'paths' e 'paths-ignore'. "
+                    "Eles sao mutuamente exclusivos. Use '!padrao' dentro de 'paths' para exclusao."
+                )
+
+
 def test_all_workflows_have_concurrency():
     """Todos os workflows devem ter configuração de concurrency para evitar paralelismo destrutivo.
 
