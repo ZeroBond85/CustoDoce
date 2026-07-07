@@ -209,6 +209,35 @@ def test_no_mixed_paths_and_paths_ignore():
                 )
 
 
+def test_all_steps_have_run_or_uses():
+    """Cada step em todos os workflows deve ter 'run' ou 'uses'.
+
+    GitHub Actions rejeita steps sem 'run' nem 'uses' com 'failure' e 0 jobs.
+    Esse erro é silencioso: yaml.safe_load aceita, mas o parser do GH rejeita.
+    """
+    for path in WORKFLOWS_DIR.glob("*.yml"):
+        with path.open(encoding="utf-8") as f:
+            workflow = yaml.safe_load(f)
+        jobs = workflow.get("jobs", {}) or {}
+        for job_id, job in jobs.items():
+            if not isinstance(job, dict):
+                continue
+            steps = job.get("steps", []) or []
+            for i, step in enumerate(steps):
+                if not isinstance(step, dict):
+                    assert isinstance(step, str), (
+                        f"{path.name} job '{job_id}' step#{i}: tipo inválido {type(step).__name__}"
+                    )
+                    continue
+                has_run = "run" in step
+                has_uses = "uses" in step
+                assert has_run or has_uses, (
+                    f"{path.name} job '{job_id}' step#{i}: "
+                    "precisa de 'run:' ou 'uses:'. "
+                    f"Keys atuais: {list(step.keys())}"
+                )
+
+
 def test_all_workflows_have_concurrency():
     """Todos os workflows devem ter configuração de concurrency para evitar paralelismo destrutivo.
 
@@ -249,5 +278,7 @@ if __name__ == "__main__":
     test_pull_request_workflows_have_pr_guard()
     test_cleaners_have_release_lock_step()
     test_no_bash_github_conclusion_in_notify_steps()
+    test_no_mixed_paths_and_paths_ignore()
+    test_all_steps_have_run_or_uses()
     test_all_workflows_have_concurrency()
     print("All workflow check tests passed!")

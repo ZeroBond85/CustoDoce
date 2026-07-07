@@ -279,3 +279,7 @@ Toda mitigação foi reativa. Com monitoração, teriam sido descobertas proativ
 **Data:** 2026-07-06
 
 
+
+### 44. GH Actions Step Validation
+
+Steps sem 'run:' ou 'uses:' geram 'failure' com 0 jobs. yaml.safe_load nao detecta. Validar com test_all_steps_have_run_or_uses() antes de push.
