@@ -2,7 +2,7 @@ name: Heal Scrapers
 
 on:
   schedule:
-    - cron: '0 0 */15 * *'  # A cada 15 dias às 00:00 UTC
+    - cron: '0 0 1 * *'  # Dia 1 de cada mes às 00:00 UTC
 
 jobs:
   scrape:

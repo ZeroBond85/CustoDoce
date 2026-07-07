@@ -74,7 +74,10 @@ def test_extract_actual_test_count_parsing():
 
 
 def test_check_drift_returns_list():
-    drift = sync_docs._check_drift()
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(stdout="6 tests collected\n", returncode=0)
+        with patch.object(sync_docs, "_count_tests", return_value={"unit": 6, "schema": 2}):
+            drift = sync_docs._check_drift()
     assert isinstance(drift, list)
 
 

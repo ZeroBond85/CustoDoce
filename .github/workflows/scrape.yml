@@ -2,7 +2,7 @@ name: Scrape
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # Diariamente às 00:00 UTC
+    - cron: '0 0 * * 1-5'  # Seg-Sex às 00:00 UTC (dias uteis SP)
   workflow_dispatch:
     inputs:
       stores_filter:

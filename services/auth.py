@@ -11,7 +11,7 @@ import jwt as pyjwt
 
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = 24
-PBKDF2_ITERATIONS = 600_000
+_PBKDF2_ITERATIONS = int(os.environ.get("AUTH_PBKDF2_ITERATIONS", "600000"))
 TOTP_INTERVAL = 30
 TOTP_DIGITS = 6
 
@@ -29,7 +29,7 @@ def generate_secret_key(length: int = 32) -> str:
 
 
 def _derive_key(secret: str, salt: bytes) -> bytes:
-    return hashlib.pbkdf2_hmac("sha256", secret.encode("utf-8"), salt, PBKDF2_ITERATIONS, dklen=32)
+    return hashlib.pbkdf2_hmac("sha256", secret.encode("utf-8"), salt, _PBKDF2_ITERATIONS, dklen=32)
 
 
 def hash_password(password: str) -> str:

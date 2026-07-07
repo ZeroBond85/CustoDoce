@@ -19,12 +19,18 @@ on:
   pull_request:
     paths:
       - 'requirements.txt'
-      - 'requirements-dev.txt'
-      - 'tests/requirements-test.txt'
+      - 'requirements.txt'
+      - 'requirements-prod.in'
+      - 'requirements-dev.in'
+      - 'requirements-test.in'
+      - 'requirements-prod.lock'
+      - 'requirements-dev.lock'
+      - 'requirements-test.lock'
       - 'requirements.lock'
 
 env:
-  PYTHON_VERSION: '3.14'
+  PYTHON_VERSION: '3.14.6'
+  PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
 
 concurrency:
   group: dependency-audit-${{ github.ref }}
@@ -45,16 +51,23 @@ jobs:
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - name: Install pip-tools
         run: pip install pip-tools
-      - name: Regenerate requirements.lock from scratch
-        run: pip-compile --allow-unsafe --output-file=requirements.lock requirements-dev.txt requirements.txt tests/requirements-test.txt
-      - name: Check if lock file changed
+      - name: Regenerate all lock files from scratch (CPU-only torch)
+        env:
+          PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
         run: |
-          git diff --exit-code requirements.lock && echo "requirements.lock is up to date" || {
-            echo "::error::requirements.lock is out of sync with requirements*.txt"
-            echo "::error::Run locally: pip-compile --allow-unsafe --output-file=requirements.lock requirements-dev.txt requirements.txt tests/requirements-test.txt"
-            echo "::error::Then commit the updated requirements.lock"
-            exit 1
-          }
+          pip-compile --allow-unsafe --output-file=requirements-prod.lock requirements-prod.in
+          pip-compile --allow-unsafe --output-file=requirements-dev.lock requirements-dev.in requirements-prod.in
+          pip-compile --allow-unsafe --output-file=requirements-test.lock requirements-test.in requirements-dev.in requirements-prod.in
+          cp requirements-test.lock requirements.lock
+      - name: Check if lock files changed
+        run: |
+          for f in requirements.lock requirements-prod.lock requirements-dev.lock requirements-test.lock; do
+            git diff --exit-code "$f" && echo "$f is up to date" || {
+              echo "::error::$f is out of sync with .in files"
+              echo "::error::Run locally: PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu && pip-compile --allow-unsafe --output-file=$f ..."
+              exit 1
+            }
+          done
       - name: Check time budget for lock validation
         run: python scripts/check_time_budget.py --timeout-minutes 5 --label "lock-validation"
         env:
@@ -101,14 +114,14 @@ jobs:
         continue-on-error: true
         env:
           CI_JOB_START: ${{ env.CI_JOB_START }}
-        run: pip-audit --strict -s osv -r requirements-dev.txt || true
+        run: pip-audit --strict -s osv -r requirements-dev.in || true
       - name: Check time budget for dev audit
         run: python scripts/check_time_budget.py --timeout-minutes 5 --label "audit-dev"
         env:
           CI_JOB_START: ${{ env.CI_JOB_START }}
       - name: Audit test deps (informational)
         continue-on-error: true
-        run: pip-audit --strict -s osv -r tests/requirements-test.txt || echo "Known dev/test CVEs accepted — see docs/security.md"
+        run: pip-audit --strict -s osv -r requirements-test.in || echo "Known dev/test CVEs accepted — see docs/security.md"
 
   full-scan:
     name: Transitive/unused scan + licenses (monthly)

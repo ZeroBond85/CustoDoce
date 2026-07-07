@@ -8,7 +8,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PYTHON_VERSION: '3.14'
+  PYTHON_VERSION: '3.14.6'
+  PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
   PYTHONUNBUFFERED: '1'
 
 jobs:
@@ -21,7 +22,8 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      - run: pip install -r requirements.lock
+          cache-dependency-path: requirements-dev.lock
+      - run: pip install -r requirements-dev.lock
       - run: python scripts/check_environment_parity.py
       - run: ruff check . --output-format=github
       - name: Security lint (Supabase RLS + RPC)
@@ -47,7 +49,8 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      - run: pip install -r requirements.lock
+          cache-dependency-path: requirements-dev.lock
+      - run: pip install -r requirements-dev.lock
       - run: mypy . --config-file pyproject.toml
 
   docs-sync:
@@ -59,7 +62,8 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      - run: pip install -r requirements.lock
+          cache-dependency-path: requirements-dev.lock
+      - run: pip install -r requirements-dev.lock
       - run: python scripts/sync_docs.py --analyze
       - run: python scripts/sync_docs.py --check --strict --experimental
         timeout-minutes: 3
@@ -79,7 +83,8 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      - run: pip install -r requirements.lock
+          cache-dependency-path: requirements-test.lock
+      - run: pip install -r requirements-test.lock
       - run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - run: python -m pytest tests/unit/ tests/schema/ -q --tb=short --no-header --durations=5
       - run: python scripts/check_time_budget.py --timeout-minutes 10 --label "unit"
@@ -95,8 +100,17 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      - run: pip install -r requirements.lock
-      - run: python -m playwright install chromium
+          cache-dependency-path: requirements-test.lock
+      - run: pip install -r requirements-test.lock
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('requirements-test.lock') }}
+      - if: steps.pw-cache.outputs.cache-hit != 'true'
+        name: Install Playwright browsers
+        run: python -m playwright install chromium --with-deps
       - run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - run: python -m pytest tests/integration/ -q --tb=short --no-header --durations=5
         env:
@@ -118,7 +132,8 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      - run: pip install -r requirements.lock
+          cache-dependency-path: requirements-prod.lock
+      - run: pip install -r requirements-prod.lock
       - run: python scripts/deploy_check.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -148,8 +163,16 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      - run: sudo apt-get update -qq && sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-por poppler-utils
-      - run: pip install -r requirements.lock
+          cache-dependency-path: requirements-test.lock
+      - name: Cache apt packages
+        id: apt-cache
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-tesseract-poppler-${{ runner.os }}
+      - name: Install system deps
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-por poppler-utils
+      - run: pip install -r requirements-test.lock
       - run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - run: python -m pytest tests/real/ -q --tb=short --no-header --durations=5
         env:
@@ -158,7 +181,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
   e2e-full:
-    needs: [deploy-check]
+    needs: [lint, typecheck]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -167,8 +190,16 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      - run: pip install -r requirements.lock
-      - name: Install Playwright
+          cache-dependency-path: requirements-test.lock
+      - run: pip install -r requirements-test.lock
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('requirements-test.lock') }}
+      - if: steps.pw-cache.outputs.cache-hit != 'true'
+        name: Install Playwright
         run: python -m playwright install chromium --with-deps
       - name: Start Streamlit local server
         run: |
@@ -218,8 +249,16 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      - run: pip install -r requirements.lock
-      - name: Install Playwright
+          cache-dependency-path: requirements-test.lock
+      - run: pip install -r requirements-test.lock
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('requirements-test.lock') }}
+      - if: steps.pw-cache.outputs.cache-hit != 'true'
+        name: Install Playwright
         run: python -m playwright install chromium --with-deps
       - name: Visual regression + dashboard tests (cloud)
         run: python -m pytest tests/e2e/test_e2e_dashboard.py -v --tb=short --no-header

@@ -2,8 +2,6 @@ ruff>=0.15
 mypy>=1.15
 bandit>=1.8
 pip-audit>=2.9
-radon>=6.0
 detect-secrets>=1.5
-vulture>=2.14
 
 markdown-it-py>=3.0

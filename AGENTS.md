@@ -75,7 +75,14 @@ CustoDoce/
 │   └── diagnostics/                                  # Testes lentos (pip-audit, ruff, mypy, secrets)
 ├── data/prices_latest.json
 ├── pyproject.toml     # Ruff 120 chars, mypy 3.12, pytest config
-├── requirements.txt   # httpx<1.0, supabase, streamlit, groq, torch, etc.
+├── requirements-prod.in   # Deps de produção (pip-compile source)
+├── requirements-dev.in    # Deps de dev: ruff, mypy, bandit, detect-secrets
+├── requirements-test.in   # Deps de teste: pytest, playwright, faker
+├── requirements-prod.lock  # Pinned (só prod)
+├── requirements-dev.lock   # Pinned (prod + dev)
+├── requirements-test.lock  # Pinned (prod + dev + test)
+├── requirements.lock       # = requirements-test.lock (backward compat)
+├── requirements.txt        # = requirements-prod.in (pip-audit source)
 ├── AGENTS.md          # ← este arquivo (vivo, ~370 linhas)
 ├── LESSONS.md         # 32 lições aprendidas
 └── REGRAS.md          # Ambiente, hooks, comandos
@@ -272,7 +279,9 @@ python -m pytest tests/diagnostics/ -q -m slow
 | Python CI (GitHub Actions) | 3.14.6 (`PYTHON_VERSION=3.14.6`) |
 | Python WSL | 3.14.6 (`custodoce-314`) |
 | Python Cloud (Streamlit) | 3.14.6 |
-| requirements.lock | 130+ packages, no hashes |
+| requirements-prod.lock | ~100 packages (só prod) |
+| requirements-dev.lock | ~115 packages (prod + lint) |
+| requirements-test.lock | 130+ packages (prod + dev + test) |
 | OpenCode Skills | 33 installed (todas no projeto) |
 | Dashboard pages | 19 módulos (inclui CI Telemetria) |
 | Workflows GitHub Actions | 8 otimizados, validados, com check_time_budget |
@@ -302,7 +311,7 @@ python scripts/sync_docs.py --sync                # Regenera docs/skills.md
 - **Mensal** (1º do mês, 6am SP / 9am UTC): `skills-maintenance.yml` executa `--check --validate`
 - **Mensal** (1º do mês, 9am UTC): `dependency-audit.yml` executa `pip-audit` + `deptry` + `pip-licenses`
 - **A cada PR**: CI valida estrutura das skills modificadas
-- **A cada PR (requirements*.txt)**: `dependency-audit.yml` job `audit-prod` bloqueia se `pip-audit --strict -r requirements.txt` falhar
+- **A cada PR (requirements*.txt / *.in / *.lock)**: `dependency-audit.yml` job `audit-prod` bloqueia se `pip-audit --strict -r requirements.txt` falhar; `lock-validation` verifica sincronia entre `.in` e `.lock`
 - **Detecção de drift**: `sync_docs --check` no `ci.yml` job `docs-sync` — falha se disco ≠ approved ≠ docs
 
 ## Ambiente

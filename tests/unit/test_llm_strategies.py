@@ -9,7 +9,6 @@ Cobre:
 - Safe parse de respostas mal-formadas
 """
 
-import time
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -49,10 +48,8 @@ def test_circuit_resets_after_cooldown(mock_env):
     from parsers.llm_strategies import GroqStrategy
 
     g = GroqStrategy()
-    g.record_failure()
-    g.record_failure()
-    g.record_failure()
-    time.sleep(2.5)  # wait beyond cooldown
+    g.failure_count = 3  # threshold (LLM_CB_THRESHOLD=3 via mock_env)
+    g.last_failure_ts = 0  # way in the past → cooldown expired
     assert g.is_circuit_open() is False
 
 

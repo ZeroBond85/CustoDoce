@@ -105,9 +105,14 @@ class TestBaseWebScraper:
         assert elapsed < 1.0  # nao deve dormir mais que 1s com rate_limit=0
 
     def test_fetch_json_network_error(self):
+        import httpx
+        from unittest.mock import patch
+
         scraper = self._make_concrete_scraper()
-        result = scraper.fetch_json("https://nonexistent.invalid/api")
-        assert result is None
+        with patch("scrapers.base_web_scraper.time.sleep"):
+            with patch.object(scraper._http, "get", side_effect=httpx.NetworkError("mock error")):
+                result = scraper.fetch_json("https://nonexistent.invalid/api")
+                assert result is None
 
     def test_parse_products_concrete(self):
         scraper = self._make_concrete_scraper()
