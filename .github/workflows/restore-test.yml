@@ -95,7 +95,7 @@ jobs:
         if: success()
         run: |
           echo "::notice::Teste de restauração concluído com sucesso."
-          python scripts/notify_security_issue.py "SUCCESS" "Teste de restauração concluído com sucesso: ${{ steps.validate_backup.outputs.BACKUP_FILE }}" "0"
+          echo "Notifications via Telegram removidas — e-mails já são suficientes"
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -104,7 +104,7 @@ jobs:
         if: failure()
         run: |
           echo "::error::Teste de restauração falhou."
-          python scripts/notify_security_issue.py "FAILURE" "Teste de restauração falhou: ${{ steps.validate_backup.outputs.BACKUP_FILE }}" "0"
+          echo "Notifications via Telegram removidas — e-mails já são suficientes"
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

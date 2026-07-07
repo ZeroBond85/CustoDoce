@@ -46,7 +46,8 @@ jobs:
         run: pip install -r requirements-prod.lock
       - name: Notify scrape start
         if: always()
-        run: python scripts/notify_scrape_result.py "${{ inputs.mode }}" "STARTED"
+        run: |
+          echo "Notifications via Telegram removidas — e-mails já são suficientes"
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -166,7 +167,8 @@ jobs:
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - name: Send notification
         if: always()
-        run: python scripts/notify_scrape_result.py ${{ inputs.mode }} ${{ job.conclusion || 'cancelled' }}
+        run: |
+          echo "Notifications via Telegram removidas — e-mails já são suficientes"
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

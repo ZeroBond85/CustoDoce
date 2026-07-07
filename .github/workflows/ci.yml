@@ -94,7 +94,6 @@ jobs:
           echo "result=$audit_result" >> $GITHUB_OUTPUT
           if [[ "$severity" == "HIGH" || "$severity" == "CRITICAL" ]]; then
             echo "::error::CVE detected: $severity - $description"
-            python scripts/notify_security_issue.py "$severity" "$description" "${{ github.event.pull_request.number }}"
             exit 1
           fi
         if: github.event_name == 'pull_request'
@@ -192,7 +191,7 @@ jobs:
       - name: Notify unit test result
         if: always()
         run: |
-          python scripts/notify_security_issue.py "${{ job.conclusion }}" "Unit tests: ${{ github.workflow }} - ${{ github.event_name }}" "0"
+          echo "Notifications via Telegram removidas — e-mails já são suficientes"
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -275,7 +274,7 @@ jobs:
       - name: Notify deploy-check result
         if: always()
         run: |
-          python scripts/notify_security_issue.py "${{ job.conclusion }}" "Deploy check: ${{ github.workflow }} - ${{ github.event_name }}" "0"
+          echo "Notifications via Telegram removidas — e-mails já são suficientes"
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -337,7 +336,7 @@ jobs:
       - name: Notify e2e-smoke result
         if: always()
         run: |
-          python scripts/notify_security_issue.py "${{ job.conclusion }}" "E2E Smoke Test: ${{ github.workflow }} - ${{ github.event_name }}" "0"
+          echo "Notifications via Telegram removidas — e-mails já são suficientes"
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -392,7 +391,7 @@ jobs:
       - name: Notify e2e-smoke-pr result
         if: always()
         run: |
-          python scripts/notify_security_issue.py "${{ job.conclusion }}" "E2E Smoke PR Test: ${{ github.workflow }} - ${{ github.event_name }}" "0"
+          echo "Notifications via Telegram removidas — e-mails já são suficientes"
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -433,7 +432,7 @@ jobs:
       - name: Notify real result
         if: always()
         run: |
-          python scripts/notify_security_issue.py "${{ job.conclusion }}" "Real Scraper Tests: ${{ github.workflow }} - ${{ github.event_name }}" "0"
+          echo "Notifications via Telegram removidas — e-mails já são suficientes"
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
