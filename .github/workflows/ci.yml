@@ -82,12 +82,6 @@ jobs:
           python -m detect_secrets scan --baseline .secrets.baseline \
             admin/ dashboard/ services/ scrapers/ parsers/ scripts/ telegram_bot/ config/ .github/workflows/
         continue-on-error: true
-      - name: Validate schema manifest (SQL → mock alignment)
-        env:
-          CI_JOB_START: ${{ env.CI_JOB_START }}
-        run: |
-          python scripts/generate_schema_manifest.py
-          python -m pytest tests/unit/test_validate_mocks_against_manifest.py -q --no-header
       - run: bandit -r admin/ dashboard/ services/ -x tests/
       - name: Audit dependencies
         id: audit
@@ -138,6 +132,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
           cache-dependency-path: requirements-dev.lock
+      - run: pip install -r requirements-dev.lock
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - name: Check docs are in sync (v2 heading-aware)
@@ -178,6 +173,12 @@ jobs:
       - run: pip install -r requirements-test.lock
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
+      - name: Validate schema manifest (SQL → mock alignment)
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+        run: |
+          python scripts/generate_schema_manifest.py
+          python -m pytest tests/unit/test_validate_mocks_against_manifest.py -q --no-header
       - name: Run unit tests
         run: python -m pytest tests/unit/ tests/schema/ -q --tb=short --no-header --durations=5
         env:
