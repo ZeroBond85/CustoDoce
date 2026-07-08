@@ -2,6 +2,7 @@ name: Scrape Reusable
 
 on:
   workflow_call:
+  workflow_dispatch:
     inputs:
       mode:
         description: 'Modo de execução: cron, on_demand ou heal'
