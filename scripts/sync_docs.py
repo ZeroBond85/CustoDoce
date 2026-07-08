@@ -741,6 +741,7 @@ def _update_generic_md(state: dict, dry_run: bool = False) -> list[str]:
     archive/, api/, skills.md, changelog.md).
     """
     from scripts.doc_sync_policy import DocPolicy, policy_for
+    from scripts.doc_utils import is_timestamp_fresh
 
     changes: list[str] = []
 
@@ -751,6 +752,8 @@ def _update_generic_md(state: dict, dry_run: bool = False) -> list[str]:
                 changes.append(f"  [SKIP-IMMUTABLE] {adr_file.relative_to(_ROOT)}: ADR nunca tocado por sync")
                 continue
             content = adr_file.read_text(encoding="utf-8")
+            if is_timestamp_fresh(content):
+                continue
             new_content = inject_timestamp(content, label="revisão")
             if new_content != content:
                 rel = adr_file.relative_to(_ROOT)
@@ -767,6 +770,8 @@ def _update_generic_md(state: dict, dry_run: bool = False) -> list[str]:
         if not md_file.exists():
             continue
         content = md_file.read_text(encoding="utf-8")
+        if is_timestamp_fresh(content):
+            continue
         new_content = inject_timestamp(content)
         if new_content != content:
             if dry_run:

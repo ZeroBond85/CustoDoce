@@ -18,13 +18,32 @@ from pathlib import Path
 # ── Timestamp ────────────────────────────────────────────────────
 
 _TIMESTAMP_PAT = re.compile(
-    r"> Última (atualização|revisão): \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC"
+    r"> Última (atualização|revisão): (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}) UTC"
 )
 
 
 def get_timestamp() -> str:
     """Retorna timestamp ISO padronizado."""
     return datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
+
+
+def is_timestamp_fresh(content: str, max_age_days: int = 1) -> bool:
+    """Retorna True se o documento tem timestamp `> Última atualização/revisão: ...`
+    com no máximo `max_age_days` dias atrás.
+
+    Documentos sem timestamp ou mal formatados retornam False (drift real).
+    """
+    from datetime import timedelta
+
+    m = _TIMESTAMP_PAT.search(content)
+    if not m:
+        return False
+    try:
+        ts = datetime.strptime(f"{m.group(2)} {m.group(3)}", "%Y-%m-%d %H:%M").replace(tzinfo=UTC)
+        delta = datetime.now(UTC) - ts
+        return delta <= timedelta(days=max_age_days)
+    except Exception:
+        return False
 
 
 def inject_timestamp(content: str, label: str = "atualização") -> str:
