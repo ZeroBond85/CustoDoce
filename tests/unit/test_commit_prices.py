@@ -1,14 +1,9 @@
 """Tests for scripts/commit_prices.py — snapshot generation and git operations."""
 
 import json
-import os
-import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
-import pytest
 
-# Path to the script under test
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent.parent / "scripts"
 COMMIT_SCRIPT = SCRIPTS_DIR / "commit_prices.py"
 
@@ -42,7 +37,6 @@ class TestCommitPricesImports:
         for i, line in enumerate(lines):
             stripped = line.strip()
             if stripped.startswith("from services.") or stripped.startswith("import services"):
-                # Local imports must be inside functions, not top-level
                 assert i > 5, f"Local import on line {i + 1} must be inside function: {line}"
 
 
@@ -50,7 +44,6 @@ class TestCommitPricesLogic:
     """Test the commit_prices logic flow."""
 
     def test_local_snapshot_uses_existing_file(self, tmp_path):
-        # Create a fake local snapshot
         data_dir = tmp_path / "data"
         data_dir.mkdir(exist_ok=True)
         snapshot = {
@@ -60,7 +53,6 @@ class TestCommitPricesLogic:
         }
         (data_dir / "prices_latest.json").write_text(json.dumps(snapshot))
 
-        # Verify the snapshot can be loaded
         loaded = json.loads((data_dir / "prices_latest.json").read_text())
         assert loaded["total_prices"] == 42
         assert loaded["ingredients_found"] == 12
