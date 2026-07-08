@@ -16,7 +16,7 @@ sys.path.insert(0, _repo_root)
 import pytest
 
 from dashboard.navigation_config import MENU_GROUPS
-from .test_e2e_real import check_for_errors, wake_if_sleeping, logged_in_app_and_page
+from .test_e2e_real import check_for_errors, wake_if_sleeping
 
 BASE_URL = "http://localhost:8501"
 ADMIN_PASSWORD = ""
