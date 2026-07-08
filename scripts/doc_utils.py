@@ -196,35 +196,94 @@ def generate_api_md(module_name: str, funcs: dict[str, dict]) -> str:
 # ── Changelog Validation ────────────────────────────────────────
 
 
-_CHANGELOG_ENTRY_PAT = re.compile(r"^## \[\d+\.\d+\.\d+\]")
+_CHANGELOG_ENTRY_PAT = re.compile(r"^## \[(\d+\.\d+\.\d+)\](?:\s*-\s*(\d{4}-\d{2}-\d{2}))?")
+_CHANGELOG_UNRELEASED_PAT = re.compile(r"^## \[(?:unreleased|UNRELEASED|Unreleased)\]")
+
+
+def _version_tuple(s: str) -> tuple[int, int, int]:
+    parts = re.findall(r"\d+", s)
+    if len(parts) < 2:
+        return (0, 0, 0)
+    if len(parts) == 2:
+        return (int(parts[0]), int(parts[1]), 0)
+    return (int(parts[0]), int(parts[1]), int(parts[2]))
 
 
 def validate_changelog(content: str) -> list[str]:
     """Valida formato Keep a Changelog.
 
-    Returns:
-        Lista de warnings (vazia se tudo ok).
+    Critério de ordenação: data (decrescente). Versão é ignorada para
+    ordenação (misturar 0.4.0 com data antiga e 0.1.0 com data nova é
+    comum em release sprints retroativos — a leitora quer ler por data,
+    não por versão).
+
+    Regras:
+      1. Cada header deve ter data no formato YYYY-MM-DD (ou [unreleased]
+         como entrada mais recente).
+      2. **Detecta duplicatas**: `[0.2.5]` aparecendo 2x (mesma versão)
+         vira issue (caller geralmente esqueceu de remover entry antiga).
+      3. **Detecta semver inconsistente rogue**: se a versão cresce mas
+         a data regride — sinal ambíguo de release retroativo mal numerado.
     """
     warnings: list[str] = []
     lines = content.splitlines()
-    found_version = False
-    prev_version: str | None = None
+    entries: list[tuple[int, str, str | None, tuple[int, int, int]]] = []
+    prev_date: str | None = None
+    prev_line_num: int | None = None
+    seen_versions: dict[str, int] = {}
+
+    found_any = False
 
     for i, line in enumerate(lines):
-        m = _CHANGELOG_ENTRY_PAT.match(line)
-        if m:
-            version = m.group(0).strip()
-            if prev_version and version >= prev_version:
+        m_unreleased = _CHANGELOG_UNRELEASED_PAT.match(line)
+        if m_unreleased:
+            found_any = True
+            version = "unreleased"
+            date: str | None = None
+        else:
+            m = _CHANGELOG_ENTRY_PAT.match(line)
+            if not m:
+                continue
+            found_any = True
+            version = m.group(1)
+            date = m.group(2)
+
+            if version in seen_versions:
                 warnings.append(
-                    f"  Linha {i + 1}: versão {version} não é anterior a {prev_version}"
-                    " (deve ser reverse chronological)"
+                    f"  Linha {i + 1}: versão {version} duplicada"
+                    " (já vista na linha {})".format(seen_versions[version])
                 )
-            prev_version = version
-            found_version = True
+            else:
+                seen_versions[version] = i + 1
 
-    if not found_version:
-        warnings.append("  Nenhuma entrada de versão encontrada (## [X.Y.Z])")
+            if date and prev_date is not None and date > prev_date:
+                warnings.append(
+                    f"  Linha {i + 1}: data {date} é POSTERIOR a {prev_date} (header anterior)"
+                    " — entradas devem ser reverse chronological (nova → antiga)"
+                )
 
+            prev_date = date
+            prev_line_num = i + 1
+
+            entries.append((i + 1, version, date, _version_tuple(version)))
+
+    if not found_any:
+        warnings.append("  Nenhuma entrada de versão encontrada (## [X.Y.Z] ou ## [unreleased])")
+
+    semver_regressions: list[str] = []
+    for idx, (line_num, version, date, vt) in enumerate(entries):
+        if idx == 0 or version == "unreleased":
+            continue
+        prev_line_num, prev_version, prev_date, prev_vt = entries[idx - 1]
+        if prev_version == "unreleased":
+            continue
+        if vt > prev_vt and (date or "") >= (prev_date or ""):
+            semver_regressions.append(
+                f"  Linha {line_num}: versão {version} > {prev_version}, mas data {date} não é"
+                " mais antiga — provável erro de versionamento (release retroativo)"
+            )
+
+    warnings.extend(semver_regressions)
     return warnings
 
 

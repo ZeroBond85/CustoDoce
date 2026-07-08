@@ -136,18 +136,117 @@ def check_schema_mocks() -> tuple[str, subprocess.CompletedProcess]:
 
 
 def check_sync_docs() -> tuple[str, subprocess.CompletedProcess]:
-    """Versao rigorosa (--check --strict) com auto-fix em caso de drift."""
+    """Self-healing sync pipeline.
+
+    A. Roda ``--check --strict`` (gate truthful).
+    B. Se OK: retorna (sync_docs, ok).
+    C. Se FAIL: aplica ``python scripts/sync_docs.py`` (``LIVE``, ``TIMESTAMP``,
+       ``AUTO``, ``TIMESTAMP_PROTECTED``, ``SNAPSHOT_REFERENCE_LIVE``).
+       ``IMMUTABLE`` (ADRs) e ``SNAPSHOT_FROZEN`` são blindados.
+    D. Re-rodado ``--check --strict`` por segurança. Se ainda falha, abortar.
+
+    Invariantes protegidos (abort pre-push):
+      - Arquivo em ``IMMUTABLE`` (docs/adr/) tocado pelo apply.
+      - Arquivo em ``SNAPSHOT_FROZEN`` tocado pelo apply.
+      - Arquivo criado (``??`` em git status).
+      - Arquivo deletado (``D`` em git status).
+    """
     r = run([THIS_PYTHON, "scripts/sync_docs.py", "--check", "--strict"])
     if r.returncode == 0:
         return "sync_docs", r
-    print("  [sync_docs] drift detectado. Rodando auto-fix (sync_docs.py --sync)...", file=sys.stderr)
-    fix = run([THIS_PYTHON, "scripts/sync_docs.py", "--sync"])
+
+    print(
+        "  [sync_docs] gate falhou — tentando self-healing (live apply)",
+        file=sys.stderr,
+    )
+
+    fix = run([THIS_PYTHON, "scripts/sync_docs.py"])
     if fix.returncode != 0:
-        print("  [sync_docs] auto-fix falhou. Revise os docs manualmente.", file=sys.stderr)
+        print("  [sync_docs] live apply falhou — abortando pre-push", file=sys.stderr)
         return "sync_docs", fix
+
+    rev_applied = subprocess.run(  # noqa: S603
+        ["git", "status", "--porcelain"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=15,
+    )
+    if rev_applied.returncode != 0:
+        print("  [sync_docs] git status falhou pós-apply", file=sys.stderr)
+        return "sync_docs", rev_applied
+
+    import json as _json
+
+    try:
+        from scripts.doc_sync_policy import DocPolicy, policy_for  # type: ignore
+    except Exception as e:
+        print(f"  [sync_docs] import policy_for falhou: {e}", file=sys.stderr)
+        policy_for = None  # type: ignore
+
+    blocked = []
+    eligible_to_add = []
+    for line in rev_applied.stdout.splitlines():
+        if not line.strip():
+            continue
+        status, _, path = line.lstrip().partition(" ")
+        path = path.strip().rstrip("/")
+        if not path.endswith(".md"):
+            continue
+
+        status_code = line[:2].strip()
+        if status_code == "??":
+            blocked.append(f"CRIADO {path} — sync não deve criar arquivos. Remova e re-pushe.")
+            continue
+        if status_code.startswith("D"):
+            blocked.append(f"DELETADO {path} — sync não deve deletar arquivos. Rever antes de continuar.")
+            continue
+
+        if policy_for and path.startswith("docs/"):
+            try:
+                policy = policy_for(path)
+            except Exception:
+                policy = None
+            if policy in (DocPolicy.IMMUTABLE, DocPolicy.SNAPSHOT_FROZEN):
+                blocked.append(
+                    f"INVARIANT {path} ({policy.value}) modificado manualmente — "
+                    "sync nunca toca. Reverter: git checkout -- path/rel"
+                )
+                continue
+
+        eligible_to_add.append(path)
+
+    if blocked:
+        print(
+            "  [sync_docs] ABORT — invariantes violadas no tree pós-apply:",
+            file=sys.stderr,
+        )
+        for b in blocked:
+            print(f"    {b}", file=sys.stderr)
+        rev_empty = subprocess.CompletedProcess(  # noqa: S603
+            args=[], returncode=2, stdout="", stderr=""
+        )
+        return "sync_docs", rev_empty
+
+    for path in eligible_to_add:
+        subprocess.run(  # noqa: S603
+            ["git", "add", "--", path],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+
     rev = run([THIS_PYTHON, "scripts/sync_docs.py", "--check", "--strict"])
     if rev.returncode != 0:
-        print("  [sync_docs] ainda ha drift apos auto-fix. Revise e commite os docs.", file=sys.stderr)
+        print(
+            "  [sync_docs] ainda há drift após self-healing — pre-push abortado.",
+            "  Revisões pendentes podem estar fora do escopo de auto-fix.",
+            sep="\n",
+            file=sys.stderr,
+        )
     return "sync_docs", rev
 
 

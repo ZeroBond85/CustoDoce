@@ -567,25 +567,56 @@ _GENERIC_MD_FILES: list[str] = [
 
 
 def _update_archive_md(state: dict, dry_run: bool = False) -> list[str]:
-    """Atualiza timestamp + valida contadores em docs/archive/*.md (Raio X).
+    """Atualiza docs/archive/*.md respeitando policy per-doc.
 
-    Usa label "revisão" (snapshot histórico).
-    Valida contadores de testes/páginas citados no texto contra a verdade.
+    - SNAPSHOT_FROZEN: bypass total (nunca toca).
+    - SNAPSHOT_DERIVED_LIVE: reportar intenção, não auto-aplica (regeneração manual).
+    - SNAPSHOT_REFERENCE_LIVE: delega para `apply_intelligent` (vai apontar onde
+      truth diverge e preserva histórico com sufixo '(era X)').
+    - Demais (sem frontmatter): fallback legacy para inject_timestamp + warning.
     """
+    from scripts.doc_sync_policy import DocPolicy, policy_for
+    from scripts.sync_md_v2 import apply_intelligent
+
     changes: list[str] = []
     if not _ARCHIVE_DIR.exists():
         return changes
 
+    truth_with_pages = {
+        **state,
+        "page_truth": {"python_version": "3.14.6"},
+    }
+
     for md_file in sorted(_ARCHIVE_DIR.glob("*.md")):
+        rel = md_file.relative_to(_ROOT)
+        try:
+            policy = policy_for(rel)
+        except Exception:
+            policy = None
+
+        if policy == DocPolicy.SNAPSHOT_FROZEN:
+            changes.append(f"  [SKIP-FROZEN] {rel}: data-anchored, bypass")
+            continue
+        if policy == DocPolicy.SNAPSHOT_DERIVED_LIVE:
+            changes.append(f"  [DERIVED] {rel}: regenerar via sprint review (não auto-aplicado)")
+            continue
+
+        if policy == DocPolicy.SNAPSHOT_REFERENCE_LIVE:
+            applied = apply_intelligent(md_file, truth_with_pages, dry_run=dry_run)
+            if not applied:
+                changes.append(f"  [OK] {rel}: alinhado com truth")
+            elif applied and dry_run:
+                changes.append(f"  [DRIFT] {rel}: intelligence merge pendente")
+            else:
+                changes.append(f"  [OK] {rel}: intelligence merge aplicado")
+            continue
+
         content = md_file.read_text(encoding="utf-8")
         cited = extract_counters_cited(content)
         warnings = check_counters_against_truth(cited, state)
-
         new_content = inject_timestamp(content, label="revisão")
         if new_content == content and not warnings:
             continue
-
-        rel = md_file.relative_to(_ROOT)
         if dry_run:
             changes.append(f"  Would update {rel}")
             for w in warnings:
@@ -595,6 +626,7 @@ def _update_archive_md(state: dict, dry_run: bool = False) -> list[str]:
             changes.append(f"  {rel}: timestamp updated")
             for w in warnings:
                 changes.append(f"    [WARN] {w}")
+
     return changes
 
 
@@ -702,16 +734,22 @@ def _generate_api_docs(state: dict, dry_run: bool = False) -> list[str]:
 def _update_generic_md(state: dict, dry_run: bool = False) -> list[str]:
     """Atualiza timestamp em todos os .md que não têm updater específico.
 
+    Respeita `policy_for()` por arquivo:
+      - IMMUTABLE / SNAPSHOT_FROZEN: bypass total (sync nunca toca)
+
     Whitelist explícita: LESSONS.md, tests/README.md, docs/*.md (excluindo
     archive/, api/, skills.md, changelog.md).
-    Também inclui docs/adr/*.md com label "revisão".
     """
+    from scripts.doc_sync_policy import DocPolicy, policy_for
+
     changes: list[str] = []
 
-    # ADRs (imutáveis, label revisão)
     adr_dir = _ROOT / "docs" / "adr"
     if adr_dir.exists():
         for adr_file in sorted(adr_dir.glob("*.md")):
+            if policy_for(adr_file.relative_to(_ROOT)) == DocPolicy.IMMUTABLE:
+                changes.append(f"  [SKIP-IMMUTABLE] {adr_file.relative_to(_ROOT)}: ADR nunca tocado por sync")
+                continue
             content = adr_file.read_text(encoding="utf-8")
             new_content = inject_timestamp(content, label="revisão")
             if new_content != content:
@@ -722,8 +760,9 @@ def _update_generic_md(state: dict, dry_run: bool = False) -> list[str]:
                     adr_file.write_text(new_content, encoding="utf-8")
                     changes.append(f"  {rel}: timestamp (revisão) updated")
 
-    # Generic whitelisted files
     for rel_path in _GENERIC_MD_FILES:
+        if policy_for(rel_path) == DocPolicy.IMMUTABLE:
+            continue
         md_file = _ROOT / rel_path
         if not md_file.exists():
             continue
@@ -817,6 +856,47 @@ def _strict_audit() -> list[dict]:
     return findings
 
 
+def _check_dirty_invariants() -> list[str]:
+    """Detecta mutação manual de arquivos em IMMUTABLE/SNAPSHOT_FROZEN.
+
+    Retorna lista de issues (vazia = nenhum arquivo dirty).
+    """
+    import subprocess as _sp
+
+
+    issues: list[str] = []
+
+    try:
+        proc = _sp.run(
+            ["git", "status", "--porcelain"],
+            cwd=_ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+        )
+    except Exception:
+        return issues
+
+    for line in proc.stdout.splitlines():
+        if not line:
+            continue
+        status = line[:2].strip()
+        path = line[3:].strip().rstrip("/")
+        if not path.endswith(".md"):
+            continue
+        rel = path.replace("\\", "/").lstrip("./")
+        if status and rel.startswith("docs/archive/ux_audit"):
+            issues.append(f"[SNAPSHOT_FROZEN] {rel} modificado manualmente (não esperado)")
+        if status and rel.startswith("docs/adr/"):
+            issues.append(
+                f"[IMMUTABLE] {rel} modificado manualmente — criar ADR novo (padrão Superseded by)"
+            )
+
+    return issues
+
+
 def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, experimental: bool = False) -> bool:
     """
     Main sync logic. Returns True if in sync, False if out of sync.
@@ -849,6 +929,15 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, e
     else:
         print("  [OK] All test counts match pytest --collect-only")
 
+    print("\nInvariants (IMMUTABLE / SNAPSHOT_FROZEN dirty detection)...")
+    invariants = _check_dirty_invariants()
+    if invariants:
+        for d in invariants:
+            print(f"  [INVARIANT] {d}")
+            issues.append(d)
+    else:
+        print("  [OK] No manual mutation of immutable docs")
+
     print("\nSkills sync check (disk vs APPROVED_SKILLS)...")
     skill_issues = _check_skills_sync()
     if skill_issues:
@@ -863,6 +952,8 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, e
     if dry_run:
         for c in agent_changes:
             print(f"  {c}")
+        if agent_changes:
+            issues.append("[LIVE] AGENTS.md drift (> update_agents_md disparou)")
     if not dry_run:
         agents_content = _AGENTS.read_text(encoding="utf-8")
         fixed = _fix_agents_tree(agents_content, state)
@@ -878,41 +969,64 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, e
     skill_md_changes = _sync_skills_md(state, dry_run=dry_run)
     for c in skill_md_changes:
         print(f"  {c}")
+    if dry_run and any("Would" in c for c in skill_md_changes):
+        issues.append("[AUTO] docs/skills.md drift")
 
-    print("\nUpdating docs/archive/ (Raio X - timestamp + counter validation)...")
+    print("\nUpdating docs/archive/ (Raio X - policy-driven)...")
     archive_changes = _update_archive_md(state, dry_run=dry_run)
     for c in archive_changes:
         print(f"  {c}")
+    if dry_run:
+        if any("[DRIFT]" in c for c in archive_changes):
+            issues.append("[SNAPSHOT_REFERENCE_LIVE] drift detectado")
+        if any("[DERIVED]" in c for c in archive_changes):
+            issues.append("[SNAPSHOT_DERIVED_LIVE] aguardando regeneração (sprint review)")
 
     print("\nUpdating README.md...")
     readme_changes = _update_readme_md(state, dry_run=dry_run)
     for c in readme_changes:
         print(f"  {c}")
+    if dry_run and readme_changes:
+        issues.append("[LIVE] README.md drift (badges/contadores)")
 
     print("\nUpdating REGRAS.md...")
     rules_changes = _update_rules_md(state, dry_run=dry_run)
     for c in rules_changes:
         print(f"  {c}")
+    if dry_run and rules_changes:
+        issues.append("[LIVE] REGRAS.md drift")
 
     print("\nGenerating API docs (AST from services/)...")
     api_changes = _generate_api_docs(state, dry_run=dry_run)
     for c in api_changes:
         print(f"  {c}")
+    if dry_run:
+        api_count = sum(1 for c in api_changes if c.startswith("  Would regenerate"))
+        if api_count > 0:
+            issues.append(f"[AUTO] {api_count} docs/api/*.md precisam regenerar")
 
     print("\nUpdating generic .md files (timestamps)...")
     generic_changes = _update_generic_md(state, dry_run=dry_run)
     for c in generic_changes:
         print(f"  {c}")
+    if dry_run:
+        ts_drift = sum(1 for c in generic_changes if c.startswith("  Would update"))
+        if ts_drift > 0:
+            issues.append(f"[TIMESTAMP] {ts_drift} docs precisam atualizar timestamp")
 
-    # Changelog format validation (advisory only)
+    # Changelog format validation (detecta — não bloqueia)
+    # Mudanças de ordenação são content-quality, não drift estrutural.
+    # Dev conserta manualmente; o gate --check lista como tarefa mas NÃO aborta.
     changelog_path = _ROOT / "docs" / "changelog.md"
     if changelog_path.exists():
         changelog_content = changelog_path.read_text(encoding="utf-8")
         changelog_issues = validate_changelog(changelog_content)
         if changelog_issues:
-            print("\nChangelog format notes (advisory):")
+            print("\nChangelog format notes (reorg obrigatória, não bloqueia gate):")
             for ci in changelog_issues:
                 print(f"  [NOTE] {ci}")
+        else:
+            print("\n  [OK] changelog ordering valid")
 
     if strict:
         print(

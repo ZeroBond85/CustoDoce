@@ -85,67 +85,159 @@ def snapshot(version: str, targets: list[Path]):
     print(f"\n--- [Snapshot] Version {version} archived ---")
     print("\n".join(changes))
 
-def apply_intelligent(path: Path, truth: dict, dry_run: bool = True):
+def _replace_counter_smart(
+    text: str,
+    new_val: str,
+    label_pat: str,
+    old_val: str,
+) -> tuple[str, bool]:
+    """Substitui primeira ocorrência de `old_val + label` por `new_val + label (era old_val)`.
+
+    Guardas:
+      1. Se novo == antigo: nada a fazer (retorna False).
+      2. Se já existir `(era N)` na linha: não duplica, apenas atualiza o número.
+      3. Aplica apenas a primeira ocorrência.
+      4. Se `label_pat` começa com `prefix:`, trata como label-prefixado
+         (número APÓS o label, não antes). Formato especial: `prefix:Python|python`.
     """
-    Intelligent merge of truth into doc.
-    1. Body merge first (to use old truth for replacements).
-    2. Updates frontmatter (truth_at, current_version).
+    if not old_val or str(new_val) == str(old_val):
+        return text, False
+
+    if label_pat.startswith("prefix:"):
+        prefix_src = label_pat[len("prefix:"):]
+        prefix_pat = prefix_src.split("|", 1)
+        alt = "|".join(re.escape(p) for p in prefix_pat)
+        pattern = rf"(?:{alt})\s+{re.escape(str(old_val))}"
+        full_match = re.search(pattern, text, flags=re.IGNORECASE)
+        if not full_match:
+            return text, False
+        start, end = full_match.span()
+        replacement = f"{prefix_pat[0]} {new_val}"
+        new_text = text[:start] + replacement + text[end:]
+        return new_text, new_text != text
+
+    pattern = rf"\b{re.escape(str(old_val))}\s+({label_pat})\b"
+    m = re.search(pattern, text, flags=re.IGNORECASE)
+    if not m:
+        return text, False
+
+    start, end = m.span()
+    text_after = text[end:end + 80]
+    if _has_existing_era_label(text_after):
+        replacement = f"{new_val} {m.group(1)}"
+    else:
+        replacement = f"{new_val} {m.group(1)} (era {old_val})"
+
+    new_text = text[:start] + replacement + text[end:]
+    return new_text, new_text != text
+
+
+def _has_existing_era_label(text_after: str) -> bool:
+    """Detecta '(era N)' imediatamente após a posição atual."""
+    return bool(re.match(r"\s+\(era\s+[0-9.]+\)", text_after))
+
+
+def _bump_semver_like(cur: str) -> str:
+    try:
+        parts = cur.split(".")
+        if len(parts) == 3:
+            return f"{parts[0]}.{parts[1]}.{int(parts[2]) + 1}"
+        return "0.0.2"
+    except Exception:
+        return "0.0.2"
+
+
+def apply_intelligent(path: Path, truth: dict, dry_run: bool = True):
+    """Intelligent merge of truth into doc.
+
+    Múltiplas chaves (tests_total, pages_count, python_version). Guardas:
+      - Dedup `(era N)`: não duplica sufixo já existente
+      - Idempotente: se novo == truth_at[key], não toca
+      - Bumps current_version após mudança real
+
+    Retorna True se houve mudança (em dry-run = "would change").
     """
     fm, body = read_frontmatter(path)
     if not fm:
         print(f"  [SKIP] {path.name}: no frontmatter to anchor changes")
         return False
 
-    real_total = sum(truth.get("test_counts", {}).values())
-    real_pages = truth.get("pages_count", 0)
+    truth_at = dict(fm.get("truth_at") or {})
+    test_counts: dict = truth.get("test_counts", {}) or {}
+    real_total = int(test_counts.get("unit", 0)) + int(test_counts.get("schema", 0))
+    real_pages = int(truth.get("pages_count", 0))
+    page_truth = truth.get("page_truth") or {}
+    real_python = str(page_truth.get("python_version", "3.14.6"))
 
-    def replace_counter(text, key, new_val, label_pat):
-        # Find patterns like "709 tests"
-        pattern = rf"\b(\d+)\s*{label_pat}\b"
-        matches = re.findall(pattern, text, flags=re.IGNORECASE)
-        if not matches:
-            return text, False
+    counter_plan: list[tuple[str, str, str, str]] = [
+        (
+            "tests_total",
+            str(real_total),
+            r"(tests?|testes|passing|total)",
+            str(truth_at.get("tests_total", "")),
+        ),
+        (
+            "pages_count",
+            str(real_pages),
+            r"(páginas?|pages?|telas?|módulos?|abas?)",
+            str(truth_at.get("pages_count", "")),
+        ),
+        (
+            "python_version",
+            real_python,
+            "prefix:Python|python",
+            str(truth_at.get("python_version", "")),
+        ),
+    ]
+    counter_plan = [c for c in counter_plan if c[3]]
 
-        # We only update the first occurrence that matches the OLD truth_at
-        old_val = str(fm.get("truth_at", {}).get(key, ""))
-        if old_val and old_val != str(new_val):
-            new_text = re.sub(
-                rf"({re.escape(old_val)})\s*({label_pat})",
-                rf"{new_val} \2 (era {old_val})",
-                text,
-                count=1,
-                flags=re.IGNORECASE
-            )
-            return new_text, new_text != text
-        return text, False
+    new_body = body
+    changed_body = False
+    body_changes_summary: list[str] = []
+    for key, new_val, label_pat, old_val in counter_plan:
+        new_body, ch = _replace_counter_smart(new_body, new_val, label_pat, old_val)
+        if ch:
+            changed_body = True
+            body_changes_summary.append(f"{key}: {old_val} -> {new_val}")
 
-    new_body, tests_changed = replace_counter(body, "tests_total", real_total, r"(tests?|passing|total)")
-    new_body, pages_changed = replace_counter(new_body, "pages_count", real_pages, r"(páginas?|pages?|módulos?)")
-
-    # Now update frontmatter
-    new_truth_at = fm.get("truth_at", {})
-    changed = False
-
-    if new_truth_at.get("tests_total") != real_total:
+    new_truth_at = dict(truth_at)
+    changed_fm = False
+    if truth_at.get("tests_total") != real_total:
         new_truth_at["tests_total"] = real_total
-        changed = True
-    if new_truth_at.get("pages_count") != real_pages:
+        changed_fm = True
+    if truth_at.get("pages_count") != real_pages:
         new_truth_at["pages_count"] = real_pages
-        changed = True
+        changed_fm = True
+    if truth_at.get("python_version") != real_python:
+        new_truth_at["python_version"] = real_python
+        changed_fm = True
 
-    fm["truth_at"] = new_truth_at
-
-    if tests_changed or pages_changed:
-        changed = True
-
-    if not changed:
+    any_changed = changed_fm or changed_body
+    if not any_changed:
         return False
 
+    cur_version = str(fm.get("current_version", "0.0.0"))
+    if cur_version == "0.0.0":
+        new_version = "0.0.1"
+    elif changed_fm:
+        new_version = _bump_semver_like(cur_version)
+    else:
+        new_version = cur_version
+    fm["truth_at"] = new_truth_at
+    fm["current_version"] = new_version
+
     if dry_run:
-        print(f"  [DRY-RUN] Would update {path.name} (truth diverge)")
+        print(f"  [DRY-RUN] {path.name} would change:")
+        for s in body_changes_summary:
+            print(f"               body: {s}")
+        print(f"               current_version: {cur_version} -> {new_version}")
         return True
 
     write_frontmatter(path, fm, new_body)
+    print(f"  [OK] {path.name} updated:")
+    for s in body_changes_summary:
+        print(f"               body: {s}")
+    print(f"               current_version: {cur_version} -> {new_version}")
     return True
 
 def inject_frontmatter(targets: list[Path]):
