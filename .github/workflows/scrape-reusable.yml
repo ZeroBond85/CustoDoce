@@ -72,6 +72,8 @@ jobs:
         env:
           CI_JOB_START: ${{ env.CI_JOB_START }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python scripts/sync_all_store_fields.py
       - name: Check time budget for sync stores
         run: python scripts/check_time_budget.py --timeout-minutes 5 --label "sync-stores"

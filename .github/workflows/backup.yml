@@ -50,12 +50,9 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           python scripts/rpc_backup.py
-          TIMESTAMP=$(date -u +"%Y%m%d_%H%M%S")
-          FILENAME="custodoce_backup_rpc_${TIMESTAMP}.json.gz"
-          echo "filename=${FILENAME}" >> $GITHUB_OUTPUT
-          echo "timestamp=${TIMESTAMP}" >> $GITHUB_OUTPUT
-          echo "size=$(stat -c%s "${FILENAME}" 2>/dev/null || stat -f%z "${FILENAME}")" >> $GITHUB_OUTPUT
-          echo "sha256sum=$(sha256sum "${FILENAME}" | awk '{print $1}')" >> $GITHUB_OUTPUT
+          FN=$(grep -oP '^filename=\K.*' "$GITHUB_OUTPUT" | tail -1)
+          echo "size=$(stat -c%s "$FN" 2>/dev/null || echo 0)" >> $GITHUB_OUTPUT
+          echo "sha256sum=$(sha256sum "$FN" | awk '{print $1}')" >> $GITHUB_OUTPUT
           echo "CI_JOB_START=${{ env.CI_JOB_START }}" >> $GITHUB_ENV
 
       - name: Check time budget for backup
