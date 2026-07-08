@@ -142,6 +142,8 @@ jobs:
         run: python scripts/enrich_prices.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           CI_JOB_START: ${{ env.CI_JOB_START }}
       - name: Check time budget for enrich
         run: python scripts/check_time_budget.py --timeout-minutes 60 --label "enrich"
