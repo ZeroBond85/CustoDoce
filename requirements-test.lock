@@ -296,6 +296,7 @@ pytesseract==0.3.13
     # via -r requirements-prod.in
 pytest==9.0.3
     # via
+    #   -r requirements-dev.in
     #   -r requirements-test.in
     #   pytest-asyncio
     #   pytest-cov
