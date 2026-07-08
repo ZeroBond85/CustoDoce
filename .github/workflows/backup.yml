@@ -72,9 +72,9 @@ jobs:
         if: steps.backup.outputs.filename != ''
         with:
           tag_name: backup-${{ steps.backup.outputs.timestamp }}
-          files:
-            - "${{ steps.backup.outputs.filename }}"
-            - "${{ steps.backup.outputs.filename }}.sha256"
+          files: |
+            ${{ steps.backup.outputs.filename }}
+            ${{ steps.backup.outputs.filename }}.sha256
           fail_on_unmatched_files: true
           generate_release_notes: false
 

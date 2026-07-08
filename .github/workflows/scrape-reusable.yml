@@ -22,8 +22,6 @@ on:
         required: true
       TELEGRAM_CHAT_ID:
         required: true
-      GITHUB_TOKEN:
-        required: true
 
 env:
   PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
