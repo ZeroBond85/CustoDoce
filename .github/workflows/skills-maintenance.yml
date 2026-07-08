@@ -37,6 +37,9 @@ jobs:
           cache: 'pip'
           cache-dependency-path: requirements-dev.lock
 
+      - name: Install dependencies
+        run: pip install -r requirements-dev.lock
+
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
 

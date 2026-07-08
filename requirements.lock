@@ -4,6 +4,8 @@
 #
 #    pip-compile --allow-unsafe --output-file=requirements-test.lock requirements-dev.in requirements-prod.in requirements-test.in
 #
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 altair==6.2.2
     # via streamlit
 annotated-doc==0.0.4
@@ -430,7 +432,7 @@ tomli==2.4.1
     # via pip-audit
 tomli-w==1.2.0
     # via pip-audit
-torch==2.12.1
+torch==2.12.1+cpu
     # via
     #   optimum
     #   sentence-transformers
