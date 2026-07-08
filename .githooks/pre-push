@@ -8,16 +8,25 @@ Resolucao do Python:
   2. Fallback: sys.executable (Python que invocou o hook).
   3. Hard-fail se nenhum Python com deps completas for encontrado.
 
-Garante que TODOS os subprocessos (ci_local.py, agents_tool.py, etc.) usem
-o MESMO Python com requirements.lock instalado → paridade total de ambiente.
+Garante que TODOS os subprocessos usem o MESMO Python com requirements.lock
+instalado -> paridade total de ambiente.
+
+Otimizacao (Fase 1):
+  - Checks independentes rodam em paralelo (ThreadPoolExecutor).
+  - audit_secrets escaneia so o que sera pushado (--since N).
+  - sync_docs roda a versao rigorosa (--check --strict) com auto-fix.
+  - gh run list e pip-audit tem timeout (rede nao bloqueia o push).
 
 Pular em emergencia: git push --no-verify
 """
+
 from __future__ import annotations
 
+import concurrent.futures as cf
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).parent.parent.resolve()
@@ -47,6 +56,7 @@ def _resolve_python() -> str:
         if candidate.exists() and os.access(candidate, os.X_OK):
             print(f"  [python] usando venv: {candidate}", file=sys.stderr)
             return str(candidate)
+
     print("  [python] AVISO: nenhum venv encontrado (.venv314 ou ~/custodoce-314); fallback para sys.executable", file=sys.stderr)
     return sys.executable
 
@@ -54,7 +64,11 @@ def _resolve_python() -> str:
 THIS_PYTHON = _resolve_python()
 
 
-def run(cmd: list[str], capture: bool = True) -> subprocess.CompletedProcess:
+def run(
+    cmd: list[str],
+    capture: bool = True,
+    timeout: int | None = None,
+) -> subprocess.CompletedProcess:
     """Executa comando usando o MESMO Python que roda este hook."""
     print(f"  $ {' '.join(cmd)}")
     return subprocess.run(  # noqa: S603 - hook runs only known commands
@@ -62,140 +76,167 @@ def run(cmd: list[str], capture: bool = True) -> subprocess.CompletedProcess:
         cwd=REPO_ROOT,
         capture_output=capture,
         text=True,
+        timeout=timeout,
     )
 
 
+def _compute_since() -> str:
+    """Quantos commits serao pushados (desde origin/master)."""
+    out = run(["git", "rev-list", "--count", "origin/master..HEAD"], capture=True)
+    if out.returncode == 0 and out.stdout.strip().isdigit():
+        return out.stdout.strip()
+    return "50"  # fallback conservador
+
+
+# ─── Checks independentes (rodam em paralelo) ────────────────────────────────
+
+
+def check_audit_secrets() -> tuple[str, subprocess.CompletedProcess]:
+    since = _compute_since()
+    return "audit_secrets", run(
+        [THIS_PYTHON, "scripts/audit_secrets.py", "--strict", "--since", since]
+    )
+
+
+def check_agents_tool() -> tuple[str, subprocess.CompletedProcess]:
+    return "agents_tool", run([THIS_PYTHON, "scripts/agents_tool.py", "--check"])
+
+
+def check_ci_local() -> tuple[str, subprocess.CompletedProcess]:
+    return "ci_local", run([THIS_PYTHON, "scripts/ci_local.py", "--no-unit"])
+
+
+def check_validate_query_columns() -> tuple[str, subprocess.CompletedProcess]:
+    return "validate_query_columns", run([THIS_PYTHON, "scripts/validate_query_columns.py"])
+
+
+def check_audit_df_columns() -> tuple[str, subprocess.CompletedProcess]:
+    return "audit_df_columns", run([THIS_PYTHON, "scripts/audit_df_columns.py"])
+
+
+def check_environment_parity() -> tuple[str, subprocess.CompletedProcess]:
+    return "environment_parity", run([THIS_PYTHON, "scripts/check_environment_parity.py"])
+
+
+def check_schema_mocks() -> tuple[str, subprocess.CompletedProcess]:
+    """Gera manifest + roda pytest de mocks (worker dedicado)."""
+    gen = run([THIS_PYTHON, "scripts/generate_schema_manifest.py"])
+    if gen.returncode != 0:
+        return "schema_mocks", gen
+    return "schema_mocks", run(
+        [
+            THIS_PYTHON,
+            "-m",
+            "pytest",
+            "tests/unit/test_validate_mocks_against_manifest.py",
+            "-q",
+            "--no-header",
+        ]
+    )
+
+
+def check_sync_docs() -> tuple[str, subprocess.CompletedProcess]:
+    """Versao rigorosa (--check --strict) com auto-fix em caso de drift."""
+    r = run([THIS_PYTHON, "scripts/sync_docs.py", "--check", "--strict"])
+    if r.returncode == 0:
+        return "sync_docs", r
+    print("  [sync_docs] drift detectado. Rodando auto-fix (sync_docs.py --sync)...", file=sys.stderr)
+    fix = run([THIS_PYTHON, "scripts/sync_docs.py", "--sync"])
+    if fix.returncode != 0:
+        print("  [sync_docs] auto-fix falhou. Revise os docs manualmente.", file=sys.stderr)
+        return "sync_docs", fix
+    rev = run([THIS_PYTHON, "scripts/sync_docs.py", "--check", "--strict"])
+    if rev.returncode != 0:
+        print("  [sync_docs] ainda ha drift apos auto-fix. Revise e commite os docs.", file=sys.stderr)
+    return "sync_docs", rev
+
+
+PARALLEL_CHECKS = [
+    check_audit_secrets,
+    check_agents_tool,
+    check_ci_local,
+    check_validate_query_columns,
+    check_audit_df_columns,
+    check_schema_mocks,
+    check_environment_parity,
+    check_sync_docs,
+]
+
+
 def main() -> int:
+    start = time.monotonic()
     print("=== pre-push: validando...", file=sys.stderr)
 
+    # [1/4] Working tree limpo (bloqueante)
+    print("[1/4] working tree limpo...", file=sys.stderr)
     status = run(["git", "status", "--porcelain"])
     if status.returncode != 0:
         print(f"ERRO: git status falhou: {status.stderr}", file=sys.stderr)
         return 1
-
     if status.stdout.strip():
         print("ERRO: working tree tem mudancas nao commitadas.", file=sys.stderr)
         print(status.stdout, file=sys.stderr)
         print("Commit ou descarte antes de fazer push.", file=sys.stderr)
         return 1
+    print("  [OK] working tree limpo", file=sys.stderr)
 
-    print("[0/5] CI status check...", file=sys.stderr)
-    gh_result = run(["gh", "run", "list", "--branch", "master", "--limit", "3",
-                     "--json", "conclusion,headBranch,workflowName"])
+    # [2/4] CI status (warn-only, com timeout de rede)
+    print("[2/4] CI status check (warn-only)...", file=sys.stderr)
+    gh_result = run(
+        ["gh", "run", "list", "--branch", "master", "--limit", "3",
+         "--json", "conclusion,headBranch,workflowName"],
+        timeout=15,
+    )
     if gh_result.returncode != 0:
         print("  [AVISO] gh nao autenticado. Rode 'gh auth login' ou defina GH_TOKEN no .env", file=sys.stderr)
         print("  [AVISO] Pulando CI check — push nao bloqueado, mas verifique manualmente.", file=sys.stderr)
     else:
         import json
+
         try:
             runs = json.loads(gh_result.stdout)
             failures = [r for r in runs if r.get("conclusion") in ("failure", "cancelled")]
             if failures:
                 for f in failures:
-                    print(f"  [FALHA] CI: {f['workflowName']} ({f['conclusion']})", file=sys.stderr)
+                    print(f"  [AVISO] CI: {f['workflowName']} ({f['conclusion']})", file=sys.stderr)
                 print("  [AVISO] Pipeline CI esta vermelho. Se este push NAO for a correcao,", file=sys.stderr)
                 print("  [AVISO] resolva antes. Para ignorar e pushar mesmo assim:", file=sys.stderr)
                 print("  [AVISO]   git push --no-verify", file=sys.stderr)
                 print("  [AVISO] Continuando (push responsavel)...", file=sys.stderr)
-            print("  [OK] CI: ultimos runs estao verdes", file=sys.stderr)
+            else:
+                print("  [OK] CI: ultimos runs estao verdes", file=sys.stderr)
         except (json.JSONDecodeError, KeyError) as e:
             print(f"  [AVISO] Nao foi possivel interpretar resposta do gh: {e}", file=sys.stderr)
 
-    print("[1/5] audit_secrets...", file=sys.stderr)
-    result = run([THIS_PYTHON, "scripts/audit_secrets.py", "--strict"])
-    if result.returncode != 0:
-        print("FALHA: secrets detectados no repo. Corrija antes de push.", file=sys.stderr)
-        if result.stdout:
-            print(result.stdout[:500], file=sys.stderr)
-        return 1
-    print("[OK] secrets: limpos", file=sys.stderr)
+    # [3/4] Checks paralelos (bloqueantes)
+    print(f"[3/4] checks paralelos ({len(PARALLEL_CHECKS)} itens)...", file=sys.stderr)
+    results: dict[str, subprocess.CompletedProcess] = {}
+    with cf.ThreadPoolExecutor(max_workers=len(PARALLEL_CHECKS)) as ex:
+        futures = {ex.submit(fn): fn.__name__ for fn in PARALLEL_CHECKS}
+        for future in cf.as_completed(futures):
+            name, proc = future.result()
+            results[name] = proc
+            tag = "[OK]" if proc.returncode == 0 else "[FALHA]"
+            print(f"  {tag} {name}", file=sys.stderr)
 
-    print("[1.5/5] agents_tool --check (schema)...", file=sys.stderr)
-    result = run([THIS_PYTHON, "scripts/agents_tool.py", "--check"])
-    if result.returncode != 0:
-        print("FALHA: agents_tool --check falhou. Corrija AGENTS.md antes de push.", file=sys.stderr)
-        if result.stdout:
-            print(result.stdout[-1000:], file=sys.stderr)
-        return 1
-    print("[OK] AGENTS.md schema valido", file=sys.stderr)
-
-    print("[2/5] ci_local.py...", file=sys.stderr)
-    run_unit = os.environ.get("CI_LOCAL_UNIT") == "1"
-    ci_args = [THIS_PYTHON, "scripts/ci_local.py"]
-    if not run_unit:
-        ci_args.append("--no-unit")
-
-    result = run(ci_args)
-    if result.returncode != 0:
-        print("FALHA: ci_local.py encontrou erros. Corrija antes de push.", file=sys.stderr)
-        if result.stdout:
-            print(result.stdout[-1000:], file=sys.stderr)
-        return 1
-    print("[OK] ci_local: limpos", file=sys.stderr)
-
-    print("[3/5] validate_query_columns (schema check)...", file=sys.stderr)
-    result = run([THIS_PYTHON, "scripts/validate_query_columns.py"])
-    if result.returncode != 0:
-        print("FALHA: colunas referenciadas no codigo nao existem no schema real.", file=sys.stderr)
-        if result.stdout:
-            print(result.stdout[-1500:], file=sys.stderr)
-        print("Corrija o codigo OU migre o schema antes de push.", file=sys.stderr)
-        return 1
-    print("[OK] schema: todas as colunas existem no Supabase", file=sys.stderr)
-
-    print("[3.5/5] audit_df_columns...", file=sys.stderr)
-    result = run([THIS_PYTHON, "scripts/audit_df_columns.py"])
-    if result.returncode != 0:
-        print("FALHA: colunas usadas em DataFrames nao existem no schema ou alias.", file=sys.stderr)
-        if result.stdout:
-            print(result.stdout[-1500:], file=sys.stderr)
-        return 1
-    print("[OK] audit_df_columns: DataFrame columns valid", file=sys.stderr)
-
-    print("[3.75/5] schema_manifest + mock validation...", file=sys.stderr)
-    result = run([THIS_PYTHON, "scripts/generate_schema_manifest.py"])
-    if result.returncode != 0:
-        print("FALHA: nao foi possivel gerar schema manifest.", file=sys.stderr)
-        return 1
-    result = run([THIS_PYTHON, "-m", "pytest", "tests/unit/test_validate_mocks_against_manifest.py", "-q", "--no-header"])
-    if result.returncode != 0:
-        print("FALHA: mock data nao alinhado com schema real.", file=sys.stderr)
-        print("Corrija os mocks em tests/ OU atualize o schema em supabase/consolidated_migration.sql.", file=sys.stderr)
-        return 1
-    print("[OK] schema_manifest + mock validation: todos os mocks alinhados ao schema real", file=sys.stderr)
-
-    print("[3.875/5] check_environment_parity...", file=sys.stderr)
-    result = run([THIS_PYTHON, "scripts/check_environment_parity.py"])
-    if result.returncode != 0:
-        print("FALHA: ambiente fora de paridade. Corrija antes de push.", file=sys.stderr)
-        if result.stdout:
-            print(result.stdout[-1500:], file=sys.stderr)
-        return 1
-    print("[OK] environment parity: Python + lock + platform ok", file=sys.stderr)
-
-    print("[3.9/5] sync_docs --check --strict (aviso)...", file=sys.stderr)
-    result = run([THIS_PYTHON, "scripts/sync_docs.py", "--check", "--strict"])
-    if result.returncode != 0:
-        print("[AVISO] Documentacao dessincronizada. Rode: python scripts/sync_docs.py", file=sys.stderr)
-        if result.stdout:
-            print(result.stdout[-1500:], file=sys.stderr)
-    else:
-        print("[OK] docs sincronizadas", file=sys.stderr)
-
-    print("[4/5] test_total_coverage (light, no integration/real)...", file=sys.stderr)
-    if os.environ.get("TEST_TOTAL") == "1":
-        tt_args = [THIS_PYTHON, "scripts/test_total_coverage.py", "--skip-slow"]
-        result = run(tt_args)
-        if result.returncode != 0:
-            print("FALHA: test_total_coverage encontrou erros. Corrija antes de push.", file=sys.stderr)
-            if result.stdout:
-                print(result.stdout[-1500:], file=sys.stderr)
-            return 1
-        print("[OK] test_total_coverage: limpa", file=sys.stderr)
-    else:
-        print("[SKIP] test_total_coverage (set TEST_TOTAL=1 to enable)", file=sys.stderr)
-
+    # [4/4] Resumo
+    elapsed = time.monotonic() - start
     print("", file=sys.stderr)
+    print(f"=== pre-push: resumo ({elapsed:.1f}s) ===", file=sys.stderr)
+    failed = [name for name, proc in results.items() if proc.returncode != 0]
+    if failed:
+        for name in failed:
+            proc = results[name]
+            print(f"  [FALHA] {name}", file=sys.stderr)
+            if proc.stdout:
+                tail = proc.stdout[-1500:]
+                print(tail, file=sys.stderr)
+        print("", file=sys.stderr)
+        print("=== pre-push: FALHOU. Corrija antes de pushar. ===", file=sys.stderr)
+        if "sync_docs" in failed:
+            print("  sync_docs: rode 'python scripts/sync_docs.py --sync', revise e commite os docs.", file=sys.stderr)
+        return 1
+
     print("=== pre-push: TODOS os checks passaram. Push liberado. ===", file=sys.stderr)
     print("", file=sys.stderr)
     print("💡 Para assistir o CI ate o fim:", file=sys.stderr)

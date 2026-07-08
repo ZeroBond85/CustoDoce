@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from services.alert_service import process_proactive_alerts
 
 

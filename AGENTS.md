@@ -54,7 +54,7 @@ CustoDoce/
 │   └── dependency-audit.yml                         # Cron mensal (dia 1, 9am UTC) — pip-audit + deptry + licenses
 ├── .githooks/
 │   ├── pre-commit                                     # 5 camadas (secret, doc sync, size, watchdog, agents)
-│   └── pre-push                                       # Python, 4 steps + agents_tool
+│   └── pre-push                                       # Python, 9 checks paralelos (block + auto-fix sync_docs)
 ├── config/
 │   ├── ingredients.yaml, stores.yaml, features.yaml
 │   ├── schema_manifest.json                          # Schema offline (gerado por scripts/generate_schema_manifest.py)

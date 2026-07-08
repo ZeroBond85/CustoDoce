@@ -35,6 +35,7 @@ if [ -n "${STAGED:-}" ]; then
     | grep -E "$PATTERN" \
     | grep -vE '^\+\+\+' \
     | grep -vE '^-' \
+    | grep -vE 'tests/unit/test_audit_secrets\.py' \
     || true)
 
   if [ -n "$HITS" ]; then

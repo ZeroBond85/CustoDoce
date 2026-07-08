@@ -68,15 +68,22 @@ git config core.fileMode false         # permissoes nao travam em Windows
 
 ## Pre-push Hook (`.githooks/pre-push`)
 
-6 steps existentes:
-0. **CI CHECK**: Tenta `gh run list`; se CI vermelho → BLOQUEIA; se `gh` não autenticado → AVISA
-1. Working tree limpo
-2. `audit_secrets --strict`
-3. `ruff check .`
-4. `mypy .`
+Checks (rodam em paralelo via ThreadPoolExecutor, exceto os sequenciais 1 e 2):
+1. **Working tree limpo** (bloqueante) — `git status --porcelain`
+2. **CI CHECK** (warn-only, timeout 15s): `gh run list --branch master` — pipeline vermelho = aviso (não bloqueia, pois o push pode ser a correção). Se `gh` não autenticado → avisa.
+3. **Checks paralelos (bloqueantes)** — executados simultaneamente:
+   - `audit_secrets --strict --since N` (N = commits desde `origin/master`; escaneia só o que será pushado)
+   - `agents_tool --check`
+   - `sync_docs.py --check --strict` (com **auto-fix**: drift → roda `--sync` → revalida; se falhar, bloqueia o push)
+   - `ci_local.py --no-unit` (ruff + bandit + pip-audit + mypy + config validation; pip-audit com `--timeout 30`)
+   - `validate_query_columns.py`
+   - `audit_df_columns.py`
+   - `generate_schema_manifest.py` + `pytest tests/unit/test_validate_mocks_against_manifest.py`
+   - `check_environment_parity.py`
 
-**Add (Sprint 11)**: Roda `python scripts/agents_tool.py --check` antes de validar secrets. Falha bloqueia push.
-**Add (Sprint 13)**: CI CHECK layer (step 0) antes de qualquer validação local — pipeline vermelho = aviso (não bloqueia, pois o push pode ser a correção).
+**Nota**: `sync_docs` roda **apenas** no pre-push (versão rigorosa `--check --strict` + auto-fix). O `ci_local.py` **não** roda mais docs-sync (evita duplicação de "2 docs sync"). Para checar manualmente: `python scripts/sync_docs.py --check --strict`.
+
+**Otimização (Fase 1)**: checks independentes rodam em paralelo; wall-time ≈ max(ci_local, demais) em vez de soma. `audit_secrets` escopado a commits outgoing. Rede (`gh`, `pip-audit`) tem timeout.
 
 ### Resolução Automática de Python
 
@@ -206,7 +213,7 @@ python scripts/sanitize.py --rollback
 1. **`--quick` ao final do dia** — limpa caches Python + wheels baixados manualmente
 2. **`--dry-run` semanalmente (segunda)** — auditoria manual; idealmente antes de push
 3. **Hook RESIDUE GUARD (pre-commit)** — bloqueia commit de `.whl`, `C?Usersericsf/`, apátridas, `data/audit/`, `data/skills_backup/`, `skills-lock.json`, `.archive/sanitize/`
-4. **NUNCA colocar sanitize no pre-push** — manter push rápido (8 verificações já existem)
+4. **NUNCA colocar sanitize no pre-push** — manter push rápido (9 checks principais, rodando em paralelo)
 5. **Snapshot antes de mutação irreversível** — `--rollback` restaura backup_personal do último `--execute`
 6. **CI semanal dry-run** — workflow `sanitize-check.yml` falha se detectar lixo novo no working tree
-7. **CI status check antes de push** — pre-push hook tenta `gh run list` step [0/5]. Se CI estiver vermelho, AVISA (não bloqueia — o push pode ser a correção). Se `gh` não estiver autenticado, AVISA. Responsabilidade do desenvolvedor: não pushar sobre CI vermelho sem ser a correção. Autenticar com `gh auth login` ou `GH_TOKEN` no `.env`.
+7. **CI status check antes de push** — pre-push hook tenta `gh run list` (step 2/4, warn-only, timeout 15s). Se CI estiver vermelho, AVISA (não bloqueia — o push pode ser a correção). Se `gh` não estiver autenticado, AVISA. Responsabilidade do desenvolvedor: não pushar sobre CI vermelho sem ser a correção. Autenticar com `gh auth login` ou `GH_TOKEN` no `.env`.
