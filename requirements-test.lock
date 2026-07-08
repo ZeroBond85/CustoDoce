@@ -52,13 +52,6 @@ click==8.4.2
     #   huggingface-hub
     #   streamlit
     #   uvicorn
-colorama==0.4.6
-    # via
-    #   bandit
-    #   click
-    #   pytest
-    #   tqdm
-    #   typer
 coverage[toml]==7.15.0
     # via pytest-cov
 cryptography==49.0.0
@@ -468,8 +461,6 @@ typing-extensions==4.16.0
     #   typing-inspection
 typing-inspection==0.4.2
     # via pydantic
-tzdata==2026.2
-    # via pandas
 urllib3==2.7.0
     # via
     #   requests
