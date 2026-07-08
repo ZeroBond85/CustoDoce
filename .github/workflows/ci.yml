@@ -90,12 +90,12 @@ jobs:
           # falhar" (nao "falha em vulnerabilidades"). Em CI (ubuntu/Py3.14)
           # a coleta de alguma dep de requirements.txt falha -> exit 1 mesmo sem
           # vulnerabilidades. Removemos --strict para falhar APENAS em vulns reais.
-          set +e
+          # O shell do GitHub Actions roda com -e; os greps abaixo retornam 1 quando
+          # nao ha match (sem vulns), entao usamos || true para nao abortar o script.
           audit_result=$(pip-audit -s osv -r requirements.txt)
           exit_code=$?
-          set -e
-          severity=$(echo "$audit_result" | grep -oP 'Severity: \K[^ ]+')
-          description=$(echo "$audit_result" | grep -oP 'Description: \K.*' | head -n 1)
+          severity=$(echo "$audit_result" | grep -oP 'Severity: \K[^ ]+' || true)
+          description=$(echo "$audit_result" | grep -oP 'Description: \K.*' | head -n 1 || true)
           echo "severity=$severity" >> $GITHUB_OUTPUT
           echo "description=$description" >> $GITHUB_OUTPUT
           echo "result=$audit_result" >> $GITHUB_OUTPUT
