@@ -101,8 +101,7 @@ jobs:
         
       - name: Install dependencies
         run: pip install -r requirements-prod.lock
-      - name: Install Playwright (tier 3 only)
-        if: matrix.tier == '3'
+      - name: Install Playwright
         run: |
           pip install playwright
           playwright install chromium
@@ -115,6 +114,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           CI_JOB_START: ${{ env.CI_JOB_START }}
       - name: Check time budget for scraping
         run: python scripts/check_time_budget.py --timeout-minutes 120 --label "scrape-tier-${{ matrix.tier }}"
