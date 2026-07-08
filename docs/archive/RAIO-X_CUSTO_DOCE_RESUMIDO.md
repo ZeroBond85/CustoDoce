@@ -1,9 +1,9 @@
 ---
 doc_type: snapshot
 slug: raio-x_custo_doce_resumido
-current_version: 0.0.1
+current_version: 0.0.2
 truth_at:
-  tests_total: 752
+  tests_total: 793
   pages_count: 20
   python_version: 3.14.6
 ---
