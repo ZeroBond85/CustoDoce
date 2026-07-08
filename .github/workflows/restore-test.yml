@@ -55,7 +55,7 @@ jobs:
       - name: Validate backup file integrity
         id: validate_backup
         run: |
-          BACKUP_FILE=$(ls backup/*.sql.gz 2>/dev/null | head -1)
+          BACKUP_FILE=$(ls backup/*.json.gz backup/*.sql.gz 2>/dev/null | head -1)
           if [ -z "$BACKUP_FILE" ]; then
             echo "Erro: Arquivo de backup não encontrado."
             ls -la backup/

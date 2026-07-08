@@ -87,6 +87,7 @@ jobs:
     needs: setup
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         tier: [1, 2a, 2b, 3]
     steps:
@@ -100,6 +101,11 @@ jobs:
         
       - name: Install dependencies
         run: pip install -r requirements-prod.lock
+      - name: Install Playwright (tier 3 only)
+        if: matrix.tier == '3'
+        run: |
+          pip install playwright
+          playwright install chromium
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - name: Run scraping for tier ${{ matrix.tier }}

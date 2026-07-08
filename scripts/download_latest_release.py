@@ -72,7 +72,7 @@ def download_latest_release(repo: str, prefix: str, token: str, output_dir: str)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 5:
+    if len(sys.argv) < 5:
         print("Uso: python download_latest_release.py --repo <repo> --prefix <prefix> --token <token> --output-dir <output_dir>")
         sys.exit(1)
 
