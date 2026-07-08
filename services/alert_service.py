@@ -96,10 +96,13 @@ def process_proactive_alerts():
                     channel = rule["channel"]
                     recs = get_alert_recipients(channel)
                     for r in recs:
-                        if channel == "telegram":
-                            send_telegram_message(r["target"], msg)
-                        elif channel == "email":
-                            send_email_notification(r["target"], "Alerta de Preço", msg)
+                        try:
+                            if channel == "telegram":
+                                send_telegram_message(r["target"], msg)
+                            elif channel == "email":
+                                send_email_notification(r["target"], "Alerta de Preço", msg)
+                        except Exception as notif_err:
+                            logger.warning("notification_skipped", channel=channel, error=str(notif_err))
 
         # 2. Handle 'scrape_failure' trigger
         elif trigger == "scrape_failure":
@@ -123,9 +126,12 @@ def process_proactive_alerts():
                 channel = rule["channel"]
                 recs = get_alert_recipients(channel)
                 for r in recs:
-                    if channel == "telegram":
-                        send_telegram_message(r["target"], msg)
-                    elif channel == "email":
-                        send_email_notification(r["target"], "Alerta de Sistema", msg)
+                    try:
+                        if channel == "telegram":
+                            send_telegram_message(r["target"], msg)
+                        elif channel == "email":
+                            send_email_notification(r["target"], "Alerta de Sistema", msg)
+                    except Exception as notif_err:
+                        logger.warning("notification_skipped", channel=channel, error=str(notif_err))
 
     logger.info("Proactive alerts processed.")

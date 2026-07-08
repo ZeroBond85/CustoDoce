@@ -12,9 +12,9 @@ from services.email_service import _load_stores
 
 def send_telegram_message(chat_id: str, text: str) -> bool:
     """Send a simple message via Telegram Bot API."""
-    token = os.environ.get("TELEGRAM_TOKEN")
+    token = os.environ.get("TELEGRAM_BOT_TOKEN") or os.environ.get("TELEGRAM_TOKEN")
     if not token:
-        raise ValueError("TELEGRAM_TOKEN must be set")
+        return False
 
     try:
         response = httpx.post(
