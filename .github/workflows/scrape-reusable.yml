@@ -2,7 +2,6 @@ name: Scrape Reusable
 
 on:
   workflow_call:
-  workflow_dispatch:
     inputs:
       mode:
         description: 'Modo de execução: cron, on_demand ou heal'
@@ -23,6 +22,22 @@ on:
         required: true
       TELEGRAM_CHAT_ID:
         required: true
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Modo de execução: cron, on_demand ou heal'
+        required: true
+        type: string
+        default: 'cron'
+      stores_filter:
+        description: 'Filtro de lojas para scraping (opcional)'
+        required: false
+        type: string
+      dry_run:
+        description: 'Modo de teste (não executa scraping real)'
+        required: false
+        type: boolean
+        default: false
 
 env:
   PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
@@ -57,7 +72,7 @@ jobs:
         env:
           CI_JOB_START: ${{ env.CI_JOB_START }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python scripts/sync_store_fields.py
+        run: python scripts/sync_all_store_fields.py
       - name: Check time budget for sync stores
         run: python scripts/check_time_budget.py --timeout-minutes 5 --label "sync-stores"
         env:
