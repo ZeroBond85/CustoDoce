@@ -1,10 +1,11 @@
 ---
 doc_type: snapshot
 slug: raio-x_custo_doce_resumido
-current_version: 0.0.0
+current_version: 0.0.1
 truth_at:
-  tests_total: 729
-  pages_count: 19
+  tests_total: 752
+  pages_count: 20
+  python_version: 3.14.6
 ---
 # 🍬 CUSTO DOCE — RAIO-X RESUMIDO
 > Última revisão: 2026-07-06 02:38 UTC

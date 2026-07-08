@@ -1,9 +1,9 @@
 # `email_service` — API
 
-> Última atualização: 2026-07-06 02:38 UTC
+> Última atualização: 2026-07-08 21:16 UTC
 > Gerado por AST parsing dos serviços em `services/email_service.py`.
 
-## Funções Públicas (6)
+## Funções Públicas (5)
 
 ### build_full_report_html(prices_by_ingredient: dict)
 
@@ -18,8 +18,4 @@ Gera relatório HTML responsivo - melhor preço por loja por ingrediente.
 Simple email sender using the existing SMTP config.
 
 ### send_scraper_error(store_name: str, error: str, to_email: str | None)
-
-### send_telegram_report(token: str, chat_id: str, ingredients: list[dict], prices_by_ingredient: dict)
-
-Envia 1 única mensagem Telegram com top-5 por ingrediente (deduplicado por loja).
 

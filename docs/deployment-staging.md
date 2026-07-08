@@ -1,5 +1,5 @@
 # Deployment Staging
-> Última atualização: 2026-07-06 02:38 UTC
+> Última atualização: 2026-07-08 21:16 UTC
 
 Guia para criar e operar um ambiente de staging isolado antes de promotionar para produção.
 
