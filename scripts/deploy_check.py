@@ -184,8 +184,8 @@ if __name__ == "__main__":
         _check(f"ENV: {var}", lambda v=var: _check_env_required(v), required=True)
     for var in env_optional:
         _check(f"ENV: {var} (opcional)", lambda v=var: _check_env_optional(v), required=False)
-    _check("Telegram envio", test_telegram, required=False)
-    _check("SMTP envio", test_smtp, required=False)
+    _check("Telegram envio", test_telegram, required=True)
+    _check("SMTP envio", test_smtp, required=True)
     _check("Scraper health (3+ falhas consecutivas)", test_scraper_health, required=False)
 
     print(f"\n{'=' * 55}")

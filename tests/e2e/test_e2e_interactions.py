@@ -201,10 +201,10 @@ _PAGE_ACTIONS: dict[str, callable] = {
 
 
 @pytest.mark.parametrize("page_id,label", PAGES)
-def test_page_with_interactions(logged_in_app_and_page, page_id, label):
-    app, page = logged_in_app_and_page
+def test_page_with_interactions(logged_in_app_and_page_local, page_id, label):
+    app, page = logged_in_app_and_page_local
     app = wake_if_sleeping(page, app)
-    app.locator(f"button:has_text('{label}')").first.click()
+    app.locator(f"button:has-text('{label}')").first.click()
     app.wait_for_timeout(3000)
     check_for_errors(app, f"{page_id}_loaded", page=page)
 
