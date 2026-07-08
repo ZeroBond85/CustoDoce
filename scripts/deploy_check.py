@@ -80,10 +80,11 @@ def test_rate_limiter():
 
 
 def test_telegram():
-    token = os.environ.get("TELEGRAM_TOKEN")
+    # Aceita ambos os nomes (TOKEN e BOT_TOKEN) para compatibilidade com GH Secrets
+    token = os.environ.get("TELEGRAM_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID")
     if not token or not chat_id:
-        raise ValueError("TELEGRAM_TOKEN ou TELEGRAM_CHAT_ID nao configurados")
+        raise ValueError("TELEGRAM_TOKEN/TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID nao configurados")
     import httpx
 
     resp = httpx.post(
