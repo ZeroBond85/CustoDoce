@@ -1,5 +1,5 @@
 # Lições Aprendidas
-> Última atualização: 2026-07-06 02:38 UTC
+> Última atualização: 2026-07-08 04:00 UTC
 
 > Extraídas de AGENTS.md. Numeração original preservada.
 > Regras de execução/ambiente → `REGRAS.md`.
@@ -318,3 +318,26 @@ A mesma regra vale para `send_email()` em `email_service.py` — levantava `Valu
 **Solução:** Criar `scripts/enrich_prices.py` + adicionar `test_enrich_prices_script_exists()` em `test_ci_infrastructure.py`.
 
 **Regra permanente:** TODO script referenciado em qualquer workflow YAML deve ter um test de existência correspondente em `tests/unit/test_ci_infrastructure.py`.
+
+### 48. `pip-audit --strict` NÃO significa "falha em vulnerabilidades"
+
+**Causa raiz:** Workflow `ci.yml` usava `pip-audit --strict -s osv -r requirements.txt` no step "Audit dependencies". O flag `--strict` no pip-audit 2.x significa **"falha se a COLETA de dependências falhar"** (não "falha em vulns"). Em CI (ubuntu/Py3.14) a coleta de alguma dependência de `requirements.txt` falha → exit 1 mesmo com "No known vulnerabilities found". Combinado com `set -e` implícito do GitHub Actions, o script morria antes do check de severidade.
+
+**Solução:** Remover `--strict` (pip-audit falha por padrão em vulns reais) + capturar exit code explicitamente (`set +e` / `set -e`) para não abortar o script. Bloquear só em HIGH/CRITICAL via grep de `Severity:`.
+
+**Regra permanente:**
+- Nunca usar `pip-audit --strict` para "falhar em vulnerabilidades" — esse é o comportamento DEFAULT
+- `--strict` = falha em erro de COLETA de dependência (falso positivo em ambientes com extra-index-url, Py3.14, etc.)
+- Em workflows, sempre capturar exit code de pip-audit explicitamente (`set +e` antes, `set -e` depois) para o check de severidade rodar
+
+### 49. Falha de CI pré-existente = GAP de teste, tratar imediatamente
+
+**Causa raiz:** O pre-push hook avisou "CI está vermelho" (master com F401 em `test_alert_service.py`/`test_telegram_service.py` + pip-audit bug). O agente tratou como "não são nossas mudanças, fora de escopo" e seguiu. Isso viola AGENTS.md regra #11 ("Falha no CI = Gap de Teste... 'Tentar de novo' é proibido").
+
+**Solução:** Reproduzir a falha de CI localmente (`gh run view <id> --log-failed`), corrigir na branch feature (rebase onto origin/master + fix), e registrar LESSONS.md. No caso: F401 `import pytest` não usado (removido) + pip-audit `--strict` (removido).
+
+**Regra permanente:**
+- Se o pre-push avisa "CI vermelho", NÃO é desculpa para ignorar — investigar e corrigir
+- Falha de CI pré-existente continua sendo GAP de teste se não for tratada antes do merge
+- Sempre reproduzir localmente + corrigir + LESSONS.md (mesmo que o bug não venha das nossas mudanças)
+
