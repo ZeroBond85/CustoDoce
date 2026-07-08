@@ -632,6 +632,8 @@ def _update_archive_md(state: dict, dry_run: bool = False) -> list[str]:
 
 def _update_readme_md(state: dict, dry_run: bool = False) -> list[str]:
     """Atualiza README.md com badges dinâmicos e timestamp."""
+    from scripts.doc_utils import is_timestamp_fresh
+
     changes: list[str] = []
     tc = state["test_counts"]
     unit = tc.get("unit", 0)
@@ -640,30 +642,25 @@ def _update_readme_md(state: dict, dry_run: bool = False) -> list[str]:
     pages_count = state["pages_count"]
 
     content = _README.read_text(encoding="utf-8")
-    new_content = content
+    if is_timestamp_fresh(content):
+        return changes
 
-    # Atualizar badge de deploy pages
+    new_content = content
     new_content = re.sub(
         r"(18|19|20)( módulos?| pages?| abas?)",
         f"{pages_count}\\2",
         new_content,
     )
-
-    # Atualizar test count mencionado no texto
     new_content = re.sub(
         r"(\d+)( testes? (unit|passing))",
         f"{total}\\2",
         new_content,
     )
-
-    # Atualizar badge version if present (version-X.X.X--mvp)
     new_content = re.sub(
         r"(badge/version-)\d+\.\d+\.\d+(--mvp)",
         f"\\g<1>{pages_count}.{unit}.{schema}\\2",
         new_content,
     )
-
-    # Injetar/atualizar timestamp
     new_content = inject_timestamp(new_content)
 
     if new_content != content:
@@ -677,21 +674,21 @@ def _update_readme_md(state: dict, dry_run: bool = False) -> list[str]:
 
 def _update_rules_md(state: dict, dry_run: bool = False) -> list[str]:
     """Atualiza REGRAS.md com Python version, hooks layers, comandos."""
+    from scripts.doc_utils import is_timestamp_fresh
+
     changes: list[str] = []
     if not _REGRAS.exists():
         return changes
-
     content = _REGRAS.read_text(encoding="utf-8")
-    new_content = content
+    if is_timestamp_fresh(content):
+        return changes
 
-    # Atualizar referências de Python version: "3.11+" -> real
+    new_content = content
     new_content = re.sub(
         r"(deve ser )3\.\d+(\+)",
         r"\g<1>3.14\g<2>",
         new_content,
     )
-
-    # Atualizar timestamp
     new_content = inject_timestamp(new_content)
 
     if new_content != content:
@@ -722,13 +719,24 @@ def _generate_api_docs(state: dict, dry_run: bool = False) -> list[str]:
 
         if dry_run:
             existing = dest.read_text(encoding="utf-8") if dest.exists() else ""
-            if existing != md_content:
+            existing_no_ts = _strip_timestamp_line(existing)
+            new_no_ts = _strip_timestamp_line(md_content)
+            if existing_no_ts != new_no_ts:
                 changes.append(f"  Would regenerate docs/api/{module_name}.md ({len(funcs)} funcs)")
         else:
             dest.write_text(md_content, encoding="utf-8")
             changes.append(f"  docs/api/{module_name}.md: {len(funcs)} funcs generated")
 
     return changes
+
+
+def _strip_timestamp_line(content: str) -> str:
+    """Remove a linha de timestamp `> Última atualização: ...` para
+    comparar só conteúdo sem ruído de timestamp."""
+    lines = content.splitlines()
+    return "\n".join(
+        l for l in lines if not l.startswith("> Última atualização") and not l.startswith("> Última revisão")
+    )
 
 
 def _update_generic_md(state: dict, dry_run: bool = False) -> list[str]:
@@ -985,7 +993,9 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, e
         if any("[DRIFT]" in c for c in archive_changes):
             issues.append("[SNAPSHOT_REFERENCE_LIVE] drift detectado")
         if any("[DERIVED]" in c for c in archive_changes):
-            issues.append("[SNAPSHOT_DERIVED_LIVE] aguardando regeneração (sprint review)")
+            print("  [NOTE] SNAPSHOT_DERIVED_LIVE — regeneração via IA em sprint review (não bloqueia)")
+    if not dry_run and any("[DERIVED]" in c for c in archive_changes):
+        print("  [NOTE] SNAPSHOT_DERIVED_LIVE permanece — regeneração é manual")
 
     print("\nUpdating README.md...")
     readme_changes = _update_readme_md(state, dry_run=dry_run)
