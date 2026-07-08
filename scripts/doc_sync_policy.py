@@ -16,7 +16,7 @@ Usage:
 from __future__ import annotations
 
 import re
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
@@ -24,7 +24,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 from scripts.doc_utils import read_frontmatter  # noqa: E402
 
 
-class DocPolicy(str, Enum):
+class DocPolicy(StrEnum):
     """Update contract for a single .md document.
 
     A política é resolvida via:
@@ -57,9 +57,7 @@ def _looks_frozen(fm: dict, body: str) -> bool:
     """Heurística que confirma doc como SNAPSHOT_FROZEN."""
     if fm.get("frozen") is True:
         return True
-    if fm.get("doc_type") == "snapshot" and _FROZEN_BODY_MARKPAT.search(body):
-        return True
-    return False
+    return bool(fm.get("doc_type") == "snapshot" and _FROZEN_BODY_MARKPAT.search(body))
 
 
 def policy_for(file_path: str | Path) -> DocPolicy:
