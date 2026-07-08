@@ -132,7 +132,7 @@ def _watch_one(run_id: str) -> tuple[int, str]:
     """Bloqueia até um run específico terminar via polling. Retorna (exit_code, erro_log)."""
     wf = _get_workflow_name(run_id) or "?"
     print(f"⏳  Assistindo {wf} (run #{run_id}) via polling...", file=sys.stderr)
-    
+
     deadline = time.time() + TIMEOUT
     while time.time() < deadline:
         result = _run(["gh", "run", "view", run_id, "--json", "conclusion,status"], timeout=15)
@@ -158,7 +158,7 @@ def _watch_one(run_id: str) -> tuple[int, str]:
             except json.JSONDecodeError:
                 pass
         time.sleep(30)
-    
+
     print(f"⏰  Timeout ({TIMEOUT}s) esperando {wf} (run #{run_id})", file=sys.stderr)
     return (124, "timeout")
 
