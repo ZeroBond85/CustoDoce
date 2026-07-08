@@ -294,3 +294,27 @@ Steps sem 'run:' ou 'uses:' geram 'failure' com 0 jobs. yaml.safe_load nao detec
 - `git_push.py` DEVE implementar polling, não `gh run watch`
 - Todo agente que monitorar CI deve usar polling repetitivo até conclusão final
 - Se shell timeout < tempo do CI, o watch falha e perde a conclusão
+
+### 46. Serviços com dependências opcionais — retorne False, não levante exceção
+
+**Causa raiz:** `services/telegram_service.py::send_telegram_message()` levantava `ValueError("TELEGRAM_TOKEN must be set")` quando o token não estava configurado. Isso propagava como `logger.error` no `main.py`, poluindo logs de CI com falsos positivos (exit code 0, mas parecia erro).
+
+A mesma regra vale para `send_email()` em `email_service.py` — levantava `ValueError` sem SMTP configurado.
+
+**Solução:**
+- `send_telegram_message` retorna `False` (não raise) quando token faltando
+- `alert_service.py::process_proactive_alerts()` envolve notificações em `try/except` com logger.warning
+- O import ausente `send_email_notification` foi resolvido com alias: `from services.email_service import send_email as send_email_notification`
+
+**Regra permanente:**
+- Serviços com dependências opcionais (Telegram, SMTP, etc.) NUNCA devem levantar exceção por config faltante — retornar `False` ou `None`
+- Quem chama deve tratar falha de notificação como warning, não erro
+- O `main.py` não deve logar como `logger.error` falhas de notificação
+
+### 47. Scripts referenciados em workflows devem ter test de existência
+
+**Causa raiz:** `scripts/enrich_prices.py` estava referenciado em `.github/workflows/scrape-reusable.yml` mas o arquivo nunca existiu no repositório. A CI rodou 3 vezes (`enrich` job fail) até o script ser criado.
+
+**Solução:** Criar `scripts/enrich_prices.py` + adicionar `test_enrich_prices_script_exists()` em `test_ci_infrastructure.py`.
+
+**Regra permanente:** TODO script referenciado em qualquer workflow YAML deve ter um test de existência correspondente em `tests/unit/test_ci_infrastructure.py`.

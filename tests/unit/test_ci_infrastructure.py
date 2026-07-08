@@ -191,3 +191,9 @@ def test_audit_secrets_script_exists() -> None:
     """scripts/audit_secrets.py deve existir (CI e hook dependem dele)."""
     script = REPO_ROOT / "scripts" / "audit_secrets.py"
     assert script.exists(), "scripts/audit_secrets.py não existe"
+
+
+def test_enrich_prices_script_exists() -> None:
+    """scripts/enrich_prices.py deve existir (scrape-reusable.yml depende dele)."""
+    script = REPO_ROOT / "scripts" / "enrich_prices.py"
+    assert script.exists(), "scripts/enrich_prices.py não existe"
