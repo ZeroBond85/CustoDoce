@@ -5,9 +5,12 @@ ci_local.py — Simula CI localmente antes do push.
 Executa os mesmos jobs do .github/workflows/ci.yml:
   1. lint        (ruff, bandit, pip-audit)
   2. typecheck   (mypy)
-  3. docs-sync   (scripts/sync_docs.py --check)
-  4. unit        (pytest)
-  5. config-validate (local: requisitos que CI nao valida)
+  3. unit        (pytest)
+  4. config-validate (local: requisitos que CI nao valida)
+
+NOTA: docs-sync (sync_docs --check --strict + auto-fix) foi movido para o
+pre-push hook (roda a versao rigorosa la). O ci_local NAO roda mais
+docs-sync para evitar duplicacao. Devs: python scripts/sync_docs.py --check --strict
 
 Uso:
   python scripts/ci_local.py           # todos os jobs
@@ -81,12 +84,15 @@ def run(cmd: str, cwd: Path = REPO_ROOT, capture: bool = True) -> subprocess.Com
     else:
         actual_cmd = cmd
     print(f"  $ {actual_cmd}")
+    # timeout de seguranca: nenhuma verificacao local deve travar o hook
+    # (pip-audit e rede tem timeout proprio; aqui cobre o subprocess em geral).
     result = subprocess.run(  # noqa: S602
         actual_cmd,
         shell=True,
         cwd=cwd,
         capture_output=capture,
         text=True,
+        timeout=600,
     )
     return result
 
@@ -286,7 +292,9 @@ def run_lint() -> bool:
     if not job("bandit", result.returncode == 0, result.stdout if result.returncode else ""):
         all_ok = False
 
-    result = run("python -m pip_audit --strict -s osv -r requirements.txt")
+    # --timeout 30 blinda contra travamento de rede no PyPI/OSV (o pre-push
+    # nao deve bloquear o push se o servidor de vulnerabilidades estiver lento).
+    result = run("python -m pip_audit --strict --timeout 30 -s osv -r requirements.txt")
     if not job("pip-audit", result.returncode == 0, result.stdout if result.returncode else ""):
         all_ok = False
 
@@ -304,16 +312,6 @@ def run_typecheck() -> bool:
     else:
         job("mypy", ok, "Success: no issues found")
     return ok
-
-
-def run_docs_sync() -> bool:
-    """scripts/sync_docs.py --check."""
-    print("\n=== [docs-sync] sync_docs.py --check ===")
-    sync_script = REPO_ROOT / "scripts" / "sync_docs.py"
-    if not sync_script.exists():
-        return job("docs-sync", False, f"{sync_script} não existe")
-    result = run(f"python {sync_script} --check")
-    return job("docs-sync", result.returncode == 0, result.stdout[:300] if result.returncode else "")
 
 
 def run_unit() -> bool:
@@ -363,6 +361,11 @@ def main() -> int:
 
     if args.unit or args.all:
         results.append(("unit", run_unit()))
+
+    # NOTA: docs-sync (sync_docs --check --strict + auto-fix) foi movido para o
+    # pre-push hook, que roda a versao rigorosa. O ci_local NAO roda mais
+    # docs-sync para evitar duplicacao ("2 docs sync"). Devs que quiserem
+    # checar manualmente: python scripts/sync_docs.py --check --strict
 
     print("\n" + "=" * 60)
     print("RESUMO:")
