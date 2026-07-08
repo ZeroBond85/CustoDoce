@@ -104,14 +104,21 @@ jobs:
       - name: Install system deps (tesseract, playwright)
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq tesseract-ocr
+          sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-por
           pip install playwright
           playwright install chromium
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - name: Run scraping for tier ${{ matrix.tier }}
         id: scrape_tier
-        run: python main.py --tier ${{ matrix.tier }} --mode ${{ inputs.mode }} --dry-run ${{ inputs.dry_run }}
+        run: |
+          python main.py --tier ${{ matrix.tier }} --mode ${{ inputs.mode }} ${{ inputs.dry_run && '--dry-run' || '' }} 2>&1 | tee /tmp/scrape_${{ matrix.tier }}.log
+          if grep -qE '\[error\s*\]|"level":\s*"error"' /tmp/scrape_${{ matrix.tier }}.log 2>/dev/null; then
+            echo "::error::[error] entries found in scrape output for tier ${{ matrix.tier }}"
+            grep -E '\[error\s*\]|"level":\s*"error"' /tmp/scrape_${{ matrix.tier }}.log
+            exit 1
+          fi
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}

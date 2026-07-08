@@ -4,6 +4,7 @@ Coordinates collection, cleaning, intelligence, and reporting.
 """
 
 import json
+from argparse import ArgumentParser, Namespace
 from datetime import UTC, date, datetime
 from pathlib import Path
 
@@ -13,6 +14,14 @@ from services.logger import logger
 
 DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
+
+
+def parse_args() -> Namespace:
+    parser = ArgumentParser(description="CustoDoce Main Orchestrator")
+    parser.add_argument("--dry-run", action="store_true", help="Dry-run mode: skip external side-effects (alerts, email, cleanups)")
+    parser.add_argument("--tier", type=str, default="1", help="Scraping tier (1/2/3)")
+    parser.add_argument("--mode", type=str, default="cron", help="Execution mode (cron/on_demand/heal)")
+    return parser.parse_args()
 
 
 def generate_report_html(products: list[dict], ingredients: list[dict]) -> str:
@@ -27,9 +36,9 @@ def generate_report_html(products: list[dict], ingredients: list[dict]) -> str:
     for ing_name, prices in sorted(by_ingredient.items()):
         best = min(
             prices,
-            key=lambda x: (x.get("normalized") if isinstance(x.get("normalized"), dict) else {}).get(
-                "price_per_kg", 999999
-            ),
+            key=lambda x: x["normalized"]["price_per_kg"]
+            if isinstance(x.get("normalized"), dict)
+            else 999999,
         )
         raw_norm = best.get("normalized")
         norm = raw_norm if isinstance(raw_norm, dict) else {}
@@ -64,7 +73,9 @@ def generate_report_html(products: list[dict], ingredients: list[dict]) -> str:
     return html
 
 
-def main():
+def main(args: Namespace | None = None):
+    if args is None:
+        args = parse_args()
     with otel.tracer.start_as_current_span("main_collection_loop"):
         logger.info("custodoce_collection_start", start_time=datetime.now().isoformat())
 
@@ -151,7 +162,7 @@ def main():
         with open(snapshot_path, "w", encoding="utf-8") as f:
             json.dump(snapshot, f, indent=2, ensure_ascii=False)
 
-        if all_products:
+        if all_products and not args.dry_run:
             try:
                 report_html = price_analytics.generate_report_html(all_products, ingredients)
                 email_service.send_daily_report(report_html=report_html)
@@ -159,38 +170,42 @@ def main():
             except Exception as e:
                 logger.warning("daily_report_error", error=str(e))
 
-        for name, fn, days in [
-            ("prices", price_service.cleanup_old_prices, 90),
-            ("logs", price_service.cleanup_old_logs, 30),
-            ("flyers", flyer_service.cleanup_old_flyers, 60),
-            ("flyers_all", price_service.cleanup_old_flyers_all, 180),
-            ("review_resolved", price_service.cleanup_resolved_review_items, 30),
-        ]:
+        # Cleanups só rodam em modo real
+        if not args.dry_run:
+            for name, fn, days in [
+                ("prices", price_service.cleanup_old_prices, 90),
+                ("logs", price_service.cleanup_old_logs, 30),
+                ("flyers", flyer_service.cleanup_old_flyers, 60),
+                ("flyers_all", price_service.cleanup_old_flyers_all, 180),
+                ("review_resolved", price_service.cleanup_resolved_review_items, 30),
+            ]:
+                try:
+                    result = fn(retention_days=days)
+                    logger.info("cleanup_executed", target=name, result=result)
+                except Exception as e:
+                    logger.warning("cleanup_error", target=name, error=str(e))
+
             try:
-                result = fn(retention_days=days)
-                logger.info("cleanup_executed", target=name, result=result)
+                result = flyer_service.cleanup_non_food_flyers()
+                logger.info("cleanup_non_food_flyers_executed", result=result)
             except Exception as e:
-                logger.warning("cleanup_error", target=name, error=str(e))
+                logger.warning("cleanup_non_food_flyers_error", error=str(e))
 
-        try:
-            result = flyer_service.cleanup_non_food_flyers()
-            logger.info("cleanup_non_food_flyers_executed", result=result)
-        except Exception as e:
-            logger.warning("cleanup_non_food_flyers_error", error=str(e))
+            try:
+                result = price_service.auto_reject_stale_review_items(max_age_days=14, min_confidence=0.3)
+                logger.info("cleanup_review_queue_executed", rejected_count=result)
+            except Exception as e:
+                logger.warning("cleanup_review_queue_error", error=str(e))
 
-        try:
-            result = price_service.auto_reject_stale_review_items(max_age_days=14, min_confidence=0.3)
-            logger.info("cleanup_review_queue_executed", rejected_count=result)
-        except Exception as e:
-            logger.warning("cleanup_review_queue_error", error=str(e))
+            # FASE 6: Proactive Alerts (só em modo real)
+            try:
+                from services import alert_service
 
-        # FASE 6: Proactive Alerts
-        try:
-            from services import alert_service
-
-            alert_service.process_proactive_alerts()
-        except Exception as e:
-            logger.error("proactive_alerts_failed", error=str(e))
+                alert_service.process_proactive_alerts()
+            except Exception as e:
+                logger.error("proactive_alerts_failed", error=str(e))
+        else:
+            logger.info("dry_run_skip_side_effects")
 
         logger.info("custodoce_collection_finished", end_time=datetime.now().isoformat())
 
