@@ -235,7 +235,7 @@ def pytest_collection_modifyitems(items):
         if (
             "integration" in item.keywords or "real" in item.keywords or "schema" in item.keywords
         ) and not _has_real_db():
-            item.add_marker(pytest.mark.skip(reason="SUPABASE_URL ou SUPABASE_DB_PASSWORD não configurados"))
+            item.add_marker(pytest.mark.skip(reason="SUPABASE_URL + SERVICE_ROLE/ANON_KEY não configurados"))
 
         if "llm" in item.keywords and not _has_groq_key():
             item.add_marker(pytest.mark.skip(reason="GROQ_API_KEY não configurado"))
