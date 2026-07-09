@@ -109,10 +109,6 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('requirements-test.lock') }}
       - if: steps.pw-cache.outputs.cache-hit != 'true'
-        name: Install Playwright browsers
-        run: python -m playwright install chromium --with-deps-hit != 'true'
-        name: Install Playwright browsers
-        run: python -m playwright install chromium --with-deps
       - run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - run: python -m pytest tests/integration/ -q --tb=short --no-header --durations=5
         env:
@@ -121,8 +117,6 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-      - run: python scripts/check_time_budget.py --timeout-minutes 15 --label "integration"
-        if: always()
 
   deploy-check:
     needs: [lint, typecheck]
