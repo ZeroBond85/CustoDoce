@@ -81,14 +81,37 @@ def main():
     print(f"Commit: {msg}")
 
     token = os.environ.get("GITHUB_TOKEN", "")
-    repo = os.environ.get("GITHUB_REPOSITORY", "ZeroBond85/CustoDoce")
+    repo = os.environ.get("GITHUB_REPOSITORY") or _detect_repo_from_git() or ""
     ref = os.environ.get("GITHUB_REF", "HEAD")
+    if not repo:
+        print("Skip push: GITHUB_REPOSITORY não definido e remote 'origin' ausente.")
+        print("Nada a fazer para push.")
+        return
     remote = f"https://x-access-token:{token}@github.com/{repo}.git" if token else "origin"
     r = _git(["push", remote, ref])
     if r.returncode != 0:
         print(f"Erro push: {r.stderr or r.stdout}")
         sys.exit(1)
     print("Push OK.")
+
+
+def _detect_repo_from_git() -> str | None:
+    """Detecta owner/repo via `git remote get-url origin` (ex.: git@github.com:owner/repo.git).
+
+    Retorna None se não conseguir detectar — caller decide fallback.
+    """
+    r = _git(["remote", "get-url", "origin"])
+    if r.returncode != 0 or not r.stdout:
+        return None
+    url = r.stdout.strip()
+    for prefix in ("git@github.com:", "https://github.com/", "https://x-access-token:token@github.com/"):
+        if url.startswith(prefix):
+            path = url[len(prefix) :]
+            if path.endswith(".git"):
+                path = path[:-4]
+            if "/" in path:
+                return path
+    return None
 
 
 if __name__ == "__main__":
