@@ -11,12 +11,20 @@ LOCAL_ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 
 
 def _login_local(page, password: str) -> None:
-    """Faz login no Streamlit local (se houver password form)."""
+    """Faz login no Streamlit local (username + senha).
+
+    O login exige usuario E senha nao-vazios (dashboard/login_page.py);
+    a senha e validada contra ADMIN_PASSWORD, o usuario apenas precisa
+    ser nao-vazio. Preenchemos "admin" como usuario fixo.
+    """
     if not password:
         return
-    pwd_input = page.locator('input[type="password"]')
+    user_input = page.locator('input[aria-label*="Usuario"], input[placeholder="admin"]').first
+    if user_input.count() > 0:
+        user_input.fill("admin")
+    pwd_input = page.locator('input[type="password"]').first
     if pwd_input.count() > 0:
-        pwd_input.first.fill(password)
+        pwd_input.fill(password)
         entrar = page.get_by_role("button", name="Entrar", exact=True).first
         if entrar.count() > 0:
             entrar.click()
@@ -42,11 +50,14 @@ def logged_in_app_and_page_local(browser):
     """
     page = browser.new_page(viewport={"width": 1280, "height": 800})
     page.goto(LOCAL_BASE_URL, timeout=120000)
-    page.wait_for_load_state("domcontentloaded")
+    page.wait_for_load_state("networkidle")
     _login_local(page, LOCAL_ADMIN_PASSWORD)
+    page.wait_for_load_state("networkidle")
+    page.wait_for_selector('[data-testid="stSidebar"] a', timeout=60000)
     yield page, page
     page.close()
 
 
-# Import cloud fixtures from test_e2e_real if needed in future (not loaded by default)
-pytest_plugins = ["tests.e2e.test_e2e_real"]
+# NOTE: Nao usar pytest_plugins para importar test_e2e_real.
+# Isso criaria conflito de fixtures 'browser' (duas definicoes session scope).
+# test_e2e_real.py ja importa seus helpers diretamente.

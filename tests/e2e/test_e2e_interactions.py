@@ -14,6 +14,7 @@ _repo_root = str(Path(__file__).resolve().parent.parent.parent)
 sys.path.insert(0, _repo_root)
 
 import pytest
+import time
 
 from dashboard.navigation_config import MENU_GROUPS
 from .test_e2e_real import check_for_errors, wake_if_sleeping
@@ -33,25 +34,39 @@ def _select_first_option(page, key_substring: str):
 
 def _adjust_slider(page, label_text: str, value: int):
     slider = page.locator("input[type='range']").filter(has=page.locator(f"label:has-text('{label_text}')")).first
-    if slider.count() > 0:
+    if slider.count() > 0 and slider.first.is_visible():
         slider.fill(str(value))
         page.wait_for_timeout(500)
 
 
+def page_wait(_tabs):
+    import time as _t
+
+    _t.sleep(1200 / 1000)
+
+
 def _click_first_multiselect(page, label_text: str):
     sel = page.locator("[data-testid='stMultiSelect']").filter(has=page.locator(f"label:has-text('{label_text}')")).first
-    if sel.count() > 0:
+    if sel.count() > 0 and sel.first.is_visible():
         sel.click()
         page.wait_for_timeout(500)
-        page.locator("div[role='option']").first.click()
+        opt = page.locator("div[role='option']").first
+        if opt.count() > 0 and opt.is_visible():
+            opt.click()
         page.wait_for_timeout(500)
 
 
 def _click_button(page, text: str):
     btn = page.locator(f"button:has-text('{text}')").first
-    if btn.count() > 0:
+    if btn.count() > 0 and btn.first.is_visible():
         btn.click()
         page.wait_for_timeout(1000)
+
+
+def _click_tab(tabs, index: int):
+    if tabs.count() > index and tabs.nth(index).is_visible():
+        tabs.nth(index).click()
+        time.sleep(1.2)
 
 
 def _toggle_checkbox(page, label_text: str):
@@ -83,7 +98,7 @@ def _test_promocoes_interactions(page, _p):
 def _test_ranking_interactions(page, _p):
     tabs = page.locator("button[data-baseweb='tab']")
     if tabs.count() > 1:
-        tabs.nth(1).click()
+        _click_tab(tabs, 1)
         page.wait_for_timeout(1500)
     _adjust_slider(page, "Período (dias)", 60)
 
@@ -123,7 +138,7 @@ def _test_diagnostico_interactions(page, _p):
 def _test_relatorios_interactions(page, _p):
     tabs = page.locator("button[data-baseweb='tab']")
     if tabs.count() > 1:
-        tabs.nth(1).click()
+        _click_tab(tabs, 1)
         page.wait_for_timeout(1000)
     _toggle_checkbox(page, "Incluir promoções")
     _click_button(page, "Testar SMTP")
@@ -133,14 +148,14 @@ def _test_relatorios_interactions(page, _p):
 def _test_lojas_interactions(page, _p):
     tabs = page.locator("button[data-baseweb='tab']")
     if tabs.count() > 1:
-        tabs.nth(1).click()
+        _click_tab(tabs, 1)
         page.wait_for_timeout(1000)
 
 
 def _test_ingredientes_interactions(page, _p):
     tabs = page.locator("button[data-baseweb='tab']")
     if tabs.count() > 1:
-        tabs.nth(1).click()
+        _click_tab(tabs, 1)
         page.wait_for_timeout(1000)
     _select_first_option(page, "Categoria")
     _click_button(page, "Testar")
@@ -149,7 +164,7 @@ def _test_ingredientes_interactions(page, _p):
 def _test_alertas_interactions(page, _p):
     tabs = page.locator("button[data-baseweb='tab']")
     if tabs.count() > 1:
-        tabs.nth(1).click()
+        _click_tab(tabs, 1)
         page.wait_for_timeout(1000)
     _click_button(page, "Habilitar todas")
     _click_button(page, "Desabilitar todas")
@@ -157,7 +172,7 @@ def _test_alertas_interactions(page, _p):
 
 def _test_scrapers_interactions(page, _p):
     btn = page.locator("button:has-text('Executar Health Check Completo')").first
-    if btn.count() > 0:
+    if btn.count() > 0 and btn.first.is_visible():
         btn.click()
         page.wait_for_timeout(5000)
 
@@ -165,7 +180,7 @@ def _test_scrapers_interactions(page, _p):
 def _test_scraper_health_interactions(page, _p):
     tabs = page.locator("button[data-baseweb='tab']")
     if tabs.count() > 2:
-        tabs.nth(2).click()
+        _click_tab(tabs, 2)
         page.wait_for_timeout(1000)
 
 
@@ -177,7 +192,7 @@ def _test_flyers_interactions(page, _p):
 def _test_config_interactions(page, _p):
     tabs = page.locator("button[data-baseweb='tab']")
     for i in range(tabs.count()):
-        tabs.nth(i).click()
+        _click_tab(tabs, i)
         page.wait_for_timeout(1000)
 
 
@@ -200,6 +215,8 @@ _PAGE_ACTIONS: dict = {
     "visao_geral": lambda *_: None,
     "capacity_planning": lambda *_: None,
     "ci_telemetry": lambda *_: None,
+    "insights": lambda *_: None,
+    "fontes": lambda *_: None,
 }
 
 
@@ -223,7 +240,17 @@ def test_page_with_interactions(logged_in_app_and_page_local, page_id, label):
     app, page = logged_in_app_and_page_local
     page = wake_if_sleeping(page, app)
     if not _navigate_to_page(page, label):
-        pytest.skip(f"Nav link/botao '{label}' nao encontrado")
+        import os as _os
+
+        report_dir = _os.path.join("data", "regression_screenshots")
+        _os.makedirs(report_dir, exist_ok=True)
+        ts = _os.urandom(4).hex()
+        with open(_os.path.join(report_dir, f"missing_{page_id}_{ts}.png"), "wb") as f:
+            f.write(page.screenshot())
+        pytest.fail(
+            f"Nav link/botao '{label}' nao encontrado na sidebar. "
+            f"Screenshot: data/regression_screenshots/missing_{page_id}_{ts}.png"
+        )
     page.wait_for_timeout(1500)
     check_for_errors(page, f"{page_id}_loaded", page=page)
 
@@ -231,5 +258,4 @@ def test_page_with_interactions(logged_in_app_and_page_local, page_id, label):
     if action:
         action(page, page)
         check_for_errors(page, f"{page_id}_interaction", page=page)
-    else:
-        pytest.skip(f"Sem interacoes registradas para {page_id}")
+    # Pagina sem interacoes registradas: navegou + sem erro = sucesso (nao skip).

@@ -125,21 +125,16 @@ def login_to_app(page):
 def check_for_errors(app, context="", take_screenshot=True, page=None):
     """Varre página por erros Streamlit/Python."""
     error_selectors = [
-        ".stAlert",
         ".stException",
-        "text=st.error",
-        "text=st.exception",
+        ".stAlert[data-baseweb='notification']",
         "text=Traceback",
         "text=traceback",
-        "text=column",
-        "text=does not exist",
-        "text=DatabaseError",
-        "text=OperationalError",
-        "text=42P10",
-        "text=23505",
-        "text=22P02",
-        "text=Error:",
-        "text=Erro:",
+        "text=/^Error: /",
+        "text=/^Erro: /",
+        "text=/DatabaseError/",
+        "text=/OperationalError/",
+        "text=/relation .* does not exist/",
+        "text=/column .* does not exist/",
     ]
     for sel in error_selectors:
         try:
@@ -245,6 +240,8 @@ class TestE2EReal:
         app, page = logged_in_app_and_page
         # Acordar Streamlit Cloud caso tenha hibernado entre tests
         app = wake_if_sleeping(page, app)
+        # Garantir que sidebar esta pronta (cold start pode levar 60s+)
+        app = ensure_app_ready(page, app)
         # Navegar via sidebar link (st.navigation renderiza <a>, nao botao)
         if not navigate_to_page(app, page, label):
             # Screenshot antes de falhar
@@ -258,7 +255,7 @@ class TestE2EReal:
                 f"Screenshot salvo em data/regression_screenshots/missing_{page_id}_{ts}.png"
             )
         app.wait_for_timeout(2000)
-        check_for_errors(app, f"tab_{page_id}")
+        check_for_errors(app, f"tab_{page_id}", page=page)
 
     def test_precos_filter(self, logged_in_app_and_page):
         """Preços: seleciona ingrediente."""

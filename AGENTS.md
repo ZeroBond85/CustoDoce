@@ -211,9 +211,10 @@ Workflow `Teste_Full_Manual` — execute quando quiser **testar TUDO** de uma ve
 | Deploy Check | `deploy-check` | valida DB, queries, SMTP |
 | Real | `real` | 6 testes reais |
 | E2E Completo | `e2e-full` | smoke + interactions + real e2e |
-| Visual | `visual` | regressão visual (28 testes) |
+| Visual | `visual` | regressão visual (10 testes em `test_e2e_dashboard.py`) |
+| Diagnostics | `diagnostics` | 4 testes lentos (`-m slow`): pip-audit, ruff, mypy, detect-secrets via subprocess |
 
-**Tempo total:** ~45 minutos
+**Tempo total:** ~55 minutos
 
 **Auto-adaptação:**
 - Todas as listas de páginas vêm de `navigation_config.MENU_GROUPS`

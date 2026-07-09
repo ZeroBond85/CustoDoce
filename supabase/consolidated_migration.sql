@@ -910,6 +910,9 @@ CREATE INDEX IF NOT EXISTS idx_v_latest_prices_ingredient
 CREATE INDEX IF NOT EXISTS idx_v_latest_prices_price_kg
     ON v_latest_prices (price_per_kg);
 
+ALTER MATERIALIZED VIEW v_latest_prices ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "anon_read" ON v_latest_prices FOR SELECT USING (true);
+
 
 -- ============================================================
 -- PHASE 15d: Additional performance indexes

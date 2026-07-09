@@ -1,4 +1,9 @@
-"""Automated Streamlit dashboard test with Playwright."""
+"""Automated Streamlit dashboard test with Playwright.
+
+DEPRECATED: superseded by test_e2e_smoke_basic / test_e2e_interactions
+(MENU_GROUPS-driven, ADMIN_PASSWORD secret, portable paths). Skipped to
+avoid hardcoded credentials and Windows-absolute paths.
+"""
 
 import io
 import sys  # noqa: E402
@@ -6,8 +11,14 @@ import sys  # noqa: E402
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 from playwright.sync_api import sync_playwright  # noqa: E402
 
+import pytest  # noqa: E402
+
+pytestmark = pytest.mark.skip(
+    reason="legacy; superseded by test_e2e_smoke_basic/test_e2e_interactions (MENU_GROUPS-driven)"
+)
+
 APP_URL = "http://localhost:8501"
-SCREENSHOTS_DIR = "C:\\Zerobond\\Code\\CustoDoce\\tests\\screenshots"
+SCREENSHOTS_DIR = "tests/screenshots"
 
 
 def safe_str(s):
@@ -49,7 +60,7 @@ def test_streamlit():
                 user_input.fill("admin")
                 pass_input = page.locator('input[type="password"]').first
                 if pass_input.is_visible(timeout=3000):
-                    pass_input.fill("custodoce2907")
+                    pass_input.fill("")  # nosec B105 - placeholder; test is skipped
                     login_btn = page.locator(
                         'button:has-text("Entrar"), button:has-text("Login"), button:has-text("Entrar"), button[data-testid="stFormSubmitButton"]'
                     ).first

@@ -284,8 +284,34 @@ jobs:
           path: tests/visual_diffs/
           retention-days: 7
 
+  diagnostics:
+    needs: [lint, typecheck]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: requirements-dev.lock
+      - run: pip install -r requirements-dev.lock
+      - name: Audit dependencies (HIGH/CRITICAL only)
+        run: |
+          audit=$(pip-audit -s osv -r requirements.txt)
+          sev=$(echo "$audit" | grep -oP 'Severity: \K[^ ]+' || true)
+          if [[ "$sev" == "HIGH" || "$sev" == "CRITICAL" ]]; then
+            echo "::error::CVE detectado: $sev"
+            exit 1
+          fi
+      - name: Run slow diagnostics (pip-audit/ruff/mypy/detect-secrets via subprocess)
+        run: python -m pytest tests/diagnostics/ -q -m slow --tb=short --no-header
+      - name: Check time budget for diagnostics
+        if: always()
+        run: python scripts/check_time_budget.py --timeout-minutes 15 --label "diagnostics"
+
   results:
-    needs: [unit, integration, e2e-full, real, deploy-check, visual]
+    needs: [unit, integration, e2e-full, real, deploy-check, visual, diagnostics]
     runs-on: ubuntu-latest
     steps:
       - run: echo "=== Teste_Full_Manual concluido ==="
