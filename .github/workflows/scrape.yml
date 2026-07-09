@@ -12,6 +12,9 @@ on:
 
 jobs:
   scrape:
+    concurrency:
+      group: scrape-cron-${{ github.ref }}
+      cancel-in-progress: false
     uses: ./.github/workflows/scrape-reusable.yml
     with:
       mode: cron

@@ -186,7 +186,10 @@ jobs:
     runs-on: ubuntu-latest
     if: always()
     steps:
-      - run: echo "Scrape pipeline completed (notifications via email)"
+      - name: Check time budget for notify
+        run: python scripts/check_time_budget.py --timeout-minutes 5 --label "notify"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
 
   cleanup:
     needs: [commit, notify]
