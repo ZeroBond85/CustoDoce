@@ -109,6 +109,8 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('requirements-test.lock') }}
       - if: steps.pw-cache.outputs.cache-hit != 'true'
+        name: Install Playwright browsers
+        run: python -m playwright install chromium --with-deps
       - run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - run: python -m pytest tests/integration/ -q --tb=short --no-header --durations=5
         env:
@@ -207,5 +209,8 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('requirements-test.lock') }}
       - if: steps.pw-cache.outputs.cache-hit != 'true'
+        name: Install Playwright browsers
+        run: python -m playwright install chromium --with-deps
+      - run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
         name: Install Playwright browsers
         run: python -m playwright install chromium --with-deps
