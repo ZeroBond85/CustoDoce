@@ -55,15 +55,19 @@ def wake_if_sleeping(page, app):
 
 def ensure_app_ready(page, app):
     """Garante que o app esta acordado + sidebar renderizada.
-    Usa mais retries para cloud URL (cold start pode levar 60s+)."""
+    Usa mais retries para cloud URL (cold start pode levar 60s+).
+    Aceita tanto <a> (st.navigation) quanto <button> (legacy)."""
     is_cloud = "local" not in BASE_URL
     max_retries = 6 if is_cloud else 3
     for attempt in range(max_retries):
         app = wake_if_sleeping(page, app)
         try:
             timeout = 30000 if is_cloud else 15000
-            # Phase 3: sidebar buttons use accented labels from MENU_GROUPS
-            app.locator("button:has-text('Visão Geral')").first.wait_for(state="visible", timeout=timeout)
+            sidebar = app.locator('[data-testid="stSidebar"]')
+            if sidebar.count() > 0:
+                sidebar.locator("a").filter(has_text="Visão Geral").first.wait_for(state="visible", timeout=timeout)
+            else:
+                app.locator("button:has-text('Visão Geral')").first.wait_for(state="visible", timeout=timeout)
             return app
         except Exception:
             if attempt < max_retries - 1:
@@ -85,12 +89,15 @@ def login_to_app(page):
 
     # Poll for either password input (need login) or sidebar (already logged in)
     pw_input = page.locator("input[type='password']")
-    # Phase 3: sidebar buttons use accented labels from MENU_GROUPS (e.g. "Visão Geral")
-    sidebar = page.locator("button:has-text('Visão Geral')")
+    # Check for sidebar using either <a> (st.navigation) or <button> (legacy)
+    sidebar_btn = page.locator("button:has-text('Visão Geral')")
+    sidebar_link = page.locator('[data-testid="stSidebar"] a').filter(has_text="Visão Geral")
     for _ in range(45):
         if pw_input.count() > 0 and pw_input.first.is_visible():
             break
-        if sidebar.count() > 0 and sidebar.first.is_visible():
+        if sidebar_btn.count() > 0 and sidebar_btn.first.is_visible():
+            return ensure_app_ready(page, get_app(page))
+        if sidebar_link.count() > 0 and sidebar_link.first.is_visible():
             return ensure_app_ready(page, get_app(page))
         page.wait_for_timeout(1000)
 
@@ -180,7 +187,7 @@ def browser():
         b.close()
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def logged_in_app(browser):
     """Retorna app frame logado no dashboard."""
     page = browser.new_page(viewport={"width": 1280, "height": 800})
@@ -190,10 +197,11 @@ def logged_in_app(browser):
     page.close()
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def logged_in_app_and_page(browser):
     """Retorna (app, page) para testes que precisam acordar Streamlit Cloud
-    ou tirar screenshots."""
+    ou tirar screenshots. Session-scoped para evitar 1 login por aba
+    (lento em cold-start). O wake_if_sleeping por teste trata hibernacao."""
     page = browser.new_page(viewport={"width": 1280, "height": 800})
     page.goto(BASE_URL, timeout=120000)
     app = login_to_app(page)
