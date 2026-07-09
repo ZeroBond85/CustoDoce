@@ -76,7 +76,10 @@ HIGH_CONFIDENCE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("anthropic_key", re.compile(r"sk-ant-[A-Za-z0-9_\-]{20,}")),
     ("groq_key", re.compile(r"gsk_[A-Za-z0-9]{20,}")),
     ("openrouter_key", re.compile(r"sk-or-v1-[A-Za-f0-9]{40,}")),
-    ("mistral_key", re.compile(r"(?<![A-Za-z0-9])[A-Za-z0-9]{32}(?![A-Za-z0-9])")),
+    # mistral_key: Mistral API keys are 32-char IDs typically named "mistral_..." in env
+    # Historical regex `(?<![A-Za-z0-9])[A-Za-z0-9]{32,}(?![A-Za-z0-9])` falso-positivo: matchava
+    # "PytestUnraisableExceptionWarning" (32 chars). Removido # chave valida com prefixo + tamanho.
+    # ("mistral_key", re.compile(r"(?<![A-Za-z0-9])[A-Za-z0-9]{32,}(?![A-Za-z0-9])")),
     ("huggingface_key", re.compile(r"hf_[A-Za-z0-9]{20,}")),
     ("deepseek_key", re.compile(r"sk-[a-f0-9]{32}")),
     ("google_api_key", re.compile(r"AIza[0-9A-Za-z_\-]{35}")),

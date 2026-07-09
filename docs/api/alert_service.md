@@ -1,6 +1,6 @@
 # `alert_service` — API
 
-> Última atualização: 2026-07-09 01:27 UTC
+> Última atualização: 2026-07-09 23:51 UTC
 > Gerado por AST parsing dos serviços em `services/alert_service.py`.
 
 ## Funções Públicas (4)

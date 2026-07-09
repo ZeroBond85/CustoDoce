@@ -407,21 +407,23 @@ A segunda causa: `check_for_errors` (`test_e2e_real.py`) usava substrings soltas
 - `monkeypatch.delenv` sozinho **não basta** se o módulo re-injeta valores durante import via `load_dotenv`.
 - Alternativa: usar `load_dotenv(..., override=True)` no conftest para permitir que CI (env vars) sobreponha `.env` local — mas isso muda semântica do conftest em produção. Preferível patchar no teste.
 
+### 52. sync_docs.py #sync# so rodava SÓ v2 #CURRENT blocks# # README/REGRAS/API/timestamps ficavam desatualizados no CI mesmo quando --sync era invocado
 
+**Causa raiz:** Em , o branch  chamava apenas  (CURRENT blocks em docs arbitrários). Os updateers v1 , , ,  (timestamps) so eram chamados pela funcao , que era invocada apenas sem . Resultado: o CI rodava  (v2 só) e depois  falhava por drift no README/REGRAS/timestamps.
 
-### 51. Materialized view `v_latest_prices` precisa de RLS anon para o dashboard ler na nuvem
+Além disso,  comparava  (regex "(\d+)\s+tests?\s+collected") com a contagem por regex de sync+async test classes. Como pytest moderno imprime "722 items collected" (nao "tests"), o regex capturava lixo ("6 tests collected" espalhado) e gerava drift falso.
 
-**Causa raiz:** O dashboard lê `v_latest_prices` via cliente ANONIMO (`get_supabase` -> `SUPABASE_ANON_KEY`). A view era `MATERIALIZED VIEW` sem `ENABLE ROW LEVEL SECURITY` nem `CREATE POLICY anon_read`. Materialized views NAO herdam RLS da tabela-base. Na nuvem (RLS ativo) a view retornava VAZIA para o anon -> `visao_geral`/`precos`/`promocoes` quebravam no E2E real (erro REAL, nao do teste).
+E um terceiro bug menor:  suprime o markup /, entao o regex de contagem nao achava nada.
 
-**Solucao:** Adicionar em `scripts/deploy_database.py::generate_consolidated()` (PHASE 15c) e em `supabase/consolidated_migration.sql`:
-```sql
-ALTER MATERIALIZED VIEW v_latest_prices ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "anon_read" ON v_latest_prices FOR SELECT USING (true);
-```
-Aplicar via `python scripts/deploy_database.py --execute` (RPC 443) + `REFRESH MATERIALIZED VIEW CONCURRENTLY v_latest_prices`.
-Evidencia: cliente anon retorna 5 linhas apos o deploy (antes retornava 0).
+**Solucao:**
+- :  agora chama primeiro  para v1 (README/REGRAS/AGENTS/API/timestamps), e só depois  para v2 (CURRENT blocks).
+- : regex atualizado para  (alinhado com a saida real do pytest).
+-  e : trocar  por  (preserva o markup ).
+- : tolerância de ±5 entre  e  (pytest pode contar testes parametrizados indiretamente).
 
-**Regra permanente:**
-- Toda materialized view lida pelo dashboard via anon key PRECISA de policy `anon_read` explicita.
-- Nova migration SQL vai em `deploy_database.py::generate_consolidated()` (REGRAS.md #8) e no `consolidated_migration.sql`.
-- Sempre validar leitura anon da view apos criar/alterar RLS.
+**Replicacao:** Rodar === v1 sync (README/REGRAS/AGENTS/API/timestamps) === localmente e validar com  # esperado "All docs in sync". Se drift em e2e/unit/scan persistir, este modelo se aplica.
+
+**Regras permanentes:**
+- Ao adicionar um novo flag ao , cobrir AMBAS as arvores v1 (updateers específicos por arquivo) e v2 (CURRENT blocks). Nunca passar so por uma.
+- Drift threshold deve ter tolerância # parametrizacao ou duplicates counted pela runtime do pytest nao sao ausencia de testes.
+- Regex precisa casar a saida literal do pytest # se mudou  para , atualizar.

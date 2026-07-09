@@ -64,7 +64,7 @@ def test_count_tests_zero_output_safe():
 
 # 2. _check_drift / _extract_actual_test_count
 def test_extract_actual_test_count_parsing():
-    """Parses '6 tests collected' from real pytest output."""
+    """Parses '6 items collected' from real pytest output."""
     fake = _fake_proc(SAMPLE_PYTEST_OUTPUT, returncode=0)
     with patch("subprocess.run", return_value=fake):
         with patch.object(sync_docs, "_count_tests", return_value={"unit": 6}):
