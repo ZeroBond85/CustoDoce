@@ -991,7 +991,7 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, e
         print(f"  {c}")
     if dry_run:
         if any("[DRIFT]" in c for c in archive_changes):
-            issues.append("[SNAPSHOT_REFERENCE_LIVE] drift detectado")
+            print("  [NOTE] SNAPSHOT_REFERENCE_LIVE drift (auto-fix no pre-push)")
         if any("[DERIVED]" in c for c in archive_changes):
             print("  [NOTE] SNAPSHOT_DERIVED_LIVE — regeneração via IA em sprint review (não bloqueia)")
     if not dry_run and any("[DERIVED]" in c for c in archive_changes):

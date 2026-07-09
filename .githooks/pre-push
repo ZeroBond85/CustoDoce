@@ -153,7 +153,14 @@ def check_sync_docs() -> tuple[str, subprocess.CompletedProcess]:
     """
     r = run([THIS_PYTHON, "scripts/sync_docs.py", "--check", "--strict"])
     if r.returncode == 0:
-        return "sync_docs", r
+        if "[DRIFT]" not in r.stdout:
+            return "sync_docs", r
+        # [DRIFT] detected in archive docs (SNAPSHOT_REFERENCE_LIVE) despite exit 0.
+        # Proceed to self-healing so Raio-X gets updated to local truth.
+        print(
+            "  [sync_docs] [DRIFT] detectado em archive — aplicando auto-fix",
+            file=sys.stderr,
+        )
 
     print(
         "  [sync_docs] gate falhou — tentando self-healing (live apply)",
