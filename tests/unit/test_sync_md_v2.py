@@ -275,3 +275,37 @@ def test_apply_intelligent_no_change_returns_false(tmp_path, monkeypatch):
 
     changed = apply_intelligent(doc, MOCK_TRUTH, dry_run=False)
     assert changed is False
+
+
+def test_apply_intelligent_fix_body_stale_frontmatter_ok(tmp_path, monkeypatch):
+    """Frontmatter já bate com truth, mas body tem valor velho diferente de ambos.
+
+    Cenario real: Raio-X frontmatter ja tem tests_total: 793, mas body ainda
+    mostra \"729 tests\". apply_intelligent deve achar o valor velho no corpo
+    e substituir, mesmo que old_val da frontmatter (793) nao apareca no body.
+    """
+    import scripts.sync_md_v2
+    monkeypatch.setattr(scripts.sync_md_v2, "_ROOT", tmp_path)
+
+    doc = tmp_path / "stale_body.md"
+    content = (
+        "---\n"
+        "doc_type: snapshot\n"
+        "truth_at:\n"
+        "  tests_total: 150\n"
+        "  pages_count: 20\n"
+        "  python_version: 3.14.6\n"
+        "current_version: 0.0.1\n"
+        "---\n"
+        "# Title\n"
+        "Summary: 100 tests. 20 pages. Python 3.14.6"
+    )
+    doc.write_text(content, encoding="utf-8")
+
+    changed = apply_intelligent(doc, MOCK_TRUTH, dry_run=False)
+    assert changed is True
+    new_content = doc.read_text(encoding="utf-8")
+    assert "150 tests (era 100)" in new_content
+    assert "20 pages" in new_content
+    assert "Python 3.14.6" in new_content
+    assert "tests_total: 150" in new_content

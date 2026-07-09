@@ -132,6 +132,57 @@ def _replace_counter_smart(
     return new_text, new_text != text
 
 
+def _replace_counter_any(
+    text: str,
+    new_val: str,
+    label_pat: str,
+) -> tuple[str, bool]:
+    """Find first occurrence of ANY number + label in body and replace with new_val.
+
+    Fallback for when _replace_counter_smart can't find old_val+label in body
+    (e.g., body has a different stale value that was never in frontmatter).
+
+    If number already matches new_val, returns (text, False) — no change.
+    If different number found, replaces with ``new_val label (era <found_val>)``,
+    respecting existing (era N) suffixes to avoid double-marking.
+    If no match at all, returns (text, False).
+    """
+    if label_pat.startswith("prefix:"):
+        prefix_src = label_pat[len("prefix:"):]
+        prefix_pat = prefix_src.split("|", 1)
+        alt = "|".join(re.escape(p) for p in prefix_pat)
+        pattern = rf"(?:{alt})\s+(\d+(?:\.\d+)*)"
+        m = re.search(pattern, text, flags=re.IGNORECASE)
+        if not m:
+            return text, False
+        found_val = m.group(1)
+        if found_val == str(new_val):
+            return text, False
+        start, end = m.span()
+        if _has_existing_era_label(text[end:end + 80]):
+            replacement = f"{prefix_pat[0]} {new_val}"
+        else:
+            replacement = f"{prefix_pat[0]} {new_val} (era {found_val})"
+        new_text = text[:start] + replacement + text[end:]
+        return new_text, True
+
+    pattern = rf"\b(\d+)\s+({label_pat})\b"
+    m = re.search(pattern, text, flags=re.IGNORECASE)
+    if not m:
+        return text, False
+    found_val = m.group(1)
+    if found_val == str(new_val):
+        return text, False
+    label = m.group(2)
+    start, end = m.span()
+    if _has_existing_era_label(text[end:end + 80]):
+        replacement = f"{new_val} {label}"
+    else:
+        replacement = f"{new_val} {label} (era {found_val})"
+    new_text = text[:start] + replacement + text[end:]
+    return new_text, True
+
+
 def _has_existing_era_label(text_after: str) -> bool:
     """Detecta '(era N)' imediatamente após a posição atual."""
     return bool(re.match(r"\s+\(era\s+[0-9.]+\)", text_after))
@@ -196,6 +247,10 @@ def apply_intelligent(path: Path, truth: dict, dry_run: bool = True):
     body_changes_summary: list[str] = []
     for key, new_val, label_pat, old_val in counter_plan:
         new_body, ch = _replace_counter_smart(new_body, new_val, label_pat, old_val)
+        if not ch:
+            # Fallback: old_val not found in body (e.g., body has different stale value).
+            # Try direct body scan for ANY number+label mismatch.
+            new_body, ch = _replace_counter_any(new_body, new_val, label_pat)
         if ch:
             changed_body = True
             body_changes_summary.append(f"{key}: {old_val} -> {new_val}")
