@@ -151,3 +151,6 @@ data/skills_backup/
 .archive/
 
 # Generated manifests (committed - SSOT for mock validation in CI)
+
+# E2E regression screenshots (test artifacts, not source)
+data/regression_screenshots/

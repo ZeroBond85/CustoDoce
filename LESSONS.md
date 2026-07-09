@@ -1,5 +1,5 @@
 # Lições Aprendidas
-> Última atualização: 2026-07-08 21:28 UTC
+> Última atualização: 2026-07-09 10:58 UTC
 
 > Extraídas de AGENTS.md. Numeração original preservada.
 > Regras de execução/ambiente → `REGRAS.md`.
@@ -341,3 +341,41 @@ A mesma regra vale para `send_email()` em `email_service.py` — levantava `Valu
 - Falha de CI pré-existente continua sendo GAP de teste se não for tratada antes do merge
 - Sempre reproduzir localmente + corrigir + LESSONS.md (mesmo que o bug não venha das nossas mudanças)
 
+
+### 50. E2E real/interactions: login exige usuario E senha; sidebar usa <a> (st.navigation)
+
+**Causa raiz:** Os testes E2E (`tests/e2e/test_e2e_real.py`, `tests/e2e/conftest.py`) falhavam em massa porque o fluxo de login so preenchia `input[type=password]` e NAO o campo "Usuario". O `dashboard/login_page.py` exige `username AND password` nao-vazios (`login_page.py:161-167`); sem usuario o login falha, o `st.navigation()` nunca renderiza a sidebar (`admin/app.py:120-128` faz `st.stop()`), e entao:
+- `e2e-interactions` dava `pytest.skip` em todas as 19 abas (nav link nao encontrado)
+- `e2e-real` dava `pytest.fail("Nav item nao encontrado na sidebar")` nas 4 primeiras abas
+A segunda causa: `check_for_errors` (`test_e2e_real.py`) usava substrings soltas (`text=column`, `text=does not exist`, `text=Error:`) que dao FALSO-POSITIVO em texto legitimo. E `test_sidebar_completeness` comparava labels limpos de `MENU_GROUPS` com o texto da sidebar que vem COM emoji/icone prefixado (ex: "Precos") -> divergencia sempre.
+
+**Solucao aplicada:**
+- `_login_local` (conftest) e `login_to_app` (test_e2e_real) preenchem username "admin" + password + clicam Entrar.
+- `logged_in_app_and_page` (test_e2e_real) tornou-se `scope="session"` (1 login por suite, nao por aba) -> cold-start cai de ~6min para ~80s.
+- `check_for_errors` endurecido: so `.stException`, `.stAlert`, `Traceback`, regex ancorados (`^Error: `, `relation .* does not exist`, `column .* does not exist`). `page=` passado para salvar screenshot de evidencia.
+- `test_sidebar_completeness` normaliza o texto da sidebar (remove emoji/icone do inicio ate a 1a letra) antes de comparar com `MENU_GROUPS`.
+- Helpers de interacao (`_click_button`, `_click_tab`, etc.) so clicam se `is_visible()`; abas sem interacoes registradas viram PASS (navegou + sem erro), nao SKIP.
+
+**Regra permanente:**
+- E2E local (`e2e-full`) e nuvem (`visual`): o login SEMPRE precisa de usuario+senha; nunca preencher so a senha.
+- Nunca usar `text=` substring solta em check_for_errors; usar seletores de erro real ou regex ancorado.
+- Ao comparar labels da sidebar com `MENU_GROUPS`, normalizar emoji/icone prefixado.
+- Fixtures de browser/login em E2E devem ser `scope="session"` para nao estourar tempo de cold-start.
+- "Sem skip": nav ausente = `pytest.fail` com screenshot; pagina sem interacao = PASS. Skip so se for intencional (teste legado explicito).
+
+### 51. Materialized view `v_latest_prices` precisa de RLS anon para o dashboard ler na nuvem
+
+**Causa raiz:** O dashboard lê `v_latest_prices` via cliente ANONIMO (`get_supabase` -> `SUPABASE_ANON_KEY`). A view era `MATERIALIZED VIEW` sem `ENABLE ROW LEVEL SECURITY` nem `CREATE POLICY anon_read`. Materialized views NAO herdam RLS da tabela-base. Na nuvem (RLS ativo) a view retornava VAZIA para o anon -> `visao_geral`/`precos`/`promocoes` quebravam no E2E real (erro REAL, nao do teste).
+
+**Solucao:** Adicionar em `scripts/deploy_database.py::generate_consolidated()` (PHASE 15c) e em `supabase/consolidated_migration.sql`:
+```sql
+ALTER MATERIALIZED VIEW v_latest_prices ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "anon_read" ON v_latest_prices FOR SELECT USING (true);
+```
+Aplicar via `python scripts/deploy_database.py --execute` (RPC 443) + `REFRESH MATERIALIZED VIEW CONCURRENTLY v_latest_prices`.
+Evidencia: cliente anon retorna 5 linhas apos o deploy (antes retornava 0).
+
+**Regra permanente:**
+- Toda materialized view lida pelo dashboard via anon key PRECISA de policy `anon_read` explicita.
+- Nova migration SQL vai em `deploy_database.py::generate_consolidated()` (REGRAS.md #8) e no `consolidated_migration.sql`.
+- Sempre validar leitura anon da view apos criar/alterar RLS.

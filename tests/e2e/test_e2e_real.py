@@ -106,6 +106,9 @@ def login_to_app(page):
 
     # Password gate — tenta login se houver campo de senha
     if pw_input.count() > 0 and pw_input.first.is_visible():
+        user_input = page.locator('input[aria-label*="Usuario"], input[placeholder="admin"]').first
+        if user_input.count() > 0:
+            user_input.fill("admin")
         pw_input.first.fill(ADMIN_PASSWORD)
         entrar = app.locator("button:has-text('Entrar')")
         if entrar.count() > 0:
@@ -116,6 +119,9 @@ def login_to_app(page):
     # Segundo password gate (Streamlit Cloud + dashboard podem ter 2 gates)
     pw_input2 = app.locator("input[type='password']")
     if pw_input2.count() > 0 and pw_input2.first.is_visible():
+        user_input2 = page.locator('input[aria-label*="Usuario"], input[placeholder="admin"]').first
+        if user_input2.count() > 0:
+            user_input2.fill("admin")
         pw_input2.first.fill(ADMIN_PASSWORD)
         entrar2 = app.locator("button:has-text('Entrar')")
         if entrar2.count() > 0:
@@ -340,16 +346,30 @@ class TestE2EReal:
             check_for_errors(app, "diagnostico_run")
 
     def test_sidebar_completeness(self, logged_in_app_and_page):
-        """Sidebar contém todos os botões esperados e nenhum inesperado."""
+        """Sidebar contém todos os botões esperados e nenhum inesperado.
+
+        Os labels da sidebar podem vir com ícone/emoji prefixado
+        (ex: "🔍 Preços") e com botões de navegação do Streamlit
+        (ex: "keyboard_double_arrow_left"). Normalizamos para comparar
+        apenas o texto legível com os labels de MENU_GROUPS.
+        """
+        import re as _re
+
         app, page = logged_in_app_and_page
         app = wake_if_sleeping(page, app)
+
+        def _normalize(text: str) -> str:
+            t = (text or "").strip()
+            # remove leading icon/emoji até a primeira letra (ex: "🔍Preços" -> "Preços")
+            m = _re.search(r"[A-Za-z].*$", t)
+            return m.group(0).strip() if m else ""
 
         expected = {label for _, label, _ in PAGES}
         sidebar = app.locator("[data-testid='stSidebar']")
         found_buttons = set()
         for btn in sidebar.locator("button, a").all():
-            t = (btn.text_content() or "").strip()
-            if t:
+            t = _normalize(btn.text_content())
+            if t and t != "keyboard_double_arrow_left":
                 found_buttons.add(t)
 
         missing = expected - found_buttons
