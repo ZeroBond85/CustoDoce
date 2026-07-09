@@ -5,6 +5,9 @@ import os
 import pytest
 from playwright.sync_api import sync_playwright
 
+# Disable pytest-asyncio for e2e tests (conflicts with Playwright Sync API)
+pytest_plugins = []
+
 # Local test configuration
 LOCAL_BASE_URL = os.getenv("STREAMLIT_URL", "http://localhost:8501")
 LOCAL_ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
