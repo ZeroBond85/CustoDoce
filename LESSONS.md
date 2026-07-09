@@ -1,5 +1,5 @@
 # Lições Aprendidas
-> Última atualização: 2026-07-09 16:00 UTC
+> Última atualização: 2026-07-09 17:30 UTC
 
 > Extraídas de AGENTS.md. Numeração original preservada.
 > Regras de execução/ambiente → `REGRAS.md`.
@@ -393,6 +393,21 @@ A segunda causa: `check_for_errors` (`test_e2e_real.py`) usava substrings soltas
 - Ao comparar labels da sidebar com `MENU_GROUPS`, normalizar emoji/icone prefixado.
 - Fixtures de browser/login em E2E devem ser `scope="session"` para nao estourar tempo de cold-start.
 - "Sem skip": nav ausente = `pytest.fail` com screenshot; pagina sem interacao = PASS. Skip so se for intencional (teste legado explicito).
+
+### 52. Testes de conftest que carregam .env não isolam — monkeypatch `dotenv.load_dotenv` para no-op
+
+- **Data + commit**: 2026-07-09 (sessão saneamento-fase-1 pré-tornar-público)
+- **Sintoma**: `tests/unit/test_conftest_missing_creds.py::test_has_real_db_false_quando_env_vazio` (após reorganização do arquivo: `test_has_real_db_false_quando_env_minimo`) falhava intermitentemente em CI. `module._has_real_db() is False` falhava porque retornava `True`. Outros 4 cenários passavam.
+- **Causa raiz**: `tests/conftest.py:23` chama `load_dotenv(Path(__file__).resolve().parent.parent / ".env")` **incondicionalmente no import do módulo**. Quando o teste carrega conftest em módulo isolado (`spec_from_file_location`) com `os.environ` limpo + `monkeypatch.delenv("SUPABASE_URL", raising=False)`, o `load_dotenv` é executado **DENTRO do `exec_module`** e **injeta o `.env` real do projeto** em `os.environ` ANTES do `delenv` aplicar (o `monkeypatch.delenv` foi feito antes do exec, mas o `load_dotenv` re-injeta durante o exec). Resultado: o módulo carregado tem `SUPABASE_URL` populada, `_has_real_db()` retorna True.
+- **Correção**: Em `tests/unit/test_conftest_missing_creds.py` adicionei `monkeypatch.setattr(dotenv, "load_dotenv", lambda *a, **k: False)` **antes** do `spec.loader.exec_module(module)`. Assim o módulo carrega sem `load_dotenv` substituir nada em `os.environ`. 5/5 testes passam.
+- **Teste de regressão**: Coberto pelos 5 cenários existentes `test_has_real_db_*` em `tests/unit/test_conftest_missing_creds.py` — sem o monkeypatch de `load_dotenv`, **nenhum** dos 5 passa de forma confiável quando existe `.env` no projeto (cenário local-dev).
+
+**Regra permanente:**
+- Ao testar módulos que chamam `load_dotenv(...)` no import, **sempre** monkeypatch `dotenv.load_dotenv` para no-op ANTES de `exec_module` em testes de isolamento.
+- `monkeypatch.delenv` sozinho **não basta** se o módulo re-injeta valores durante import via `load_dotenv`.
+- Alternativa: usar `load_dotenv(..., override=True)` no conftest para permitir que CI (env vars) sobreponha `.env` local — mas isso muda semântica do conftest em produção. Preferível patchar no teste.
+
+
 
 ### 51. Materialized view `v_latest_prices` precisa de RLS anon para o dashboard ler na nuvem
 
