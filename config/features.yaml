@@ -13,6 +13,11 @@ features:
     daily_report: true
     alert_on_critical: true
     full_report: true
+    # Lista de destinatários para relatórios automáticos E2E/diários.
+    # Substituído por $ALERT_EMAIL_TO quando definido no ambiente (CI usa isso).
+    # Mantenha fora do versionamento público dados sensíveis —
+    # idealmente vazio em repo público, populado via env em produção.
+    recipients: []
 
   scrapers:
     vtex: true

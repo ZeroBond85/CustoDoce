@@ -8,11 +8,30 @@ import pandas as pd
 import streamlit as st
 
 from dashboard.components.ui import inject_css
+from services.config import get
 from services.dashboard_queries import (
     get_latest_prices_cached,
 )
 from services.email_service import send_email
 from services.telegram_service import send_telegram_message
+
+
+def _resolve_recipients() -> list[str]:
+    """Resolve destinatários para o relatório.
+
+    Prioridade (fallback chain):
+      1. $ALERT_EMAIL_TO (env var único destinatário — usado em CI/produção)
+      2. features.yaml > features.email.recipients (lista declarativa)
+      3. Lista vazia (usuário autenticado adiciona manualmente no multiselect)
+    """
+    env_to = os.environ.get("ALERT_EMAIL_TO")
+    default_options: list[str] = []
+    if env_to:
+        default_options.append(env_to)
+    yaml_recipients = get("features.email.recipients") or []
+    if isinstance(yaml_recipients, list):
+        default_options.extend([r for r in yaml_recipients if isinstance(r, str) and r and r not in default_options])
+    return default_options
 
 
 @st.dialog("Confirmar envio de relatório")
@@ -100,7 +119,7 @@ def render_relatorios():
         with col2:
             recipients = st.multiselect(
                 "Destinatários",
-                ["zerobond@gmail.com", "custodoce@gmail.com"],
+                _resolve_recipients(),
             )
             send_email_opt = st.checkbox("Enviar por Email", value=True)
             send_tg_opt = st.checkbox("Enviar por Telegram", value=True)
@@ -160,7 +179,7 @@ def _safe_ppk(r: dict) -> float:
     if isinstance(norm, dict):
         try:
             return float(norm.get("price_per_kg", 0))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return 0.0
     return 0.0
 

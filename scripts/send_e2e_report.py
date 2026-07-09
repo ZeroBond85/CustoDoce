@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 """
-Envia relatório E2E por e-mail (custodoce@gmail.com).
+Envia relatório E2E por e-mail para o destinatário configurado.
 Gera HTML com resumo, screenshots diffs, timing, status Supabase, status IA.
+
+Destinatário resolvido em ordem:
+  1. $ALERT_EMAIL_TO (env var, padrão em GitHub Actions)
+  2. features.yaml > features.email.recipients[0] (fallback declarativo)
+  3. String vazia (skip silencioso — ver main())
 """
 
 import json
 import os
 import smtplib
+import sys
 from datetime import datetime
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
@@ -21,7 +27,31 @@ SMTP_HOST = os.environ.get("SMTP_HOST")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
 SMTP_USER = os.environ.get("SMTP_USER")
 SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
-TO_EMAIL = os.environ.get("ALERT_EMAIL_TO", "custodoce@gmail.com")
+
+
+def resolve_report_recipient() -> str:
+    """Resolve o destinatário do relatório em fallback chain.
+
+    Prioridade: ALERT_EMAIL_TO env var > features.yaml > "" (skip).
+    Retorna string vazia quando nenhum destinatário está configurado.
+    """
+    env_to = os.environ.get("ALERT_EMAIL_TO")
+    if env_to:
+        return env_to
+    try:
+        from services.config import get
+
+        yaml_recipients = get("features.email.recipients") or []
+        if isinstance(yaml_recipients, list) and yaml_recipients:
+            first = yaml_recipients[0]
+            if isinstance(first, str) and first:
+                return first
+    except Exception:
+        pass
+    return ""
+
+
+TO_EMAIL = resolve_report_recipient()
 
 
 def check_supabase():
@@ -195,4 +225,13 @@ def main():
 
 
 if __name__ == "__main__":
+    if not TO_EMAIL:
+        print(
+            "Skip: nenhum destinatário configurado (defina ALERT_EMAIL_TO ou features.email.recipients).",
+            file=sys.stderr,
+        )
+        sys.exit(0)
+    if not (SMTP_HOST and SMTP_USER and SMTP_PASSWORD):
+        print("Skip: SMTP creds ausentes (defina SMTP_HOST/USER/PASSWORD).", file=sys.stderr)
+        sys.exit(0)
     main()
