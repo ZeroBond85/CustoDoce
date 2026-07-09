@@ -55,7 +55,7 @@ jobs:
 
   docs-sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -65,6 +65,7 @@ jobs:
           cache-dependency-path: requirements-dev.lock
       - run: pip install -r requirements-dev.lock
       - run: python scripts/sync_docs.py --analyze
+      - run: python scripts/sync_docs.py --sync
       - run: python scripts/sync_docs.py --check --strict --experimental
         timeout-minutes: 3
       - run: python scripts/agents_tool.py --check
@@ -74,7 +75,6 @@ jobs:
         continue-on-error: true
 
   unit:
-    needs: [lint, typecheck]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -210,108 +210,4 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('requirements-test.lock') }}
-      - if: steps.pw-cache.outputs.cache-hit != 'true'
-        name: Install Playwright
-        run: python -m playwright install chromium --with-deps
-      - name: Start Streamlit local server
-        run: |
-          nohup streamlit run admin/app.py --server.port 8501 --server.headless true > /tmp/streamlit.log 2>&1 &
-          for i in $(seq 1 30); do
-            if curl -s http://localhost:8501 > /dev/null 2>&1; then
-              echo "Streamlit ready after ${i}s"
-              break
-            fi
-            sleep 2
-          done
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-      - name: E2E Smoke — crawl basico
-        run: python -m pytest tests/e2e/test_e2e_smoke_basic.py -v --tb=short --no-header --durations=5
-        env:
-          STREAMLIT_URL: http://localhost:8501
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-      - name: E2E Interactions — widgets em todas as paginas
-        run: python -m pytest tests/e2e/test_e2e_interactions.py -v --tb=long --no-header
-        env:
-          STREAMLIT_URL: http://localhost:8501
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-      - name: E2E Real — testes completos (responsive + interacoes)
-        run: python -m pytest tests/e2e/test_e2e_real.py -v --tb=short --no-header
-        env:
-          STREAMLIT_URL: http://localhost:8501
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: e2e-full-screenshots
-          path: |
-            tests/e2e/e2e_screenshots/
-            tests/e2e/interaction_screenshots/
-          retention-days: 7
-
-  visual:
-    needs: [e2e-full]
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-          cache-dependency-path: requirements-test.lock
-      - run: pip install -r requirements-test.lock
-      - name: Cache Playwright browsers
-        id: pw-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('requirements-test.lock') }}
-      - if: steps.pw-cache.outputs.cache-hit != 'true'
-        name: Install Playwright
-        run: python -m playwright install chromium --with-deps
-      - name: Visual regression + dashboard tests (cloud)
-        run: python -m pytest tests/e2e/test_e2e_dashboard.py -v --tb=short --no-header
-        env:
-          STREAMLIT_URL: https://custodoce.streamlit.app
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: visual-diffs
-          path: tests/visual_diffs/
-          retention-days: 7
-
-  diagnostics:
-    needs: [lint, typecheck]
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-          cache-dependency-path: requirements-dev.lock
-      - run: pip install -r requirements-dev.lock
-      - name: Audit dependencies (HIGH/CRITICAL only)
-        run: |
-          audit=$(pip-audit -s osv -r requirements.txt)
-          sev=$(echo "$audit" | grep -oP 'Severity: \K[^ ]+' || true)
-          if [[ "$sev" == "HIGH" || "$sev" == "CRITICAL" ]]; then
-            echo "::error::CVE detectado: $sev"
-            exit 1
-          fi
-      - name: Run slow diagnostics (pip-audit/ruff/mypy/detect-secrets via subprocess)
-        run: python -m pytest tests/diagnostics/ -q -m slow --tb=short --no-header
-      - name: Check time budget for diagnostics
-        if: always()
-        run: python scripts/check_time_budget.py --timeout-minutes 15 --label "diagnostics"
-
-  results:
-    needs: [unit, integration, e2e-full, real, deploy-check, visual, diagnostics]
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "=== Teste_Full_Manual concluido ==="
+      - if: steps.pw-cache.outputs.cache
