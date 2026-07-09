@@ -20,6 +20,7 @@ on:
       - 'services/**'
       - 'config/**'
       - 'supabase/**'
+      - '.githooks/**'
       - '!docs/**'
   pull_request:
     branches: [master]
@@ -40,6 +41,7 @@ on:
       - 'services/**'
       - 'config/**'
       - 'supabase/**'
+      - '.githooks/**'
       - '!docs/**'
   workflow_dispatch:
 
