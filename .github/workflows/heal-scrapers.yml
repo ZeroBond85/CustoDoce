@@ -2,7 +2,7 @@ name: Heal Scrapers
 
 on:
   schedule:
-    - cron: '0 0 1 * *'  # Dia 1 de cada mes às 00:00 UTC
+    - cron: '0 0 1 * *'
 
 jobs:
   scrape:
@@ -10,9 +10,5 @@ jobs:
     with:
       mode: heal
     secrets:
-      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    concurrency:
-      group: scrape-heal-${{ github.ref }}
-      cancel-in-progress: false
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

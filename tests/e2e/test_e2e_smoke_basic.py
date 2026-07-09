@@ -104,7 +104,7 @@ def test_login_form_renders(browser):
     # Streamlit pode levar 10-20s para bootar e renderizar login form
     pwd_count = 0
     entrar_count = 0
-    for _ in range(45):  # ate 45s
+    for _ in range(30):  # ate 30s
         page.wait_for_timeout(1000)
         try:
             pwd_count = page.locator("input[type='password']").count()
@@ -145,8 +145,9 @@ def test_login_submit_completes_without_exception(browser):
     entrar.wait_for(state="visible", timeout=5000)
     entrar.click()
 
-    # Esperar 8s para o ciclo de rerun completar; nao exigimos sidebar
-    page.wait_for_timeout(8000)
+    # Esperar para o ciclo de rerun completar; nao exigimos sidebar
+    page.wait_for_load_state("networkidle")
+    page.wait_for_timeout(3000)
 
     # Apenas verifica: o session_id conecta E nao ha excecao fatal visivel
     cstate = page.locator("[data-test-connection-state]").first
@@ -201,7 +202,8 @@ def test_all_pages_crawl(browser):
         entrar = page.get_by_role("button", name="Entrar", exact=True).first
         entrar.wait_for(state="visible", timeout=5000)
         entrar.click()
-        page.wait_for_timeout(5000)
+        page.wait_for_load_state("networkidle")
+        page.wait_for_timeout(2000)
 
         # ── Verificar sidebar ──
         sidebar = page.locator('[data-testid="stSidebar"]')
@@ -218,7 +220,8 @@ def test_all_pages_crawl(browser):
                     continue
 
                 link.click()
-                page.wait_for_timeout(5000)
+                page.wait_for_load_state("networkidle")
+                page.wait_for_timeout(2000)
 
                 # Screenshot
                 safe_name = nav_text.replace(" ", "_").replace("/", "_").replace("&", "e")[:40]

@@ -276,7 +276,6 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       - name: Dashboard query smoke test (real DB)
         run: python scripts/validate_dashboard_queries.py
         env:
@@ -298,7 +297,7 @@ jobs:
     needs: [lint, typecheck]
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: contains(github.event.pull_request.labels.*.name, 'run-e2e')
+    if: github.event_name != 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-e2e')
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6

@@ -158,6 +158,25 @@ def check_for_errors(app, context="", take_screenshot=True, page=None):
             pass
 
 
+def navigate_to_page(app, page, label):
+    """Navega para pagina via sidebar link (st.navigation renderiza <a>).
+
+    Fallback para botao caso a sidebar ainda use botoes (legacy).
+    Retorna True se conseguiu clicar no nav item.
+    """
+    sidebar = app.locator('[data-testid="stSidebar"]')
+    if sidebar.count() > 0:
+        link = sidebar.locator("a").filter(has_text=label).first
+        if link.count() > 0:
+            link.click()
+            return True
+    btn = app.locator(f"button:has-text('{label}')").first
+    if btn.count() > 0:
+        btn.click()
+        return True
+    return False
+
+
 @pytest.fixture(scope="session")
 def browser():
     with sync_playwright() as p:
@@ -226,11 +245,8 @@ class TestE2EReal:
         app, page = logged_in_app_and_page
         # Acordar Streamlit Cloud caso tenha hibernado entre tests
         app = wake_if_sleeping(page, app)
-        # Esperar botao com timeout maior para CI (cold start ate 60s)
-        btn = app.locator(f"button:has-text('{label}')")
-        try:
-            btn.first.wait_for(state="visible", timeout=30000)
-        except Exception:
+        # Navegar via sidebar link (st.navigation renderiza <a>, nao botao)
+        if not navigate_to_page(app, page, label):
             # Screenshot antes de falhar
             report_dir = Path("data/regression_screenshots")
             report_dir.mkdir(parents=True, exist_ok=True)
@@ -238,19 +254,17 @@ class TestE2EReal:
             with open(report_dir / f"missing_{page_id}_{ts}.png", "wb") as f:
                 f.write(page.screenshot())
             pytest.fail(
-                f"Botão '{label}' não encontrado (timeout 30s). "
+                f"Nav item '{label}' não encontrado na sidebar. "
                 f"Screenshot salvo em data/regression_screenshots/missing_{page_id}_{ts}.png"
             )
-        btn.first.click()
-        app.wait_for_timeout(2500)
+        app.wait_for_timeout(2000)
         check_for_errors(app, f"tab_{page_id}")
 
     def test_precos_filter(self, logged_in_app_and_page):
         """Preços: seleciona ingrediente."""
         app, page = logged_in_app_and_page
         app = wake_if_sleeping(page, app)
-        app.locator("button:has-text('Precos')").first.wait_for(state="visible", timeout=8000)
-        app.locator("button:has-text('Precos')").first.click()
+        navigate_to_page(app, page, "Precos")
         app.wait_for_timeout(2000)
         check_for_errors(app, "precos")
         selects = app.locator("select, [data-testid='stSelectbox']")
@@ -268,9 +282,8 @@ class TestE2EReal:
         """Revisão: se houver itens pendentes."""
         app, page = logged_in_app_and_page
         app = wake_if_sleeping(page, app)
-        app.locator("button:has-text('Revisao')").first.wait_for(state="visible", timeout=8000)
-        app.locator("button:has-text('Revisao')").first.click()
-        app.wait_for_timeout(3000)
+        navigate_to_page(app, page, "Revisao")
+        app.wait_for_timeout(2000)
         check_for_errors(app, "revisao")
         approve_btn = app.locator("button:has-text('Aprovar')").first
         if approve_btn.count() > 0 and approve_btn.is_visible():
@@ -286,9 +299,8 @@ class TestE2EReal:
         """Calculadora carrega sem erro e tabs trocam via selectbox."""
         app, page = logged_in_app_and_page
         app = wake_if_sleeping(page, app)
-        app.locator("button:has-text('Calculadora')").first.wait_for(state="visible", timeout=30000)
-        app.locator("button:has-text('Calculadora')").first.click()
-        app.wait_for_timeout(3000)
+        navigate_to_page(app, page, "Calculadora")
+        app.wait_for_timeout(2000)
         check_for_errors(app, "calculadora")
 
         # Trocar tabs via selectbox (antes st.tabs, agora st.selectbox)
@@ -313,8 +325,7 @@ class TestE2EReal:
         """Diagnóstico carrega sem erro."""
         app, page = logged_in_app_and_page
         app = wake_if_sleeping(page, app)
-        app.locator("button:has-text('Diagnostico')").first.wait_for(state="visible", timeout=8000)
-        app.locator("button:has-text('Diagnostico')").first.click()
+        navigate_to_page(app, page, "Diagnostico")
         app.wait_for_timeout(2000)
         check_for_errors(app, "diagnostico")
         run_all = app.locator("button:has-text('Executar Todos')").first
@@ -331,7 +342,7 @@ class TestE2EReal:
         expected = {label for _, label, _ in PAGES}
         sidebar = app.locator("[data-testid='stSidebar']")
         found_buttons = set()
-        for btn in sidebar.locator("button").all():
+        for btn in sidebar.locator("button, a").all():
             t = (btn.text_content() or "").strip()
             if t:
                 found_buttons.add(t)

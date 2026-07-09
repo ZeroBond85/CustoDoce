@@ -28,14 +28,14 @@ def _select_first_option(page, key_substring: str):
     sel = page.locator("select").filter(has=page.locator(f"[key*='{key_substring}']")).first
     if sel.count() > 0:
         sel.select_option(index=1)
-        page.wait_for_timeout(1000)
+        page.wait_for_timeout(500)
 
 
 def _adjust_slider(page, label_text: str, value: int):
     slider = page.locator("input[type='range']").filter(has=page.locator(f"label:has-text('{label_text}')")).first
     if slider.count() > 0:
         slider.fill(str(value))
-        page.wait_for_timeout(1000)
+        page.wait_for_timeout(500)
 
 
 def _click_first_multiselect(page, label_text: str):
@@ -51,7 +51,7 @@ def _click_button(page, text: str):
     btn = page.locator(f"button:has-text('{text}')").first
     if btn.count() > 0:
         btn.click()
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(1000)
 
 
 def _toggle_checkbox(page, label_text: str):
@@ -117,7 +117,7 @@ def _test_diagnostico_interactions(page, _p):
     btn = page.locator("button:has-text('Executar Benchmarks')").first
     if btn.count() > 0:
         btn.click()
-        page.wait_for_timeout(10000)
+        page.wait_for_timeout(5000)
 
 
 def _test_relatorios_interactions(page, _p):
@@ -159,7 +159,7 @@ def _test_scrapers_interactions(page, _p):
     btn = page.locator("button:has-text('Executar Health Check Completo')").first
     if btn.count() > 0:
         btn.click()
-        page.wait_for_timeout(10000)
+        page.wait_for_timeout(5000)
 
 
 def _test_scraper_health_interactions(page, _p):
@@ -224,7 +224,7 @@ def test_page_with_interactions(logged_in_app_and_page_local, page_id, label):
     page = wake_if_sleeping(page, app)
     if not _navigate_to_page(page, label):
         pytest.skip(f"Nav link/botao '{label}' nao encontrado")
-    page.wait_for_timeout(3000)
+    page.wait_for_timeout(1500)
     check_for_errors(page, f"{page_id}_loaded", page=page)
 
     action = _PAGE_ACTIONS.get(page_id)

@@ -2,7 +2,7 @@ name: Scrape
 
 on:
   schedule:
-    - cron: '0 0 * * 1-5'  # Seg-Sex às 00:00 UTC (dias uteis SP)
+    - cron: '0 0 * * 1-5'
   workflow_dispatch:
     inputs:
       stores_filter:
@@ -17,9 +17,5 @@ jobs:
       mode: cron
       stores_filter: ${{ github.event.inputs.stores_filter }}
     secrets:
-      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    concurrency:
-      group: scrape-cron-${{ github.ref }}
-      cancel-in-progress: false
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

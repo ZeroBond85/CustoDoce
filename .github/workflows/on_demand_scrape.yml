@@ -15,11 +15,7 @@ jobs:
     uses: ./.github/workflows/scrape-reusable.yml
     with:
       mode: on_demand
-      stores_filter: ${{ github.event.inputs.stores_filter }}
+      stores_filter: ${{ github.event.inputs.stores_filter || github.event.client_payload.stores_filter }}
     secrets:
-      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    concurrency:
-      group: scrape-on-demand-${{ github.ref }}
-      cancel-in-progress: false
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

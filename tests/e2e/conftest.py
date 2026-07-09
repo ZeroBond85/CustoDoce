@@ -20,7 +20,8 @@ def _login_local(page, password: str) -> None:
         entrar = page.get_by_role("button", name="Entrar", exact=True).first
         if entrar.count() > 0:
             entrar.click()
-            page.wait_for_timeout(5000)
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(2000)
 
 
 @pytest.fixture(scope="session")

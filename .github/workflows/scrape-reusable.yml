@@ -18,10 +18,14 @@ on:
         type: boolean
         default: false
     secrets:
+      SUPABASE_URL:
+        required: true
+      SUPABASE_SERVICE_ROLE_KEY:
+        required: true
       TELEGRAM_BOT_TOKEN:
-        required: true
+        required: false
       TELEGRAM_CHAT_ID:
-        required: true
+        required: false
   workflow_dispatch:
     inputs:
       mode:
@@ -58,13 +62,6 @@ jobs:
         
       - name: Install dependencies
         run: pip install -r requirements-prod.lock
-      - name: Notify scrape start
-        if: always()
-        run: |
-          echo "Notifications via Telegram removidas — e-mails já são suficientes"
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - name: Sync stores
@@ -185,31 +182,11 @@ jobs:
           CI_JOB_START: ${{ env.CI_JOB_START }}
 
   notify:
-    needs: [commit, scrape]
+    needs: [commit]
     runs-on: ubuntu-latest
+    if: always()
     steps:
-      - uses: actions/checkout@v7
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.14.6'
-          cache: 'pip'
-          cache-dependency-path: requirements-prod.lock
-      - name: Install dependencies
-        run: pip install -r requirements-prod.lock
-      - name: Record start time
-        run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
-      - name: Send notification
-        if: always()
-        run: |
-          echo "Notifications via Telegram removidas — e-mails já são suficientes"
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      - name: Check time budget for notify
-        run: python scripts/check_time_budget.py --timeout-minutes 5 --label "notify"
-        env:
-          CI_JOB_START: ${{ env.CI_JOB_START }}
+      - run: echo "Scrape pipeline completed (notifications via email)"
 
   cleanup:
     needs: [commit, notify]
@@ -222,6 +199,7 @@ jobs:
           python-version: '3.14.6'
           cache: 'pip'
           cache-dependency-path: requirements-prod.lock
+        
       - name: Install dependencies
         run: pip install -r requirements-prod.lock
       - name: Record start time
