@@ -1,5 +1,45 @@
 # Changelog
 
+## [unreleased]
+
+### Added
+
+#### sync_docs v2 — heading-aware stale-ref detector + auto-updater (Sprint 10)
+- **`scripts/sync_docs_v2/`**: 5 novos módulos baseados em markdown-it:
+  - `truth.py`: source of truth (test counts, pages, workflows, services)
+  - `parser.py`: section span parser via heading hierarchy
+  - `classifier.py`: HISTORICAL/CURRENT/AMBIGUOUS por heading path
+  - `updater.py`: `\bNUMBER\b` replacement em CURRENT blocks only
+  - `cli.py`: `--analyze`, `--sync`, `--dry-run`, `--dump-truth`
+- **`scripts/sync_docs.py`**: +3 flags (`--analyze`, `--sync`, `--dump-truth`) que delegam ao v2
+- **`scripts/test_total_coverage.py`**: nova fase `sync_docs_v2_analyze`
+- **`tests/unit/test_sync_docs_v2.py`**: 25 testes unitários (mocks, 1.67s) — 5 módulos cobertos
+- **`AGENTS.md`**: Lição #25 (novo código = novos testes)
+- **Resultado**: 5 CURRENT refs corrigidos (512→577, 630→745, 709→745, 418→483, 383→483); 14 HISTORICAL preservados; 0 AMBIGUOUS
+
+#### Doc Sync Enhancement (Sprint 10 — Documentation Hygiene)
+- **`scripts/sync_docs.py`**: 3 auto-fixers (`_fix_tree_test_count`, `_fix_page_import_count`, `_fix_streamlit_skill_row`) + `_strict_audit()` que varre todos `.md` para detecção de 37 patterns stale (HIGH/MEDIUM). Flag `--strict`. Encoding Windows-safe (ASCII replace).
+- **`.github/workflows/ci.yml`**: docs-sync job agora `--check --strict` (bloqueante). **`.githooks/pre-commit`**: layer 2.5 com `sync_docs --check --strict` (aviso leve, não bloqueia).
+- **`services/collector.py`**: `import httpx` movido de inline (dentro de `process_ocr_queue()`) para top-level imports — lazy import removido.
+
+### Changed
+- **Docs (37 stale refs corrigidos)**: 11 arquivos `.md` atualizados pós-Sprint 7-9 (page counts 17→18, test counts 418→483, 512→577, 630→745). Detalhes por arquivo:
+  - `AGENTS.md`: auto-fix + manual (lines 82, 85, 111, 324, 713)
+  - `.opencode/skills/streamlit/SKILL.md`: 7 edições (17→18 pages, promocoes orphan→registered, single orphan)
+  - `docs/archive/CUSTO_DOCE_RAIO_X.md`: 5 edições (tabela avaliação 8.5→9.0, nota final 8.5→9.0)
+  - `docs/archive/RAIO-X_CUSTO_DOCE_RESUMIDO.md`: 3 edições (17→18 abas, 512→577)
+  - `docs/contributing.md`: 3 edições (418→483, 17→18)
+  - `docs/architecture.md`: 1 edição Mermaid (17→18 módulos)
+  - `README.md`: roadmap com Sprints 5,6,7-9 + Next Steps atualizados
+  - `docs/archive/ux_audit_2026-06.md`: 1 edição (17→18 abas)
+
+### Metrics
+- sync_docs --strict: 0 actual issues (historical README roadmap entries are intentional snapshots)
+- ruff: 0 warnings
+- pytest: **577 passing** (unit: 483 + schema: 94) + 102 integration + 10 design + 6 real + 50 e2e = **745 total**
+
+---
+
 ## [0.2.5] - 2026-07-05
 
 ### Added
@@ -15,6 +55,58 @@ Todos os cambios_notáveis deste projeto são documentados aqui.
 
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
+
+## [0.2.6] - 2026-07-03
+
+### Added
+
+#### Sprint 12 — Environment Parity → Python 3.14 (Windows/WSL/CI/Cloud)
+
+- **`requirements.lock`**: Single pinned lock file (130+ packages, no hashes — cross-platform cp311 vs cp314 wheel conflict). Generated via `pip-compile --allow-unsafe`. Installs cleanly on Python 3.11 (local) and 3.14 (CI).
+- **`scripts/check_environment_parity.py`**: New parity checker — validates Python version (warns locally, fails hard in CI), lock file integrity (`pip install --dry-run`), platform, and AGENTS.md rule #10 presence.
+- **`scripts/generate_schema_manifest.py`**: Rewritten for **offline SQL parsing** — parses `supabase/consolidated_migration.sql` directly (no Supabase credentials needed). Emits `config/schema_manifest.json` with 16 tables/views including `v_latest_prices` materialized view.
+- **`tests/unit/test_validate_mocks_against_manifest.py`**: New mock validator — maps `MOCK_PRICES` → `v_latest_prices`, `MOCK_LOGS` → `scraping_logs`; validates every dict key exists in schema; checks essential NOT NULL columns present.
+- **`supabase/consolidated_migration.sql`**: Added missing `scraper_health_log` table (used by `services/scraper_health.py`, `scripts/heal_scrapers.py` but absent from SQL).
+- **`scripts/heal_scrapers.py`**: Fixed `stores.scraper` → `stores.type` (column is `type`, not `scraper`).
+- **`tests/unit/test_dashboard_contracts.py`**: `MOCK_PRICES` aligned with `v_latest_prices` — added flat `price_per_kg` (primary `_safe_ppk` path), removed flat `price_per_un` (not in materialized view, only in `normalized` JSONB). `MOCK_LOGS` `completed_at` → `finished_at` (matches DB schema).
+
+### Changed
+
+- **`pyproject.toml`**: `target-version=py314`, `python_version="3.14"`, `mypy` target updated.
+- **9 GitHub Actions workflows** (ci.yml, scrape.yml, ci-e2e-only.yml, e2e.yml, deploy-staging.yml, heal-scrapers.yml, on_demand_scrape.yml, restore-test.yml, backup.yml): `PYTHON_VERSION=3.14`; all install via `pip install -r requirements.lock`; `pip-audit --strict -s osv -r requirements.txt` (prod only — dev deps CVEs handled separately).
+- **`.githooks/pre-push`**: Added schema manifest generation + mock validation + environment parity check (steps 3.75–3.875 of 4); **`_resolve_python()`** detecta `.venv314/` automaticamente (Windows/WSL) — todos os subprocessos (ci_local, agents_tool, etc.) usam o Python do venv → paridade total, independente de como o git foi invocado.
+- **`AGENTS.md`**: Rule #10 replaced with **Paridade Total de Ambiente** (Python + deps + OS + runtime + tools identical local/CI/Cloud). Metrics table updated (Python 3.14.6 local, 3.14 CI/WSL, 3.14 Cloud pending). Nova seção "Ambiente" explica resolução automática de `.venv314`.
+- **`REGRAS.md`**: Environments table → `.venv314` / `custodoce-314`; added §4 Paridade de Versões; seção "Resolução Automática de Python" no pre-push com exemplo de uso.
+
+### Fixed
+
+- **CI `--require-hashes` auto-mode conflict**: Lock file originally had hashes → pip auto-enables `--require-hashes` → cp314 wheel hash differs from cp311 → mismatch. Fixed by regenerating lock **without hashes** (version pinning = supply-chain security; hash verification moved to parity checker `--dry-run`).
+- **`pip-audit` false positives**: Scanning full lock file caught pre-existing CVEs in dev deps (pytest 8.3.3 CVE-2025-71176, diskcache 5.6.3 CVE-2025-69872) unrelated to migration. Restricted audit to `requirements.txt` (prod).
+- **`datetime.utcnow()` deprecated in Py3.14**: Replaced com `datetime.now(UTC)` em 5 arquivos (`scripts/sync_docs.py`, `scripts/rpc_backup.py`, `dashboard/pages/promocoes.py`, `dashboard/pages/ingredientes.py`, `scripts/sync_docs_v2/truth.py`).
+- **`pytest-asyncio` 0.24.0 warning `asyncio_default_fixture_loop_scope unset`**: Resolvido adicionando `asyncio_default_fixture_loop_scope = function` em `pytest.ini` (formato `[pytest]` ini section que pytest-asyncio 0.24.0 lê corretamente).
+- **Pre-existing ruf SIM108 lint**: `scripts/sync_docs.py:540` if/else → ternary.
+- **`.agents/skills/` ruff errors**: 26 erros em skill evaluation files (third-party OpenCode cache, .agents/ não tracked). Excluído via `pyproject.toml [tool.ruff] exclude = [".agents/"]`.
+- **Pre-push venv invariavel**: `.githooks/pre-push` agora detecta `.venv314/Scripts/python.exe` (Windows) ou `.venv314/bin/python` (WSL) automaticamente via `_resolve_python()`. Garante que todos os subprocessos (ci_local, agents_tool, pytest, etc.) usem o Python do venv → **paridade total** sem depender de venv ativado manualmente.
+- **OpenCode skills cache cruft**: `scripts/skills_maintenance.py`, `.opencode/skills/`, `skills-lock.json` adicionados ao `.gitignore` (IDE-specific, não código de projeto).
+- **Test pre-existing failures** (unrelated to migration):
+  - `test_promocoes_is_promotion_true_via_oferta_tag` → renamed `test_promocoes_is_promotion_false_when_not_flag` (prod `_is_promotion` no longer checks `ai_tags`).
+  - `test_promocoes_is_promotion_false_for_normal_item`: removed `ai_tags` assertions.
+  - `test_alertas_contact_options_filters_empty`: `fake_recipients` returns `{"target": "..."}` (prod uses `target`, not `email`/`chat_id`).
+  - `test_dashboard_contracts.py` `MOCK_LOGS`: `completed_at` → `finished_at` (DB schema `scraping_logs.finished_at`).
+- **`scripts/heal_scrapers.py` column name**: `stores.scraper` → `stores.type`.
+- **`v_latest_prices` materialized view staleness (CI pre-existing)**: Pre-condicao quebrada pelo snapshot stale (`WHERE valid_until >= CURRENT_DATE` captura data do REFRESH, sem trigger automatico). Cada CI run do `validate_dashboard_queries.py` agora chama `REFRESH MATERIALIZED VIEW CONCURRENTLY v_latest_prices` via RPC `exec_sql` (DDL/DML, vs `exec_sql_query` SELECT-only). Smoke test passa a detectar dados reais em vez de falha por snapshot expirado.
+
+### Metrics
+
+- pytest: **612 unit+schema + 112 integration + 6 real = 730 passing** (CI green on Python 3.14)
+- ruff: **0 warnings**
+- mypy: **0 new errors** (8 pre-existing in `email_service.py` tuple typing)
+- Lock file: **130+ packages, no hashes** (cross-platform cp311/cp314 compatible)
+- CI: **All 9 workflows green** on Python 3.14 + lock file
+- PR #1: **Merged to master** (commit `de5422d`)
+- Tag **v3.14.0** created and pushed with release notes
+
+---
 
 ## [0.2.4] - 2026-07-01
 
@@ -148,6 +240,109 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - **`tests/e2e/test_e2e_real.py::ensure_app_ready()`**: Adaptativo — 6 retries × 30s timeout para cloud URL, 3 × 15s para localhost.
 - **`pyproject.toml`**: `asyncio_default_fixture_loop_scope = "function"` + filterwarnings para DeprecationWarning.
 
+## [0.4.0] - 2026-06-28 — Sprint 1: UX + Seguranca + Validacao Real
+
+### Added
+- **`scripts/validate_dashboard_queries.py`**: smoke test que valida 10 queries do dashboard contra Supabase real, verifica colunas retornadas vs. esperadas pelos `column_config` das páginas. Roda no CI pós-deploy (`deploy-check` job).
+- **Seguranca (Sprint 1.1)**: Tabs de edição `.env` (config.py) e YAML (lojas.py) removidas do dashboard; banner info "YAML synced from DB" em ingredientes.py.
+- **Bot DB Sync (Sprint 1.2)**: `handlers.py` reescrito — lê ingredientes ativos do DB (`config_db.get_active_ingredients()`) com fallback YAML; fuzzy search `rapidfuzz.fuzz.token_set_ratio`; paginação inline keyboard.
+- **Mobile CSS (Sprint 1.3)**: Media queries 768px/640px; sidebar compacta; tabelas com primeira coluna sticky; safe-area padding; chart height limit.
+- **Query Params (Sprint 1.4)**: `precos.py`, `historico.py`, `calculadora.py` — sincronização bidirecional (URL ↔ session_state) sem loop de rerender.
+- **Acessibilidade (Sprint 1.5)**: Skip-link "Pular para conteúdo" em `layout.py:render_skip_link()`; focus-visible em selectbox/checkbox; `prefers-reduced-motion` desliga animações; `font-variant-numeric: tabular-nums` em métricas.
+- **`ci.yml`**: Dashboard query smoke test no job `deploy-check` (após validação de schema).
+
+### Changed
+- `dashboard/pages/calculadora.py`: trocado `st.tabs` por `st.selectbox` para compatibilidade com query params (tab index trackeável via session_state).
+- `dashboard/pages/precos.py` e `historico.py`: acentos em column_config alterados de escape `\u00e7\u00e3o` para literais `ção` (compatibilidade com test_is_promotion_in_display).
+
+### Fixed
+- Teste `test_is_promotion_in_display` falhava porque precos.py e historico.py usavam `\u00e7\u00e3o` em vez de `ção` literal — corrigido.
+- `calculadora.py`: estrutura corrigida de `with tabs[1]:` para `elif tab_index == 1:`.
+
+### Security
+- **Tabs de edição removidas**: config.py não expõe mais editor `.env`; lojas.py não expõe mais editor YAML raw.
+- **Secrets guard**: pre-commit hook mantém bloqueio de `sk-*`, `gsk_*`, `sk-or-*` no staged files.
+
+---
+
+## [0.3.0] - 2026-06-28 — Fase 9: CI Hygiene + Cleanup
+
+### Security 🔒
+
+#### Sensitive files removidos do histórico (190 commits reescritos via `git filter-branch`)
+- `api_configuration.json` — chaves de provedores de IA
+- `api_providers.json` — config de LLMs
+- `cline_config.json` — config do Cline IDE
+- `.vscode/settings.json` — settings locais
+- `backup_prod_2026-06-27.sql` — dump SQL com dados de produção
+- `git_msg.txt`, `trigger_fix.sql` — scratch files
+- `data/llm_cache.db`, `data/embedding_cache/*.npy`, `data/onnx_models/` — modelos ML (~450MB empacotado)
+- `.vs/`, `.vscode/` — workspaces IDE
+
+**Resultado**: pack do repo **444MB → 8.7MB**. Único `git gc --prune=now` removeu blobs órfãos que `git stash` segurava.
+
+#### Dependabot Alerts dismissed (Pillow 12.2.0 patched)
+7 alertas são **inaccurate** porque我们已经 versão Pillow patched (≥10.0.1, ≥10.2.0, ≥10.3.0, ≥12.2.0). Local `pip-audit --strict -s osv` retorna **No known vulnerabilities found**. Dismissal via `gh api -X PATCH` para todos os 7 (`GHSA-j7hp-h8jx-5ppr`, `GHSA-3f63-hfp8-52jq`, `GHSA-44wm-f244-xhp3`, `GHSA-wjx4-4jcj-g98j`, `GHSA-r73j-pqj5-w3x7`, `GHSA-w8v5-vhqr-4h9v`, `GHSA-6w46-j5rx-g56g`).
+
+### Fixed (CI Jobs)
+
+- **`ci/lint`**: `pip install -r requirements-dev.txt` falhava porque `PIP_INDEX_URL=https://download.pytorch.org/whl/cpu` substituía PyPI. Trocado para `PIP_EXTRA_INDEX_URL` (PyPI primary, pytorch fallback).
+- **`ci/typecheck`**: `check_ingredients.py`, `check_flyers.py`, `check_alerts.py` falhavam com `Module "supabase" has no attribute "create_client"`. Adicionada `# mypy: ignore-errors` na 1ª linha de cada (mypy per-file directive — `exclude` não captura scripts no root).
+- **`ci/typecheck`**: Instalado `tests/requirements-test.txt` (pytest estava faltando). Antes pytest vendia indisponível, causando `No module named pytest`.
+- **`ci/lint` (pip-audit)**: Pillow 2.12.1+cpu (suffix de plataforma) não era encontrado no PyPI service. Trocado para `-s osv` que entende sufixos.
+- **`ci/deploy-check`**: Secretos `AUTH_SECRET_KEY`, `GMAIL_USER`, `SUPABASE_ANON_KEY` faltam em CI. Adicionada distinção required/optional em `scripts/deploy_check.py`: required = fail CI; optional = WARN only.
+
+### Changed (local infrastructure)
+
+- **`requirements.txt`**: Reovido `--index-url https://download.pytorch.org/whl/cpu` inline; substituído por env var no CI workflow (relocates torch index URL to be conditional).
+- **`.githooks/pre-push`**: reescrito de bash para Python com `#!/usr/bin/env python` + `sys.executable`. Windows Python Launcher (`py.exe`) lida com shbang corretamente (antes falhava: `python3` não existe no PATH Windows).
+- **`.githooks/pre-push`** invoca `ci_local.py --no-unit` ≈ similar a `audit_secrets + ruff + mypy`. Documentado em AGENTS.md.
+- **`scripts/ci_local.py`**: novo script master de validação local. Replica todos os 7 jobs do CI + 7 validadores de config (parseable requirements, mypy excludes, ruff ignores, ci.yml refs, hooks syntax, operational data não tracked, gitignore coverage). Saída resumida por job com.exit code agregado.
+- **`tests/unit/test_ci_infrastructure.py`**: 13 testes sem mock que validam config CI real (CATCH-BEFORE-PUSH). Não passam se `requirements.txt` tem `--index-url` inline, ou se pyproject.toml excludes de check_*.py somem, etc.
+- **`.gitattributes`**: LF normalization para `*.py/*.md/*.toml/*.yml/*.json/*.sh`. Sem isso, editores Windows commiitam CRLF e git detecta tudo modificado.
+- **`.gitignore`**: adicionado `scripts/diagnose.py` (script pessoal) + operacional `data/prices_latest.json` trackeado e removido.
+- **`scripts/diagnose.py`**: diagnostics scripts pessoais (SKIP em produção).
+- **Three integration tests refatorados** (`test_db_integration.py`, `test_db_cleanup.py`, `test_review_queue_e2e.py`): removeram conexão direta `psycopg2.connect(port=5432)` (bloqueada no CI). Agora usam conftest `db_conn` (que internamente chama `exec_sql_query` RPC na porta 443). Conformidade com AGENTS.md regra: "Porta 5432 bloqueada | Usa exec_sql_query RPC".
+- **`tests/conftest.py`**: `_SchemaCursor`/`_SchemaConn` (psycopg2 mock over RPC) proviam sql-style interface para tests sem depender de `psycopg2`.
+- **`tests/integration/test_collector_pipeline.py::test_pipeline_exact_match`**: tolerância a dados cumulativos no DB real (collected_at = today filtering).
+- **`tests/unit/test_dashboard_full.py::test_build_report_html`**: movido para `tests/integration/test_dashboard_reports.py` (precisa DB real).
+- **`tests/unit/test_services_mocked.py::test_approve_review_item_updates_and_upserts`**: removido (falhava em CI por package version skew; muito acoplado à `httpx`/`postgrest`).
+
+- `data/prices_latest.json` removido de git tracking (já estava em `.gitignore`).
+- `data/cleanup_track.json` removido de git tracking (já estava em `.gitignore`).
+
+### Documentation
+
+- **`docs/security.md`**: adicionada seção "Dependencies and CVEs" com tabela dos 7 alertas dismissed + política de pin CRITICAL/HIGH/MEDIUM/LOW.
+- **`AGENTS.md`**: adicionado"Fase 9 concluída" + 7 "Lições Aprendidas" (`# 1. Mocks boundary`, `# 2. Mark integration`, `# 3. exec_sql_query`, `# 4. Cleanup POST`, `# 5. deploy_check required/optional`, `# 6. SECRETS GUARD`, `# 7. PIP_EXTRA_INDEX_URL`).
+
+---
+
+## Categorias de Mudança
+
+- **Added**: funcionalidades novas
+- **Changed**: mudanças em funcionalidades existentes
+- **Deprecated**: funcionalidades que serão removidas futuramente
+- **Removed**: funcionalidades removidas
+- **Fixed**: correções de bugs
+- **Security**: correções de vulnerabilidades
+
+## Como fazer release
+
+```bash
+# 1. Atualizar versão em pyproject.toml
+# 2. Gerar changelog (futuro: auto via script)
+git tag -a v0.2.0 -m "feat: nova funcionalidade X"
+git push origin v0.2.0
+# GitHub Actions detecta tag → publicacao
+```
+
+## Links
+
+- Repo: https://github.com/anomalyco/CustoDoce
+- Issues: https://github.com/anomalyco/CustoDoce/issues
+- Discussions: https://github.com/anomalyco/CustoDoce/discussions
+
 ## [0.2.0] - 2026-06-27
 
 ### Added
@@ -278,198 +473,3 @@ e este projeto adere a [Semantic Versioning](https://semver.org/lang/pt-BR/).
   - Exploitabilidade: baixa (Pipeline API local, dados controlados)
 
 ---
-
-## [0.4.0] - 2026-06-28 — Sprint 1: UX + Seguranca + Validacao Real
-
-### Added
-- **`scripts/validate_dashboard_queries.py`**: smoke test que valida 10 queries do dashboard contra Supabase real, verifica colunas retornadas vs. esperadas pelos `column_config` das páginas. Roda no CI pós-deploy (`deploy-check` job).
-- **Seguranca (Sprint 1.1)**: Tabs de edição `.env` (config.py) e YAML (lojas.py) removidas do dashboard; banner info "YAML synced from DB" em ingredientes.py.
-- **Bot DB Sync (Sprint 1.2)**: `handlers.py` reescrito — lê ingredientes ativos do DB (`config_db.get_active_ingredients()`) com fallback YAML; fuzzy search `rapidfuzz.fuzz.token_set_ratio`; paginação inline keyboard.
-- **Mobile CSS (Sprint 1.3)**: Media queries 768px/640px; sidebar compacta; tabelas com primeira coluna sticky; safe-area padding; chart height limit.
-- **Query Params (Sprint 1.4)**: `precos.py`, `historico.py`, `calculadora.py` — sincronização bidirecional (URL ↔ session_state) sem loop de rerender.
-- **Acessibilidade (Sprint 1.5)**: Skip-link "Pular para conteúdo" em `layout.py:render_skip_link()`; focus-visible em selectbox/checkbox; `prefers-reduced-motion` desliga animações; `font-variant-numeric: tabular-nums` em métricas.
-- **`ci.yml`**: Dashboard query smoke test no job `deploy-check` (após validação de schema).
-
-### Changed
-- `dashboard/pages/calculadora.py`: trocado `st.tabs` por `st.selectbox` para compatibilidade com query params (tab index trackeável via session_state).
-- `dashboard/pages/precos.py` e `historico.py`: acentos em column_config alterados de escape `\u00e7\u00e3o` para literais `ção` (compatibilidade com test_is_promotion_in_display).
-
-### Fixed
-- Teste `test_is_promotion_in_display` falhava porque precos.py e historico.py usavam `\u00e7\u00e3o` em vez de `ção` literal — corrigido.
-- `calculadora.py`: estrutura corrigida de `with tabs[1]:` para `elif tab_index == 1:`.
-
-### Security
-- **Tabs de edição removidas**: config.py não expõe mais editor `.env`; lojas.py não expõe mais editor YAML raw.
-- **Secrets guard**: pre-commit hook mantém bloqueio de `sk-*`, `gsk_*`, `sk-or-*` no staged files.
-
----
-
-## [0.2.5] - 2026-07-03
-
-### Added
-
-#### Sprint 12 — Environment Parity → Python 3.14 (Windows/WSL/CI/Cloud)
-
-- **`requirements.lock`**: Single pinned lock file (130+ packages, no hashes — cross-platform cp311 vs cp314 wheel conflict). Generated via `pip-compile --allow-unsafe`. Installs cleanly on Python 3.11 (local) and 3.14 (CI).
-- **`scripts/check_environment_parity.py`**: New parity checker — validates Python version (warns locally, fails hard in CI), lock file integrity (`pip install --dry-run`), platform, and AGENTS.md rule #10 presence.
-- **`scripts/generate_schema_manifest.py`**: Rewritten for **offline SQL parsing** — parses `supabase/consolidated_migration.sql` directly (no Supabase credentials needed). Emits `config/schema_manifest.json` with 16 tables/views including `v_latest_prices` materialized view.
-- **`tests/unit/test_validate_mocks_against_manifest.py`**: New mock validator — maps `MOCK_PRICES` → `v_latest_prices`, `MOCK_LOGS` → `scraping_logs`; validates every dict key exists in schema; checks essential NOT NULL columns present.
-- **`supabase/consolidated_migration.sql`**: Added missing `scraper_health_log` table (used by `services/scraper_health.py`, `scripts/heal_scrapers.py` but absent from SQL).
-- **`scripts/heal_scrapers.py`**: Fixed `stores.scraper` → `stores.type` (column is `type`, not `scraper`).
-- **`tests/unit/test_dashboard_contracts.py`**: `MOCK_PRICES` aligned with `v_latest_prices` — added flat `price_per_kg` (primary `_safe_ppk` path), removed flat `price_per_un` (not in materialized view, only in `normalized` JSONB). `MOCK_LOGS` `completed_at` → `finished_at` (matches DB schema).
-
-### Changed
-
-- **`pyproject.toml`**: `target-version=py314`, `python_version="3.14"`, `mypy` target updated.
-- **9 GitHub Actions workflows** (ci.yml, scrape.yml, ci-e2e-only.yml, e2e.yml, deploy-staging.yml, heal-scrapers.yml, on_demand_scrape.yml, restore-test.yml, backup.yml): `PYTHON_VERSION=3.14`; all install via `pip install -r requirements.lock`; `pip-audit --strict -s osv -r requirements.txt` (prod only — dev deps CVEs handled separately).
-- **`.githooks/pre-push`**: Added schema manifest generation + mock validation + environment parity check (steps 3.75–3.875 of 4); **`_resolve_python()`** detecta `.venv314/` automaticamente (Windows/WSL) — todos os subprocessos (ci_local, agents_tool, etc.) usam o Python do venv → paridade total, independente de como o git foi invocado.
-- **`AGENTS.md`**: Rule #10 replaced with **Paridade Total de Ambiente** (Python + deps + OS + runtime + tools identical local/CI/Cloud). Metrics table updated (Python 3.14.6 local, 3.14 CI/WSL, 3.14 Cloud pending). Nova seção "Ambiente" explica resolução automática de `.venv314`.
-- **`REGRAS.md`**: Environments table → `.venv314` / `custodoce-314`; added §4 Paridade de Versões; seção "Resolução Automática de Python" no pre-push com exemplo de uso.
-
-### Fixed
-
-- **CI `--require-hashes` auto-mode conflict**: Lock file originally had hashes → pip auto-enables `--require-hashes` → cp314 wheel hash differs from cp311 → mismatch. Fixed by regenerating lock **without hashes** (version pinning = supply-chain security; hash verification moved to parity checker `--dry-run`).
-- **`pip-audit` false positives**: Scanning full lock file caught pre-existing CVEs in dev deps (pytest 8.3.3 CVE-2025-71176, diskcache 5.6.3 CVE-2025-69872) unrelated to migration. Restricted audit to `requirements.txt` (prod).
-- **`datetime.utcnow()` deprecated in Py3.14**: Replaced com `datetime.now(UTC)` em 5 arquivos (`scripts/sync_docs.py`, `scripts/rpc_backup.py`, `dashboard/pages/promocoes.py`, `dashboard/pages/ingredientes.py`, `scripts/sync_docs_v2/truth.py`).
-- **`pytest-asyncio` 0.24.0 warning `asyncio_default_fixture_loop_scope unset`**: Resolvido adicionando `asyncio_default_fixture_loop_scope = function` em `pytest.ini` (formato `[pytest]` ini section que pytest-asyncio 0.24.0 lê corretamente).
-- **Pre-existing ruf SIM108 lint**: `scripts/sync_docs.py:540` if/else → ternary.
-- **`.agents/skills/` ruff errors**: 26 erros em skill evaluation files (third-party OpenCode cache, .agents/ não tracked). Excluído via `pyproject.toml [tool.ruff] exclude = [".agents/"]`.
-- **Pre-push venv invariavel**: `.githooks/pre-push` agora detecta `.venv314/Scripts/python.exe` (Windows) ou `.venv314/bin/python` (WSL) automaticamente via `_resolve_python()`. Garante que todos os subprocessos (ci_local, agents_tool, pytest, etc.) usem o Python do venv → **paridade total** sem depender de venv ativado manualmente.
-- **OpenCode skills cache cruft**: `scripts/skills_maintenance.py`, `.opencode/skills/`, `skills-lock.json` adicionados ao `.gitignore` (IDE-specific, não código de projeto).
-- **Test pre-existing failures** (unrelated to migration):
-  - `test_promocoes_is_promotion_true_via_oferta_tag` → renamed `test_promocoes_is_promotion_false_when_not_flag` (prod `_is_promotion` no longer checks `ai_tags`).
-  - `test_promocoes_is_promotion_false_for_normal_item`: removed `ai_tags` assertions.
-  - `test_alertas_contact_options_filters_empty`: `fake_recipients` returns `{"target": "..."}` (prod uses `target`, not `email`/`chat_id`).
-  - `test_dashboard_contracts.py` `MOCK_LOGS`: `completed_at` → `finished_at` (DB schema `scraping_logs.finished_at`).
-- **`scripts/heal_scrapers.py` column name**: `stores.scraper` → `stores.type`.
-- **`v_latest_prices` materialized view staleness (CI pre-existing)**: Pre-condicao quebrada pelo snapshot stale (`WHERE valid_until >= CURRENT_DATE` captura data do REFRESH, sem trigger automatico). Cada CI run do `validate_dashboard_queries.py` agora chama `REFRESH MATERIALIZED VIEW CONCURRENTLY v_latest_prices` via RPC `exec_sql` (DDL/DML, vs `exec_sql_query` SELECT-only). Smoke test passa a detectar dados reais em vez de falha por snapshot expirado.
-
-### Metrics
-
-- pytest: **612 unit+schema + 112 integration + 6 real = 730 passing** (CI green on Python 3.14)
-- ruff: **0 warnings**
-- mypy: **0 new errors** (8 pre-existing in `email_service.py` tuple typing)
-- Lock file: **130+ packages, no hashes** (cross-platform cp311/cp314 compatible)
-- CI: **All 9 workflows green** on Python 3.14 + lock file
-- PR #1: **Merged to master** (commit `de5422d`)
-- Tag **v3.14.0** created and pushed with release notes
-
----
-
-## [unreleased]
-
-### Added
-
-#### sync_docs v2 — heading-aware stale-ref detector + auto-updater (Sprint 10)
-- **`scripts/sync_docs_v2/`**: 5 novos módulos baseados em markdown-it:
-  - `truth.py`: source of truth (test counts, pages, workflows, services)
-  - `parser.py`: section span parser via heading hierarchy
-  - `classifier.py`: HISTORICAL/CURRENT/AMBIGUOUS por heading path
-  - `updater.py`: `\bNUMBER\b` replacement em CURRENT blocks only
-  - `cli.py`: `--analyze`, `--sync`, `--dry-run`, `--dump-truth`
-- **`scripts/sync_docs.py`**: +3 flags (`--analyze`, `--sync`, `--dump-truth`) que delegam ao v2
-- **`scripts/test_total_coverage.py`**: nova fase `sync_docs_v2_analyze`
-- **`tests/unit/test_sync_docs_v2.py`**: 25 testes unitários (mocks, 1.67s) — 5 módulos cobertos
-- **`AGENTS.md`**: Lição #25 (novo código = novos testes)
-- **Resultado**: 5 CURRENT refs corrigidos (512→577, 630→745, 709→745, 418→483, 383→483); 14 HISTORICAL preservados; 0 AMBIGUOUS
-
-#### Doc Sync Enhancement (Sprint 10 — Documentation Hygiene)
-- **`scripts/sync_docs.py`**: 3 auto-fixers (`_fix_tree_test_count`, `_fix_page_import_count`, `_fix_streamlit_skill_row`) + `_strict_audit()` que varre todos `.md` para detecção de 37 patterns stale (HIGH/MEDIUM). Flag `--strict`. Encoding Windows-safe (ASCII replace).
-- **`.github/workflows/ci.yml`**: docs-sync job agora `--check --strict` (bloqueante). **`.githooks/pre-commit`**: layer 2.5 com `sync_docs --check --strict` (aviso leve, não bloqueia).
-- **`services/collector.py`**: `import httpx` movido de inline (dentro de `process_ocr_queue()`) para top-level imports — lazy import removido.
-
-### Changed
-- **Docs (37 stale refs corrigidos)**: 11 arquivos `.md` atualizados pós-Sprint 7-9 (page counts 17→18, test counts 418→483, 512→577, 630→745). Detalhes por arquivo:
-  - `AGENTS.md`: auto-fix + manual (lines 82, 85, 111, 324, 713)
-  - `.opencode/skills/streamlit/SKILL.md`: 7 edições (17→18 pages, promocoes orphan→registered, single orphan)
-  - `docs/archive/CUSTO_DOCE_RAIO_X.md`: 5 edições (tabela avaliação 8.5→9.0, nota final 8.5→9.0)
-  - `docs/archive/RAIO-X_CUSTO_DOCE_RESUMIDO.md`: 3 edições (17→18 abas, 512→577)
-  - `docs/contributing.md`: 3 edições (418→483, 17→18)
-  - `docs/architecture.md`: 1 edição Mermaid (17→18 módulos)
-  - `README.md`: roadmap com Sprints 5,6,7-9 + Next Steps atualizados
-  - `docs/archive/ux_audit_2026-06.md`: 1 edição (17→18 abas)
-
-### Metrics
-- sync_docs --strict: 0 actual issues (historical README roadmap entries are intentional snapshots)
-- ruff: 0 warnings
-- pytest: **577 passing** (unit: 483 + schema: 94) + 102 integration + 10 design + 6 real + 50 e2e = **745 total**
-
----
-
-## [0.3.0] - 2026-06-28 — Fase 9: CI Hygiene + Cleanup
-
-### Security 🔒
-
-#### Sensitive files removidos do histórico (190 commits reescritos via `git filter-branch`)
-- `api_configuration.json` — chaves de provedores de IA
-- `api_providers.json` — config de LLMs
-- `cline_config.json` — config do Cline IDE
-- `.vscode/settings.json` — settings locais
-- `backup_prod_2026-06-27.sql` — dump SQL com dados de produção
-- `git_msg.txt`, `trigger_fix.sql` — scratch files
-- `data/llm_cache.db`, `data/embedding_cache/*.npy`, `data/onnx_models/` — modelos ML (~450MB empacotado)
-- `.vs/`, `.vscode/` — workspaces IDE
-
-**Resultado**: pack do repo **444MB → 8.7MB**. Único `git gc --prune=now` removeu blobs órfãos que `git stash` segurava.
-
-#### Dependabot Alerts dismissed (Pillow 12.2.0 patched)
-7 alertas são **inaccurate** porque我们已经 versão Pillow patched (≥10.0.1, ≥10.2.0, ≥10.3.0, ≥12.2.0). Local `pip-audit --strict -s osv` retorna **No known vulnerabilities found**. Dismissal via `gh api -X PATCH` para todos os 7 (`GHSA-j7hp-h8jx-5ppr`, `GHSA-3f63-hfp8-52jq`, `GHSA-44wm-f244-xhp3`, `GHSA-wjx4-4jcj-g98j`, `GHSA-r73j-pqj5-w3x7`, `GHSA-w8v5-vhqr-4h9v`, `GHSA-6w46-j5rx-g56g`).
-
-### Fixed (CI Jobs)
-
-- **`ci/lint`**: `pip install -r requirements-dev.txt` falhava porque `PIP_INDEX_URL=https://download.pytorch.org/whl/cpu` substituía PyPI. Trocado para `PIP_EXTRA_INDEX_URL` (PyPI primary, pytorch fallback).
-- **`ci/typecheck`**: `check_ingredients.py`, `check_flyers.py`, `check_alerts.py` falhavam com `Module "supabase" has no attribute "create_client"`. Adicionada `# mypy: ignore-errors` na 1ª linha de cada (mypy per-file directive — `exclude` não captura scripts no root).
-- **`ci/typecheck`**: Instalado `tests/requirements-test.txt` (pytest estava faltando). Antes pytest vendia indisponível, causando `No module named pytest`.
-- **`ci/lint` (pip-audit)**: Pillow 2.12.1+cpu (suffix de plataforma) não era encontrado no PyPI service. Trocado para `-s osv` que entende sufixos.
-- **`ci/deploy-check`**: Secretos `AUTH_SECRET_KEY`, `GMAIL_USER`, `SUPABASE_ANON_KEY` faltam em CI. Adicionada distinção required/optional em `scripts/deploy_check.py`: required = fail CI; optional = WARN only.
-
-### Changed (local infrastructure)
-
-- **`requirements.txt`**: Reovido `--index-url https://download.pytorch.org/whl/cpu` inline; substituído por env var no CI workflow (relocates torch index URL to be conditional).
-- **`.githooks/pre-push`**: reescrito de bash para Python com `#!/usr/bin/env python` + `sys.executable`. Windows Python Launcher (`py.exe`) lida com shbang corretamente (antes falhava: `python3` não existe no PATH Windows).
-- **`.githooks/pre-push`** invoca `ci_local.py --no-unit` ≈ similar a `audit_secrets + ruff + mypy`. Documentado em AGENTS.md.
-- **`scripts/ci_local.py`**: novo script master de validação local. Replica todos os 7 jobs do CI + 7 validadores de config (parseable requirements, mypy excludes, ruff ignores, ci.yml refs, hooks syntax, operational data não tracked, gitignore coverage). Saída resumida por job com.exit code agregado.
-- **`tests/unit/test_ci_infrastructure.py`**: 13 testes sem mock que validam config CI real (CATCH-BEFORE-PUSH). Não passam se `requirements.txt` tem `--index-url` inline, ou se pyproject.toml excludes de check_*.py somem, etc.
-- **`.gitattributes`**: LF normalization para `*.py/*.md/*.toml/*.yml/*.json/*.sh`. Sem isso, editores Windows commiitam CRLF e git detecta tudo modificado.
-- **`.gitignore`**: adicionado `scripts/diagnose.py` (script pessoal) + operacional `data/prices_latest.json` trackeado e removido.
-- **`scripts/diagnose.py`**: diagnostics scripts pessoais (SKIP em produção).
-- **Three integration tests refatorados** (`test_db_integration.py`, `test_db_cleanup.py`, `test_review_queue_e2e.py`): removeram conexão direta `psycopg2.connect(port=5432)` (bloqueada no CI). Agora usam conftest `db_conn` (que internamente chama `exec_sql_query` RPC na porta 443). Conformidade com AGENTS.md regra: "Porta 5432 bloqueada | Usa exec_sql_query RPC".
-- **`tests/conftest.py`**: `_SchemaCursor`/`_SchemaConn` (psycopg2 mock over RPC) proviam sql-style interface para tests sem depender de `psycopg2`.
-- **`tests/integration/test_collector_pipeline.py::test_pipeline_exact_match`**: tolerância a dados cumulativos no DB real (collected_at = today filtering).
-- **`tests/unit/test_dashboard_full.py::test_build_report_html`**: movido para `tests/integration/test_dashboard_reports.py` (precisa DB real).
-- **`tests/unit/test_services_mocked.py::test_approve_review_item_updates_and_upserts`**: removido (falhava em CI por package version skew; muito acoplado à `httpx`/`postgrest`).
-
-- `data/prices_latest.json` removido de git tracking (já estava em `.gitignore`).
-- `data/cleanup_track.json` removido de git tracking (já estava em `.gitignore`).
-
-### Documentation
-
-- **`docs/security.md`**: adicionada seção "Dependencies and CVEs" com tabela dos 7 alertas dismissed + política de pin CRITICAL/HIGH/MEDIUM/LOW.
-- **`AGENTS.md`**: adicionado"Fase 9 concluída" + 7 "Lições Aprendidas" (`# 1. Mocks boundary`, `# 2. Mark integration`, `# 3. exec_sql_query`, `# 4. Cleanup POST`, `# 5. deploy_check required/optional`, `# 6. SECRETS GUARD`, `# 7. PIP_EXTRA_INDEX_URL`).
-
----
-
-## Categorias de Mudança
-
-- **Added**: funcionalidades novas
-- **Changed**: mudanças em funcionalidades existentes
-- **Deprecated**: funcionalidades que serão removidas futuramente
-- **Removed**: funcionalidades removidas
-- **Fixed**: correções de bugs
-- **Security**: correções de vulnerabilidades
-
-## Como fazer release
-
-```bash
-# 1. Atualizar versão em pyproject.toml
-# 2. Gerar changelog (futuro: auto via script)
-git tag -a v0.2.0 -m "feat: nova funcionalidade X"
-git push origin v0.2.0
-# GitHub Actions detecta tag → publicacao
-```
-
-## Links
-
-- Repo: https://github.com/anomalyco/CustoDoce
-- Issues: https://github.com/anomalyco/CustoDoce/issues
-- Discussions: https://github.com/anomalyco/CustoDoce/discussions
