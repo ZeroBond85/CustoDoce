@@ -211,6 +211,3 @@ jobs:
       - if: steps.pw-cache.outputs.cache-hit != 'true'
         name: Install Playwright browsers
         run: python -m playwright install chromium --with-deps
-      - run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
-        name: Install Playwright browsers
-        run: python -m playwright install chromium --with-deps
