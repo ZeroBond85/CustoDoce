@@ -81,62 +81,86 @@ def ensure_app_ready(page, app):
 def login_to_app(page):
     """Faz login completo no Streamlit Cloud + dashboard.
 
-    Espera ativamente pelo conteudo renderizar (ate 45s), evitando race
-    condition de cold start onde o password input pode demorar >5s para
-    aparecer (Streamlight importa modulos, conecta Supabase etc).
+    Lida com cold start e com o fato de que no Cloud o form de login
+    fica dentro do iframe /~/+/, enquanto local fica na page principal.
     """
     page.wait_for_load_state("networkidle")
 
-    # Poll for either password input (need login) or sidebar (already logged in)
-    pw_input = page.locator("input[type='password']")
-    # Check for sidebar using either <a> (st.navigation) or <button> (legacy)
-    sidebar_btn = page.locator("button:has-text('Visão Geral')")
-    sidebar_link = page.locator('[data-testid="stSidebar"] a').filter(has_text="Visão Geral")
+    def _find_password_input(ctx):
+        return ctx.locator("input[type='password']")
+
+    def _find_sidebar(ctx):
+        btn = ctx.locator("button:has-text('Visão Geral')")
+        link = ctx.locator('[data-testid="stSidebar"] a').filter(has_text="Visão Geral")
+        return btn if btn.count() > 0 and btn.first.is_visible() else (link if link.count() > 0 and link.first.is_visible() else None)
+
+    def _find_user_input(ctx):
+        return ctx.locator('input[aria-label*="Usuario"], input[placeholder="admin"]').first
+
+    # Poll for login form or sidebar in BOTH page (local) and app frame (cloud)
     for _ in range(45):
-        if pw_input.count() > 0 and pw_input.first.is_visible():
+        # Check page (local)
+        pw_page = _find_password_input(page)
+        if pw_page.count() > 0 and pw_page.first.is_visible():
             break
-        if sidebar_btn.count() > 0 and sidebar_btn.first.is_visible():
+        side_page = _find_sidebar(page)
+        if side_page:
             return ensure_app_ready(page, get_app(page))
-        if sidebar_link.count() > 0 and sidebar_link.first.is_visible():
-            return ensure_app_ready(page, get_app(page))
+
+        # Check app frame (cloud)
+        app_frame = get_app(page)
+        pw_app = _find_password_input(app_frame)
+        if pw_app.count() > 0 and pw_app.first.is_visible():
+            break
+        side_app = _find_sidebar(app_frame)
+        if side_app:
+            return ensure_app_ready(page, app_frame)
+
         page.wait_for_timeout(1000)
 
-    app = get_app(page)
-    app = wake_if_sleeping(page, app)
+    # Determine where the login form is
+    pw_page = _find_password_input(page)
+    target = page if pw_page.count() > 0 and pw_page.first.is_visible() else get_app(page)
 
-    # Password gate — tenta login se houver campo de senha
+    pw_input = _find_password_input(target)
     if pw_input.count() > 0 and pw_input.first.is_visible():
-        user_input = page.locator('input[aria-label*="Usuario"], input[placeholder="admin"]').first
+        user_input = _find_user_input(target)
         if user_input.count() > 0:
             user_input.fill("admin")
         pw_input.first.fill(ADMIN_PASSWORD)
-        entrar = app.locator("button:has-text('Entrar')")
+        entrar = target.locator("button:has-text('Entrar')")
         if entrar.count() > 0:
             entrar.first.click()
             page.wait_for_timeout(3000)
             page.wait_for_load_state("networkidle")
 
-    # Segundo password gate (Streamlit Cloud + dashboard podem ter 2 gates)
-    pw_input2 = app.locator("input[type='password']")
-    if pw_input2.count() > 0 and pw_input2.first.is_visible():
-        user_input2 = page.locator('input[aria-label*="Usuario"], input[placeholder="admin"]').first
-        if user_input2.count() > 0:
-            user_input2.fill("admin")
-        pw_input2.first.fill(ADMIN_PASSWORD)
-        entrar2 = app.locator("button:has-text('Entrar')")
-        if entrar2.count() > 0:
-            entrar2.first.click()
-            page.wait_for_timeout(3000)
-            page.wait_for_load_state("networkidle")
-            page.wait_for_timeout(5000)
+    # Second gate (if any)
+    for ctx in (get_app(page), page):
+        pw2 = _find_password_input(ctx)
+        if pw2.count() > 0 and pw2.first.is_visible():
+            u2 = _find_user_input(ctx)
+            if u2.count() > 0:
+                u2.fill("admin")
+            pw2.first.fill(ADMIN_PASSWORD)
+            entrar2 = ctx.locator("button:has-text('Entrar')")
+            if entrar2.count() > 0:
+                entrar2.first.click()
+                page.wait_for_timeout(3000)
+                page.wait_for_load_state("networkidle")
+                page.wait_for_timeout(5000)
+            break
 
     app = get_app(page)
-    app = ensure_app_ready(page, app)
-    return app
+    return ensure_app_ready(page, app)
 
 
 def check_for_errors(app, context="", take_screenshot=True, page=None):
-    """Varre página por erros Streamlit/Python."""
+    """Varre página por erros Streamlit/Python.
+
+    Checa tanto o frame do app (Streamlit Cloud usa iframe /~/+) quanto
+    o page top-level (Streamlit local nao usa iframe). Assim cobre
+    ambos os ambientes sem perder cenarios de erro real.
+    """
     error_selectors = [
         ".stException",
         ".stAlert[data-baseweb='notification']",
@@ -149,39 +173,44 @@ def check_for_errors(app, context="", take_screenshot=True, page=None):
         "text=/relation .* does not exist/",
         "text=/column .* does not exist/",
     ]
+    containers = [c for c in (app, page) if c is not None]
     for sel in error_selectors:
-        try:
-            el = app.locator(sel).first
-            if el.count() > 0 and el.is_visible():
-                text = el.text_content()[:200] if el.text_content() else ""
-                if take_screenshot and page:
-                    report_dir = Path("data/regression_screenshots")
-                    report_dir.mkdir(parents=True, exist_ok=True)
-                    ts = os.urandom(4).hex()
-                    path = report_dir / f"error_{context}_{ts}.png"
-                    with open(path, "wb") as f:
-                        f.write(page.screenshot())
-                pytest.fail(f"Erro em '{context}': '{text}'")
-        except Exception:
-            pass
+        for container in containers:
+            try:
+                el = container.locator(sel).first
+                if el.count() > 0 and el.is_visible():
+                    text = el.text_content()[:200] if el.text_content() else ""
+                    if take_screenshot and page:
+                        report_dir = Path("data/regression_screenshots")
+                        report_dir.mkdir(parents=True, exist_ok=True)
+                        ts = os.urandom(4).hex()
+                        path = report_dir / f"error_{context}_{ts}.png"
+                        with open(path, "wb") as f:
+                            f.write(page.screenshot())
+                    pytest.fail(f"Erro em '{context}': '{text}'")
+            except Exception:
+                pass
 
 
 def navigate_to_page(app, page, label):
     """Navega para pagina via sidebar link (st.navigation renderiza <a>).
 
-    Fallback para botao caso a sidebar ainda use botoes (legacy).
-    Retorna True se conseguiu clicar no nav item.
+    Tenta no frame do app (Streamlit Cloud /~/+) e cai para o page
+    top-level (Streamlit local sem iframe). Fallback para botao caso a
+    sidebar ainda use botoes (legacy). Retorna True se clicou no nav.
     """
-    sidebar = app.locator('[data-testid="stSidebar"]')
-    if sidebar.count() > 0:
-        link = sidebar.locator("a").filter(has_text=label).first
-        if link.count() > 0:
-            link.click()
+    containers = [c for c in (app, page) if c is not None]
+    for container in containers:
+        sidebar = container.locator('[data-testid="stSidebar"]')
+        if sidebar.count() > 0:
+            link = sidebar.locator("a").filter(has_text=label).first
+            if link.count() > 0:
+                link.click()
+                return True
+        btn = container.locator(f"button:has-text('{label}')").first
+        if btn.count() > 0:
+            btn.click()
             return True
-    btn = app.locator(f"button:has-text('{label}')").first
-    if btn.count() > 0:
-        btn.click()
-        return True
     return False
 
 
@@ -268,6 +297,8 @@ class TestE2EReal:
                 f"Nav item '{label}' não encontrado na sidebar. "
                 f"Screenshot salvo em data/regression_screenshots/missing_{page_id}_{ts}.png"
             )
+        # Apos navegar, o frame pode ter se desanexado/recriado (cloud) — refazer get_app
+        app = get_app(page)
         app.wait_for_timeout(2000)
         check_for_errors(app, f"tab_{page_id}", page=page)
 

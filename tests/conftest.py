@@ -28,10 +28,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # ── Helpers ─────────────────────────────────────────────────────
 def _has_real_db() -> bool:
-    """Verifica se credenciais Supabase reais estão configuradas."""
+    """Verifica se credenciais Supabase REST estão configuradas.
+
+    Conforme AGENTS.md regra #3 (NUNCA psycopg2, porta 5432; SOMENTE RPC porta 443),
+    basta SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY. SUPABASE_DB_PASSWORD NAO e
+    necessario (era exigido quando testes usavam porta 5432 direta via psycopg2).
+    """
     url = os.environ.get("SUPABASE_URL", "")
-    pwd = os.environ.get("SUPABASE_DB_PASSWORD", "")
-    if not url or not pwd:
+    key = (
+        os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+        or os.environ.get("SUPABASE_ANON_KEY", "")
+    )
+    if not url or not key:
         return False
     try:
         proj = url.split("//")[1].split(".")[0]

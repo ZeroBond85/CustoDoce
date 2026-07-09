@@ -1,8 +1,39 @@
 # Lições Aprendidas
-> Última atualização: 2026-07-09 10:58 UTC
+> Última atualização: 2026-07-09
 
 > Extraídas de AGENTS.md. Numeração original preservada.
 > Regras de execução/ambiente → `REGRAS.md`.
+
+## Template de Lição RPR (Regra #11)
+
+Toda nova lição extraída de falha no CI usa este template:
+
+```markdown
+### N. <Título curto>
+
+- **Data + commit**: YYYY-MM-DD (sha123)
+- **Sintoma**: <1-3 linhas do erro exato do CI>
+- **Causa raiz**: <arquivo:linha + por que aconteceu>
+- **Correção**: <arquivo:linha + diff resumido>
+- **Teste de regressão**: <arquivo + nome do teste>
+```
+
+**Exceções ao template completo** (apenas bullet "Causa raiz" + "Correção"):
+- Timeout/flakiness de rede
+- Outage de infra externa (GitHub, Supabase)
+- Mudança em `workflows/*.yml` (RPR simplificado)
+
+---
+
+### 44. CI integration tests skipados sem motivo (auto-skip exigia `SUPABASE_DB_PASSWORD`)
+
+- **Data + commit**: 2026-07-09
+- **Sintoma**: `integration` job em `ci.yml` reportava `112 skipped in 0.76s`. Auto-skip silencioso, zero indicação de razão.
+- **Causa raiz**: `tests/conftest.py:_has_real_db()` linha 33 exigia `SUPABASE_DB_PASSWORD` (legado psycopg2/porta 5432). Mas AGENTS.md regra #3 proibe `psycopg2` (CI bloqueia porta 5432) — somente `exec_sql_query` RPC porta 443 é usada. Os jobs CI passam `SUPABASE_URL`/`SUPABASE_ANON_KEY`/`SUPABASE_SERVICE_ROLE_KEY` mas **nunca** `SUPABASE_DB_PASSWORD`, então todos os 112 testes de integration eram pulados.
+- **Correção**: `_has_real_db()` em `tests/conftest.py:30` agora exige `SUPABASE_URL` + (`SUPABASE_SERVICE_ROLE_KEY` OU `SUPABASE_ANON_KEY`), não mais `SUPABASE_DB_PASSWORD`. Docstring cita a regra #3.
+- **Teste de regressão**: `tests/unit/test_conftest_missing_creds.py` (5 cenários: vazio, só service_role, só anon, só legacy db_password, URL inválida).
+
+
 
 ### 1. Mocks — boundary layer, not internal functions
 

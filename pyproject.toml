@@ -9,9 +9,10 @@ filterwarnings = [
     "ignore:.*set_event_loop_policy.*:DeprecationWarning:pytest_asyncio",
 ]
 markers = [
-    "slow: marks tests as slow (real HTTP/Playwright/OCR)",
-    "integration: marks tests that need real Supabase/network (skipped in unit CI)",
-]
+      "slow: marks tests as slow (real HTTP/Playwright/OCR)",
+      "integration: marks tests that need real Supabase/network (skipped in unit CI)",
+      "flyer_health: marks tests that check flyer image URLs (external network)",
+  ]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
