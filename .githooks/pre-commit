@@ -8,6 +8,7 @@
 # Layer 3: SIZE GUARD          - BLOQUEIA arquivo >100MB (GitHub rejeita; mais vale parar antes)
 # Layer 4: DOC WATCHDOG        - AVISO leve sobre outros docs
 # Layer 5: AGENTS SCHEMA       - BLOQUEIA se AGENTS.md não passar no schema check
+# Layer 8: CRLF GUARD          - BLOQUEIA arquivos texto com CRLF (previne churn de line-ending)
 #
 # Para pular TODOS os checks:  git commit --no-verify  (usar com consciencia)
 
@@ -253,6 +254,48 @@ if [ -n "${STAGED:-}" ]; then
     echo "  - Rode: python scripts/sanitize.py --execute --quick"
     echo "  - Se o arquivo e intencional, remova-o destas listas em .gitignore"
     echo "  - Ou use 'git commit --no-verify' para emergencia (NAO recomendado)"
+    echo ""
+    exit 1
+  fi
+fi
+
+# ----------------------------------------------------------------
+# 8. CRLF GUARD - BLOQUEIA arquivos texto com CRLF (Windows line endings)
+#    Previne churn de line-ending: o .gitattributes (eol=lf) normaliza no
+#    commit, mas se um arquivo entra com CRLF e um script o reescreve, o git
+#    gera diffs enormes (ex.: docs/changelog.md com 390 linhas de variacao).
+#    Bloquear CRLF na origem elimina o problema de raiz.
+# ----------------------------------------------------------------
+if [ -n "${STAGED:-}" ]; then
+  CRLF_FILES=""
+  OIFS="$IFS"
+  IFS=$'\n'
+  for FILE in $STAGED; do
+    IFS="$OIFS"
+    case "$FILE" in
+      *.py|*.md|*.yml|*.yaml|*.json|*.toml|*.sh|*.txt|*.ini|*.cfg|*.bash|*.lock)
+        # od converte para hex; CR (=0d) so existe em CRLF. grep -qw '0d' casa o byte isolado.
+        if [ -f "$FILE" ] && od -An -tx1 "$FILE" 2>/dev/null | grep -qw '0d'; then
+          CRLF_FILES="${CRLF_FILES}${CRLF_FILES:+\n}  $FILE"
+        fi
+        ;;
+    esac
+  done
+  IFS="$OIFS"
+  if [ -n "$CRLF_FILES" ]; then
+    echo ""
+    echo "🚨 COMMIT BLOQUEADO: arquivos com CRLF (Windows line endings) detectados:"
+    echo "$CRLF_FILES"
+    echo ""
+    echo "O .gitattributes exige eol=lf para estes arquivos. CRLF gera churn de diff"
+    echo "quando scripts (ex.: sync_docs) reescrevem o arquivo."
+    echo ""
+    echo "Correcao (PowerShell):"
+    echo '  foreach ($f in @(<arquivos>)) { (Get-Content $f) | Set-Content -NoNewline -Encoding utf8 $f }'
+    echo "Correcao (bash):"
+    echo "  sed -i 's/\r\$//' <arquivo>"
+    echo ""
+    echo "Bypass de emergencia: git commit --no-verify (NAO recomendado)"
     echo ""
     exit 1
   fi
