@@ -423,11 +423,14 @@ class TestFlyerImages:
     @pytest.mark.flyer_health
     def test_flyer_image_urls_accessible(self):
         """Verifica se URLs de imagem dos flyers são acessíveis (HEAD request)"""
+        # Garante que `os` esta importado antes do guard (F823), ja usado la em baixo
+        if not os.environ.get("SUPABASE_URL") or not os.environ.get("SUPABASE_SERVICE_ROLE_KEY"):
+            pytest.skip("SUPABASE_URL/SERVICE_ROLE_KEY ausentes — health check de flyer requer Supabase")
+
         import httpx
         from dotenv import load_dotenv
 
         load_dotenv()
-        import os
 
         from supabase import create_client
 
