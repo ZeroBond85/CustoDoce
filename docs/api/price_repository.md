@@ -1,6 +1,6 @@
 # `price_repository` — API
 
-> Última atualização: 2026-07-08 21:45 UTC
+> Última atualização: 2026-07-09 01:27 UTC
 > Gerado por AST parsing dos serviços em `services/price_repository.py`.
 
 ## Funções Públicas (4)
