@@ -70,6 +70,11 @@ def sync_scrape_frequencies() -> int:
         ("extra_folheteria", 1, 10080),
         ("pao_de_acucar_fresh", 1, 10080),
         ("dona_dani_ingredientes", 2, 1440),
+        # New stores (slugified IDs must match stores.id from sync_stores_bidirectional.py)
+        ("rede_krill", 2, 1440),
+        ("rede_krill_fb", 3, 10080),
+        ("mercado_primos", 3, 10080),
+        ("supermercados_saito", 3, 10080),
     ]
     synced = 0
     for store_id, tier, freq in freqs:

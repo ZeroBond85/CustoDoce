@@ -31,6 +31,7 @@ from scrapers.pao_flyer_scraper import PaoFlyerScraper
 from scrapers.playwright_price_scraper import PlaywrightPriceScraper
 from scrapers.roldao_api_scraper import RoldaoApiScraper
 from scrapers.roldao_flyer_scraper import RoldaoFlyerScraperSync
+from scrapers.facebook_flyer_scraper import FacebookFlyerScraper
 from scrapers.tenda_api_scraper import TendaApiScraper
 from scrapers.vtex_scraper import VtexScraper
 from scrapers.website_scraper import WebsiteScraper
@@ -696,6 +697,16 @@ def collect_roldao_flyer(ingredients: list[Ingredient]) -> list[PriceEntry]:
         s for s in load_stores() if s.get("scraper") == "roldao_flyer_scraper" and s.get("type") == "aggregator_js"
     ]
     return _collect_prices(stores, RoldaoFlyerScraperSync, ingredients, "RoldaoFlyer")
+
+
+def collect_facebook_flyers(ingredients: list[Ingredient]) -> list[PriceEntry]:
+    stores = [
+        s for s in load_stores()
+        if s.get("scraper") == "facebook_flyer_scraper"
+        and s.get("type") == "facebook_flyer"
+        and s.get("is_active", True)
+    ]
+    return _collect_prices(stores, FacebookFlyerScraper, ingredients, "FacebookFlyer")
 
 
 def process_ocr_queue() -> int:
