@@ -201,6 +201,46 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg, parse_mode="HTML")
 
 
+async def health_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        from services.dashboard_queries import get_scraper_health_dashboard
+
+        health = get_scraper_health_dashboard()
+    except Exception as e:
+        await update.message.reply_text(f"Erro ao obter health: {e}")
+        return
+
+    if not health:
+        await update.message.reply_text("Nenhum dado de health disponível.")
+        return
+
+    total = len(health)
+    excellent = sum(1 for h in health if h.get("health_score", 0) >= 90)
+    good = sum(1 for h in health if 75 <= h.get("health_score", 0) < 90)
+    fair = sum(1 for h in health if 50 <= h.get("health_score", 0) < 75)
+    poor = sum(1 for h in health if 25 <= h.get("health_score", 0) < 50)
+    critical = sum(1 for h in health if h.get("health_score", 0) < 25)
+
+    critical_list = [h["store_name"] for h in health if h.get("health_score", 0) < 50]
+
+    msg = (
+        f"\U0001f52c <b>Saúde dos Scrapers</b>\n\n"
+        f"Total: {total} scrapers\n"
+        f"Excellent (90+): {excellent}\n"
+        f"Good (75-89): {good}\n"
+        f"Fair (50-74): {fair}\n"
+        f"Poor (25-49): {poor}\n"
+        f"Critical (<25): {critical}\n"
+    )
+    if critical_list:
+        msg += "\n\u26a0 Scrapers com saúde baixa:\n"
+        for name in critical_list[:10]:
+            msg += f"  \u2022 {name}\n"
+    msg += "\nDashboard: custodoce.streamlit.app"
+
+    await update.message.reply_text(msg, parse_mode="HTML")
+
+
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = (
         "\U0001f198 <b>Ajuda CustoDoce</b>\n\n"
@@ -255,6 +295,7 @@ def run_bot():
     app.add_handler(CommandHandler("lista", lista_command))
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("scrape", scrape_command))
+    app.add_handler(CommandHandler("health", health_command))
     app.add_handler(CommandHandler("ajuda", help_command))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CallbackQueryHandler(lista_callback, pattern=r"^lista_page_\d+$"))

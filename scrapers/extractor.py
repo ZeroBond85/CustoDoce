@@ -140,6 +140,18 @@ def extract_products(
     lines = extract_lines_from_text(raw_text)
     products = parse_flyer_lines(lines)
 
+    # ── Phase 4: Vision fallback (if OCR produced few/no products) ──
+    if not products and source_type in ("pdf", "image"):
+        try:
+            from parsers.vision_extract import extract_products_via_vision
+
+            vision_products = extract_products_via_vision(content)
+            if vision_products:
+                logger.info("[Extractor] Vision fallback: %d produtos", len(vision_products))
+                return vision_products, raw_text, f"{used_mode}+vision"
+        except Exception as exc:
+            logger.debug("Vision fallback failed: %s", exc)
+
     return products, raw_text, used_mode
 
 
