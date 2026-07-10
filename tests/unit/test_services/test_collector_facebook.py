@@ -1,7 +1,6 @@
 """Test collect_facebook_flyers collector function with mocked dependencies."""
 
-import warnings
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -73,7 +72,6 @@ class TestFacebookFlyerScraper:
         scraper = FacebookFlyerScraper({"name": "TestFB", "base_url": "https://facebook.com/test"})
         assert scraper.page_url == "https://facebook.com/test"
 
-    @pytest.mark.filterwarnings("ignore::RuntimeWarning")
     @patch("scrapers.facebook_flyer_scraper.ocr_image_bytes")
     @patch("scrapers.facebook_flyer_scraper.extract_lines_from_text")
     @patch("scrapers.facebook_flyer_scraper.parse_flyer_lines")
