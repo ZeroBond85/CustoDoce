@@ -87,13 +87,13 @@ def generate_diff(yaml_store: dict, db_store: dict) -> dict:
     return diff
 
 
-def dry_run() -> dict:
+def dry_run() -> dict[str, list]:
     """Dry run sync - shows what would change without applying."""
     client = get_service_client()
     yaml_stores = load_yaml_stores()
     db_stores = load_db_stores()
 
-    report = {
+    report: dict[str, list] = {
         "missing_in_db": [],      # in YAML not in DB
         "orphan_in_db": [],       # in DB not in YAML
         "field_changes": [],      # field differences
@@ -125,7 +125,7 @@ def apply_sync(dry_run: bool = False) -> dict:
     yaml_stores = load_yaml_stores()
     db_stores = load_db_stores()
 
-    results = {"created": 0, "updated": 0, "skipped": 0, "errors": []}
+    results: dict[str, Any] = {"created": 0, "updated": 0, "skipped": 0, "errors": []}
 
     # Upsert YAML stores
     for name, y_store in yaml_stores.items():

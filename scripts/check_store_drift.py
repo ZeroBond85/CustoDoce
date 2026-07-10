@@ -8,6 +8,7 @@ import sys
 import yaml
 import json
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -32,7 +33,7 @@ def load_db_stores() -> dict[str, dict]:
     return {s["name"]: s for s in (res.data or [])}
 
 
-def normalize(val: any) -> str:
+def normalize(val: Any) -> str:
     """Normalize value for comparison."""
     if val is None:
         return ""
@@ -64,7 +65,7 @@ def check_drift(dry_run: bool = False, threshold: int = 92) -> dict:
     yaml_stores = load_yaml_stores()
     db_stores = load_db_stores()
 
-    report = {
+    report: dict = {
         "missing_in_db": [],      # in YAML but not in DB
         "orphan_in_db": [],       # in DB but not in YAML
         "field_drift": [],        # field differences
