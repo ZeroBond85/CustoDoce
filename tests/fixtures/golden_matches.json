@@ -1,0 +1,232 @@
+[
+  {
+    "canonical_name": "Leite Condensado Integral",
+    "expected_match_type": "exato",
+    "expected_brand": "Mo\u00e7a"
+  },
+  {
+    "canonical_name": "Leite Condensado Integral",
+    "expected_match_type": "exato",
+    "expected_brand": "Piracanjuba"
+  },
+  {
+    "canonical_name": "Leite Condensado Integral",
+    "expected_match_type": "exato",
+    "expected_brand": null
+  },
+  {
+    "canonical_name": "Leite Condensado Integral",
+    "expected_match_type": "exato",
+    "expected_brand": null
+  },
+  {
+    "canonical_name": "Leite Condensado Integral",
+    "expected_match_type": "exato",
+    "expected_brand": null
+  },
+  {
+    "canonical_name": "Creme de Leite 20% Gordura",
+    "expected_match_type": "exato",
+    "expected_brand": "Nestl\u00e9"
+  },
+  {
+    "canonical_name": "Creme de Leite 20% Gordura",
+    "expected_match_type": "exato",
+    "expected_brand": "Piracanjuba"
+  },
+  {
+    "canonical_name": "Creme de Leite 20% Gordura",
+    "expected_match_type": "proximo_apelido",
+    "expected_brand": null
+  },
+  {
+    "canonical_name": "Chocolate em P\u00f3 50% Cacau",
+    "expected_match_type": "exato",
+    "expected_brand": "Melken"
+  },
+  {
+    "canonical_name": "Chocolate em P\u00f3 50% Cacau",
+    "expected_match_type": "exato",
+    "expected_brand": "Sicao"
+  },
+  {
+    "canonical_name": "Chocolate em P\u00f3 50% Cacau",
+    "expected_match_type": "exato",
+    "expected_brand": null
+  },
+  {
+    "canonical_name": "Chocolate em P\u00f3 50% Cacau",
+    "expected_match_type": "exato",
+    "expected_brand": null
+  },
+  {
+    "canonical_name": "Chocolate em P\u00f3 50% Cacau",
+    "expected_match_type": "exato",
+    "expected_brand": null
+  },
+  {
+    "canonical_name": "Chocolate em P\u00f3 50% Cacau",
+    "expected_match_type": "exato",
+    "expected_brand": null
+  },
+  {
+    "canonical_name": "Leite em P\u00f3 Integral",
+    "expected_match_type": "exato",
+    "expected_brand": null
+  },
+  {
+    "canonical_name": "Leite em P\u00f3 Integral",
+    "expected_match_type": "exato",
+    "expected_brand": "Ninho"
+  },
+  {
+    "canonical_name": "Leite em P\u00f3 Integral",
+    "expected_match_type": "exato",
+    "expected_brand": null
+  },
+  {
+    "canonical_name": "Granulado Ao Leite",
+    "expected_match_type": "exato",
+    "expected_brand": "Melken"
+  },
+  {
+    "canonical_name": "Granulado Ao Leite",
+    "expected_match_type": "exato",
+    "expected_brand": null
+  },
+  {
+    "canonical_name": "Creme de Avel\u00e3",
+    "expected_match_type": "exato",
+    "expected_brand": "Nutella"
+  },
+  {
+    "canonical_name": "Creme de Avel\u00e3",
+    "expected_match_type": "exato",
+    "expected_brand": null
+  },
+  {
+    "canonical_name": "Granulado Colorido",
+    "expected_match_type": "exato",
+    "expected_brand": null
+  },
+  {
+    "canonical_name": "Coco Ralado Grosso sem A\u00e7\u00facar",
+    "expected_match_type": "exato",
+    "expected_brand": "Soc\u00f4co"
+  },
+  {
+    "canonical_name": "Chocolate Nobre Blend",
+    "expected_match_type": "exato",
+    "expected_brand": "Harald"
+  },
+  {
+    "canonical_name": "A\u00e7\u00facar Mascavo",
+    "expected_match_type": "exato",
+    "expected_brand": "JR"
+  },
+  {
+    "canonical_name": "A\u00e7\u00facar Mascavo",
+    "expected_match_type": "exato",
+    "expected_brand": null
+  },
+  {
+    "canonical_name": "A\u00e7\u00facar de Confeiteiro",
+    "expected_match_type": "exato",
+    "expected_brand": "Mavalerio"
+  },
+  {
+    "canonical_name": "Chocolate em P\u00f3 70% Cacau",
+    "expected_match_type": "exato",
+    "expected_brand": "Sicao"
+  },
+  {
+    "canonical_name": "Farinha de Trigo",
+    "expected_match_type": "exato",
+    "expected_brand": "Dona Benta"
+  },
+  {
+    "canonical_name": "Micro Ball",
+    "expected_match_type": "exato",
+    "expected_brand": "Mavalerio"
+  },
+  {
+    "canonical_name": "Top Confete Morango",
+    "expected_match_type": "exato",
+    "expected_brand": "Harald"
+  },
+  {
+    "canonical_name": "Gotas de Chocolate Branco",
+    "expected_match_type": "exato",
+    "expected_brand": "Melken"
+  },
+  {
+    "canonical_name": "Manteiga",
+    "expected_match_type": "exato",
+    "expected_brand": null
+  },
+  {
+    "canonical_name": "Manteiga",
+    "expected_match_type": "exato",
+    "expected_brand": "Piracanjuba"
+  },
+  {
+    "canonical_name": "Manteiga",
+    "expected_match_type": "exato",
+    "expected_brand": null
+  },
+  {
+    "canonical_name": "Gotas de Chocolate Meio Amargo",
+    "expected_match_type": "exato",
+    "expected_brand": "Harald"
+  },
+  {
+    "canonical_name": "Gotas de Chocolate Meio Amargo",
+    "expected_match_type": "exato",
+    "expected_brand": null
+  },
+  {
+    "canonical_name": "Ess\u00eancia de Baunilha",
+    "expected_match_type": "exato",
+    "expected_brand": "Mavalerio"
+  },
+  {
+    "canonical_name": "Ess\u00eancia de Baunilha",
+    "expected_match_type": "exato",
+    "expected_brand": null
+  },
+  {
+    "canonical_name": "Chocolate Leite Cremoso 500g",
+    "expected_ingredient": null,
+    "expected_match_type": null,
+    "expected_brand": null
+  },
+  {
+    "canonical_name": "A\u00e7\u00facar Refinado Uni\u00e3o 1kg",
+    "expected_ingredient": null,
+    "expected_match_type": null,
+    "expected_brand": null
+  },
+  {
+    "canonical_name": "Margarina Doriana 500g",
+    "expected_ingredient": null,
+    "expected_match_type": null,
+    "expected_brand": null
+  },
+  {
+    "canonical_name": "Doce de Leite Vi\u00e7osa 400g",
+    "expected_ingredient": null,
+    "expected_match_type": null,
+    "expected_brand": null
+  },
+  {
+    "canonical_name": "Amaciante",
+    "expected_ingredient": null,
+    "expected_match_type": null,
+    "expected_brand": null
+  },
+  {
+    "canonical_name": "Creme de Leite Nestl\u00e9",
+    "expected_match_type": "exato",
+    "expected_brand": "Nestl\u00e9"
+  }
+]
