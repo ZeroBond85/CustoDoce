@@ -1,5 +1,5 @@
 # CustoDoce — Estrutura de Testes e Qualidade
-> Última atualização: 2026-07-09 23:05 UTC
+> Última atualização: 2026-07-10 23:06 UTC
 
 Este projeto utiliza uma estratégia de testes em múltiplas camadas para garantir a estabilidade de toda a pipeline de coleta e análise de preços.
 
