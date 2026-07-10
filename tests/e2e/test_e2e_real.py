@@ -11,7 +11,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pytest
-from playwright.sync_api import sync_playwright
 
 # Single source of truth: import from navigation_config (MENU_GROUPS drives st.navigation)
 from dashboard.navigation_config import MENU_GROUPS
@@ -214,13 +213,7 @@ def navigate_to_page(app, page, label):
     return False
 
 
-@pytest.fixture(scope="session")
-def browser():
-    with sync_playwright() as p:
-        b = p.chromium.launch(headless=True, args=["--no-sandbox"])
-        yield b
-        b.close()
-
+# browser fixture is shared via conftest.py (session-scoped) to avoid duplicate launches
 
 @pytest.fixture(scope="session")
 def logged_in_app(browser):
@@ -247,35 +240,29 @@ def logged_in_app_and_page(browser):
 class TestE2EReal:
     """D1 — Playwright E2E contra Streamlit Cloud"""
 
-    def test_home_mobile(self):
+    def test_home_mobile(self, browser):
         """Home carrega em viewport mobile (320px)"""
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
-            page = browser.new_page(viewport={"width": 320, "height": 568})
-            page.goto(BASE_URL, timeout=120000)
-            app = login_to_app(page)
-            check_for_errors(app, "home_mobile", page=page)
-            browser.close()
+        page = browser.new_page(viewport={"width": 320, "height": 568})
+        page.goto(BASE_URL, timeout=120000)
+        app = login_to_app(page)
+        check_for_errors(app, "home_mobile", page=page)
+        page.close()
 
-    def test_home_tablet(self):
+    def test_home_tablet(self, browser):
         """Home carrega em viewport tablet (768px)"""
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
-            page = browser.new_page(viewport={"width": 768, "height": 1024})
-            page.goto(BASE_URL, timeout=120000)
-            app = login_to_app(page)
-            check_for_errors(app, "home_tablet", page=page)
-            browser.close()
+        page = browser.new_page(viewport={"width": 768, "height": 1024})
+        page.goto(BASE_URL, timeout=120000)
+        app = login_to_app(page)
+        check_for_errors(app, "home_tablet", page=page)
+        page.close()
 
-    def test_home_desktop(self):
+    def test_home_desktop(self, browser):
         """Home carrega em viewport desktop (1280px)"""
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
-            page = browser.new_page(viewport={"width": 1280, "height": 800})
-            page.goto(BASE_URL, timeout=120000)
-            app = login_to_app(page)
-            check_for_errors(app, "home_desktop", page=page)
-            browser.close()
+        page = browser.new_page(viewport={"width": 1280, "height": 800})
+        page.goto(BASE_URL, timeout=120000)
+        app = login_to_app(page)
+        check_for_errors(app, "home_desktop", page=page)
+        page.close()
 
     @pytest.mark.parametrize("page_id,label,expected", PAGES)
     def test_tab_navigates_without_error(self, logged_in_app_and_page, page_id, label, expected):
@@ -414,20 +401,38 @@ class TestE2EReal:
 
 
 class TestFlyerImages:
-    """D9 — Health check das URLs de imagem dos flyers
+    """D9 — Health check das URLs de imagem dos flyers.
 
-    Isolado em job separado (e2e.yml) com continue-on-error: true
-    pois faz HEAD requests a URLs externas (flaky por rede).
+    Faz HEAD requests a URLs externas (CDN de imagens). Para tolerar
+    flakiness de rede sem skip, faz ate 2 retries por URL antes de
+    reportar como broken.
     """
 
-    @pytest.mark.flyer_health
-    def test_flyer_image_urls_accessible(self):
-        """Verifica se URLs de imagem dos flyers são acessíveis (HEAD request)"""
-        # Garante que `os` esta importado antes do guard (F823), ja usado la em baixo
-        if not os.environ.get("SUPABASE_URL") or not os.environ.get("SUPABASE_SERVICE_ROLE_KEY"):
-            pytest.skip("SUPABASE_URL/SERVICE_ROLE_KEY ausentes — health check de flyer requer Supabase")
-
+    @staticmethod
+    def _head_with_retry(url: str, retries: int = 2):
         import httpx
+
+        last_exc = None
+        for attempt in range(retries + 1):
+            try:
+                return httpx.head(url, timeout=10, follow_redirects=True)
+            except Exception as e:
+                last_exc = e
+                if attempt < retries:
+                    import time
+                    time.sleep(0.5)
+        raise last_exc
+
+    def test_flyer_image_urls_accessible(self):
+        """Verifica se URLs de imagem dos flyers sao acessiveis (HEAD request)
+
+        Requer SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no ambiente (CI ja tem).
+        Falhas reais de URLs broken sao reportadas; flakiness de rede e
+        mitigada por retry interno.
+        """
+        assert os.environ.get("SUPABASE_URL"), "SUPABASE_URL ausente"
+        assert os.environ.get("SUPABASE_SERVICE_ROLE_KEY"), "SUPABASE_SERVICE_ROLE_KEY ausente"
+
         from dotenv import load_dotenv
 
         load_dotenv()
@@ -441,9 +446,10 @@ class TestFlyerImages:
             url = flyer.get("image_url", "")
             if url:
                 try:
-                    resp = httpx.head(url, timeout=10, follow_redirects=True)
+                    resp = self._head_with_retry(url)
                     if resp.status_code >= 400:
                         broken.append(f"{url[:80]}... HTTP {resp.status_code}")
                 except Exception as e:
+                    # Apos retries esgotados, conta como broken
                     broken.append(f"{url[:80]}... {e}")
         assert len(broken) == 0, f"D9: {len(broken)} imagens quebradas:\n" + "\n".join(broken[:5])
