@@ -133,6 +133,10 @@ def main(args: Namespace | None = None):
         roldao_products = collector.collect_roldao_flyer(ingredients)
         logger.info("roldao_flyer_collected", count=len(roldao_products))
 
+        logger.info("collecting_facebook_flyers")
+        fb_products = collector.collect_facebook_flyers(ingredients)
+        logger.info("facebook_flyers_collected", count=len(fb_products))
+
         all_products = (
             tier1_products
             + extra_products
@@ -142,6 +146,7 @@ def main(args: Namespace | None = None):
             + carrefour_products
             + js_products
             + roldao_products
+            + fb_products
         )
 
         try:

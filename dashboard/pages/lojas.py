@@ -15,7 +15,7 @@ def render_lojas():
 
     st.title("Gerenciamento de Lojas")
 
-    tabs = st.tabs(["📋 Lista", "➕ Adicionar/Editar"])
+    tabs = st.tabs(["📋 Lista", "➕ Adicionar/Editar", "🟡 Pendentes"])
 
     st.info(
         "💡 A edição de YAML (stores.yaml) deve ser feita via git e commit. Use os formulários acima para alterações seguras."
@@ -29,7 +29,7 @@ def render_lojas():
 
         if stores:
             df = pd.DataFrame(stores)
-            expected_cols = ["id", "name", "tier", "scraper", "city", "active", "base_url"]
+            expected_cols = ["id", "name", "tier", "scraper", "city", "active", "source", "base_url"]
             df = df.reindex(columns=[c for c in expected_cols if c in df.columns])
             st.dataframe(df, use_container_width=True)
 
@@ -62,6 +62,7 @@ def render_lojas():
                 "scraper": "website_scraper",
                 "city": "Santos",
                 "active": True,
+                "source": "yaml",
                 "base_url": "",
                 "search_url": "",
                 "selectors": {},
@@ -86,7 +87,11 @@ def render_lojas():
                         "max_api_scraper",
                         "carrefour_scraper",
                         "playwright_scraper",
+                        "playwright_price_scraper",
                         "pao_flyer_scraper",
+                        "extra_flyer_scraper",
+                        "facebook_flyer_scraper",
+                        "manual",
                     ],
                     index=[
                         "flyer_scraper",
@@ -97,11 +102,16 @@ def render_lojas():
                         "max_api_scraper",
                         "carrefour_scraper",
                         "playwright_scraper",
+                        "playwright_price_scraper",
                         "pao_flyer_scraper",
+                        "extra_flyer_scraper",
+                        "facebook_flyer_scraper",
+                        "manual",
                     ].index(default["scraper"]),
                 )
                 city = st.text_input("Cidade", value=default["city"])
                 active = st.checkbox("Ativa", value=default.get("active", True))
+                _ = st.selectbox("Origem", ["yaml", "portal"], index=["yaml", "portal"].index(default.get("source", "yaml")))
 
             with col2:
                 base_url = st.text_input("Base URL", value=default.get("base_url", ""))
@@ -154,3 +164,55 @@ def render_lojas():
 
 
 __all__ = ["render_lojas"]
+
+
+def _render_pending_tab():
+    """Render pending stores review tab."""
+    try:
+        from services.store_registry import get_pending_review, approve_registry_entry, reject_registry_entry
+    except Exception as exc:
+        st.error(f"Erro ao importar store_registry: {exc}")
+        return
+
+    pending = get_pending_review(limit=100)
+
+    if not pending:
+        st.success("Nenhuma loja pendente de revisão!")
+        return
+
+    st.subheader(f"Lojas Pendentes ({len(pending)})")
+
+    for entry in pending:
+        with st.expander(f"{entry.name} (Tier {entry.tier}, Match: {entry.match_score:.0%})"):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write(f"**Nome:** {entry.name}")
+                st.write(f"**Tier:** {entry.tier}")
+                st.write(f"**Tipo:** {entry.type}")
+                st.write(f"**Cidade:** {entry.city or '-'}")
+                st.write(f"**Origem:** {entry.source}")
+                if entry.matched_store_id:
+                    st.write(f"**Loja Similar:** {entry.matched_store_id}")
+            with col2:
+                if entry.config:
+                    st.json(entry.config)
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                if st.button("✅ Aprovar e Mesclar", key=f"approve_{entry.id}", type="primary") and approve_registry_entry(entry.id):
+                    st.success("Aprovado e mesclado!")
+                    st.rerun()
+            with col2:
+                if st.button("✅ Aprovar (Sem Mesclar)", key=f"approve_nomerge_{entry.id}"):
+                    try:
+                        from services.supabase_client import get_service_client
+                        client = get_service_client()
+                        client.table("store_registry").update({"status": "approved"}).eq("id", entry.id).execute()
+                        st.success("Aprovado!")
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(f"Erro: {exc}")
+            with col3:
+                if st.button("❌ Rejeitar", key=f"reject_{entry.id}") and reject_registry_entry(entry.id):
+                    st.warning("Rejeitado!")
+                    st.rerun()

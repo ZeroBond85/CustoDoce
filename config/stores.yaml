@@ -300,6 +300,25 @@ stores:
     scraper: "playwright_price_scraper"
     priority: 12
 
+  - name: "Rede Krill"
+    tier: 2
+    type: "website_js"
+    is_active: true
+    logistics: "pickup_local"
+    base_url: "https://www.lojasredekrill.com.br"
+    search_url: "https://www.lojasredekrill.com.br/busca?q={query}"
+    selectors:
+      product_card: [".product-card", ".produto-card", ".item-produto", "[class*=product]", "[class*=produto]"]
+      product_name: [".product-name a", ".nome-produto", ".product-title a", "h2 a", "h3 a"]
+      product_price: [".product-price", ".preco-produto", ".price", ".sale-price"]
+    address: "Praia Grande, SP"
+    city: "Praia Grande"
+    zone: "baixada_santista"
+    coverage: "Atacado e varejo ingredientes confeitaria, chocolates, laticínios"
+    collection_method: "automated"
+    scraper: "playwright_price_scraper"
+    priority: 13
+
   - name: "Casa Santa Luzia"
     tier: 2
     type: "vtex_api"
@@ -663,6 +682,52 @@ stores:
     priority: 34
 
   # ============================================================================
+  # TIER 3C - FACEBOOK FLYERS (Best-effort OCR via Playwright)
+  # ============================================================================
+  - name: "Rede Krill (Facebook)"
+    tier: 3
+    type: "facebook_flyer"
+    logistics: "pickup_local"
+    page_url: "https://www.facebook.com/RedeKrill"
+    city: "Praia Grande"
+    zone: "baixada_santista"
+    coverage: "Flyers semanais via Facebook — OCR automático best-effort"
+    collection_method: "automated"
+    scraper: "facebook_flyer_scraper"
+    priority: 35
+    # Fallback manual fields
+    address: "Praia Grande, SP"
+    contact: "facebook.com/RedeKrill"
+
+  - name: "Mercado Primos"
+    tier: 3
+    type: "facebook_flyer"
+    logistics: "pickup_local"
+    page_url: "https://www.facebook.com/MERCADOPRIMOS1/"
+    city: "Mongaguá"
+    zone: "baixada_santista"
+    coverage: "Flyers semanais via Facebook — OCR automático best-effort"
+    collection_method: "automated"
+    scraper: "facebook_flyer_scraper"
+    priority: 36
+    address: "Mongaguá, SP"
+    contact: "facebook.com/MERCADOPRIMOS1"
+
+  - name: "Supermercados Saito"
+    tier: 3
+    type: "facebook_flyer"
+    logistics: "pickup_local"
+    page_url: "https://www.facebook.com/supermercados.saito/"
+    city: "Itanhaém"
+    zone: "baixada_santista"
+    coverage: "Flyers semanais via Facebook — OCR automático best-effort"
+    collection_method: "automated"
+    scraper: "facebook_flyer_scraper"
+    priority: 37
+    address: "Itanhaém, SP"
+    contact: "facebook.com/supermercados.saito"
+
+  # ============================================================================
   # TIER 2C - E-COMMERCE NACIONAL / REGIONAL
   # ============================================================================
   - name: "Chocolândia"
@@ -1016,3 +1081,15 @@ stores:
     scraper: "website_scraper"
     contact: ""
     priority: 52
+
+  - name: "Pratico Suarão"
+    tier: 4
+    type: "manual"
+    logistics: "pickup_local"
+    page_url: "https://www.facebook.com/p/Pratico-Suar%C3%A3o-61560796335199/"
+    address: "Itanhaém, SP"
+    city: "Itanhaém"
+    coverage: "Instabuy promocional + Facebook — Cloudflare bloqueia API; coleta manual via planilha/visita"
+    collection_method: "manual"
+    contact: "facebook.com/p/Pratico-Suarão-61560796335199/; instabuy.app.br"
+    priority: 53
