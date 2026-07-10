@@ -17,7 +17,7 @@ def extract_all_keywords(ingredients: list[Ingredient]) -> set:
 
 
 def has_ingredient_keyword(product_text: str, keywords: set) -> bool:
-    product_words = {w.upper() for w in product_text.split() if len(w) > 2}
+    product_words = {re.sub(r"[^A-Z0-9]", "", w.upper()) for w in product_text.split() if len(w) > 2}
     return bool(product_words & keywords)
 
 
@@ -56,6 +56,8 @@ def build_alias_list(ingredients: list[Ingredient]) -> list[tuple[str, str, list
         alias_map.append((canonical, canonical, aliases))
         for alias in aliases:
             alias_map.append((canonical, alias, aliases))
+        for search_term in ing.get("search_terms", []):
+            alias_map.append((canonical, search_term, aliases))
     return alias_map
 
 
@@ -68,6 +70,10 @@ def match_exact(product_text: str, ingredient: Ingredient) -> bool:
 
     for alias in ingredient.get("aliases", []):
         if alias.upper() in product_upper:
+            return True
+
+    for search_term in ingredient.get("search_terms", []):
+        if search_term.upper() in product_upper:
             return True
 
     # Check all words from canonical in product text
@@ -108,6 +114,14 @@ def match_ingredient(
                 best_ingredient = ing
                 match_type = "proximo_apelido"
 
+        for search_term in ing.get("search_terms", []):
+            search_clean = clean_text(search_term)
+            score = fuzz.token_set_ratio(product_clean, search_clean)
+            if score > best_score:
+                best_score = score
+                best_ingredient = ing
+                match_type = "proximo_apelido"
+
     if best_score >= threshold:
         return best_ingredient, best_score, match_type
 
@@ -136,6 +150,14 @@ def rank_ingredients(
                 score = alias_score
                 match_type = "proximo_apelido"
                 matched_term = alias
+
+        for search_term in ing.get("search_terms", []):
+            search_clean = clean_text(search_term)
+            search_score = fuzz.token_set_ratio(product_clean, search_clean)
+            if search_score > score:
+                score = search_score
+                match_type = "proximo_apelido"
+                matched_term = search_term
 
         candidates.append((ing, score, match_type, matched_term))
 
