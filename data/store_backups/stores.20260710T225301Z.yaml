@@ -1,0 +1,1095 @@
+stores:
+  # ============================================================================
+  # TIER 1 - PDF DIRETO (Automação Total, 6 redes)
+  # ============================================================================
+  - name: "Assaí Atacadista"
+    tier: 1
+    type: "pdf_flyer"
+    logistics: "pickup_local"
+    cities: ["Santos", "São Vicente", "Praia Grande"]
+    state: "sp"
+    store_slug: "santos"
+    units:
+      - name: "Santos - Ana Costa"
+        address: "Av. Anna Costa, 340 - Vila Matias, Santos"
+      - name: "Santos - Sabóo"
+        address: "Av. Nossa Sra. de Fátima, 50 - Sabóo, Santos"
+      - name: "São Vicente"
+        address: "Av. Antônio Emmerich, 245 - Vila Cascatinha, São Vicente"
+      - name: "Praia Grande - Glória"
+        address: "Av. Min. Marcos Freire, 1.600 - Glória, Praia Grande"
+      - name: "Praia Grande - Emboaçu"
+        address: "Av. Pres. Kennedy, 9271 - Emboaçu, Praia Grande"
+    url_pattern: "https://www.assai.com.br/printpdf/ofertas/{state}/{store_slug}"
+    url_type: "printpdf"
+    publish_day: "wednesday"
+    collection_method: "automated"
+    scraper: "flyer_scraper"
+    priority: 1
+
+  - name: "Atacadão"
+    tier: 1
+    type: "pdf_flyer"
+    logistics: "pickup_local"
+    cities: ["Santos", "São Vicente", "Praia Grande", "Itanhaém"]
+    units:
+      - name: "Santos"
+        address: "Av. Pres. Wilson, 2386 - Marapé, Santos"
+      - name: "São Vicente"
+        address: "Av. Antônio Emmerich, 456 - Vila Cascatinha, São Vicente"
+      - name: "Praia Grande"
+        address: "Av. Pres. Kennedy, 8000 - Tupi, Praia Grande"
+      - name: "Itanhaém"
+        address: "R. Jordão Brambilla, 2061 - Corumbá, Itanhaém"
+    url_pattern: "https://atacadao.encarte.br.com/images/atacadao/atacadao-weekly-ad.pdf"
+    url_type: "direct_pdf"
+    publish_day: "wednesday"
+    collection_method: "automated"
+    scraper: "flyer_scraper"
+    priority: 2
+
+  - name: "Spani Atacadista"
+    tier: 1
+    type: "pdf_flyer"
+    logistics: "pickup_local"
+    cities: ["São Vicente", "Praia Grande", "Mongaguá"]
+    units:
+      - name: "São Vicente"
+        address: "Av. Antônio Emmerich, 112 - Centro, São Vicente"
+      - name: "Praia Grande"
+        address: "Av. Pres. Kennedy, 7000 - Canto do Forte, Praia Grande"
+    url_pattern: "https://spani-tabloides-bucket.s3.us-east-1.amazonaws.com/tabloides/{store-slug}-{hash}.pdf"
+    url_type: "s3_bucket"
+    publish_day: "wednesday"
+    collection_method: "automated"
+    scraper: "flyer_scraper"
+    priority: 3
+
+  - name: "Mercadão Atacadista"
+    tier: 1
+    type: "pdf_flyer"
+    logistics: "pickup_local"
+    cities: ["Mongaguá", "Itanhaém"]
+    units:
+      - name: "Mongaguá"
+        address: "Av. Monteiro Lobato, 5082 - Vila Atlântica, Mongaguá"
+      - name: "Itanhaém"
+        address: "Av. Jaime de Castro, s/n - Satélite, Itanhaém"
+    url_pattern: "https://www.mercadaoatacadista.com.br/encarte/semana-{week}.pdf"
+    url_type: "direct_pdf"
+    publish_day: "wednesday"
+    collection_method: "automated"
+    scraper: "flyer_scraper"
+    priority: 4
+
+  - name: "Tenda Atacado"
+    tier: 1
+    type: "api_flyer"
+    logistics: "pickup_local"
+    cities: ["Santos", "São Vicente", "Praia Grande"]
+    units:
+      - name: "Santos"
+        address: "Santos"
+      - name: "São Vicente"
+        address: "São Vicente"
+    api_base: "https://api.tendaatacado.com.br/api/public/branch"
+    api_endpoints:
+      flyers: "/flyers?per_page=12&page={page}"
+      branch_flyers: "/{branch_id}/flyers?per_page=12"
+      all_branches: "/flyers/all-branchs"
+    image_host: "d3gdr9n5lqb5z7.cloudfront.net"
+    publish_day: "wednesday"
+    collection_method: "automated"
+    scraper: "tenda_api_scraper"
+    priority: 5
+
+  - name: "Roldão Atacadista"
+    tier: 1
+    type: "api_flyer"
+    logistics: "pickup_local"
+    cities: ["Santos", "Praia Grande"]
+    units:
+      - name: "Santos"
+        address: "Santos"
+      - name: "Praia Grande"
+        address: "Praia Grande"
+    api_base: "https://blog.roldao.com.br/wp-json/wp/v2"
+    api_endpoints:
+      posts: "/posts?per_page=10&categories=10"
+      media: "/media/{media_id}"
+    image_host: "blog.roldao.com.br"
+    publish_day: "wednesday"
+    collection_method: "automated"
+    scraper: "roldao_api_scraper"
+    priority: 6
+    verify_ssl: false
+
+  # ============================================================================
+  # TIER 1B - PDF DIRETO SP CAPITAL (Atacadistas com filial em SP)
+  # ============================================================================
+  - name: "Sam's Club SP"
+    tier: 1
+    type: "vtex_api"
+    logistics: "pickup_sp"
+    cities: ["São Paulo"]
+    units:
+      - name: "SP - Bom Retiro"
+        address: "Av. Rudge, 500 - Bom Retiro, SP"
+      - name: "SP - Quarta Parada"
+        address: "Rua Padre Adelino, 685 - Quarta Parada, SP"
+      - name: "SP - Butantã"
+        address: "Av. Prof. Francisco Morato, 2585 - Butantã, SP"
+      - name: "SP - Jabaquara"
+        address: "Av. Eng. George Corbisier, 273 - Jabaquara, SP"
+    base_url: "https://www.samsclub.com.br"
+    api_endpoint: "https://www.samsclub.com.br/api/catalog_system/pub/products/search"
+    publish_day: "thursday"
+    collection_method: "automated"
+    scraper: "vtex_scraper"
+    priority: 50
+
+  - name: "Max Atacadista SP"
+    tier: 1
+    type: "api_flyer"
+    logistics: "pickup_sp"
+    cities: ["São Paulo"]
+    units:
+      - name: "SP - Zona Sul"
+        address: "São Paulo, SP"
+    api_base: "https://institucional.supermuffato.com.br/webtools/services/api"
+    api_endpoint: "sm-rds-ofertas.php"
+    api_params: "action=getOffers&store={store_id}"
+    image_host: "institucional.supermuffato.com.br"
+    publish_day: "thursday"
+    collection_method: "automated"
+    scraper: "max_api_scraper"
+    priority: 52
+
+  # ============================================================================
+  # TIER 1 EXTRA - Folheteria digital Extra (folheteria.clubeextra.com.br)
+  # ============================================================================
+  - name: "Extra Folheteria"
+    tier: 1
+    type: "extra_flyer"
+    logistics: "pickup_sp"
+    cities: ["São Paulo", "Grande São Paulo", "Santos", "São Vicente", "Praia Grande", "Mongaguá", "Itanhaém", "Peruíbe"]
+    collection_method: "automated"
+    scraper: "extra_flyer_scraper"
+    priority: 10
+
+  - name: "Pão de Açúcar Fresh"
+    tier: 1
+    type: "pao_flyer"
+    logistics: "pickup_sp"
+    cities: ["São Paulo", "Grande São Paulo", "Santos", "São Vicente", "Praia Grande", "Mongaguá", "Itanhaém", "Peruíbe"]
+    collection_method: "automated"
+    scraper: "pao_flyer_scraper"
+    priority: 10
+
+  # ============================================================================
+  # TIER 2 - E-COMMERCE SP CAPITAL (API VTEX / Site Próprio - Entregam na Baixada)
+  # ============================================================================
+  - name: "Loja Santo Antônio"
+    tier: 2
+    type: "vtex_api"
+    logistics: "pickup_sp"
+    base_url: "https://www.lojasantoantonio.com.br"
+    api_endpoint: "https://www.lojasantoantonio.com.br/api/catalog_system/pub/products/search"
+    address: "Rua da Cantareira, 56 - Centro, SP"
+    zone: "centro"
+    coverage: "Referência completa - chocolates, ingredientes, embalagens, utensílios"
+    collection_method: "automated"
+    scraper: "vtex_scraper"
+    priority: 7
+
+  - name: "Bom Baiano / Loja de Doces"
+    tier: 2
+    type: "website_catalog"
+    logistics: "pickup_sp"
+    base_url: "https://www.lojadedoces.com.br"
+    search_url: "https://www.lojadedoces.com.br/loja/busca.php?palavra_busca={query}"
+    selectors:
+      product_card: [".product", "li.product", ".product-item", ".item"]
+      product_name: [".woocommerce-loop-product__title", "h2 a", ".product-title"]
+      product_price: [".price", ".amount", ".woocommerce-Price-amount"]
+    address: "Rua Brigadeiro Tobias, 206 - Santa Ifigênia, SP"
+    zone: "centro"
+    coverage: "Doces, chocolates, ingredientes, embalagens"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 8
+
+  - name: "Rizzo Confeitaria"
+    tier: 2
+    type: "website_catalog"
+    is_active: true
+    logistics: "pickup_sp"
+    base_url: "https://www.rizzoconfeitaria.com.br"
+    search_url: "https://www.rizzoconfeitaria.com.br/buscar?q={query}"
+    selectors:
+      product_card: [".listagem-item", "[data-id]"]
+      product_name: [".nome-produto"]
+      product_price: [".preco-promocional"]
+    address: "Rua da Cantareira, 56 - Centro Histórico, SP"
+    zone: "centro"
+    coverage: "15k+ SKUs - chocolates, ingredientes, embalagens, utensílios — Loja Integrada/Tray (data-sell-price)"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 9
+
+  - name: "Amendolate"
+    tier: 2
+    type: "website_catalog"
+    is_active: false
+    logistics: "pickup_sp"
+    base_url: "https://www.amendolate.com.br"
+    search_url: "https://www.amendolate.com.br/busca?q={query}"
+    selectors:
+      product_card: ["li", ".product-item", ".item", ".produto"]
+      product_name: ["a", ".product-name", ".nome-produto", "h3 a"]
+      product_price: [".price", ".preco", ".preco-promocional"]
+    address: "Rua Schilling, 577 - Vila Leopoldina, SP"
+    zone: "oeste"
+    coverage: "4.210 SKUs - chocolates, leite condensado, corantes, pasta americana, formas, utensílios - Loja Própria (ex-VTEX)"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 10
+    headers:
+      Referer: "https://www.amendolate.com.br/"
+      Origin: "https://www.amendolate.com.br"
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
+      Accept-Language: "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7"
+      Accept-Encoding: "gzip, deflate, br"
+      Connection: "keep-alive"
+      Upgrade-Insecure-Requests: "1"
+      Sec-Fetch-Dest: "document"
+      Sec-Fetch-Mode: "navigate"
+      Sec-Fetch-Site: "same-origin"
+      Sec-Fetch-User: "?1"
+      Cache-Control: "max-age=0"
+
+  - name: "Central Flavor"
+    tier: 2
+    type: "vtex_api"
+    is_active: false
+    inactive_reason: "DNS nao resolve — site fora do ar."
+    logistics: "pickup_sp"
+    base_url: "https://www.centralflavor.com.br"
+    address: "Rua Pamplona, 1755 - Jardim Paulista, SP"
+    zone: "sul"
+    coverage: "Confeitaria, panificação, chocolateria, sorveteria, food service"
+    collection_method: "automated"
+    scraper: "vtex_scraper"
+    priority: 11
+
+  - name: "BarraDoce"
+    tier: 2
+    type: "website_js"
+    is_active: true
+    logistics: "pickup_sp"
+    base_url: "https://www.barradoce.com.br"
+    search_url: "https://www.barradoce.com.br/busca?q={query}"
+    selectors:
+      product_card: [".product-card", ".produto-card", ".item-produto", "[class*=product]", "[class*=produto]"]
+      product_name: [".product-name a", ".nome-produto", ".product-title a", "h2 a", "h3 a"]
+      product_price: [".product-price", ".preco-produto", ".price", ".sale-price"]
+    address: "Av. dos Eucaliptos, 305 - Indianópolis, SP"
+    zone: "sul"
+    coverage: "Atacado chocolates, ingredientes, confeitaria"
+    collection_method: "automated"
+    scraper: "playwright_price_scraper"
+    priority: 12
+
+  - name: "Rede Krill"
+    tier: 2
+    type: "website_js"
+    is_active: true
+    logistics: "pickup_local"
+    base_url: "https://www.lojasredekrill.com.br"
+    search_url: "https://www.lojasredekrill.com.br/busca?q={query}"
+    selectors:
+      product_card: [".product-card", ".produto-card", ".item-produto", "[class*=product]", "[class*=produto]"]
+      product_name: [".product-name a", ".nome-produto", ".product-title a", "h2 a", "h3 a"]
+      product_price: [".product-price", ".preco-produto", ".price", ".sale-price"]
+    address: "Praia Grande, SP"
+    city: "Praia Grande"
+    zone: "baixada_santista"
+    coverage: "Atacado e varejo ingredientes confeitaria, chocolates, laticínios"
+    collection_method: "automated"
+    scraper: "playwright_price_scraper"
+    priority: 13
+
+  - name: "Casa Santa Luzia"
+    tier: 2
+    type: "vtex_api"
+    is_active: true
+    logistics: "pickup_sp"
+    base_url: "https://www.santaluzia.com.br"
+    api_endpoint: "https://www.santaluzia.com.br/api/catalog_system/pub/products/search"
+    address: "São Paulo"
+    zone: "centro"
+    coverage: "Premium, ingredientes especiais, importados — migrou de casasantaluzia.com.br para santaluzia.com.br"
+    collection_method: "automated"
+    scraper: "vtex_scraper"
+    priority: 13
+
+  - name: "Lojas Funchal"
+    tier: 2
+    type: "vtex_api"
+    logistics: "pickup_sp"
+    base_url: "https://www.lojasfunchal.com.br"
+    address: "Rua Capitão Gabriel, 140 - Centro, Guarulhos"
+    city: "Guarulhos"
+    zone: "norte"
+    coverage: "Atacado doces, chocolates, confeitaria, embalagens, festas - 3 lojas físicas"
+    units:
+      - name: "Guarulhos"
+        address: "Rua Capitão Gabriel, 140 - Centro, Guarulhos"
+      - name: "Vila Prudente"
+        address: "Rua Francisca Dória Ribas, 40 - Vila Prudente, SP"
+      - name: "Penha"
+        address: "Rua dos Três Irmãos, 378 - Penha, SP"
+    collection_method: "automated"
+    scraper: "vtex_scraper"
+    priority: 14
+
+  - name: "Casa dos Confeiteiros"
+    tier: 2
+    type: "website_catalog"
+    is_active: false
+    logistics: "pickup_sp"
+    base_url: "https://www.casadosconfeiteiros.com.br"
+    address: "São Paulo"
+    zone: "centro"
+    coverage: "Insumos gerais confeitaria (inativo - domínio fora do ar)"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 14
+
+  - name: "Empório da Confeitaria"
+    tier: 2
+    type: "website_catalog"
+    is_active: false
+    logistics: "pickup_sp"
+    base_url: "https://www.emporioconfeitaria.com.br"
+    address: "São Paulo"
+    zone: "centro"
+    coverage: "Insumos, embalagens (inativo - domínio fora do ar)"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 15
+
+  - name: "Doce Festa"
+    tier: 2
+    type: "website_catalog"
+    is_active: false
+    logistics: "pickup_sp"
+    base_url: "https://www.docefesta.com.br"
+    address: "São Paulo"
+    zone: "centro"
+    coverage: "Artigos festa + insumos (inativo - domínio fora do ar)"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 16
+
+  - name: "GP Distribuidora"
+    tier: 2
+    type: "website_catalog"
+    is_active: false
+    logistics: "pickup_sp"
+    base_url: "https://www.gpdistribuidora.com.br"
+    address: "São Paulo"
+    zone: "centro"
+    coverage: "Empresa de logística, não tem e-commerce de ingredientes"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 17
+
+  - name: "Point Baker"
+    tier: 2
+    type: "website_catalog"
+    is_active: false
+    logistics: "pickup_sp"
+    base_url: "https://www.pointbaker.com.br"
+    address: "Av. Inajar de Souza, 81 - Freguesia do Ó, SP"
+    zone: "norte"
+    coverage: "Panificação, confeitaria, ingredientes (inativo - domínio fora do ar)"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 18
+
+  - name: "Giga Atacadista"
+    tier: 2
+    type: "vtex_api"
+    logistics: "pickup_sp"
+    base_url: "https://www.giga.com.vc"
+    api_endpoint: "https://www.giga.com.vc/api/catalog_system/pub/products/search"
+    units:
+      - name: "SP - Castelo Branco"
+        address: "Av. Pres. Castelo Branco, 4233 - SP"
+      - name: "SP - Otaviano Alves"
+        address: "Av. Otaviano Alves de Lima, 2758 - SP"
+      - name: "SP - Taipas"
+        address: "Rua Koshun Takara, 900 - SP"
+      - name: "SP - Tremembé"
+        address: "Av. Cel. Sezefredo Fagundes, 1980 - SP"
+      - name: "SP - Vila Gertrudes"
+        address: "Av. das Nações Unidas, 16.461 - SP"
+      - name: "Osasco"
+        address: "Av. dos Remédios, 2555 - Osasco"
+    address: "Av. Pres. Castelo Branco, 4233 - SP"
+    zone: "oeste"
+    coverage: "Atacarejo geral - laticínios, mercearia, bebidas, hortifrúti, carnes"
+    collection_method: "automated"
+    scraper: "vtex_scraper"
+    priority: 53
+
+  # ============================================================================
+  # TIER 2B - ATACADO FÍSICO SP CAPITAL (Visita Mensal Necessária)
+  # ============================================================================
+  - name: "Manos Doces"
+    tier: 2
+    type: "physical_atacado"
+    logistics: "pickup_sp"
+    address: "Av. Dr. Eduardo Cotching, 1827 - Vila Formosa, SP"
+    zone: "leste"
+    coverage: "Chocolates profissionais, coberturas, recheios, granulados, embalagens, descartáveis"
+    collection_method: "manual_visit"
+    visit_frequency: "monthly"
+    contact: ""
+    priority: 19
+    scraper: "manual_visit_spreadsheet"
+
+  - name: "Dijos Doces e Confeitaria"
+    tier: 2
+    type: "physical_atacado"
+    logistics: "pickup_sp"
+    address: "Av. Álvaro Ramos, 1930 - Água Rasa, SP"
+    zone: "leste"
+    coverage: "Coberturas, granulados, barras industriais, caixas papelão, descartáveis"
+    collection_method: "manual_visit"
+    visit_frequency: "monthly"
+    contact: ""
+    priority: 20
+    scraper: "manual_visit_spreadsheet"
+
+  - name: "Jabaquara Doces"
+    tier: 2
+    type: "physical_atacado"
+    logistics: "pickup_sp"
+    address: "Av. Jabaquara, 867 - Mirandópolis, SP"
+    zone: "sul"
+    coverage: "Bomboniere, chocolates barras/gotas/recheios, embalagens, potes, artigos festa"
+    collection_method: "manual_visit"
+    visit_frequency: "monthly"
+    contact: ""
+    priority: 21
+    scraper: "manual_visit_spreadsheet"
+
+  - name: "Nova Paulista Doces"
+    tier: 2
+    type: "physical_atacado"
+    logistics: "pickup_sp"
+    address: "Av. Jabaquara, 2411 - Mirandópolis, SP"
+    zone: "sul"
+    coverage: "Guloseimas atacado/varejo, balcão matérias-primas, caixas/formas transporte"
+    collection_method: "manual_visit"
+    visit_frequency: "monthly"
+    contact: ""
+    priority: 22
+    scraper: "manual_visit_spreadsheet"
+
+  - name: "Patikal Doces e Festas"
+    tier: 2
+    type: "physical_atacado"
+    logistics: "pickup_sp"
+    address: "Rua Voluntários da Pátria, 3241 - Santana, SP"
+    zone: "norte"
+    coverage: "Doces caixas fechadas, insumos artesanais, chocolates, chantilly, embalagens, sacolas"
+    collection_method: "manual_visit"
+    visit_frequency: "monthly"
+    contact: ""
+    priority: 23
+    scraper: "manual_visit_spreadsheet"
+
+  - name: "Marsil Atacadista"
+    tier: 2
+    type: "physical_atacado"
+    logistics: "pickup_sp"
+    address: "Rua Hannemann, 412 - Pari, SP"
+    zone: "pari"
+    coverage: "VOLUME MASSIVO - chocolates, coberturas, doces transformação, embalagens, descartáveis"
+    collection_method: "manual_visit"
+    visit_frequency: "monthly"
+    contact: ""
+    priority: 24
+    scraper: "manual_visit_spreadsheet"
+
+  - name: "Vito Quintas Atacadista"
+    tier: 2
+    type: "physical_atacado"
+    logistics: "pickup_sp"
+    address: "Rua Paula Sousa, 290 - Centro Histórico, SP"
+    zone: "centro"
+    coverage: "Bomboniere, chocolates industriais, confeitos, bases prontas, sazonais"
+    collection_method: "manual_visit"
+    visit_frequency: "monthly"
+    contact: ""
+    priority: 25
+    scraper: "manual_visit_spreadsheet"
+
+  - name: "Doces Cabo Verde"
+    tier: 2
+    type: "physical_atacado"
+    logistics: "pickup_sp"
+    address: "Av. Mercúrio, 492 - Centro Histórico, SP"
+    zone: "centro"
+    coverage: "Recheios balde, coberturas barra, granulados, doces calda, embalagens fechamento"
+    collection_method: "manual_visit"
+    visit_frequency: "monthly"
+    contact: ""
+    priority: 26
+    scraper: "manual_visit_spreadsheet"
+
+  - name: "Fernandez Atacadista"
+    tier: 2
+    type: "physical_atacado"
+    logistics: "pickup_sp"
+    address: "Av. Rangel Pestana, 2263 - Brás, SP"
+    zone: "bras"
+    coverage: "Barras chocolate grande, caixas fechadas leite condensado/creme leite, descartáveis"
+    collection_method: "manual_visit"
+    visit_frequency: "monthly"
+    contact: ""
+    priority: 27
+    scraper: "manual_visit_spreadsheet"
+
+  - name: "Campineira Doces"
+    tier: 2
+    type: "physical_atacado"
+    logistics: "pickup_sp"
+    address: "Av. Dr. Vital Brasil, 521 - Butantã, SP"
+    zone: "oeste"
+    coverage: "Misturas bolos, chantilly, chocolates profissionais, embalagens festas"
+    collection_method: "manual_visit"
+    visit_frequency: "monthly"
+    contact: ""
+    priority: 28
+    scraper: "manual_visit_spreadsheet"
+
+  - name: "Embalagens Cantareira (Grupo Rizzo)"
+    tier: 2
+    type: "physical_atacado"
+    logistics: "pickup_sp"
+    address: "Rua da Cantareira, 401 - Centro Histórico, SP"
+    zone: "centro"
+    coverage: "Caixas, fitas, sacolas, embalagens estruturadas transporte doces/bolos GRANDE QUANTIDADE"
+    collection_method: "manual_visit"
+    visit_frequency: "monthly"
+    contact: ""
+    priority: 29
+    scraper: "manual_visit_spreadsheet"
+
+  # ============================================================================
+  # TIER 3 - AGREGADORES SSR (Folhetos via HTML direto)
+  # ============================================================================
+  - name: "Tiendeo"
+    tier: 3
+    type: "aggregator"
+    logistics: "pickup_local"
+    base_url: "https://www.tiendeo.com.br"
+    regions:
+      - "santos"
+      - "sao-vicente"
+      - "praia-grande"
+      - "mongagua"
+      - "itanhaem"
+      - "peruibe"
+      - "sao-paulo"
+    sp_zones: ["zona-sul"]
+    collection_method: "automated"
+    scraper: "aggregator_scraper"
+    priority: 30
+
+  - name: "Promotons"
+    tier: 3
+    type: "aggregator"
+    experimental: true
+    base_url: "https://www.promotons.com.br"
+    regions:
+      - "santos"
+      - "sao-vicente"
+      - "praia-grande"
+      - "mongagua"
+      - "itanhaem"
+      - "peruibe"
+      - "sao-paulo"
+    sp_zones: ["zona-sul"]
+    collection_method: "automated"
+    scraper: "aggregator_scraper"
+    priority: 31
+
+  # ============================================================================
+  # TIER 3B - AGREGADORES JS (Requer Playwright)
+  # ============================================================================
+  - name: "Kimbino"
+    tier: 3
+    type: "aggregator_js"
+    logistics: "pickup_local"
+    base_url: "https://www.kimbino.com.br"
+    regions:
+      - "santos"
+      - "sao-vicente"
+      - "praia-grande"
+      - "mongagua"
+      - "itanhaem"
+      - "peruibe"
+      - "sao-paulo"
+    sp_zones: ["centro", "oeste", "sul", "leste", "norte", "pari", "bras"]
+    collection_method: "automated"
+    scraper: "playwright_scraper"
+    priority: 32
+
+  - name: "Portafolhetos"
+    tier: 3
+    type: "aggregator_js"
+    logistics: "pickup_local"
+    base_url: "https://www.portafolhetos.com.br"
+    regions:
+      - "santos"
+      - "sao-vicente"
+      - "praia-grande"
+      - "mongagua"
+      - "itanhaem"
+      - "peruibe"
+      - "sao-paulo"
+    sp_zones: ["centro", "oeste", "sul", "leste", "norte", "pari", "bras"]
+    collection_method: "automated"
+    scraper: "playwright_scraper"
+    priority: 33
+
+  - name: "Roldão Atacadista Flyer"
+    tier: 3
+    type: "aggregator_js"
+    logistics: "pickup_local"
+    base_url: "https://roldao.com.br/ofertas-do-roldao/"
+    regions:
+      - "santos"
+      - "praia-grande"
+      - "sao-paulo"
+    collection_method: "automated"
+    scraper: "roldao_flyer_scraper"
+    priority: 34
+
+  # ============================================================================
+  # TIER 3C - FACEBOOK FLYERS (Best-effort OCR via Playwright)
+  # ============================================================================
+  - name: "Rede Krill (Facebook)"
+    tier: 3
+    type: "facebook_flyer"
+    logistics: "pickup_local"
+    page_url: "https://www.facebook.com/RedeKrill"
+    city: "Praia Grande"
+    zone: "baixada_santista"
+    coverage: "Flyers semanais via Facebook — OCR automático best-effort"
+    collection_method: "automated"
+    scraper: "facebook_flyer_scraper"
+    priority: 35
+    # Fallback manual fields
+    address: "Praia Grande, SP"
+    contact: "facebook.com/RedeKrill"
+
+  - name: "Mercado Primos"
+    tier: 3
+    type: "facebook_flyer"
+    logistics: "pickup_local"
+    page_url: "https://www.facebook.com/MERCADOPRIMOS1/"
+    city: "Mongaguá"
+    zone: "baixada_santista"
+    coverage: "Flyers semanais via Facebook — OCR automático best-effort"
+    collection_method: "automated"
+    scraper: "facebook_flyer_scraper"
+    priority: 36
+    address: "Mongaguá, SP"
+    contact: "facebook.com/MERCADOPRIMOS1"
+
+  - name: "Supermercados Saito"
+    tier: 3
+    type: "facebook_flyer"
+    logistics: "pickup_local"
+    page_url: "https://www.facebook.com/supermercados.saito/"
+    city: "Itanhaém"
+    zone: "baixada_santista"
+    coverage: "Flyers semanais via Facebook — OCR automático best-effort"
+    collection_method: "automated"
+    scraper: "facebook_flyer_scraper"
+    priority: 37
+    address: "Itanhaém, SP"
+    contact: "facebook.com/supermercados.saito"
+
+  # ============================================================================
+  # TIER 2C - E-COMMERCE NACIONAL / REGIONAL
+  # ============================================================================
+  - name: "Chocolândia"
+    tier: 2
+    type: "website_catalog"
+    logistics: "pickup_sp"
+    base_url: "https://www.chocolandiaonline.com.br"
+    search_url: "https://www.chocolandiaonline.com.br/catalogsearch/result/?q={query}"
+    selectors:
+      product_card: [".product-item", ".item.product-item", "li.product-item"]
+      product_name: [".product-item-link", ".product.name a", ".product-item-name a"]
+      product_price: [".price-wrapper .price", ".price", ".special-price .price"]
+    address: "Rua Silva Bueno, 2040 - Ipiranga, SP"
+    zone: "sul"
+    units:
+      - name: "Ipiranga"
+        address: "Rua Silva Bueno, 2040 - Ipiranga, SP"
+      - name: "Santo Amaro"
+        address: "Av. João Dias, 24 - Santo Amaro, SP"
+      - name: "Tatuapé"
+        address: "Rua Padre Estevão Pernet, 87 - Tatuapé, SP"
+      - name: "Santo André"
+        address: "Av. Pereira Barreto, 600 - Paraíso, Santo André"
+      - name: "Guarulhos"
+        address: "Av. Tiradentes, 2500 - Guarulhos"
+    coverage: "41 anos no mercado - chocolates, coberturas, granulados, leite condensado, Nutella, coco, embalagens, formas, utensílios - 7 lojas SP + ABC + Guarulhos"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 55
+
+  - name: "Chocoexpress"
+    tier: 2
+    type: "website_catalog"
+    logistics: "pickup_sp"
+    base_url: "https://www.chocoexpress.com.br"
+    search_url: "https://www.chocoexpress.com.br/loja/busca.php?palavra_busca={query}"
+    selectors:
+      product_card: [".product", "li.product", ".product-item", ".item"]
+      product_name: [".woocommerce-loop-product__title", "h2 a", ".product-title"]
+      product_price: [".price", ".amount", ".woocommerce-Price-amount"]
+    address: "SP Capital"
+    zone: "sul"
+    coverage: "Chocolates Nestlé, coberturas, leite condensado, confeitaria, sorveteria - 8.000+ itens"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 56
+
+  - name: "Central do Confeiteiro"
+    tier: 2
+    type: "website_catalog"
+    logistics: "pickup_local"
+    base_url: "https://www.centraldoconfeiteiro.com.br"
+    search_url: "https://www.centraldoconfeiteiro.com.br/loja/busca.php?palavra_busca={query}"
+    selectors:
+      product_card: [".product", "li.product", ".product-item", ".item"]
+      product_name: [".woocommerce-loop-product__title", "h2 a", ".product-title"]
+      product_price: [".price", ".amount", ".woocommerce-Price-amount"]
+    address: "Av. Dr. Timóteo Penteado, 4228 - Vila Galvão, Guarulhos"
+    city: "Guarulhos"
+    zone: "norte"
+    coverage: "Chocolates Harald/Mavalério, granulados, leite condensado, confeitos, embalagens, utensílios"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 57
+
+  - name: "Bocão Doces"
+    tier: 2
+    type: "website_catalog"
+    logistics: "pickup_sp"
+    base_url: "https://www.bocaodoces.com.br"
+    search_url: "https://www.bocaodoces.com.br/loja/busca.php?palavra_busca={query}"
+    selectors:
+      product_card: [".product", "li.product", ".product-item", ".item"]
+      product_name: [".woocommerce-loop-product__title", "h2 a", ".product-title"]
+      product_price: [".price", ".amount", ".woocommerce-Price-amount"]
+    address: "SP Capital"
+    zone: "sul"
+    coverage: "Chocolates, granulados, leite condensado, chocolate em pó, embalagens, confeitaria - entrega Brasil"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 58
+
+  - name: "Chefon"
+    tier: 2
+    type: "website_catalog"
+    logistics: "pickup_sp"
+    base_url: "https://chefon.com.br"
+    search_url: "https://chefon.com.br/search?q={query}&type=product"
+    selectors:
+      product_card: [".product-item", ".card", ".product-card", "li.grid__item"]
+      product_name: [".card__heading a", ".product-title a", "h3 a", ".full-unstyled-link"]
+      product_price: [".price .price__regular .price-item", ".price .price-item--sale", ".price"]
+    address: "Rua Pamplona, 1755 - Jardim Paulista, SP"
+    zone: "sul"
+    coverage: "Mais de 10 mil produtos - chocolates profissionais, coberturas, recheios, confeitaria, sorveteria, cafeteria"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 54
+
+  - name: "Dona Dani Ingredientes"
+    tier: 2
+    type: "website_catalog"
+    logistics: "delivery"
+    base_url: "https://donadaniingredientes.com.br"
+    search_url: "https://donadaniingredientes.com.br/search/?q={query}"
+    selectors:
+      product_card: [".js-item-product", ".item-product", ".col-grid"]
+      product_name: [".js-item-name", ".item-name"]
+      product_price: [".js-price-display", ".item-price"]
+    address: "Online - envio nacional"
+    coverage: "95 SKUs - insumos para panificação, confeitaria e chocolateria - TiendaNube/Toluca"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 51
+
+  - name: "Cacau Center"
+    tier: 2
+    type: "website_catalog"
+    is_active: true
+    logistics: "pickup_local"
+    base_url: "https://cacaucenter.com.br"
+    search_url: "https://cacaucenter.com.br/?s={query}&post_type=product"
+    selectors:
+      product_card: [".product", "li.product", ".type-product", ".product-item"]
+      product_name: [".woocommerce-loop-product__title", "h2 a", ".product-title"]
+      product_price: [".price", ".amount", ".woocommerce-Price-amount", ".preco"]
+    address: "Av. Prefeito José Monteiro, 744 - Vila Valença, São Vicente"
+    city: "São Vicente"
+    units:
+      - name: "Matriz"
+        address: "Av. Prefeito José Monteiro, 744 - Vila Valença, São Vicente"
+    coverage: "Chocolates, coberturas, granulados, recheios, formas, utensílios, panificação, sorveteria - WooCommerce - entrega Baixada Santista e Brasil"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 33
+
+  - name: "Padeirão e ArtPão"
+    tier: 2
+    type: "website_catalog"
+    is_active: false
+    logistics: "pickup_local"
+    base_url: "https://www.padeirao.com.br"
+    address: "Rua Joaquim Távora, 191 - Vila Matias, Santos"
+    city: "Santos"
+    coverage: "Insumos profissionais, farinhas especiais, chocolates, utensílios (inativo - site sem e-commerce funcional)"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 34
+
+  - name: "Confeitos & Cia"
+    tier: 2
+    type: "website_catalog"
+    logistics: "pickup_local"
+    base_url: "https://www.confeitosecia.com"
+    search_url: "https://www.confeitosecia.com/loja/busca.php?palavra_busca={query}"
+    selectors:
+      product_card: [".product", "li.product", ".product-item", ".item"]
+      product_name: [".woocommerce-loop-product__title", "h2 a", ".product-title"]
+      product_price: [".price", ".amount", ".woocommerce-Price-amount"]
+    address: "Rua Carvalho de Mendonça, 251 - Vila Belmiro, Santos"
+    city: "Santos"
+    coverage: "Confeitaria fina, pasta americana, corantes, bicos, moldes, descartáveis - 29+ produtos leite condensado"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 39
+
+  - name: "Carrefour Mercado"
+    tier: 2
+    type: "website_catalog"
+    logistics: "pickup_local"
+    base_url: "https://mercado.carrefour.com.br"
+    search_url: "https://mercado.carrefour.com.br/busca?q={query}"
+    cities: ["Santos", "São Vicente", "Praia Grande", "Mongaguá", "Itanhaém", "Peruíbe", "São Paulo"]
+    coverage: "Supermercado delivery - leite condensado, creme de leite, chocolate, granulado, coco ralado"
+    collection_method: "automated"
+    scraper: "carrefour_scraper"
+    priority: 34
+
+  - name: "Casa Rio Doces"
+    tier: 2
+    type: "website_catalog"
+    is_active: false
+    logistics: "pickup_local"
+    base_url: "https://mechamenozap.com.br/casariodoces"
+    address: "Rua Sete de Setembro, 83/87 - Vila Nova, Santos"
+    city: "Santos"
+    coverage: "Atacado doces, chocolates barra, guloseimas, confeitos industriais (inativo - página de perfil WhatsApp, sem catálogo)"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 36
+
+  - name: "Shopping das Embalagens"
+    tier: 2
+    type: "website_catalog"
+    is_active: false
+    logistics: "pickup_local"
+    base_url: "https://shoppingdasembalagensloja.com.br"
+    address: "Av. Senador Feijó, 545 - Vila Matias, Santos"
+    city: "Santos"
+    coverage: "Caixas papelão, fitas, formas de papel, descartáveis (inativo - só embalagens)"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 37
+
+  - name: "Proplastik"
+    tier: 2
+    type: "website_catalog"
+    is_active: false
+    logistics: "pickup_local"
+    base_url: "https://www.proplastik.com.br"
+    address: "Rua João Pessoa, 10 - Centro, Santos"
+    city: "Santos"
+    coverage: "Embalagens, descartáveis, festas (inativo - só embalagens)"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 38
+
+  - name: "Bezerra Embalagens"
+    tier: 2
+    type: "website_catalog"
+    is_active: false
+    logistics: "pickup_local"
+    base_url: "https://bezerraembalagens.com.br"
+    address: "Rua Santa Cecília, 499 - Balneário Regina Maria, Mongaguá"
+    city: "Mongaguá"
+    coverage: "Embalagens (inativo - só embalagens)"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 39
+
+  - name: "Pejuca Festas"
+    tier: 2
+    type: "website_catalog"
+    is_active: false
+    logistics: "pickup_local"
+    base_url: "https://pejuca.com.br"
+    address: "Av. Roberto Iwakichi Uraguchi, 251 - Praia dos Sonhos, Itanhaém"
+    city: "Itanhaém"
+    coverage: "Artigos festa, embalagens (inativo - só embalagens)"
+    collection_method: "automated"
+    scraper: "website_scraper"
+    priority: 40
+
+  # ============================================================================
+  # TIER 4 - MANUAL (WhatsApp / Visita Local / Redes Sociais)
+  # ============================================================================
+  - name: "SAV Fratelli Distribuidora"
+    tier: 4
+    type: "manual"
+    logistics: "pickup_local"
+    address: "Rua Bittencourt, 212 - Vila Nova, Santos"
+    city: "Santos"
+    collection_method: "manual"
+    contact: "(13) 3222-4201"
+    priority: 41
+
+  - name: "Bolão Docemania"
+    tier: 4
+    type: "manual"
+    logistics: "pickup_local"
+    address: "Av. Presidente Kennedy, 833 - Caiçara, Praia Grande"
+    city: "Praia Grande"
+    collection_method: "manual"
+    contact: "(13) 3474-1127"
+    priority: 42
+
+  - name: "Merkadoces"
+    tier: 4
+    type: "manual"
+    logistics: "pickup_local"
+    address: "Av. Dr. Vicente de Carvalho, 989 - Cidade Ocian, Praia Grande"
+    city: "Praia Grande"
+    collection_method: "manual"
+    contact: ""
+    priority: 43
+
+  - name: "Canola Doces"
+    tier: 4
+    type: "manual"
+    logistics: "pickup_local"
+    address: "Av. Pres. Kennedy, 2537 - Jardim Guilhermina, Praia Grande"
+    city: "Praia Grande"
+    collection_method: "manual"
+    contact: ""
+    priority: 44
+
+  - name: "VOMG Embalagens"
+    tier: 4
+    type: "manual"
+    logistics: "pickup_local"
+    address: "Av. Nossa Sra. de Fátima, 671 - Agenor de Campos, Mongaguá"
+    city: "Mongaguá"
+    collection_method: "manual"
+    contact: ""
+    priority: 45
+
+  - name: "Maranata Festas"
+    tier: 4
+    type: "manual"
+    logistics: "pickup_local"
+    address: "Av. Nossa Sra. de Fátima, 768 - Balneário Agenor de Campos, Mongaguá"
+    city: "Mongaguá"
+    collection_method: "manual"
+    contact: ""
+    priority: 46
+
+  - name: "Domingos Doces Itanhaém"
+    tier: 4
+    type: "manual"
+    logistics: "pickup_local"
+    address: "Rua Almeida Júnior, 35 - Belas Artes, Itanhaém"
+    city: "Itanhaém"
+    collection_method: "manual"
+    contact: ""
+    priority: 47
+
+  - name: "Litosul Descartáveis"
+    tier: 4
+    type: "manual"
+    logistics: "pickup_local"
+    address: "Av. Marginal, 2105 - Laranjeiras, Itanhaém"
+    city: "Itanhaém"
+    collection_method: "manual"
+    contact: ""
+    priority: 48
+
+  - name: "Ki Delícia Festas"
+    tier: 4
+    type: "manual"
+    logistics: "pickup_local"
+    address: "Rua Antônio Cândido da Silva, 258 - Vila Antartica, Praia Grande"
+    city: "Praia Grande"
+    collection_method: "manual"
+    contact: ""
+    priority: 49
+
+  - name: "Ingredientes Santa Vita"
+    tier: 4
+    type: "manual"
+    is_active: false
+    logistics: "pickup_local"
+    base_url: "https://www.ingredientessantavita.com.br"
+    platform: "loja_integrada"
+    address: "Rua Santa Ifigênia - Centro, São Paulo"
+    city: "São Paulo"
+    units:
+      - name: "Matriz"
+        address: "Zona Cerealista, São Paulo"
+    coverage: "Insumos para panificação e confeitaria - Loja Integrada com login wall e conteudo JS - requer autenticacao para precos"
+    collection_method: "manual"
+    scraper: "website_scraper"
+    contact: ""
+    priority: 52
+
+  - name: "Pratico Suarão"
+    tier: 4
+    type: "manual"
+    logistics: "pickup_local"
+    page_url: "https://www.facebook.com/p/Pratico-Suar%C3%A3o-61560796335199/"
+    address: "Itanhaém, SP"
+    city: "Itanhaém"
+    coverage: "Instabuy promocional + Facebook — Cloudflare bloqueia API; coleta manual via planilha/visita"
+    collection_method: "manual"
+    contact: "facebook.com/p/Pratico-Suarão-61560796335199/; instabuy.app.br"
+    priority: 53

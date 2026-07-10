@@ -149,9 +149,6 @@ def apply_sync(dry_run: bool = False) -> dict:
             "zone": y_store.get("zone", ""),
             "coverage": y_store.get("coverage", ""),
             "contact": y_store.get("contact", ""),
-            "source": y_store.get("source", "yaml"),
-            "priority": y_store.get("priority", 99),
-            "config": y_store.get("config", {}),
             "updated_at": datetime.now(UTC).isoformat(),
         }
 
