@@ -3,11 +3,10 @@
 Testes de integração com Supabase real.
 Rodam com: pytest tests/test_db_integration.py -v
 
-Requer SUPABASE_URL e SUPABASE_DB_PASSWORD no .env ou como env vars.
+Requer SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no .env ou como env vars.
 Usa dados de teste descartáveis (prefixo _test_*) que são limpos ao final.
 """
 
-import os
 import sys
 from datetime import date
 from pathlib import Path
@@ -17,22 +16,12 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
-def _has_db_creds():
-    url = os.environ.get("SUPABASE_URL", "")
-    pwd = os.environ.get("SUPABASE_DB_PASSWORD", "")
-    if not url or not pwd:
-        return False
-    # Validate URL has a real project ID (not just "test")
-    try:
-        proj = url.split("//")[1].split(".")[0]
-        return len(proj) > 10  # real Supabase project IDs are ~20 chars
-    except Exception:
-        return False
+from tests.conftest import _has_real_db as _has_db_creds
 
 
 pytestmark = pytest.mark.skipif(
     not _has_db_creds(),
-    reason="SUPABASE_URL / SUPABASE_DB_PASSWORD not set",
+    reason="SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set",
 )
 
 

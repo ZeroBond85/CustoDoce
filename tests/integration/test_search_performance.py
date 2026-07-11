@@ -3,10 +3,9 @@
 Testes de performance para queries críticas.
 Valida que search_prices usa server-side sort (não client-side) via generated column.
 
-Requer SUPABASE_URL e SUPABASE_DB_PASSWORD no .env.
+Requer SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no .env.
 """
 
-import os
 import sys
 import time
 from pathlib import Path
@@ -16,16 +15,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 
-def _has_db_creds():
-    url = os.environ.get("SUPABASE_URL", "")
-    pwd = os.environ.get("SUPABASE_DB_PASSWORD", "")
-    if not url or not pwd:
-        return False
-    try:
-        proj = url.split("//")[1].split(".")[0]
-        return len(proj) > 10
-    except Exception:
-        return False
+from tests.conftest import _has_real_db as _has_db_creds
 
 
 pytestmark = [

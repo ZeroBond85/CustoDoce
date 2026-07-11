@@ -31,6 +31,11 @@ def sample_ingredients():
         ("Leite Condensado Moça 395g", "Leite Condensado", "exato"),
         ("Creme de Leite Nestlé 200g", "Creme de Leite", "exato"),
         ("Chocolate em Pó 50% Sicao 1kg", "Chocolate em Pó 50%", "exato"),
+        # Search term exact matches (via match_exact search_terms)
+        ("Moça Leite 395g", "Leite Condensado", "exato"),
+        ("Itambé Leite 395g", "Leite Condensado", "exato"),
+        ("Melken Chocolate 1kg", "Chocolate em Pó 50%", "exato"),
+        ("Sicao Cacau 50%", "Chocolate em Pó 50%", "exato"),
         # Alias matches
         ("Condensado Integral Piracanjuba", "Leite Condensado", "exato"),
         ("Chocolate Pó Melken 500g", "Chocolate em Pó 50%", "exato"),

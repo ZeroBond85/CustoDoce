@@ -3,7 +3,6 @@ Testes para triggers e constraints no Supabase real.
 Cobre: price_history trigger, unique constraints, ON CONFLICT behavior.
 """
 
-import os
 import sys
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -13,16 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 import pytest
 
 
-def _has_db_creds():
-    url = os.environ.get("SUPABASE_URL", "")
-    pwd = os.environ.get("SUPABASE_DB_PASSWORD", "")
-    if not url or not pwd:
-        return False
-    try:
-        proj = url.split("//")[1].split(".")[0]
-        return len(proj) > 10
-    except Exception:
-        return False
+from tests.conftest import _has_real_db as _has_db_creds
 
 
 pytestmark = pytest.mark.skipif(not _has_db_creds(), reason="Real DB creds not set")

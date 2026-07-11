@@ -9,7 +9,7 @@ class PaoFlyerScraper(ExtraFlyerScraper):
     """Scraper para folhetos digitais do Pao de Acucar Fresh.
 
     Mesma plataforma do Extra (folheteria.clubeextra.com.br/campanhas.js),
-    mas com brand='pao' e campaign_type='fresh'.
+    mas com brand='pao' e campaign_type='pao-de-acucar'.
     """
 
     BRAND = "pao"

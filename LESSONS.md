@@ -427,3 +427,78 @@ E um terceiro bug menor:  suprime o markup /, entao o regex de contagem nao acha
 - Ao adicionar um novo flag ao , cobrir AMBAS as arvores v1 (updateers específicos por arquivo) e v2 (CURRENT blocks). Nunca passar so por uma.
 - Drift threshold deve ter tolerância # parametrizacao ou duplicates counted pela runtime do pytest nao sao ausencia de testes.
 - Regex precisa casar a saida literal do pytest # se mudou  para , atualizar.
+
+---
+## Lição 43: Auditoria profunda de testes (Fases 0-9) — 2026-07-11
+
+**Sintoma:** Testes mortos, mocks subutilizados, gaps de cobertura, violações Regra #3, workflows inconsistentes.
+
+**Causa:** Crescimento orgânico sem auditoria periódica. Dead code acumulou (sync_md_catchup.py, test_dashboard_full.py, test_brand_extractor.py, test_playwright_local.py, test_unit_extractor.py, deploy-staging.yml.disabled, scripts/archive/). Mocks centralizados em mock_data.py mas só 2/16 sets consumidos. Regra #3 (psycopg2/5432 proibido) violada em 10 arquivos integration. Workflows duplicados (ci-e2e-only.yml + teste_full_manual.yml) com e2e-full vazio.
+
+**Correção (Fases 0-9):**
+- Fases 1-3: Vacinas Regra #3 (8→0), pytest.ini→pyproject.toml, merge feature branch
+- Fase 4: 6 mock consumers reais (23 testes) consumindo mock_data.py
+- Fase 5: 41 testes unit para 7 services 0% coverage (store_registry, scraper_alert, review_queue, import, maintenance, price_intelligence, dashboard_queries, collector)
+- Fase 6: extractor.py (7 testes), regressões 21f7155 (Extra/Pao date fix, 'pao-de-acucar', 'minuto' fallback), pao_flyer CAMPAIGN_TYPE='pao-de-acucar', docstring fix
+- Fase 7: 14 testes para 5 pages (insights, capacity_planning, alertas, scraper_health, lojas_pendentes)
+- Fase 8: 16 testes UI components (freshness, info_box, user_badge, inject_css, load_css, logo)
+- Fase 9: vision_strategies (12 testes), flyer_scraper_extra_pao (9 testes), extractor (7 testes)
+
+**Regras permanentes:**
+- Auditoria trimestral: rodar `python -m pytest tests/unit/ --collect-only -q | wc -l` e comparar baseline.
+- Testes mortos (>0 chamadores, skip permanente, ou duplicados) → remover em Fase 13.
+- Mocks centrais → auditar consumo a cada sprint.
+
+---
+## Lição 44: .gitignore data/store_backups/ — 2026-07-11
+
+**Sintoma:** 3 backups YAML idênticos (115KB) commitados em data/store_backups/ (commit 22fd346).
+
+**Causa:** Script de backup (scripts/backup_stores_yaml.py) escreve em data/store_backups/ mas pasta não estava no .gitignore.
+
+**Correção:** Adicionar `data/store_backups/` ao .gitignore (seção ML/model artifacts).
+
+**Regra permanente:** Qualquer pasta que scripts escrevam automaticamente (backups, cache, dumps) → adicionar ao .gitignore ANTES do primeiro commit.
+
+---
+## Lição 45: Guard rule3_db_password — 2026-07-11
+
+**Sintoma:** Regra #3 AGENTS.md (NUNCA psycopg2/5432, SOMENTE RPC 443) não era enforceada automaticamente.
+
+**Correção:** Criar `tests/unit/test_rule3_db_password_guard.py` (AST check) que falha se algum teste usar SUPABASE_DB_PASSWORD.
+
+**Regra permanente:** Guard AST em pre-commit/CI para anti-patterns críticos (senhas, portas proibidas, imports perigosos). Rodar em `ci.yml` job `lint`.
+
+---
+## Lição 46: Cleanup testes mortos — 2026-07-11
+
+**Sintoma:** 5 arquivos testes mortos acumulados:
+- test_sync_md_catchup.py + test_sync_md_catchup.py (script morto)
+- test_brand_extractor.py (duplicado de test_services/test_brand.py)
+- test_playwright_local.py (skip permanente)
+- test_unit_extractor.py (10 testes p/ 18 LOC)
+- deploy-staging.yml.disabled (workflow obsoleto)
+
+**Correção:** Fase 13 — remover com `git rm` e atualizar .gitignore se necessário.
+
+**Regra permanente:** Antes de adicionar teste novo, verificar se similar já existe. `git grep "test_" -- tests/` antes de criar.
+
+## 47. AsyncMock.return_value padrão é AsyncMock, não MagicMock
+
+**Sintoma:** `RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited` ao executar `test_collector_facebook.py::TestFacebookFlyerScraper::test_process_post_parses_products_from_image`.
+
+**Causa:** `@patch("httpx.AsyncClient.get")` cria um `AsyncMock` (pois `AsyncClient.get` é corrotina). `AsyncMock.return_value` padrão é outro `AsyncMock`. O teste fazia `resp = await client.get(url)` → `resp = mock_get.return_value` (um `AsyncMock`). Atributos de `AsyncMock` retornam corrotinas, então `resp.raise_for_status()` retornava uma corrotina nunca aguardada.
+
+**Correção:** Substituir:
+```python
+mock_get.return_value.__aenter__.return_value = mock_resp  # ❌
+```
+por:
+```python
+mock_get.return_value = mock_resp  # ✅
+```
+`mock_resp` é um `MagicMock` comum, então `raise_for_status()` é síncrono.
+
+## 48. Marcador `slow` para documentação, não filtro automático
+
+**Decisão:** `test_alert_service.py` (1 teste ~32s) marcado como `@pytest.mark.slow`. O `addopts` global **não** inclui `-m 'not slow'` para evitar quebrar workflows CI que rodam testes lentos (diagnostics, real, integration). O marcador serve como documentação e filtro opcional. Para pular testes lentos localmente: `pytest -m 'not slow'`.

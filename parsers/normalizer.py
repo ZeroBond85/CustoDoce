@@ -28,9 +28,9 @@ class NormalizedPrice:
 
 
 _WEIGHT_PATTERNS = [
-    re.compile(r"(\d+)\s*x\s*([\d,.]+)\s*(kg|g|ml)", re.I),
-    re.compile(r"([\d,.]+)\s*(kg|g|ml)", re.I),
-    re.compile(r"(\d+)\s*[xX]\s*([\d,.]+)(?:\s*(kg|g|ml))?", re.I),
+    re.compile(r"(\d+)\s*x\s*([\d,.]+)\s*(kg|g|ml|litro|litros)", re.I),
+    re.compile(r"([\d,.]+)\s*(kg|g|ml|litro|litros)", re.I),
+    re.compile(r"(\d+)\s*[xX]\s*([\d,.]+)(?:\s*(kg|g|ml|litro|litros))?", re.I),
 ]
 
 _UNIT_PATTERNS = [
@@ -70,13 +70,10 @@ def parse_unit(raw_unit: str) -> NormalizedPrice | None:
 
             if weight_unit and weight_unit.lower() in ("kg", "kilo", "kilograma"):
                 unit_kg = weight
-            elif (
-                weight_unit
-                and weight_unit.lower() in ("g", "gr", "grama")
-                or weight_unit
-                and weight_unit.lower() in ("ml", "mililitro")
-            ):
+            elif weight_unit and weight_unit.lower() in ("g", "gr", "grama") or weight_unit and weight_unit.lower() in ("ml", "mililitro"):
                 unit_kg = weight / 1000
+            elif weight_unit and weight_unit.lower() in ("litro", "litros"):
+                unit_kg = weight  # 1 litro ~ 1kg for liquids
             else:
                 unit_kg = weight / 1000
 

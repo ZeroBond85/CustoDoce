@@ -17,7 +17,6 @@ import sys
 from pathlib import Path
 
 import pytest
-from playwright.sync_api import sync_playwright
 
 _repo_root = str(Path(__file__).resolve().parent.parent.parent)
 sys.path.insert(0, _repo_root)
@@ -41,14 +40,6 @@ ERROR_SELECTORS = [
     "text=Traceback",
     "text=st.error",
 ]
-
-
-@pytest.fixture(scope="module")
-def browser():
-    with sync_playwright() as p:
-        b = p.chromium.launch(headless=True, args=["--no-sandbox"])
-        yield b
-        b.close()
 
 
 def _load_and_assert_no_errors(page, context):

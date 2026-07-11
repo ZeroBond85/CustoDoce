@@ -1,23 +1,40 @@
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short --strict-markers --durations=10"
+markers = [
+    "unit: testes puros (mock, zero rede/DB)",
+    "integration: testes com DB real (precisa .env)",
+    "e2e: Playwright + Streamlit real",
+    "real: scrapers reais (lento, flaky)",
+    "schema: validação schema DB via RPC",
+    "performance: benchmarks <200ms",
+    "llm: precisa GROQ_API_KEY",
+    "asyncio: testes assíncronos",
+    "slow: testes lentos (>10s)",
+    "visual: testes de regressão visual",
+    "flyer_health: testes que verificam URLs de imagens de flyers (rede externa)",
+]
 filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
     "ignore::DeprecationWarning:supabase",
-    "ignore::pytest.PytestDeprecationWarning",
+    "ignore::DeprecationWarning:httpx",
+    "ignore::DeprecationWarning:httpcore",
+    "ignore::DeprecationWarning:hpack",
+    "ignore::DeprecationWarning:h2",
+    "ignore::ResourceWarning:httpx",
+    "ignore::ResourceWarning:httpcore",
+    "ignore::ResourceWarning:unittest",
+    "ignore::ResourceWarning:dotenv",
     "ignore:.*asyncio_default_fixture_loop_scope.*:pytest.PytestDeprecationWarning",
     "ignore:.*iscoroutinefunction.*:DeprecationWarning:pytest_asyncio",
     "ignore:.*get_event_loop_policy.*:DeprecationWarning:pytest_asyncio",
     "ignore:.*set_event_loop_policy.*:DeprecationWarning:pytest_asyncio",
 ]
-markers = [
-      "slow: marks tests as slow (real HTTP/Playwright/OCR)",
-      "integration: marks tests that need real Supabase/network (skipped in unit CI)",
-      "flyer_health: marks tests that check flyer image URLs (external network)",
-  ]
-testpaths = ["tests"]
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-addopts = "-m 'not slow and not integration' --ignore=tests/integration/test_real_integration.py --durations=10 --timeout=30"
 
 [tool.ruff]
 line-length = 120
@@ -30,7 +47,6 @@ ignore = ["E501", "B006", "B008", "B023", "S101"]
 
 [tool.ruff.lint.per-file-ignores]
 "admin/app.py" = ["E402"]
-"scripts/archive/*" = ["S501", "S603", "S311", "S112", "S110", "B007", "UP015", "C401", "S607"]
 "scripts/*.py" = ["S501", "S603", "S311", "S112", "S110", "B007", "UP015", "C401", "E741", "W292", "S602", "S607", "S113", "F841"]
 "tests/*" = ["S101", "S105", "B007", "C401", "E402", "F841", "F811", "S110", "SIM105", "SIM117"]
 

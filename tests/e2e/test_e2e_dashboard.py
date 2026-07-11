@@ -86,7 +86,7 @@ def browser_dashboard():
         browser.close()
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def logged_in_page(browser):
     """Page ja logada no Streamlit (local OU cloud).
 
@@ -156,7 +156,7 @@ def test_visao_geral_kpis(logged_in_page):
     app = wake_if_sleeping(page, app)
     app = ensure_app_ready(page, app)
     assert _navigate_to_page(page, app, "Visão Geral")
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("domcontentloaded", timeout=30000)
     page.wait_for_timeout(2000)
     check_for_errors(app, "visao_geral_kpis", page=page)
 
@@ -168,7 +168,7 @@ def test_precos_filtros(logged_in_page):
     app = wake_if_sleeping(page, app)
     app = ensure_app_ready(page, app)
     assert _navigate_to_page(page, app, "Preços")
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("domcontentloaded", timeout=30000)
     page.wait_for_timeout(2000)
     check_for_errors(app, "precos_filtros", page=page)
 
@@ -180,7 +180,7 @@ def test_historico_grafico(logged_in_page):
     app = wake_if_sleeping(page, app)
     app = ensure_app_ready(page, app)
     assert _navigate_to_page(page, app, "Histórico")
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("domcontentloaded", timeout=30000)
     page.wait_for_timeout(2000)
     check_for_errors(app, "historico_grafico", page=page)
 
@@ -192,7 +192,7 @@ def test_flyers_grid(logged_in_page):
     app = wake_if_sleeping(page, app)
     app = ensure_app_ready(page, app)
     assert _navigate_to_page(page, app, "Flyers")
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("domcontentloaded", timeout=30000)
     page.wait_for_timeout(2000)
     check_for_errors(app, "flyers_grid", page=page)
 
@@ -204,7 +204,7 @@ def test_revisao_approve_reject(logged_in_page):
     app = wake_if_sleeping(page, app)
     app = ensure_app_ready(page, app)
     assert _navigate_to_page(page, app, "Revisão")
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("domcontentloaded", timeout=30000)
     page.wait_for_timeout(2000)
     check_for_errors(app, "revisao", page=page)
 
@@ -216,15 +216,16 @@ def test_calculadora_salvar(logged_in_page):
     app = wake_if_sleeping(page, app)
     app = ensure_app_ready(page, app)
     assert _navigate_to_page(page, app, "Calculadora")
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("domcontentloaded", timeout=30000)
     page.wait_for_timeout(2000)
     check_for_errors(app, "calculadora", page=page)
 
 
 # -------------------- Supabase Data Checks --------------------
-@pytest.mark.integration
 def test_supabase_connection():
-    """D1-D8: integridade minima dos dados no Supabase. Requer service role."""
+    """D1-D8: integridade minima dos dados no Supabase. Requer service role.
+    Roda dentro do job e2e-full (precisa SUPABASE_URL/KEY já configuradas).
+    """
     if not os.environ.get("SUPABASE_URL") or not os.environ.get("SUPABASE_SERVICE_ROLE_KEY"):
         pytest.skip("SUPABASE_URL/SERVICE_ROLE_KEY ausentes — checks de dados Supabase pulados")
 
@@ -295,7 +296,7 @@ def test_visual_regression(logged_in_page):
         app = get_app(page)
         if not _navigate_to_page(page, app, label):
             pytest.fail(f"Nav '{label}' nao encontrada no visual regression")
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("domcontentloaded", timeout=30000)
         page.wait_for_timeout(1500)
 
         current_path = f"tests/screenshots/current_{page_id}.png"
@@ -304,19 +305,17 @@ def test_visual_regression(logged_in_page):
 
         page.screenshot(path=current_path, full_page=True)
 
-        if baseline_path.exists():
+        if UPDATE_BASELINES:
+            baseline_dir.mkdir(parents=True, exist_ok=True)
+            import shutil
+            shutil.move(current_path, baseline_path)
+        elif baseline_path.exists():
             if not compare_images(current_path, str(baseline_path)):
                 img1 = Image.open(current_path).convert("RGB")
                 img2 = Image.open(str(baseline_path)).convert("RGB")
                 diff = ImageChops.difference(img1, img2)
                 diff.save(str(diff_path))
                 pytest.fail(f"Visual regression detected on {page_id}. Diff saved to {diff_path}")
-        elif UPDATE_BASELINES:
-            baseline_dir.mkdir(parents=True, exist_ok=True)
-            import shutil
-
-            shutil.move(current_path, baseline_path)
-            # erro generico ignorado: nao-critico em primeiro run
 
 
 if __name__ == "__main__":

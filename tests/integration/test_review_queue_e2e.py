@@ -6,7 +6,6 @@ Cobre: approve, reject, fuzzy match, duplicate price, trigger ON CONFLICT.
 Roda com: pytest tests/test_review_queue_e2e.py -v
 """
 
-import os
 import sys
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -16,21 +15,12 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
-def _has_db_creds():
-    url = os.environ.get("SUPABASE_URL", "")
-    pwd = os.environ.get("SUPABASE_DB_PASSWORD", "")
-    if not url or not pwd:
-        return False
-    try:
-        proj = url.split("//")[1].split(".")[0]
-        return len(proj) > 10
-    except Exception:
-        return False
+from tests.conftest import _has_real_db as _has_db_creds
 
 
 pytestmark = pytest.mark.skipif(
     not _has_db_creds(),
-    reason="SUPABASE_URL / SUPABASE_DB_PASSWORD not set",
+    reason="SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set",
 )
 
 
