@@ -166,6 +166,13 @@ class ExtraFlyerScraper:
         sp_now = datetime.now(UTC) + SP_OFFSET
         return sp_now.strftime("%d%m%Y")
 
+    @staticmethod
+    def _ddmmyyyy_to_yyyymmdd(date_str: str) -> str:
+        """Convert DDMMYYYY to YYYYMMDD for correct comparison."""
+        if len(date_str) == 8 and date_str.isdigit():
+            return date_str[4:8] + date_str[2:4] + date_str[0:2]
+        return date_str  # fallback
+
     def _fetch_campanhas(self) -> dict | None:
         resp = self._http.get(CAMPANHAS_URL)
         resp.raise_for_status()
@@ -185,16 +192,24 @@ class ExtraFlyerScraper:
         brand_data = data.get(self.BRAND, {}) or data.get("extra", {})
         if today not in brand_data:
             available = sorted(brand_data.keys(), reverse=True)
+            selected_today = today
             for d in available:
-                if d <= today:
-                    today = d
+                d_cmp = ExtraFlyerScraper._ddmmyyyy_to_yyyymmdd(d)
+                today_cmp = ExtraFlyerScraper._ddmmyyyy_to_yyyymmdd(today)
+                if d_cmp <= today_cmp:
+                    selected_today = d
                     break
             else:
                 logger.warning("No campaign data for %s", today)
                 return []
+            today = selected_today
 
         day_data = brand_data[today]
-        campaign_type = day_data.get(self.CAMPAIGN_TYPE, {}) or day_data.get("mercado", {})
+        campaign_type = (
+            day_data.get(self.CAMPAIGN_TYPE, {})
+            or day_data.get("mercado", {})
+            or day_data.get("minuto", {})
+        )
         campaigns = []
         seen = set()
         for city in TARGET_CITIES:

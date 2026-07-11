@@ -13,4 +13,4 @@ class PaoFlyerScraper(ExtraFlyerScraper):
     """
 
     BRAND = "pao"
-    CAMPAIGN_TYPE = "fresh"
+    CAMPAIGN_TYPE = "pao-de-acucar"

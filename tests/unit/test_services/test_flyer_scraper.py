@@ -4,7 +4,7 @@ class TestPaoFlyerScraper:
         from scrapers.pao_flyer_scraper import PaoFlyerScraper
 
         assert PaoFlyerScraper.BRAND == "pao"
-        assert PaoFlyerScraper.CAMPAIGN_TYPE == "fresh"
+        assert PaoFlyerScraper.CAMPAIGN_TYPE == "pao-de-acucar"
 
     def test_extra_flyer_scraper_defaults(self):
         """ExtraFlyerScraper mantem BRAND e CAMPAIGN_TYPE originais."""
