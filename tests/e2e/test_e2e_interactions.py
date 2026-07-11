@@ -19,8 +19,9 @@ import time
 from dashboard.navigation_config import MENU_GROUPS
 from .test_e2e_real import check_for_errors, wake_if_sleeping
 
-BASE_URL = "http://localhost:8501"
-ADMIN_PASSWORD = ""
+import os
+BASE_URL = os.getenv("STREAMLIT_URL", "http://localhost:8501")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 
 PAGES = [(page_id, label) for _group, group_pages in MENU_GROUPS.items() for label, _icon, page_id in group_pages]
 
@@ -220,18 +221,22 @@ _PAGE_ACTIONS: dict = {
 }
 
 
-def _navigate_to_page(page, label: str) -> bool:
-    """Navega para a pagina via sidebar links; fallback para buttons."""
-    sidebar = page.locator('[data-testid="stSidebar"]')
-    if sidebar.count() > 0:
-        link = sidebar.locator("a").filter(has_text=label).first
-        if link.count() > 0:
-            link.click()
+def _navigate_to_page(page, app, label: str) -> bool:
+    """Navega para pagina via sidebar, testa em app (cloud) e page (local)."""
+    containers = [c for c in (app, page) if c is not None]
+    for container in containers:
+        sidebar = container.locator('[data-testid="stSidebar"]')
+        if sidebar.count() > 0:
+            link = sidebar.locator("a").filter(has_text=label).first
+            if link.count() > 0:
+                link.click()
+                page.wait_for_timeout(1500)
+                return True
+        btn = container.locator(f"button:has-text('{label}')").first
+        if btn.count() > 0:
+            btn.click()
+            page.wait_for_timeout(1500)
             return True
-    btn = page.locator(f"button:has-text('{label}')").first
-    if btn.count() > 0:
-        btn.click()
-        return True
     return False
 
 
@@ -239,7 +244,7 @@ def _navigate_to_page(page, label: str) -> bool:
 def test_page_with_interactions(logged_in_app_and_page_local, page_id, label):
     app, page = logged_in_app_and_page_local
     page = wake_if_sleeping(page, app)
-    if not _navigate_to_page(page, label):
+    if not _navigate_to_page(page, app, label):
         import os as _os
 
         report_dir = _os.path.join("data", "regression_screenshots")

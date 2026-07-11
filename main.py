@@ -9,7 +9,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 
 from scripts.sync_all_store_fields import sync_scrape_frequencies, sync_store_fields
-from services import collector, email_service, flyer_service, otel, price_analytics, price_intelligence, price_service
+from services import collector, email_service, flyer_service, otel, price_analytics, price_intelligence, price_service, store_registry
 from services.logger import logger
 
 DATA_DIR = Path("data")
@@ -136,6 +136,13 @@ def main(args: Namespace | None = None):
         logger.info("collecting_facebook_flyers")
         fb_products = collector.collect_facebook_flyers(ingredients)
         logger.info("facebook_flyers_collected", count=len(fb_products))
+
+        # Auto-discover stores from aggregator flyers
+        try:
+            store_registry.discover_stores_from_flyers()
+            logger.info("store_discovery_completed")
+        except Exception as e:
+            logger.warning("store_discovery_error", error=str(e))
 
         all_products = (
             tier1_products

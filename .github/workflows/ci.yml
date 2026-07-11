@@ -170,6 +170,32 @@ jobs:
         run: python scripts/sync_md_v2.py --pulse
         continue-on-error: true
 
+  matcher-eval:
+    needs: [lint, typecheck]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: requirements-dev.lock
+      - run: pip install -r requirements-dev.lock
+      - name: Record start time
+        run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
+      - name: Evaluate matcher against golden dataset
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+          EVAL_PRECISION_MIN: '0.90'
+          EVAL_RECALL_MIN: '0.84'
+          EVAL_F1_MIN: '0.87'
+        run: python scripts/evaluate_matcher.py --check
+      - name: Check time budget for matcher-eval
+        run: python scripts/check_time_budget.py --timeout-minutes 5 --label "matcher-eval"
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+
   unit:
     needs: [lint, typecheck]
     runs-on: ubuntu-latest

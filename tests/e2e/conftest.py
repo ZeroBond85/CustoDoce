@@ -31,8 +31,8 @@ def _login_local(page, password: str) -> None:
         entrar = page.get_by_role("button", name="Entrar", exact=True).first
         if entrar.count() > 0:
             entrar.click()
-            page.wait_for_load_state("networkidle")
-            page.wait_for_timeout(2000)
+            page.wait_for_timeout(3000)
+            page.locator('[data-testid="stSidebar"]').wait_for(state="visible", timeout=30000)
 
 
 @pytest.fixture(scope="session")
@@ -53,10 +53,8 @@ def logged_in_app_and_page_local(browser):
     """
     page = browser.new_page(viewport={"width": 1280, "height": 800})
     page.goto(LOCAL_BASE_URL, timeout=120000)
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("networkidle", timeout=60000)
     _login_local(page, LOCAL_ADMIN_PASSWORD)
-    page.wait_for_load_state("networkidle")
-    page.wait_for_selector('[data-testid="stSidebar"] a', timeout=60000)
     yield page, page
     page.close()
 

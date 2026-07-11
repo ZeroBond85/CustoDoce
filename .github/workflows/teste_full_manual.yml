@@ -211,3 +211,142 @@ jobs:
       - if: steps.pw-cache.outputs.cache-hit != 'true'
         name: Install Playwright browsers
         run: python -m playwright install chromium --with-deps
+      - name: Start Streamlit local server
+        run: |
+          nohup streamlit run admin/app.py --server.port 8501 --server.headless true > /tmp/streamlit.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:8501 > /dev/null 2>&1; then
+              echo "Streamlit ready after ${i}s"
+              break
+            fi
+            sleep 2
+          done
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+      - name: Run E2E tests
+        run: python -m pytest tests/e2e/ -v --tb=short --no-header --durations=5 -m "not visual"
+        env:
+          STREAMLIT_URL: http://localhost:8501
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+  diagnostics:
+    needs: [lint, typecheck]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: requirements-test.lock
+      - run: pip install -r requirements-test.lock
+      - run: python -m pytest tests/diagnostics/ -q --tb=short --no-header --durations=5
+
+  visual:
+    needs: [lint, typecheck]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: requirements-test.lock
+      - run: pip install -r requirements-test.lock
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('requirements-test.lock') }}
+      - if: steps.pw-cache.outputs.cache-hit != 'true'
+        name: Install Playwright browsers
+        run: python -m playwright install chromium --with-deps
+      - name: Start Streamlit local server
+        run: |
+          nohup streamlit run admin/app.py --server.port 8501 --server.headless true > /tmp/streamlit.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:8501 > /dev/null 2>&1; then
+              echo "Streamlit ready after ${i}s"
+              break
+            fi
+            sleep 2
+          done
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+      - name: Visual regression (cria baselines)
+        run: UPDATE_BASELINES=1 python -m pytest tests/e2e/test_e2e_dashboard.py::test_visual_regression -v --tb=short
+        env:
+          STREAMLIT_URL: http://localhost:8501
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: visual-baselines
+          path: tests/baselines/
+          retention-days: 30
+
+  results:
+    if: always()
+    needs:
+      - lint
+      - typecheck
+      - docs-sync
+      - unit
+      - integration
+      - deploy-check
+      - e2e-full
+      - real
+      - diagnostics
+      - visual
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: |
+          echo "## Resultados do Teste_Full_Manual" >> $GITHUB_STEP_SUMMARY
+          for job in \
+            lint \
+            typecheck \
+            docs-sync \
+            unit \
+            integration \
+            deploy-check \
+            e2e-full \
+            real \
+            diagnostics \
+            visual; do
+            result="${{ needs.$job.result }}"
+            echo "- **$job**: $result" >> $GITHUB_STEP_SUMMARY
+          done
+          all_green=true
+          for job in \
+            lint \
+            typecheck \
+            docs-sync \
+            unit \
+            integration \
+            deploy-check \
+            e2e-full \
+            real \
+            diagnostics \
+            visual; do
+            result="${{ needs.$job.result }}"
+            if [ "$result" != "success" ]; then
+              all_green=false
+              break
+            fi
+          done
+          if [ "$all_green" = true ]; then
+            echo "## :white_check_mark: Todos os jobs passaram!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## :x: Alguns jobs falharam" >> $GITHUB_STEP_SUMMARY
+          fi

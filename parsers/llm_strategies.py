@@ -9,14 +9,14 @@ Objetivo (RFC Recurso 2): Evitar crashes do pipeline quando APIs externas caem.
 - Try/except robusto: timeout, rate limit, erro de rede → todos capturados.
 """
 
+import httpx
 import json
 import os
 import time
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
 
-import httpx
-
+from services.http_client import get_client
 from services.logger import logger
 
 CIRCUIT_FAILURE_THRESHOLD = int(os.environ.get("LLM_CB_THRESHOLD", "3"))
@@ -157,8 +157,7 @@ class GroqStrategy(LLMStrategy):
             "Content-Type": "application/json",
         }
         try:
-            with httpx.Client(timeout=DEFAULT_TIMEOUT) as client:
-                resp = client.post(self.url, headers=headers, json=payload)
+            resp = get_client().post(self.url, headers=headers, json=payload, timeout=DEFAULT_TIMEOUT)
 
             if resp.status_code == 429:
                 logger.warning("groq_rate_limited", status=429)
@@ -235,8 +234,7 @@ class OpenRouterStrategy(LLMStrategy):
             "Content-Type": "application/json",
         }
         try:
-            with httpx.Client(timeout=DEFAULT_TIMEOUT) as client:
-                resp = client.post(self.url, headers=headers, json=payload)
+            resp = get_client().post(self.url, headers=headers, json=payload, timeout=DEFAULT_TIMEOUT)
             if resp.status_code == 429 or resp.status_code >= 500:
                 logger.warning("openrouter_retryable_error", status=resp.status_code)
                 self.record_failure()
@@ -300,8 +298,7 @@ class HuggingFaceStrategy(LLMStrategy):
             "Content-Type": "application/json",
         }
         try:
-            with httpx.Client(timeout=DEFAULT_TIMEOUT) as client:
-                resp = client.post(url, headers=headers, json=payload)
+            resp = get_client().post(url, headers=headers, json=payload, timeout=DEFAULT_TIMEOUT)
             if resp.status_code == 429 or resp.status_code >= 500:
                 logger.warning("huggingface_retryable_error", status=resp.status_code)
                 self.record_failure()
@@ -334,4 +331,5 @@ class HuggingFaceStrategy(LLMStrategy):
         except Exception as e:
             logger.warning("huggingface_error", error=str(e))
             self.record_failure()
+            return None
             return None
