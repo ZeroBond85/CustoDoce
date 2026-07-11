@@ -89,11 +89,11 @@ class TestFacebookFlyerScraper:
             {"product": "Leite Condensado 395g", "price": 6.50, "unit": "395g", "validity_raw": "2026-07-15", "brand": "Piracanjuba"},
         ]
 
-        # Mock httpx download - use proper mock for async context manager
+        # Mock httpx download — resp = await client.get() returns mock_get.return_value
         mock_resp = MagicMock()
         mock_resp.raise_for_status = MagicMock()
         mock_resp.content = b"fake_image_bytes"
-        mock_get.return_value.__aenter__.return_value = mock_resp
+        mock_get.return_value = mock_resp
 
         scraper = FacebookFlyerScraper({"name": "TestFB", "page_url": "https://facebook.com/test"})
 

@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from services.alert_service import process_proactive_alerts
 
 
@@ -53,6 +55,7 @@ def _make_mock_client(has_rules=True, has_recipients=True, has_failures=False):
     return client
 
 
+@pytest.mark.slow
 class TestProcessProactiveAlerts:
     @patch("services.alert_service.get_supabase")
     def test_no_rules_returns_early(self, mock_get_supabase):

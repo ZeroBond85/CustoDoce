@@ -1,6 +1,6 @@
 # `collector` — API
 
-> Última atualização: 2026-07-10 23:06 UTC
+> Última atualização: 2026-07-11 13:05 UTC
 > Gerado por AST parsing dos serviços em `services/collector.py`.
 
 ## Funções Públicas (17)

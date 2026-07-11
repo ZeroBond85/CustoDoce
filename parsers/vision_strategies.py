@@ -33,6 +33,8 @@ class VisionStrategy(ABC):
     """Base class for vision LLM strategies with circuit breaker."""
 
     provider_name: str = "base"
+    url: str = ""
+    api_key: str = ""
 
     def __init__(self):
         self._failure_count = 0

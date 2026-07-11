@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -99,7 +98,7 @@ class TestInjectCSS:
 
 class TestLoadCSS:
     """Tests for _load_css function - uses mocked Path objects to avoid Windows Path issues."""
-    
+
     def test_load_css_returns_content_when_exists(self):
         mock_path = MagicMock()
         mock_path.exists.return_value = True

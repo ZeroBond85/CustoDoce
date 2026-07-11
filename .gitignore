@@ -79,9 +79,13 @@ data/onnx_models/
 *.pth
 *.pkl
 *.h5
+*.safetensors
 tokenizer.json
 special_tokens_map.json
 tokenizer_config.json
+
+# Store backups (local snapshots, not for version control)
+data/store_backups/
 
 # Backups / dumps / SQL loose files
 *.sql
@@ -154,3 +158,4 @@ data/skills_backup/
 
 # E2E regression screenshots (test artifacts, not source)
 data/regression_screenshots/
+scripts/archive/
