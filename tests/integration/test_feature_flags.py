@@ -4,7 +4,6 @@ Testes de integração para Feature Flags (DB-backed).
 Valida que flags podem ser alteradas e recuperadas corretamente.
 """
 
-import os
 import sys
 from pathlib import Path
 
@@ -13,15 +12,12 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
-def _has_db_creds():
-    url = os.environ.get("SUPABASE_URL", "")
-    pwd = os.environ.get("SUPABASE_DB_PASSWORD", "")
-    return bool(url and pwd)
+from tests.conftest import _has_real_db as _has_db_creds
 
 
 pytestmark = pytest.mark.skipif(
     not _has_db_creds(),
-    reason="SUPABASE_URL / SUPABASE_DB_PASSWORD not set",
+    reason="SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set",
 )
 
 from services import config_db

@@ -8,7 +8,6 @@ contra Supabase real (ou com mock rico).
 Requer SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY no env ou .env.
 """
 
-import os
 import sys
 from pathlib import Path
 
@@ -17,16 +16,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
-def _has_db_creds() -> bool:
-    url = os.environ.get("SUPABASE_URL", "")
-    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
-    if not url or not key:
-        return False
-    try:
-        proj = url.split("//")[1].split(".")[0]
-        return len(proj) > 10
-    except Exception:
-        return False
+from tests.conftest import _has_real_db as _has_db_creds
 
 
 pytestmark = pytest.mark.skipif(

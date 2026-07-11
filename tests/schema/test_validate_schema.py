@@ -3,11 +3,10 @@
 Testes de schema do banco Supabase.
 Valida que TODAS as tabelas, colunas, constraints, índices e funções esperadas existem.
 
-Requer SUPABASE_URL e SUPABASE_DB_PASSWORD no .env.
+Requer SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no .env.
 Equivalente a: python scripts/validate_db_schema.py
 """
 
-import os
 import sys
 from pathlib import Path
 
@@ -16,21 +15,12 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 
-def _has_db_creds():
-    url = os.environ.get("SUPABASE_URL", "")
-    pwd = os.environ.get("SUPABASE_DB_PASSWORD", "")
-    if not url or not pwd:
-        return False
-    try:
-        proj = url.split("//")[1].split(".")[0]
-        return len(proj) > 10
-    except Exception:
-        return False
+from tests.conftest import _has_real_db as _has_db_creds
 
 
 pytestmark = pytest.mark.skipif(
     not _has_db_creds(),
-    reason="SUPABASE_URL / SUPABASE_DB_PASSWORD not set",
+    reason="SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set",
 )
 
 
