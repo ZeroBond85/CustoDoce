@@ -73,8 +73,11 @@ def close_clients():
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            _async_client.aclose()
-            _async_client = None
+            asyncio.run(_async_client.aclose())
+        else:
+            # loop em execucao: agenda o close sem bloquear o caller
+            asyncio.ensure_future(_async_client.aclose())
+        _async_client = None
 
 
 def retry_with_backoff(
@@ -85,7 +88,7 @@ def retry_with_backoff(
 ) -> httpx.Response:
     """GET with exponential backoff retry. Uses shared client."""
     client = get_client()
-    last_exc = None
+    last_exc: BaseException | None = None
     for attempt in range(max_retries + 1):
         try:
             r = client.get(url, **kwargs)
@@ -99,6 +102,7 @@ def retry_with_backoff(
         if attempt < max_retries:
             delay = min(base_delay * (2**attempt) + secrets.randbelow(500) / 1000, 30.0)
             time.sleep(delay)
+    assert last_exc is not None
     raise last_exc
 
 
@@ -112,7 +116,7 @@ async def retry_with_backoff_async(
     import asyncio
 
     client = get_async_client()
-    last_exc = None
+    last_exc: BaseException | None = None
     for attempt in range(max_retries + 1):
         try:
             r = await client.get(url, **kwargs)
@@ -126,4 +130,5 @@ async def retry_with_backoff_async(
         if attempt < max_retries:
             delay = min(base_delay * (2**attempt) + secrets.randbelow(500) / 1000, 30.0)
             await asyncio.sleep(delay)
+    assert last_exc is not None
     raise last_exc
