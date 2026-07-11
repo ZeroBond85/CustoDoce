@@ -16,6 +16,24 @@
 | Playwright, OCR (Tesseract) | **WSL (Debian)** | Browser automation e dependências SO | `custodoce-314` (Conda) |
 | Testes E2E / Visual | **WSL (Debian)** | Estabilidade do Chromium Headless | `custodoce-314` (Conda) |
 
+### ⚠️ CRLF vs LF: Toda Geração de Docs Roda no WSL
+
+O `sync_docs.py` gera arquivos `.md` via `write()` do Python. No Windows, `write()` usa CRLF. O `.gitattributes` exige `eol=lf` para `*.md`. Isso causa:
+
+- **pre-commit bloqueia**: detecta CRLF em staged files
+- **Churn de diff**: scripts reescrevem o arquivo, mudam line endings, diff poluído
+
+**Regra:** Para qualquer comando que gere/modifique arquivos de documentação, use **WSL**:
+
+```bash
+# WSL - CRLF nunca acontece
+cd /mnt/c/Zerobond/Code/CustoDoce
+python scripts/sync_docs.py              # gera LF nativamente
+git add docs/ && git commit              # pre-commit feliz
+```
+
+**Exceção:** Edição manual via `edit` tool no Windows é segura — a tool usa LF preservando o existente.
+
 ### ⚠️ Lei do Ambiente (Anti-Fricção)
 1. **Proibido "Misturar" Shells**: Não execute `wsl bash -c '...'` para tarefas que podem rodar em Python no Windows. Use WSL apenas para dependências de SO.
 2. **Isolamento de Paths**:
