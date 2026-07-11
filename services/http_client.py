@@ -102,7 +102,7 @@ def retry_with_backoff(
         if attempt < max_retries:
             delay = min(base_delay * (2**attempt) + secrets.randbelow(500) / 1000, 30.0)
             time.sleep(delay)
-    assert last_exc is not None
+    assert last_exc is not None  # nosec
     raise last_exc
 
 
