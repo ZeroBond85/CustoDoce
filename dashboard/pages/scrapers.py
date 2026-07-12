@@ -2,6 +2,7 @@
 Dashboard Page: Scrapers
 """
 
+import json
 import pandas as pd
 import streamlit as st
 
@@ -11,6 +12,23 @@ from services.dashboard_queries import (
     get_store_health,
     get_stores_with_frequencies,
 )
+
+
+def _sanitize_df_for_display(df: pd.DataFrame) -> pd.DataFrame:
+    """Converte colunas object que contenham listas/dicts (JSONB do
+    Supabase) para string, evitando pyarrow ArrowInvalid no
+    st.dataframe ('cannot mix list and non-list'). Licao #51.
+    """
+    for col in df.columns:
+        if df[col].dtype == object:
+            df[col] = df[col].apply(
+                lambda v: (
+                    ", ".join(str(x) for x in v)
+                    if isinstance(v, (list, tuple))
+                    else (json.dumps(v, ensure_ascii=False) if isinstance(v, dict) else ("" if v is None or (isinstance(v, float) and pd.isna(v)) else str(v)))
+                )
+            )
+    return df
 
 
 def render_scrapers():
@@ -26,6 +44,11 @@ def render_scrapers():
         logs = get_recent_scraper_logs(100)
         if logs:
             df = pd.DataFrame(logs)
+            # Colunas JSONB (ex.: 'errors') vem como lista em algumas linhas e
+            # nulo/scalar em outras -> pyarrow falha (ArrowInvalid: cannot mix
+            # list and non-list). Normaliza TODAS as colunas object que
+            # contenham listas/dicts para string antes do st.dataframe (Licao #51).
+            df = _sanitize_df_for_display(df)
             cols = [
                 c
                 for c in ["store_name", "status", "started_at", "finished_at", "items_found", "items_matched", "errors"]
@@ -46,6 +69,7 @@ def render_scrapers():
             if "errors" in df.columns and "runs" in df.columns:
                 df["error_rate"] = df["errors"] / df["runs"].replace(0, 1)
                 df = df.sort_values("error_rate", ascending=False)
+            df = _sanitize_df_for_display(df)
             st.dataframe(df, use_container_width=True)
 
     with tabs[1]:  # Agendamentos

@@ -1,5 +1,5 @@
 # Lições Aprendidas
-> Última atualização: 2026-07-10 22:11 UTC
+> Última atualização: 2026-07-11 06:05 UTC
 
 > Extraídas de AGENTS.md. Numeração original preservada.
 > Regras de execução/ambiente → `REGRAS.md`.
@@ -502,3 +502,64 @@ mock_get.return_value = mock_resp  # ✅
 ## 48. Marcador `slow` para documentação, não filtro automático
 
 **Decisão:** `test_alert_service.py` (1 teste ~32s) marcado como `@pytest.mark.slow`. O `addopts` global **não** inclui `-m 'not slow'` para evitar quebrar workflows CI que rodam testes lentos (diagnostics, real, integration). O marcador serve como documentação e filtro opcional. Para pular testes lentos localmente: `pytest -m 'not slow'`.
+
+## 49. CRLF root fix: `core.autocrlf = true` no Windows — WSL não precisa
+
+**Sintoma:** Git emitia "CRLF will be replaced by LF" em todo `git add` de arquivos texto no Windows. Pre-commit Layer 8 bloqueava commits com CRLF. Tentativa de auto-fix no hook não resolvia a raiz — o warning continuava aparecendo.
+
+**Causa raiz:** Windows usa `\r\n` nativamente. `core.autocrlf = false` + `.gitattributes eol=lf` faz Git detectar CRLF e avisar sobre a conversão no staging. O problema é intrínseco ao ecossistema Windows — no WSL (Linux) não existe CRLF, então o warning nunca aparece.
+
+**Correção raiz:** `git config core.autocrlf true` (local ao repo):
+- Git converte CRLF→LF no staging SILENCIOSAMENTE (sem warning)
+- Git converte LF→CRLF no checkout (Windows espera CRLF)
+- `.gitattributes` com `*.py eol=lf` etc. continua valendo — arquivos específicos mantêm LF puro
+- O warning "CRLF will be replaced by LF" desaparece porque `autocrlf=true` diz ao Git "sim, eu sei que tem CRLF, converte sem avisar"
+
+**Regra permanente (NOVO TOP 10 REGRA #14):**
+- Windows: `core.autocrlf = true` OBRIGATÓRIO no repo. O pre-commit hook verifica e falha se estiver `false` ou `input`.
+- WSL: `core.autocrlf` deve ser `false` ou `input` (Linux não usa CRLF).
+- `.gitattributes` com `eol=lf` mantido como fonte da verdade para tipos específicos.
+- Layer 8 do pre-commit muda de BLOQUEIO para AVISO informativo (já que `autocrlf=true` resolve).
+- Novo script `scripts/check_line_endings_config.py` que valida `core.autocrlf` de acordo com a plataforma (Windows=`true`, WSL=`false`/`input`), rodando no pre-push hook.
+- Qualquer tentativa de auto-fix de CRLF no pre-commit é PROIBIDA — a correção raiz é configurar o Git corretamente, não tratar sintoma.
+
+
+## 50. st.navigation dessincroniza apos render pesado (Revisao) - clique vira no-op
+
+**Sintoma:** No CI, `test_all_pages_crawl` (smoke e2e) falhava em Capacidade: URL
+revertia para /revisao. Nao reproduzivel com clique unico local (Capacidade como 2a
+navegacao funcionava). O teste e2e REAL passava (clica Capacidade como 2a nav, fresh).
+
+**Causa raiz:** Streamlit 1.59.0 `st.navigation` - apos o render de uma pagina pesada
+(Revisao), o handler de click dos links da sidebar fica dessincronizado por ~3-4s. Os
+primeiros cliques viram no-op (URL nao muda) MESMO com o <a> tendo href correto e
+sendo clicavel (provado: elementFromPoint retorna o anchor certo, e el.click() JS tambem
+nao navega). Reproduzido localmente: saindo de Revisao, os 3 primeiros cliques sao
+ignorados, depois recupera. NAO e por contagem de navegacoes, NAO e auth.
+
+**Correcao:** `tests/e2e/test_e2e_smoke_basic.py` usa `_click_nav_until_url()` que clica
+o link real da sidebar e POLLA a URL (ate 8 tentativas x 2.5s) re-clicando, igual ao
+`test_e2e_real.py` que usa `expect(page).to_have_url(timeout=10000)`. Mantem a sessao
+SPA (sem reload) para preservar o login em `st.session_state`. Fallback via `page.goto`
+NAO serve: reload completo destroi `st.session_state.authenticated` e volta para o login.
+
+
+## 51. st.dataframe quebra (pyarrow ArrowInvalid) com coluna JSONB lista mista
+
+**Sintoma:** No CI (Supabase REAL), a pagina "Scrapers & Logs" (e "Scraper Health > Raw Logs")
+quebrava com `pyarrow.lib.ArrowInvalid: ('cannot mix list and non-list, non-null values',
+'Conversion failed for column errors with type object')`. Localmente (Supabase fake/empty) nao reproduzia.
+
+**Causa raiz:** `get_recent_scraper_logs()` faz `scraping_logs.select('*')` e a coluna
+`errors` e JSONB — vem como LISTA em algumas linhas e NULO/escalar em outras.
+`pd.DataFrame(logs)` cria uma coluna `object` mista, e `st.dataframe()` serializa via
+pyarrow, que NAO aceita lista mista com escalares -> ArrowInvalid. So aparece no CI
+(dados reais) e fica mascarado localmente.
+
+**Correcao:** Em `dashboard/pages/scrapers.py` e `scraper_health.py`, normalizar a coluna
+`errors` para STRING (lista -> ', '.join; dict -> json.dumps; None -> '') ANTES de passar
+ao `st.dataframe`. So afeta as 2 paginas que exibem `scraping_logs` cru. Paginas que
+usam `get_store_health()` (errors como int) nao tem o problema.
+
+**Regra preventiva:** Nunca passar DataFrame com coluna object contendo listas/dicts mistos
+a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.

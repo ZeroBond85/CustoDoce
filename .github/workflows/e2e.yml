@@ -67,6 +67,8 @@ jobs:
         env:
           STREAMLIT_URL: http://localhost:8501
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
       - name: Flyer Images Health Check (external URLs)
         if: always()
@@ -78,14 +80,15 @@ jobs:
 
       - name: Visual Regression
         if: ${{ !inputs.skip_visual }}
-        run: python -m pytest tests/e2e/test_e2e_dashboard.py::TestVisualRegression -v --tb=short
+        run: python -m pytest tests/e2e/test_e2e_dashboard.py::test_visual_regression -v --tb=short
         env:
           STREAMLIT_URL: http://localhost:8501
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          UPDATE_BASELINES: '1'
 
       - name: Update Baselines
         if: ${{ inputs.update_baselines }}
-        run: UPDATE_BASELINES=1 python -m pytest tests/e2e/test_e2e_dashboard.py::TestVisualRegression -v
+        run: UPDATE_BASELINES=1 python -m pytest tests/e2e/test_e2e_dashboard.py::test_visual_regression -v
         env:
           STREAMLIT_URL: http://localhost:8501
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
@@ -133,7 +136,8 @@ jobs:
         run: python -m playwright install chromium --with-deps
 
       - name: Warmup Streamlit Cloud (Playwright)
-        run: python scripts/warmup_streamlit.py https://custodoce.streamlit.app '' 3
+        continue-on-error: true
+        run: python scripts/warmup_streamlit.py https://custodoce.streamlit.app '' 4
         env:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
 

@@ -1,5 +1,5 @@
 # REGRAS.md — Ambiente, Hooks, Comandos
-> Última atualização: 2026-07-10 23:06 UTC
+> Última atualização: 2026-07-11 19:50 UTC
 
 > Ambiente de execução, hooks de git, comandos de rotina e configurações obrigatórias.
 > Extraído de AGENTS.md original (seções "Ambiente", "Pre-commit/pre-push hooks", "OpenCode Skills Strategy").
@@ -43,11 +43,16 @@ git add docs/ && git commit              # pre-commit feliz
 3. **Default Python**:
    - Windows: `.venv314` (PowerShell)
    - WSL: `custodoce-314` (Conda/Bash)
-4. **Paridade de Versões (Obrigatório)**:
-   - **Python local (Windows/WSL) DEVE ser igual ao CI (GitHub Actions)**.
-   - Versão alvo definida em `pyproject.toml` `[tool.ruff] target-version` e workflows `PYTHON_VERSION`.
-   - Antes de qualquer PR: `python --version` local == `PYTHON_VERSION` no CI.
-   - Qualquer discrepância bloqueia merge — CI valida no alvo real.
+4. **Paridade de Versões (Obrigatório — expandida)**:
+   - **Python local (Windows/WSL) DEVE ser igual ao CI (GitHub Actions) e Cloud (Streamlit)**.
+   - **Versões obrigatórias**: `pyproject.toml` (target-version), `runtime.txt`, `.devcontainer/devcontainer.json`, workflows (`PYTHON_VERSION`), e `pyproject.toml` (mypy `python_version`) — todos Python **3.14.x**.
+   - **Lock files (requirements-*.lock)** são a única fonte de verdade. `requirements.txt` e `requirements.lock` são cópias do `requirements-test.lock`. Toda instalação via `pip install` em workflow DEVE usar `package==X.Y.Z` (nunca sem pin).
+   - **Actions @tags**: Consistentes em TODOS os workflows: `checkout@v7`, `setup-python@v6`, `cache@v4`, `upload-artifact@v7`. Qualquer outlier bloqueia merge.
+   - **System deps (tesseract/poppler/playwright)**: Instalados com mesmos comandos em CI, WSL e devcontainer. `packages.txt` é lista canônica; alterações refletidas em todos os locais.
+   - **.devcontainer**: Deve espelhar o Python target do projeto e instalar via lock files (`requirements-prod.lock`), não `requirements.txt`.
+   - **Verificação**: `python scripts/check_environment_parity.py` (roda no CI job `lint`, falha HARD em divergência).
+   - **Qualquer discrepância bloqueia merge** — CI valida no alvo real.
+   - **Drift de WSL**: Checar periodicamente: `wsl bash -c 'python --version && /home/ericsf/custodoce-314/bin/pip --version'`
 
 
 ## Windows (PowerShell) — Padrão para Python

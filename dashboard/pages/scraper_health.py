@@ -3,6 +3,7 @@ Dashboard Page: Scraper Health
 Detailed health monitoring with last_run, success_rate, latency_p95, items/store.
 """
 
+import json
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -95,6 +96,17 @@ def render_scraper_health():
     with tabs[2]:
         if logs_data:
             df = pd.DataFrame(logs_data)
+            # 'errors' vem como JSONB (lista em algumas linhas, nulo/scalar
+            # em outras) -> pyarrow falha ao converter. Normaliza para string
+            # antes do st.dataframe (Licao #51).
+            if "errors" in df.columns:
+                df["errors"] = df["errors"].apply(
+                    lambda v: (
+                        ", ".join(str(x) for x in v)
+                        if isinstance(v, (list, tuple))
+                        else (json.dumps(v, ensure_ascii=False) if isinstance(v, dict) else ("" if v is None else str(v)))
+                    )
+                )
             cols = [
                 c
                 for c in ["store_name", "status", "started_at", "finished_at", "items_found", "items_matched", "errors"]

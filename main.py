@@ -19,8 +19,10 @@ DATA_DIR.mkdir(exist_ok=True)
 def parse_args() -> Namespace:
     parser = ArgumentParser(description="CustoDoce Main Orchestrator")
     parser.add_argument("--dry-run", action="store_true", help="Dry-run mode: skip external side-effects (alerts, email, cleanups)")
-    parser.add_argument("--tier", type=str, default="1", help="Scraping tier (1/2/3)")
+    parser.add_argument("--tier", type=str, default=None, help="Scraping tier to collect (1/2a/2b/3). None = all tiers.")
     parser.add_argument("--mode", type=str, default="cron", help="Execution mode (cron/on_demand/heal)")
+    parser.add_argument("--finalize", action="store_true", help="Finalize-only mode: enrich + report + cleanup from DB (no collection)")
+    parser.add_argument("--no-finalize", action="store_true", help="Skip finalize step (collection only)")
     return parser.parse_args()
 
 
@@ -73,6 +75,133 @@ def generate_report_html(products: list[dict], ingredients: list[dict]) -> str:
     return html
 
 
+# (tier, collector_method, needs_ingredients)
+# Tier 1  - PDF Direto (atacadistas) + SP capital + Extra + Pao + Roldao
+# Tier 2a - E-commerce SP (VTEX / site proprio)
+# Tier 2b - Atacado Fisico SP (manual / planilha) - sem coleta automatica
+# Tier 3  - Agregadores (Tiendeo, Guiato, Facebook)
+TIER_PLAN: list[tuple[str, str, bool]] = [
+    ("1", "collect_tier1_pdfs", True),
+    ("1", "collect_tier1_api_flyers", True),
+    ("1", "collect_extra_flyers", True),
+    ("1", "collect_pao_flyers", True),
+    ("1", "collect_roldao_flyer", True),
+    ("1", "process_ocr_queue", False),
+    ("2a", "collect_tier2_vtex", True),
+    ("2a", "collect_carrefour", True),
+    ("2a", "collect_tier2_js", True),
+    ("3", "collect_tier3_websites", True),
+    ("3", "collect_aggregators_ssr", False),
+    ("3", "collect_aggregators_js", False),
+    ("3", "collect_facebook_flyers", True),
+]
+
+
+def _collect(args: Namespace, collector, ingredients: list) -> list[dict]:
+    """Run only the collectors for the requested --tier (or all if None).
+
+    Each collector upserts directly to Supabase, so splitting collection
+    across parallel tier jobs is safe: the shared DB receives every tier's
+    data. Previously main() ignored --tier and ran the full pipeline N times
+    (once per matrix entry), causing 4x redundant I/O, emails and cleanups.
+    """
+    collected: list[list] = []
+    for tier, method, needs_ing in TIER_PLAN:
+        if args.tier and tier != args.tier:
+            continue
+        fn = getattr(collector, method)
+        try:
+            result = fn(ingredients) if needs_ing else fn()
+        except Exception as e:
+            logger.error("collector_error", tier=tier, method=method, error=str(e))
+            result = []
+        if isinstance(result, list):
+            collected.append(result)
+            logger.info(f"{method}_collected", count=len(result))
+        else:
+            logger.info(f"{method}_done", result=result)
+    return [p for sub in collected for p in sub]
+
+
+def _pull_from_db() -> list[dict]:
+    """Pull all current prices from Supabase for finalize-only mode."""
+    try:
+        from services.price_repository import get_latest_prices
+
+        prices = get_latest_prices(valid_only=True, limit=2000)
+        logger.info("finalize_pulled_from_db", count=len(prices))
+        return prices
+    except Exception as e:
+        logger.error("finalize_db_pull_failed", error=str(e))
+        return []
+
+
+def _finalize(all_products: list[dict], ingredients: list, args: Namespace) -> None:
+    """Enrich + snapshot + report + cleanup. Runs once per scrape run."""
+    try:
+        pi = price_intelligence.PriceIntelligence()
+        all_products = pi.enrich_prices(all_products)
+        anomalies = sum(1 for p in all_products if p.get("ai_anomaly", {}).get("is_anomaly"))
+        offers = sum(1 for p in all_products if "OFERTA_REAL" in p.get("ai_tags", []))
+        logger.info("price_intelligence_results", analyzed=len(all_products), anomalies=anomalies, offers=offers)
+    except Exception as e:
+        logger.warning("price_intelligence_error", error=str(e))
+
+    snapshot = {
+        "collected_at": datetime.now(UTC).isoformat(),
+        "total_prices": len(all_products),
+        "ingredients_found": len({p["ingredient_id"] for p in all_products}),
+    }
+    snapshot_path = DATA_DIR / "prices_latest.json"
+    with open(snapshot_path, "w", encoding="utf-8") as f:
+        json.dump(snapshot, f, indent=2, ensure_ascii=False)
+
+    if all_products and not args.dry_run:
+        try:
+            report_html = price_analytics.generate_report_html(all_products, ingredients)
+            email_service.send_daily_report(report_html=report_html)
+            logger.info("daily_report_sent")
+        except Exception as e:
+            logger.warning("daily_report_error", error=str(e))
+
+    # Cleanups só rodam em modo real
+    if not args.dry_run:
+        for name, fn, days in [
+            ("prices", price_service.cleanup_old_prices, 90),
+            ("logs", price_service.cleanup_old_logs, 30),
+            ("flyers", flyer_service.cleanup_old_flyers, 60),
+            ("flyers_all", price_service.cleanup_old_flyers_all, 180),
+            ("review_resolved", price_service.cleanup_resolved_review_items, 30),
+        ]:
+            try:
+                result = fn(retention_days=days)
+                logger.info("cleanup_executed", target=name, result=result)
+            except Exception as e:
+                logger.warning("cleanup_error", target=name, error=str(e))
+
+        try:
+            result = flyer_service.cleanup_non_food_flyers()
+            logger.info("cleanup_non_food_flyers_executed", result=result)
+        except Exception as e:
+            logger.warning("cleanup_non_food_flyers_error", error=str(e))
+
+        try:
+            result = price_service.auto_reject_stale_review_items(max_age_days=14, min_confidence=0.3)
+            logger.info("cleanup_review_queue_executed", rejected_count=result)
+        except Exception as e:
+            logger.warning("cleanup_review_queue_error", error=str(e))
+
+        # FASE 6: Proactive Alerts (só em modo real)
+        try:
+            from services import alert_service
+
+            alert_service.process_proactive_alerts()
+        except Exception as e:
+            logger.error("proactive_alerts_failed", error=str(e))
+    else:
+        logger.info("dry_run_skip_side_effects")
+
+
 def main(args: Namespace | None = None):
     if args is None:
         args = parse_args()
@@ -89,135 +218,35 @@ def main(args: Namespace | None = None):
         except Exception as e:
             logger.warning("sync_store_fields_error", error=str(e))
 
-        logger.info("collecting_tier1_pdfs")
-        tier1_products = collector.collect_tier1_pdfs(ingredients)
-        logger.info("tier1_pdfs_collected", count=len(tier1_products))
+        # ── Collection dispatch (filtered by --tier) ──
+        collect_mode = args.tier is not None
+        full_local = (args.tier is None and not args.finalize and not args.no_finalize)
+        run_collection = collect_mode or full_local
+        run_finalize = args.finalize or full_local
 
-        logger.info("collecting_extra_flyers")
-        extra_products = collector.collect_extra_flyers(ingredients)
-        logger.info("extra_flyers_collected", count=len(extra_products))
+        all_products: list[dict] = []
+        if run_collection:
+            all_products = _collect(args, collector, ingredients)
+            logger.info("collection_done", total=len(all_products))
 
-        logger.info("collecting_pao_flyers")
-        pao_products = collector.collect_pao_flyers(ingredients)
-        logger.info("pao_flyers_collected", count=len(pao_products))
-
-        logger.info("collecting_tier1_api_flyers")
-        tier1_flyers = collector.collect_tier1_api_flyers(ingredients)
-        logger.info("tier1_api_flyers_collected", count=len(tier1_flyers))
-
-        logger.info("processing_ocr_queue")
-        ocr_processed = collector.process_ocr_queue()
-        logger.info("ocr_processed_count", count=ocr_processed)
-
-        logger.info("collecting_tier2_vtex")
-        tier2_products = collector.collect_tier2_vtex(ingredients)
-        logger.info("tier2_vtex_collected", count=len(tier2_products))
-
-        logger.info("collecting_tier3_websites")
-        tier3_products = collector.collect_tier3_websites(ingredients)
-        logger.info("tier3_websites_collected", count=len(tier3_products))
-
-        logger.info("collecting_carrefour")
-        carrefour_products = collector.collect_carrefour(ingredients)
-        logger.info("carrefour_collected", count=len(carrefour_products))
-
-        logger.info("collecting_tier2_js")
-        js_products = collector.collect_tier2_js(ingredients)
-        logger.info("tier2_js_collected", count=len(js_products))
-
-        logger.info("collecting_aggregators_ssr")
-        ssr_flyers = collector.collect_aggregators_ssr()
-        logger.info("aggregators_ssr_collected", count=len(ssr_flyers))
-
-        logger.info("collecting_roldao_flyer")
-        roldao_products = collector.collect_roldao_flyer(ingredients)
-        logger.info("roldao_flyer_collected", count=len(roldao_products))
-
-        logger.info("collecting_facebook_flyers")
-        fb_products = collector.collect_facebook_flyers(ingredients)
-        logger.info("facebook_flyers_collected", count=len(fb_products))
-
-        # Auto-discover stores from aggregator flyers
-        try:
-            store_registry.discover_stores_from_flyers()
-            logger.info("store_discovery_completed")
-        except Exception as e:
-            logger.warning("store_discovery_error", error=str(e))
-
-        all_products = (
-            tier1_products
-            + extra_products
-            + pao_products
-            + tier2_products
-            + tier3_products
-            + carrefour_products
-            + js_products
-            + roldao_products
-            + fb_products
-        )
-
-        try:
-            pi = price_intelligence.PriceIntelligence()
-            all_products = pi.enrich_prices(all_products)
-            anomalies = sum(1 for p in all_products if p.get("ai_anomaly", {}).get("is_anomaly"))
-            offers = sum(1 for p in all_products if "OFERTA_REAL" in p.get("ai_tags", []))
-            logger.info("price_intelligence_results", analyzed=len(all_products), anomalies=anomalies, offers=offers)
-        except Exception as e:
-            logger.warning("price_intelligence_error", error=str(e))
-
-        snapshot = {
-            "collected_at": datetime.now(UTC).isoformat(),
-            "total_prices": len(all_products),
-            "ingredients_found": len({p["ingredient_id"] for p in all_products}),
-        }
-        snapshot_path = DATA_DIR / "prices_latest.json"
-        with open(snapshot_path, "w", encoding="utf-8") as f:
-            json.dump(snapshot, f, indent=2, ensure_ascii=False)
-
-        if all_products and not args.dry_run:
+            # Auto-discover stores from aggregator flyers
             try:
-                report_html = price_analytics.generate_report_html(all_products, ingredients)
-                email_service.send_daily_report(report_html=report_html)
-                logger.info("daily_report_sent")
+                store_registry.discover_stores_from_flyers()
+                logger.info("store_discovery_completed")
             except Exception as e:
-                logger.warning("daily_report_error", error=str(e))
-
-        # Cleanups só rodam em modo real
-        if not args.dry_run:
-            for name, fn, days in [
-                ("prices", price_service.cleanup_old_prices, 90),
-                ("logs", price_service.cleanup_old_logs, 30),
-                ("flyers", flyer_service.cleanup_old_flyers, 60),
-                ("flyers_all", price_service.cleanup_old_flyers_all, 180),
-                ("review_resolved", price_service.cleanup_resolved_review_items, 30),
-            ]:
-                try:
-                    result = fn(retention_days=days)
-                    logger.info("cleanup_executed", target=name, result=result)
-                except Exception as e:
-                    logger.warning("cleanup_error", target=name, error=str(e))
-
-            try:
-                result = flyer_service.cleanup_non_food_flyers()
-                logger.info("cleanup_non_food_flyers_executed", result=result)
-            except Exception as e:
-                logger.warning("cleanup_non_food_flyers_error", error=str(e))
-
-            try:
-                result = price_service.auto_reject_stale_review_items(max_age_days=14, min_confidence=0.3)
-                logger.info("cleanup_review_queue_executed", rejected_count=result)
-            except Exception as e:
-                logger.warning("cleanup_review_queue_error", error=str(e))
-
-            # FASE 6: Proactive Alerts (só em modo real)
-            try:
-                from services import alert_service
-
-                alert_service.process_proactive_alerts()
-            except Exception as e:
-                logger.error("proactive_alerts_failed", error=str(e))
+                logger.warning("store_discovery_error", error=str(e))
         else:
-            logger.info("dry_run_skip_side_effects")
+            logger.info("collection_skipped", reason="--finalize (finalize-only mode)")
+
+        # ── Finalize (enrich + report + cleanup) ── runs once ──
+        if run_finalize:
+            if not run_collection:
+                # Finalize-only mode: pull all prices from DB (parallel tiers
+                # already upserted their data).
+                all_products = _pull_from_db()
+            _finalize(all_products, ingredients, args)
+        else:
+            logger.info("finalize_skipped", reason="--no-finalize")
 
         logger.info("custodoce_collection_finished", end_time=datetime.now().isoformat())
 

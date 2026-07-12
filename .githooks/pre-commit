@@ -260,11 +260,10 @@ if [ -n "${STAGED:-}" ]; then
 fi
 
 # ----------------------------------------------------------------
-# 8. CRLF GUARD - BLOQUEIA arquivos texto com CRLF (Windows line endings)
-#    Previne churn de line-ending: o .gitattributes (eol=lf) normaliza no
-#    commit, mas se um arquivo entra com CRLF e um script o reescreve, o git
-#    gera diffs enormes (ex.: docs/changelog.md com 390 linhas de variacao).
-#    Bloquear CRLF na origem elimina o problema de raiz.
+# 8. CRLF INFO — Aviso informativo se arquivo texto tiver CRLF
+#    A solucao de raiz para Windows e core.autocrlf=true (Git converte
+#    CRLF->LF no staging silenciosamente). Este check e apenas um aviso
+#    caso algo inesperado passe.
 # ----------------------------------------------------------------
 if [ -n "${STAGED:-}" ]; then
   CRLF_FILES=""
@@ -274,7 +273,6 @@ if [ -n "${STAGED:-}" ]; then
     IFS="$OIFS"
     case "$FILE" in
       *.py|*.md|*.yml|*.yaml|*.json|*.toml|*.sh|*.txt|*.ini|*.cfg|*.bash|*.lock)
-        # od converte para hex; CR (=0d) so existe em CRLF. grep -qw '0d' casa o byte isolado.
         if [ -f "$FILE" ] && od -An -tx1 "$FILE" 2>/dev/null | grep -qw '0d'; then
           CRLF_FILES="${CRLF_FILES}${CRLF_FILES:+\n}  $FILE"
         fi
@@ -284,20 +282,9 @@ if [ -n "${STAGED:-}" ]; then
   IFS="$OIFS"
   if [ -n "$CRLF_FILES" ]; then
     echo ""
-    echo "🚨 COMMIT BLOQUEADO: arquivos com CRLF (Windows line endings) detectados:"
-    echo "$CRLF_FILES"
+    echo "ℹ️  [INFO] CRLF detectado em arquivos staged (autocrlf=true converte para LF):"
+    echo -e "$CRLF_FILES"
     echo ""
-    echo "O .gitattributes exige eol=lf para estes arquivos. CRLF gera churn de diff"
-    echo "quando scripts (ex.: sync_docs) reescrevem o arquivo."
-    echo ""
-    echo "Correcao (PowerShell):"
-    echo '  foreach ($f in @(<arquivos>)) { (Get-Content $f) | Set-Content -NoNewline -Encoding utf8 $f }'
-    echo "Correcao (bash):"
-    echo "  sed -i 's/\r\$//' <arquivo>"
-    echo ""
-    echo "Bypass de emergencia: git commit --no-verify (NAO recomendado)"
-    echo ""
-    exit 1
   fi
 fi
 

@@ -13,10 +13,19 @@
 7. **`normalized` pode ser `true` (bool)** — SEMPRE proteger: `isinstance(raw, dict)` antes de `.get()`.
 8. **Migration SQL nova → adicionar em `scripts/deploy_database.py::generate_consolidated()`**.
 9. **`httpx` pinado `<1.0`** no `requirements.txt`.
-10. **Paridade Total de Ambiente**: Python, deps (requirements.lock), runtime, OS e versões de ferramentas devem ser IDÊNTICOS entre local (Windows/WSL), CI (GitHub Actions) e Cloud (Streamlit). Qualquer divergência bloqueia merge — CI valida no alvo real. (Ver `REGRAS.md` §4)
+10. **Paridade Total de Ambiente (expandida)**: Python, deps (requirements.lock), runtime, OS, versões de ferramentas e **todos os componentes** devem ser IDÊNTICOS entre local (Windows/WSL), CI (GitHub Actions) e Cloud (Streamlit). Isso inclui obrigatoriamente:
+    - **Python**: `.venv314`/`custodoce-314` (3.14.6) = CI (3.14.6) = `runtime.txt` (3.14.6) = devcontainer (3.14).
+    - **Lock files**: `requirements-*.lock` são a **única fonte de verdade** (`requirements.txt`, `requirements.lock` são cópias). `check_environment_parity.py` valida sincronia entre todos.
+    - **pip install em workflows**: PROIBIDO sem pin de versão explícito (`package==X.Y.Z`). Todo `pip install` fora do lock file DEVE ter `==` para evitar drift silencioso.
+    - **Actions @tags**: Devem ser consistentes em TODOS os workflows: `checkout@v7`, `setup-python@v6`, `cache@v4`, `upload-artifact@v7`. Qualquer outlier bloqueia merge.
+    - **System deps (tesseract/poppler/playwright)**: Instalados com mesmo comando em CI, devcontainer e WSL. `packages.txt` é a lista canônica; toda alteração deve ser refletida em AMBOS os locais.
+    - **Devcontainer**: Deve espelhar o Python target do projeto e usar lock files (não `requirements.txt`).
+    - **Verificação automática**: `python scripts/check_environment_parity.py` roda no CI (job `lint`) e falha HARD em qualquer divergência.
+    - **Qualquer divergência bloqueia merge** — CI valida no alvo real. (Ver `REGRAS.md` §4)
 11. **Falha no CI = Gap de Teste (ciclo RPR)**: Toda falha no CI não detectada localmente exige ciclo **RPR mínimo** antes de re-disparear: (1) **Reproduzir** local com teste que falha, (2) **Prevenir** com teste de regressão (permanente), (3) **Registrar** em `LESSONS.md` (sintoma + causa + correção + teste). Re-rodar o CI "pra ver se passa" é proibido — gasta minutos de runner e mascara bugs. `continue-on-error: true` para mascarar falha sem corrigir causa também é proibido. **Exceções** (sem RPR completo): (a) timeout/flakiness de rede/scraper, (b) outage de infra externa (GitHub/Supabase), (c) mudanças apenas em `workflows/*.yml` (RPR simplificado: só registro, sem teste novo).
 12. **Monitoração Total do CI**: O acompanhamento do push deve ir até o status FINAL (success/failure). Em shells com timeout, o uso de polling (consultas repetidas ao `gh run view`) é a estratégia mandatória para evitar interrupções prematuras.
 13. **Sessões isoladas em branches dedicadas**: Cada sessão de trabalho (feature/fix/chore) roda em sua própria branch a partir de `master` limpo. Nunca misturar state de múltiplas sessões no mesmo working tree. Antes de começar: `git checkout master && git pull && git checkout -b feature/<escopo>`. Working tree sujo = stashear para branch `wip/<contexto>` ou commitar antes. CI verde em master é contrato. Para PR: rebase + squash merge. Detalhes em `REGRAS.md` §Branches.
+14. **Line endings — Windows `autocrlf=true`, WSL `false/input`**: `core.autocrlf=true` no Windows é OBRIGATÓRIO (Git converte CRLF→LF no staging silenciosamente). No WSL/Linux, `false` ou `input`. `.gitattributes` com `eol=lf` por tipo de arquivo é a fonte da verdade. O script `scripts/check_line_endings_config.py` valida a configuração correta por plataforma e roda no pre-push. CRLF auto-fix em hooks é PROIBIDO — a correção raiz é configurar o Git, não tratar sintoma. (Ver `LESSONS.md` #49)
 
 ## Sobre
 
@@ -54,7 +63,7 @@ CustoDoce/
 │   ├── skills-maintenance.yml                       # Cron mensal (dia 1, 9am UTC)
 │   └── dependency-audit.yml                         # Cron mensal (dia 1, 9am UTC) — pip-audit + deptry + licenses
 ├── .githooks/
-│   ├── pre-commit                                     # 5 camadas (secret, doc sync, size, watchdog, agents)
+│   ├── pre-commit                                     # 8 camadas (secret, gitignore, detect-secrets, doc sync, size, watchdog, agents, skills, residue, crlf auto-fix)
 │   └── pre-push                                       # Python, 9 checks paralelos (block + auto-fix sync_docs)
 ├── config/
 │   ├── ingredients.yaml, stores.yaml, features.yaml

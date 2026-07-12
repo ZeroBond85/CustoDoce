@@ -170,6 +170,52 @@ def _build_pages_to_crawl() -> list[tuple[str, str, str]]:
 PAGES_TO_CRAWL = _build_pages_to_crawl()
 
 
+def _wait_page_stable(page, timeout_s=15):
+    """Aguarda a pagina atual estabilizar (rede idle + script running) para
+    garantir que o handler de click do st.navigation estaja ativo.
+
+    Licao #50: apos o render de uma pagina pesada (ex.: Revisao com
+    fila real + imagens externas), o handler de nav fica dessincronizado
+    por uma janela que, com dados reais, pode durar >20s. Clicar durante
+    essa janela vira no-op. Esperar networkidle (sem requisicoes de rede
+    pendentes) e o script-state 'running' garante que o handler voltou.
+    """
+    try:
+        page.wait_for_load_state("networkidle", timeout=timeout_s * 1000)
+    except Exception:
+        pass
+    try:
+        page.wait_for_function(
+            "() => { const el = document.querySelector('[data-test-script-state]');"
+            " return !el || el.getAttribute('data-test-script-state') === 'running'; }",
+            timeout=timeout_s * 1000,
+        )
+    except Exception:
+        pass
+
+
+def _click_nav_until_url(page, sidebar, nav_text, expected_path, max_attempts=3, per_wait_ms=5000):
+    """Clica no nav link real e aguarda a URL mudar, re-clicando apos a
+    pagina estabilizar. Mantem a sessao SPA (nao faz reload completo)
+    para preservar o login em st.session_state. Retorna True se a URL
+    passou a conter expected_path.
+    """
+    target_glob = f"**/{expected_path}**"
+    for _ in range(max_attempts):
+        _wait_page_stable(page, timeout_s=12)
+        link = sidebar.locator("a").filter(has_text=nav_text).first
+        if link.count() == 0:
+            return False
+        link.click()
+        try:
+            page.wait_for_url(target_glob, timeout=per_wait_ms)
+            return True
+        except Exception as exc:  # noqa: BLE001 - handler de nav pode falhar temporariamente
+            _ = exc
+            continue
+    return False
+
+
 def test_all_pages_crawl(browser):
     """Login + crawl todas as 19 paginas via sidebar nav. Screenshots + deteccao de erro."""
     if not ADMIN_PASSWORD:
@@ -204,15 +250,25 @@ def test_all_pages_crawl(browser):
         # ── Crawl cada pagina ──
         for nav_text, expected_path, expected_text in PAGES_TO_CRAWL:
             try:
-                # Encontrar e clicar no nav link
-                link = sidebar.locator("a").filter(has_text=nav_text).first
-                if link.count() == 0:
-                    failures.append(f"[{nav_text}] Nav link nao encontrado")
-                    continue
-
-                link.click()
-                page.wait_for_load_state("networkidle")
-                page.wait_for_timeout(2000)
+                # visao_geral é a página default (URL "/") — já carregada
+                if expected_path == "visao_geral":
+                    pass
+                else:
+                    # Clicar no nav link (cobertura de navegacao real SPA).
+                    # Licao #N: apos o render de uma pagina pesada (ex.: Revisao),
+                    # o handler de click do st.navigation do Streamlit fica dessincronizado
+                    # por uma janela de alguns segundos — os primeiros cliques viram
+                    # no-op (URL nao muda) ate o handler reativar. Por isso pollamos
+                    # a URL e re-clicamos (ate 8 tentativas) em vez de checar 1x.
+                    navigated = _click_nav_until_url(
+                        page, sidebar, nav_text, expected_path
+                    )
+                    if not navigated:
+                        failures.append(
+                            f"[{nav_text}] Falha ao navegar (URL={page.url})"
+                        )
+                        continue
+                    _wait_page_stable(page, timeout_s=12)
 
                 # Screenshot
                 safe_name = nav_text.replace(" ", "_").replace("/", "_").replace("&", "e")[:40]

@@ -313,40 +313,25 @@ jobs:
     steps:
       - run: |
           echo "## Resultados do Teste_Full_Manual" >> $GITHUB_STEP_SUMMARY
-          for job in \
-            lint \
-            typecheck \
-            docs-sync \
-            unit \
-            integration \
-            deploy-check \
-            e2e-full \
-            real \
-            diagnostics \
-            visual; do
-            result="${{ needs.$job.result }}"
-            echo "- **$job**: $result" >> $GITHUB_STEP_SUMMARY
-          done
-          all_green=true
-          for job in \
-            lint \
-            typecheck \
-            docs-sync \
-            unit \
-            integration \
-            deploy-check \
-            e2e-full \
-            real \
-            diagnostics \
-            visual; do
-            result="${{ needs.$job.result }}"
-            if [ "$result" != "success" ]; then
-              all_green=false
+          echo '- lint: ${{ needs.lint.result }}' >> $GITHUB_STEP_SUMMARY
+          echo '- typecheck: ${{ needs.typecheck.result }}' >> $GITHUB_STEP_SUMMARY
+          echo '- docs-sync: ${{ needs.docs-sync.result }}' >> $GITHUB_STEP_SUMMARY
+          echo '- unit: ${{ needs.unit.result }}' >> $GITHUB_STEP_SUMMARY
+          echo '- integration: ${{ needs.integration.result }}' >> $GITHUB_STEP_SUMMARY
+          echo '- deploy-check: ${{ needs.deploy-check.result }}' >> $GITHUB_STEP_SUMMARY
+          echo '- e2e-full: ${{ needs.e2e-full.result }}' >> $GITHUB_STEP_SUMMARY
+          echo '- real: ${{ needs.real.result }}' >> $GITHUB_STEP_SUMMARY
+          echo '- diagnostics: ${{ needs.diagnostics.result }}' >> $GITHUB_STEP_SUMMARY
+          echo '- visual: ${{ needs.visual.result }}' >> $GITHUB_STEP_SUMMARY
+          ALL_GREEN=true
+          for r in "${{ needs.lint.result }}" "${{ needs.typecheck.result }}" "${{ needs.docs-sync.result }}" "${{ needs.unit.result }}" "${{ needs.integration.result }}" "${{ needs.deploy-check.result }}" "${{ needs.e2e-full.result }}" "${{ needs.real.result }}" "${{ needs.diagnostics.result }}" "${{ needs.visual.result }}"; do
+            if [ "$r" != "success" ]; then
+              ALL_GREEN=false
               break
             fi
           done
-          if [ "$all_green" = true ]; then
-            echo "## :white_check_mark: Todos os jobs passaram!" >> $GITHUB_STEP_SUMMARY
+          if [ "$ALL_GREEN" = true ]; then
+            echo "## Todos os jobs passaram!" >> $GITHUB_STEP_SUMMARY
           else
-            echo "## :x: Alguns jobs falharam" >> $GITHUB_STEP_SUMMARY
+            echo "## Alguns jobs falharam" >> $GITHUB_STEP_SUMMARY
           fi

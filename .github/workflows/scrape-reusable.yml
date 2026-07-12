@@ -45,6 +45,7 @@ on:
 
 env:
   PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
+  PYTHONPATH: ${{ github.workspace }}
 
 jobs:
   setup:
@@ -83,6 +84,7 @@ jobs:
   scrape:
     needs: setup
     runs-on: ubuntu-latest
+    timeout-minutes: 130
     strategy:
       fail-fast: false
       matrix:
@@ -98,18 +100,18 @@ jobs:
         
       - name: Install dependencies
         run: pip install -r requirements-prod.lock
-      - name: Install system deps (tesseract, playwright)
+      - name: Install system deps (tesseract, poppler, playwright)
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-por
-          pip install playwright
+          sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-por poppler-utils
+          pip install "playwright>=1.61,<1.62"
           playwright install chromium
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - name: Run scraping for tier ${{ matrix.tier }}
         id: scrape_tier
         run: |
-          python main.py --tier ${{ matrix.tier }} --mode ${{ inputs.mode }} ${{ inputs.dry_run && '--dry-run' || '' }} 2>&1 | tee /tmp/scrape_${{ matrix.tier }}.log
+          python main.py --tier ${{ matrix.tier }} --no-finalize --mode ${{ inputs.mode }} ${{ inputs.dry_run && '--dry-run' || '' }} 2>&1 | tee /tmp/scrape_${{ matrix.tier }}.log
           if grep -qE '\[error\s*\]|"level":\s*"error"' /tmp/scrape_${{ matrix.tier }}.log 2>/dev/null; then
             echo "::error::[error] entries found in scrape output for tier ${{ matrix.tier }}"
             grep -E '\[error\s*\]|"level":\s*"error"' /tmp/scrape_${{ matrix.tier }}.log
@@ -128,9 +130,10 @@ jobs:
         env:
           CI_JOB_START: ${{ env.CI_JOB_START }}
 
-  enrich:
+  finalize:
     needs: scrape
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - name: Set up Python
@@ -142,22 +145,26 @@ jobs:
         
       - name: Install dependencies
         run: pip install -r requirements-prod.lock
+      - name: Install playwright (required by services.collector import)
+        run: pip install "playwright>=1.61,<1.62"
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
-      - name: Enrich prices
-        run: python scripts/enrich_prices.py
+      - name: Enrich + report + cleanup (finalize, runs once)
+        run: python main.py --finalize
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           CI_JOB_START: ${{ env.CI_JOB_START }}
-      - name: Check time budget for enrich
-        run: python scripts/check_time_budget.py --timeout-minutes 60 --label "enrich"
+      - name: Check time budget for finalize
+        run: python scripts/check_time_budget.py --timeout-minutes 20 --label "finalize"
         env:
           CI_JOB_START: ${{ env.CI_JOB_START }}
 
   commit:
-    needs: enrich
+    needs: finalize
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -186,6 +193,7 @@ jobs:
     runs-on: ubuntu-latest
     if: always()
     steps:
+      - uses: actions/checkout@v7
       - name: Check time budget for notify
         run: python scripts/check_time_budget.py --timeout-minutes 5 --label "notify"
         env:

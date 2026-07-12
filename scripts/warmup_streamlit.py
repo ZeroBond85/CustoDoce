@@ -28,7 +28,7 @@ def _get_app_frame(page):
 def warmup(
     url: str,
     password: str | None = None,
-    max_retries: int = 3,
+    max_retries: int = 4,
 ) -> None:
     pw = os.getenv("ADMIN_PASSWORD")
     if not pw:
@@ -48,8 +48,10 @@ def warmup(
 
             try:
                 _trace("navigating...")
-                page.goto(url, timeout=120_000)
-                page.wait_for_load_state("networkidle", timeout=_NETWORK_IDLE_TIMEOUT)
+                page.goto(url, timeout=180_000)
+                # SPAs (Streamlit Cloud) never reach true networkidle due to
+                # ongoing websocket/health pings; wait for DOM shell instead.
+                page.wait_for_load_state("domcontentloaded", timeout=_NETWORK_IDLE_TIMEOUT)
                 page.wait_for_timeout(3000)
                 _trace(f"loaded, title={page.title()}")
 
@@ -65,7 +67,7 @@ def warmup(
                         if entrar.count() > 0:
                             entrar.first.click()
                             page.wait_for_timeout(3000)
-                            page.wait_for_load_state("networkidle", timeout=_NETWORK_IDLE_TIMEOUT)
+                            page.wait_for_load_state("domcontentloaded", timeout=_NETWORK_IDLE_TIMEOUT)
                             page.wait_for_timeout(3000)
                             app = _get_app_frame(page)
                         break
@@ -81,7 +83,7 @@ def warmup(
                         if wake_btn.count() > 0:
                             wake_btn.first.click()
                             page.wait_for_timeout(5000)
-                            page.wait_for_load_state("networkidle", timeout=_NETWORK_IDLE_TIMEOUT)
+                            page.wait_for_load_state("domcontentloaded", timeout=_NETWORK_IDLE_TIMEOUT)
                             page.wait_for_timeout(5000)
                             app = _get_app_frame(page)
                         break

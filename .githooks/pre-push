@@ -118,6 +118,10 @@ def check_environment_parity() -> tuple[str, subprocess.CompletedProcess]:
     return "environment_parity", run([THIS_PYTHON, "scripts/check_environment_parity.py"])
 
 
+def check_line_endings() -> tuple[str, subprocess.CompletedProcess]:
+    return "line_endings", run([THIS_PYTHON, "scripts/check_line_endings_config.py"])
+
+
 def check_schema_mocks() -> tuple[str, subprocess.CompletedProcess]:
     """Gera manifest + roda pytest de mocks (worker dedicado)."""
     gen = run([THIS_PYTHON, "scripts/generate_schema_manifest.py"])
@@ -265,6 +269,7 @@ PARALLEL_CHECKS = [
     check_audit_df_columns,
     check_schema_mocks,
     check_environment_parity,
+    check_line_endings,
     check_sync_docs,
 ]
 
