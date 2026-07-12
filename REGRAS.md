@@ -48,7 +48,7 @@ git add docs/ && git commit              # pre-commit feliz
    - **Python local (Windows/WSL) DEVE ser igual ao CI (GitHub Actions) e Cloud (Streamlit)**.
    - **Versões obrigatórias**: `pyproject.toml` (target-version), `runtime.txt`, `.devcontainer/devcontainer.json`, workflows (`PYTHON_VERSION`), e `pyproject.toml` (mypy `python_version`) — todos Python **3.14.x**.
    - **Lock files (requirements-*.lock)** são a única fonte de verdade. `requirements.txt` e `requirements.lock` são cópias do `requirements-test.lock`. Toda instalação via `pip install` em workflow DEVE usar `package==X.Y.Z` (nunca sem pin). (Geração: ver item 5 — WSL obrigatório.)
-   - **Actions @tags**: Consistentes em TODOS os workflows: `checkout@v7`, `setup-python@v6`, `cache@v4`, `upload-artifact@v7`. Qualquer outlier bloqueia merge.
+   - **Actions @tags**: Consistentes em TODOS os workflows: `checkout@v7`, `setup-python@v6`, `cache@v6`, `upload-artifact@v7`. Qualquer outlier bloqueia merge.
    - **System deps (tesseract/poppler/playwright)**: Instalados com mesmos comandos em CI, WSL e devcontainer. `packages.txt` é lista canônica; alterações refletidas em todos os locais.
    - **.devcontainer**: Deve espelhar o Python target do projeto e instalar via lock files (`requirements-prod.lock`), não `requirements.txt`.
    - **Verificação**: `python scripts/check_environment_parity.py` (roda no CI job `lint`, falha HARD em divergência).

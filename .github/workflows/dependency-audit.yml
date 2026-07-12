@@ -54,9 +54,9 @@ jobs:
         env:
           PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
         run: |
-          pip-compile --allow-unsafe --output-file=requirements-prod.lock requirements-prod.in
-          pip-compile --allow-unsafe --output-file=requirements-dev.lock requirements-dev.in requirements-prod.in
-          pip-compile --allow-unsafe --output-file=requirements-test.lock requirements-test.in requirements-dev.in requirements-prod.in
+          pip-compile --allow-unsafe --strip-extras --output-file=requirements-prod.lock requirements-prod.in
+          pip-compile --allow-unsafe --strip-extras --output-file=requirements-dev.lock requirements-dev.in requirements-prod.in
+          pip-compile --allow-unsafe --strip-extras --output-file=requirements-test.lock requirements-test.in requirements-dev.in requirements-prod.in
           cp requirements-test.lock requirements.lock
       - name: Check if lock files changed
         run: |
@@ -65,7 +65,7 @@ jobs:
               echo "::error::$f is out of sync with .in files"
               echo "::error::CRITICAL: Lock files MUST be generated on WSL/Linux (NOT Windows)."
               echo "::error::Run in WSL: cd /mnt/c/Zerobond/Code/CustoDoce && conda activate custodoce-314"
-              echo "::error::Then: PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu pip-compile --allow-unsafe --output-file=$f ..."
+              echo "::error::Then: PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu pip-compile --allow-unsafe --strip-extras --output-file=$f ..."
               echo "::error::See LESSONS.md #52, REGRAS.md rule 5."
               exit 1
             }

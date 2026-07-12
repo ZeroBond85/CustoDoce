@@ -18,7 +18,7 @@
     - **Lock files**: `requirements-*.lock` são a **única fonte de verdade** (`requirements.txt`, `requirements.lock` são cópias). `check_environment_parity.py` valida sincronia entre todos.
     - **Lock file generation**: `pip-compile` DEVE rodar **SEMPRE em WSL/Linux** (`custodoce-314` ou CI Ubuntu) — NUNCA no Windows. Windows resolve `colorama`/`tzdata` (condicionais de plataforma) que não existem no Linux → drift silencioso. (Ver `LESSONS.md` #52, `REGRAS.md` regra 5.)
     - **pip install em workflows**: PROIBIDO sem pin de versão explícito (`package==X.Y.Z`). Todo `pip install` fora do lock file DEVE ter `==` para evitar drift silencioso.
-    - **Actions @tags**: Devem ser consistentes em TODOS os workflows: `checkout@v7`, `setup-python@v6`, `cache@v4`, `upload-artifact@v7`. Qualquer outlier bloqueia merge.
+    - **Actions @tags**: Devem ser consistentes em TODOS os workflows: `checkout@v7`, `setup-python@v6`, `cache@v6`, `upload-artifact@v7`. Qualquer outlier bloqueia merge.
     - **System deps (tesseract/poppler/playwright)**: Instalados com mesmo comando em CI, devcontainer e WSL. `packages.txt` é a lista canônica; toda alteração deve ser refletida em AMBOS os locais.
     - **Devcontainer**: Deve espelhar o Python target do projeto e usar lock files (não `requirements.txt`).
     - **Verificação automática**: `python scripts/check_environment_parity.py` roda no CI (job `lint`) e falha HARD em qualquer divergência. Localmente, o pre-push hook também valida (incluindo detecção de pacotes Windows-only nos lock files).
