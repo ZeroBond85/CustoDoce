@@ -19,6 +19,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 import main as main_mod  # noqa: E402
+import services  # noqa: E402
 
 
 @pytest.fixture
@@ -99,6 +100,11 @@ def harness(tmp_path):
     ), patch.dict(
         sys.modules,
         {"services.alert_service": alert, "services.price_repository": price_repo},
+    ), patch.object(
+        # Override the attribute bound on the services module object (set when
+        # another test imports services.alert_service for real), so that
+        # main.py's lazy `from services import alert_service` resolves to the mock.
+        services, "alert_service", alert, create=True,
     ), patch.object(
         main_mod, "DATA_DIR", tmp_path
     ):
