@@ -226,13 +226,6 @@ jobs:
         run: python scripts/check_time_budget.py --timeout-minutes 15 --label "unit"
         env:
           CI_JOB_START: ${{ env.CI_JOB_START }}
-      - name: Notify unit test result
-        if: always()
-        run: |
-          echo "Notifications via Telegram removidas — e-mails já são suficientes"
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
   integration:
     needs: [lint, typecheck]
@@ -313,19 +306,12 @@ jobs:
         run: python scripts/check_time_budget.py --timeout-minutes 15 --label "deploy-check"
         env:
           CI_JOB_START: ${{ env.CI_JOB_START }}
-      - name: Notify deploy-check result
-        if: always()
-        run: |
-          echo "Notifications via Telegram removidas — e-mails já são suficientes"
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
   e2e-smoke:
     needs: [lint, typecheck]
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: github.event_name != 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-e2e')
+    if: github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -375,13 +361,6 @@ jobs:
         env:
           CI_JOB_START: ${{ env.CI_JOB_START }}
         if: always()
-      - name: Notify e2e-smoke result
-        if: always()
-        run: |
-          echo "Notifications via Telegram removidas — e-mails já são suficientes"
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
   e2e-smoke-pr:
     needs: [lint, typecheck]
@@ -430,13 +409,6 @@ jobs:
         run: python scripts/check_time_budget.py --timeout-minutes 20 --label "e2e-smoke-pr"
         env:
           CI_JOB_START: ${{ env.CI_JOB_START }}
-      - name: Notify e2e-smoke-pr result
-        if: always()
-        run: |
-          echo "Notifications via Telegram removidas — e-mails já são suficientes"
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
   real:
     needs: [integration]
@@ -471,10 +443,3 @@ jobs:
         run: python scripts/check_time_budget.py --timeout-minutes 45 --label "real"
         env:
           CI_JOB_START: ${{ env.CI_JOB_START }}
-      - name: Notify real result
-        if: always()
-        run: |
-          echo "Notifications via Telegram removidas — e-mails já são suficientes"
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

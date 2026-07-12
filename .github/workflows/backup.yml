@@ -86,19 +86,3 @@ jobs:
           echo "| Tamanho | ${{ steps.backup.outputs.size || 'N/A' }} bytes |" >> $GITHUB_STEP_SUMMARY
           echo "| Checksum | ${{ steps.backup.outputs.sha256sum || 'N/A' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Retention | 30 dias (GitHub Releases) |" >> $GITHUB_STEP_SUMMARY
-
-      - name: Notify backup result
-        if: always()
-        run: |
-          echo "Notifications via Telegram removidas — e-mails já são suficientes"
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-
-      - name: Notify backup failure
-        if: failure()
-        run: |
-          echo "Notifications via Telegram removidas — e-mails já são suficientes"
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

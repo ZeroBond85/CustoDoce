@@ -91,24 +91,6 @@ jobs:
         env:
           CI_JOB_START: ${{ env.CI_JOB_START }}
           
-      - name: Notify restore test success
-        if: success()
-        run: |
-          echo "::notice::Teste de restauração concluído com sucesso."
-          echo "Notifications via Telegram removidas — e-mails já são suficientes"
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-
-      - name: Notify restore test failure
-        if: failure()
-        run: |
-          echo "::error::Teste de restauração falhou."
-          echo "Notifications via Telegram removidas — e-mails já são suficientes"
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-
       - name: Restore test summary
         run: |
           echo "## Restore Test Summary" >> $GITHUB_STEP_SUMMARY

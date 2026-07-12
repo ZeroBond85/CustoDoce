@@ -288,4 +288,48 @@ if [ -n "${STAGED:-}" ]; then
   fi
 fi
 
+# ----------------------------------------------------------------
+# 9. WINDOWS-ONLY PACKAGES GUARD — Bloqueia commit de lock files
+#    gerados no Windows (colorama, tzdata, etc.)
+#    LESSONS.md #52, REGRAS.md regra 5.
+#    Lock files DEVEM ser gerados em WSL/Linux (custodoce-314).
+# ----------------------------------------------------------------
+WIN_ONLY_PKGS="colorama|tzdata|pywin32|pywin32-ctypes|win32api|win32con|winerror|pywinpty"
+if [ -n "${STAGED:-}" ]; then
+  LOCK_HITS=""
+  OIFS="$IFS"
+  IFS=$'\n'
+  for FILE in $STAGED; do
+    IFS="$OIFS"
+    case "$FILE" in
+      requirements*.lock)
+        if [ -f "$FILE" ]; then
+          HITS=$(grep -nE "^(${WIN_ONLY_PKGS})==" "$FILE" 2>/dev/null || true)
+          if [ -n "$HITS" ]; then
+            LOCK_HITS="${LOCK_HITS}${LOCK_HITS:+\n}  $FILE:\n$HITS"
+          fi
+        fi
+        ;;
+    esac
+  done
+  IFS="$OIFS"
+  if [ -n "$LOCK_HITS" ]; then
+    echo ""
+    echo "❌  [BLOCKED] Pacotes Windows-only detectados em lock files staged:"
+    echo -e "$LOCK_HITS"
+    echo ""
+    echo "Lock files DEVEM ser gerados em WSL/Linux (custodoce-314), NUNCA no Windows."
+    echo "Veja: LESSONS.md #52, REGRAS.md regra 5."
+    echo ""
+    echo "Acoes:"
+    echo "  - Regenere os lock files em WSL:"
+    echo "    cd /mnt/c/Zerobond/Code/CustoDoce"
+    echo "    conda activate custodoce-314"
+    echo "    PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu pip-compile --allow-unsafe --output-file=requirements-prod.lock requirements-prod.in"
+    echo "  - Ou use 'git commit --no-verify' para emergencia (NAO recomendado)"
+    echo ""
+    exit 1
+  fi
+fi
+
 exit 0

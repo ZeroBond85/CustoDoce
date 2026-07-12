@@ -16,11 +16,12 @@
 10. **Paridade Total de Ambiente (expandida)**: Python, deps (requirements.lock), runtime, OS, versões de ferramentas e **todos os componentes** devem ser IDÊNTICOS entre local (Windows/WSL), CI (GitHub Actions) e Cloud (Streamlit). Isso inclui obrigatoriamente:
     - **Python**: `.venv314`/`custodoce-314` (3.14.6) = CI (3.14.6) = `runtime.txt` (3.14.6) = devcontainer (3.14).
     - **Lock files**: `requirements-*.lock` são a **única fonte de verdade** (`requirements.txt`, `requirements.lock` são cópias). `check_environment_parity.py` valida sincronia entre todos.
+    - **Lock file generation**: `pip-compile` DEVE rodar **SEMPRE em WSL/Linux** (`custodoce-314` ou CI Ubuntu) — NUNCA no Windows. Windows resolve `colorama`/`tzdata` (condicionais de plataforma) que não existem no Linux → drift silencioso. (Ver `LESSONS.md` #52, `REGRAS.md` regra 5.)
     - **pip install em workflows**: PROIBIDO sem pin de versão explícito (`package==X.Y.Z`). Todo `pip install` fora do lock file DEVE ter `==` para evitar drift silencioso.
     - **Actions @tags**: Devem ser consistentes em TODOS os workflows: `checkout@v7`, `setup-python@v6`, `cache@v4`, `upload-artifact@v7`. Qualquer outlier bloqueia merge.
     - **System deps (tesseract/poppler/playwright)**: Instalados com mesmo comando em CI, devcontainer e WSL. `packages.txt` é a lista canônica; toda alteração deve ser refletida em AMBOS os locais.
     - **Devcontainer**: Deve espelhar o Python target do projeto e usar lock files (não `requirements.txt`).
-    - **Verificação automática**: `python scripts/check_environment_parity.py` roda no CI (job `lint`) e falha HARD em qualquer divergência.
+    - **Verificação automática**: `python scripts/check_environment_parity.py` roda no CI (job `lint`) e falha HARD em qualquer divergência. Localmente, o pre-push hook também valida (incluindo detecção de pacotes Windows-only nos lock files).
     - **Qualquer divergência bloqueia merge** — CI valida no alvo real. (Ver `REGRAS.md` §4)
 11. **Falha no CI = Gap de Teste (ciclo RPR)**: Toda falha no CI não detectada localmente exige ciclo **RPR mínimo** antes de re-disparear: (1) **Reproduzir** local com teste que falha, (2) **Prevenir** com teste de regressão (permanente), (3) **Registrar** em `LESSONS.md` (sintoma + causa + correção + teste). Re-rodar o CI "pra ver se passa" é proibido — gasta minutos de runner e mascara bugs. `continue-on-error: true` para mascarar falha sem corrigir causa também é proibido. **Exceções** (sem RPR completo): (a) timeout/flakiness de rede/scraper, (b) outage de infra externa (GitHub/Supabase), (c) mudanças apenas em `workflows/*.yml` (RPR simplificado: só registro, sem teste novo).
 12. **Monitoração Total do CI**: O acompanhamento do push deve ir até o status FINAL (success/failure). Em shells com timeout, o uso de polling (consultas repetidas ao `gh run view`) é a estratégia mandatória para evitar interrupções prematuras.
@@ -58,7 +59,7 @@ graph LR
 CustoDoce/
 ├── .github/workflows/
 │   ├── scrape.yml, ci.yml, e2e.yml, backup.yml, restore-test.yml
-│   ├── deploy-staging.yml, on_demand_scrape.yml, ci-e2e-only.yml
+│   ├── on_demand_scrape.yml, ci-e2e-only.yml
 │   ├── heal-scrapers.yml                             # Cron 15d auto-heal
 │   ├── skills-maintenance.yml                       # Cron mensal (dia 1, 9am UTC)
 │   └── dependency-audit.yml                         # Cron mensal (dia 1, 9am UTC) — pip-audit + deptry + licenses

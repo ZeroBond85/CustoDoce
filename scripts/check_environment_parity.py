@@ -15,6 +15,7 @@ Paridade Total de Ambiente — validação abrangente:
 8. Key package versions consistent across lock files
 9. @v tags in workflow files (consistency)
 10. Unpinned pip install commands in workflows (warn)
+11. No Windows-only packages in lock files (drift guard)
 
 - Em CI (GITHUB_ACTIONS): falha HARD se versão != 3.14.6 ou lock inválido.
 - Local: avisa (warn) para desvios não-críticos, falha para críticos.
@@ -51,6 +52,23 @@ EXPECTED_ACTION_TAGS: dict[str, str] = {
 KEY_PACKAGES = [
     "ruff", "mypy", "pytest", "bandit", "pip-audit", "detect-secrets",
     "httpx", "supabase", "streamlit", "pdfplumber", "pytesseract", "playwright",
+]
+
+# Windows-only packages that should NEVER appear in Linux-generated lock files.
+# If these are present, pip-compile was run on Windows instead of WSL/Linux.
+# (LESSONS.md #52, REGRAS.md rule 5)
+WINDOWS_ONLY_PACKAGES = [
+    "colorama",
+    "tzdata",
+    "pywin32",
+    "pywin32-ctypes",
+    "win32api",
+    "win32con",
+    "winerror",
+    "pywinpty",
+    "jaraco.text",
+    "jaraco.functools",
+    "jaraco.context",
 ]
 
 
@@ -199,6 +217,37 @@ def _check_sanitize_yml() -> list[str]:
     return errors
 
 
+def _check_no_windows_only_packages() -> list[str]:
+    """Fail if lock files contain Windows-only packages (pip-compile drift guard).
+
+    CI runs on Ubuntu Linux. If `pip-compile` runs on Windows, it resolves
+    platform-conditional packages (colorama, tzdata, etc.) that don't exist
+    on Linux. The CI `dependency-audit.yml` catches this via git-diff, but
+    this check catches it LOCALLY (pre-push) before any push.
+    LESSONS.md #52, REGRAS.md rule 5.
+    """
+    errors: list[str] = []
+    lock_files = sorted(REPO_ROOT.glob("requirements*.lock"))
+    for lf in lock_files:
+        if not lf.exists():
+            continue
+        content = lf.read_text(encoding="utf-8")
+        found = []
+        for pkg in WINDOWS_ONLY_PACKAGES:
+            for line in content.splitlines():
+                stripped = line.strip()
+                if stripped.startswith(f"{pkg}==") and "\\" not in stripped:
+                    found.append(stripped)
+                    break
+        if found:
+            errors.append(
+                f"{lf.name} contem pacotes Windows-only: {', '.join(found)}. "
+                f"Lock files DEVEM ser gerados em WSL/Linux (custodoce-314), "
+                f"NUNCA no Windows. Ver LESSONS.md #52, REGRAS.md regra 5."
+            )
+    return errors
+
+
 def _check_unpinned_installs() -> list[str]:
     """Warn about unpinned pip install in workflow files that bypass lock files."""
     warnings: list[str] = []
@@ -237,6 +286,7 @@ def main() -> int:
     all_errors.extend(_check_devcontainer_python())
     all_errors.extend(_check_lock_sync())
     all_errors.extend(_check_sanitize_yml())
+    all_errors.extend(_check_no_windows_only_packages())
 
     w = _check_unpinned_installs()
     for msg in w:

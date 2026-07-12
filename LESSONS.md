@@ -1,5 +1,5 @@
 # Lições Aprendidas
-> Última atualização: 2026-07-12 07:00 UTC
+> Última atualização: 2026-07-12 12:00 UTC
 
 > Extraídas de AGENTS.md. Numeração original preservada.
 > Regras de execução/ambiente → `REGRAS.md`.
@@ -563,3 +563,14 @@ usam `get_store_health()` (errors como int) nao tem o problema.
 
 **Regra preventiva:** Nunca passar DataFrame com coluna object contendo listas/dicts mistos
 a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
+
+
+## 52. Lock files gerados no Windows causam drift no CI (colorama/tzdata)
+
+- **Data + commit**: 2026-07-12 (07e6466)
+- **Sintoma**: `dependency-audit.yml` job `lock-validation` falhava com `requirements.lock is out of sync with .in files` (e potencialmente os outros 3 lock files). O `git diff` mostrava `colorama==0.4.6` e `tzdata==2026.3` presentes nos locks commitados mas ausentes na regeneração do CI.
+- **Causa raiz**: `pip-compile` no **Windows** resolve `colorama` (dependência condicional do `click`/`tqdm`/`typer`/`bandit`/`pytest` para Windows) e `tzdata` (necessário para `pandas` no Windows). No **CI (Ubuntu Linux)**, esses pacotes NÃO existem — o pip resolve dependências de plataforma nativamente. Lock files gerados no Windows sempre terão esses pacotes; lock files gerados no Linux nunca terão. Resultado: `git diff --exit-code` falha.
+- **Correção**: Removido `colorama==0.4.6` e `tzdata==2026.3` dos 4 lock files (prod/dev/test/requirements.lock). `requirements.lock` = `cp requirements-test.lock` (como o CI faz). Para regenerar corretamente: **sempre usar WSL/Ubuntu** (Docker ou `custodoce-314`) com `PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu pip-compile --allow-unsafe`.
+- **Teste de regressão**: O próprio CI (`dependency-audit.yml` → `lock-validation`) é o teste — se os locks divergirem, o job falha em <2min.
+
+**Regra preventiva**: Lock files (`.lock`) devem ser gerados **SEMPRE em Linux** (WSL `custodoce-314` ou Docker `python:3.14-slim`) — NUNCA no Windows. Pacotes condicionais de plataforma (`colorama`, `tzdata`, `win32api`, etc.) entram apenas no OS que os precisa, causando drift silencioso entre Windows/CI-Linux.
