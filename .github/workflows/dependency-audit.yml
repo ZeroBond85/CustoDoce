@@ -30,6 +30,7 @@ on:
 env:
   PYTHON_VERSION: '3.14.6'
   PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
+  PIP_NO_WARN_YANKED: 1
 
 concurrency:
   group: dependency-audit-${{ github.ref }}
