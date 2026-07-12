@@ -1,5 +1,5 @@
 # CustoDoce — Buscador de Preços para Confeitaria 🍰
-> Última atualização: 2026-07-11 23:49 UTC
+> Última atualização: 2026-07-12 23:58 UTC
 
 ![Build Status](https://img.shields.io/github/actions/workflow/status/CustoDoce/ci.yml?branch=master)
 ![Version](https://img.shields.io/badge/version-20.866.94--mvp-blue)

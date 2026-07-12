@@ -1,5 +1,5 @@
 # Contributing to CustoDoce
-> Última atualização: 2026-07-11 23:49 UTC
+> Última atualização: 2026-07-12 23:58 UTC
 
 ## Development Setup
 

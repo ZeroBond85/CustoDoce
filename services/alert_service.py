@@ -4,7 +4,7 @@ Alert Service - Proactive notifications for price drops and system status.
 
 from datetime import UTC, datetime, timedelta
 
-from services.email_service import send_email as send_email_notification
+from services.email_service import is_email_configured, send_email as send_email_notification
 from services.logger import logger
 from services.supabase_client import get_supabase
 from services.telegram_service import send_telegram_message
@@ -55,6 +55,9 @@ def process_proactive_alerts():
         return
 
     client = get_supabase()
+    email_configured = is_email_configured()
+    if not email_configured:
+        logger.warning("notification_skipped", channel="email", error="SMTP credentials not configured")
 
     for rule in rules:
         trigger = rule["trigger"]
@@ -100,6 +103,8 @@ def process_proactive_alerts():
                             if channel == "telegram":
                                 send_telegram_message(r["target"], msg)
                             elif channel == "email":
+                                if not email_configured:
+                                    continue
                                 send_email_notification(r["target"], "Alerta de Preço", msg)
                         except Exception as notif_err:
                             logger.warning("notification_skipped", channel=channel, error=str(notif_err))
@@ -130,6 +135,8 @@ def process_proactive_alerts():
                         if channel == "telegram":
                             send_telegram_message(r["target"], msg)
                         elif channel == "email":
+                            if not email_configured:
+                                continue
                             send_email_notification(r["target"], "Alerta de Sistema", msg)
                     except Exception as notif_err:
                         logger.warning("notification_skipped", channel=channel, error=str(notif_err))

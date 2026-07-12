@@ -306,11 +306,20 @@ stores:
     is_active: true
     logistics: "pickup_local"
     base_url: "https://www.lojasredekrill.com.br"
+    # A busca /busca?q= deste tema Lojas Integrada retorna 0 produtos (SPA
+    # não renderiza resultados de busca). As páginas de departamento sim.
+    # Usamos browse_urls (categorias) e coletamos todos os produtos; o
+    # process_price_match filtra por ingrediente downstream.
     search_url: "https://www.lojasredekrill.com.br/busca?q={query}"
+    browse_urls:
+      - "https://www.lojasredekrill.com.br/departamentos/doces-e-sobremesas-1"
+      - "https://www.lojasredekrill.com.br/departamentos/frios-e-laticinios-1"
+      - "https://www.lojasredekrill.com.br/departamentos/leites-1"
+      - "https://www.lojasredekrill.com.br/departamentos/mercearia-alimentos-basicos-1"
     selectors:
-      product_card: [".product-card", ".produto-card", ".item-produto", "[class*=product]", "[class*=produto]"]
-      product_name: [".product-name a", ".nome-produto", ".product-title a", "h2 a", "h3 a"]
-      product_price: [".product-price", ".preco-produto", ".price", ".sale-price"]
+      product_card: [".vip-card-produto", ".produto-card", ".item-produto", "[class*=product]", "[class*=produto]"]
+      product_name: [".vip-card-produto-descricao", ".product-name a", ".nome-produto", ".product-title a", "h2 a", "h3 a"]
+      product_price: ["[data-cy=preco]", ".product-price", ".preco-produto", ".price", ".sale-price"]
     address: "Praia Grande, SP"
     city: "Praia Grande"
     zone: "baixada_santista"

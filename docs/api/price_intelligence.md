@@ -1,6 +1,6 @@
 # `price_intelligence` — API
 
-> Última atualização: 2026-07-12 14:36 UTC
+> Última atualização: 2026-07-13 00:03 UTC
 > Gerado por AST parsing dos serviços em `services/price_intelligence.py`.
 
 ## Funções Públicas (3)

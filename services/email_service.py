@@ -44,6 +44,12 @@ def _get_smtp_config():
     return host, port, user, password, from_addr
 
 
+def is_email_configured() -> bool:
+    """Retorna True se as credenciais SMTP/Gmail estão presentes nas env vars."""
+    _, _, user, password, _ = _get_smtp_config()
+    return bool(user and password)
+
+
 def _logo_cid() -> str | None:
     """Retorna CID do logo se o arquivo existir, senão None."""
     if _LOGO_PATH.exists():

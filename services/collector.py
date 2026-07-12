@@ -392,14 +392,18 @@ def _verify_scrape_results(all_products: list[PriceEntry], store_count: int, ski
     """Post-scrape verification checklist (Phase 3a)."""
     if store_count == 0:
         return
+    attempted = store_count - skipped_count
+    if attempted == 0:
+        logger.info("[VERIFY] all %d stores skipped (freshness); 0 attempted", store_count)
+        return
     if not all_products:
         logger.warning("[VERIFY] 0 products collected across %d stores (%d skipped)", store_count, skipped_count)
         return
     matched_stores = len({p.get("store_name") for p in all_products if p.get("store_name")})
-    if matched_stores < store_count - skipped_count:
+    if matched_stores < attempted:
         logger.info(
             "[VERIFY] %d/%d stores produced matches (%d skipped)",
-            matched_stores, store_count, skipped_count,
+            matched_stores, attempted, skipped_count,
         )
 
 
