@@ -226,7 +226,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
       - name: Run E2E tests
-        run: python -m pytest tests/e2e/ -v --tb=short --no-header --durations=5 -m "not visual"
+        run: python -m pytest tests/e2e/ -v --tb=short --no-header --durations=5 --capture=no -m "not visual"
         env:
           STREAMLIT_URL: http://localhost:8501
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
@@ -244,9 +244,9 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-          cache-dependency-path: requirements-test.lock
-      - run: pip install -r requirements-test.lock
-      - run: python -m pytest tests/diagnostics/ -q --tb=short --no-header --durations=5
+          cache-dependency-path: requirements-dev.lock
+      - run: pip install -r requirements-dev.lock
+      - run: python -m pytest tests/diagnostics/ -q --tb=short --no-header --durations=5 --capture=no
 
   visual:
     needs: [lint, typecheck]
