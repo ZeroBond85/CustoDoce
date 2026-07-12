@@ -669,6 +669,14 @@ CREATE INDEX IF NOT EXISTS idx_flyers_store_active ON flyers(store_name, is_acti
         gen.append("-- ============================================================")
         gen.append(migration_006_path.read_text(encoding="utf-8"))
 
+    # ─── PHASE 24: Store Registry + discover_stores_from_flyers (009_store_registry.sql) ──
+    store_registry_path = REPO_ROOT / "supabase" / "009_store_registry.sql"
+    if store_registry_path.exists():
+        gen.append("\n-- ============================================================")
+        gen.append("-- PHASE 24: Store Registry table + RPC functions (009_store_registry.sql)")
+        gen.append("-- ============================================================")
+        gen.append(store_registry_path.read_text(encoding="utf-8"))
+
     return "\n".join(gen)
 
 
@@ -746,7 +754,7 @@ def main():
     args = parser.parse_args()
 
     sql = generate_consolidated()
-    total_tables = 17  # prices, price_history, review_queue, scraping_logs, stores, flyers, ingredients, schedules, scrape_frequencies, alert_recipients, alert_rules, feature_flags, recipes, recipe_items, llm_match_cache, scraper_health_log, scrape_requests
+    total_tables = 18  # prices, price_history, review_queue, scraping_logs, stores, flyers, ingredients, schedules, scrape_frequencies, alert_recipients, alert_rules, feature_flags, recipes, recipe_items, llm_match_cache, scraper_health_log, scrape_requests, store_registry
 
     if args.dry_run:
         statements_count = sum(1 for s in sql.split(";") if s.strip())

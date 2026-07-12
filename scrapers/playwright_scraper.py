@@ -98,7 +98,7 @@ class PlaywrightAggregatorScraper:
         city_urls = self._build_city_urls()
 
         pool = await get_browser_pool()
-        browser = pool.browser
+        browser = await pool.get_browser()
         try:
             tasks = [self._scrape_city(browser, url, region, source) for url, region in city_urls]
             results = await asyncio.gather(*tasks)

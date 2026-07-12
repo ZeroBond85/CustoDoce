@@ -119,26 +119,6 @@ CREATE INDEX IF NOT EXISTS idx_scraping_logs_status ON scraping_logs(status);
 CREATE INDEX IF NOT EXISTS idx_scraping_logs_started ON scraping_logs(started_at DESC);
 
 -- ============================================================================
--- SCRAPER HEALTH LOG (failure/success events for self-healing)
--- ============================================================================
-CREATE TABLE IF NOT EXISTS scraper_health_log (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    scraper_name TEXT NOT NULL,
-    event_type TEXT NOT NULL CHECK (event_type IN ('failure', 'success', 'auto_disabled', 'auto_reactivated')),
-    error_class TEXT,
-    reason TEXT,
-    failures_count INTEGER DEFAULT 0,
-    is_active BOOLEAN DEFAULT TRUE,
-    attempted_by TEXT DEFAULT 'auto',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_scraper_health_log_name ON scraper_health_log(scraper_name);
-CREATE INDEX IF NOT EXISTS idx_scraper_health_log_type ON scraper_health_log(event_type);
-CREATE INDEX IF NOT EXISTS idx_scraper_health_log_created ON scraper_health_log(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_scraper_health_log_name_type ON scraper_health_log(scraper_name, event_type);
-
--- ============================================================================
 -- STORES METADATA (mirror of stores.yaml for reference in DB)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS stores (
@@ -947,9 +927,7 @@ BEGIN
 END;
 $$;
 
--- Fix review_queue unique constraint
-ALTER TABLE review_queue ADD CONSTRAINT review_queue_store_name_raw_product_key UNIQUE (store_name, raw_product);
-
+-- 2. Cleanup resolved review_queue items (approved/rejected) older than retention_days
 CREATE OR REPLACE FUNCTION cleanup_resolved_review_items(retention_days int DEFAULT 30)
 RETURNS void
 LANGUAGE plpgsql
@@ -1004,46 +982,271 @@ $$;
 
 
 -- ============================================================
+-- Migration complete. Verify with:
+--   SELECT table_name FROM information_schema.tables
+--   WHERE table_schema = 'public' ORDER by table_name;
+-- ============================================================
+
+-- ============================================================
+-- PHASE 18: Fix review_queue unique constraint
+-- ============================================================
+-- Remove duplicates before adding constraint
+DELETE FROM review_queue rq1 USING (
+    SELECT store_name, raw_product, MIN(ctid) AS keep_ctid
+    FROM review_queue
+    GROUP BY store_name, raw_product
+    HAVING COUNT(*) > 1
+) rq2
+WHERE rq1.store_name = rq2.store_name
+  AND rq1.raw_product = rq2.raw_product
+  AND rq1.ctid <> rq2.keep_ctid;
+
+ALTER TABLE review_queue ADD CONSTRAINT review_queue_store_name_raw_product_key UNIQUE (store_name, raw_product);
+
+
+-- ============================================================
+-- PHASE 19: Final Schema Fixes for Tests
+-- ============================================================
+ALTER TABLE price_history ADD COLUMN IF NOT EXISTS logistics TEXT;
+ALTER TABLE price_history ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();
+ALTER TABLE feature_flags ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();
+ALTER TABLE scraping_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();
+ALTER TABLE flyers ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS description TEXT;
+CREATE INDEX IF NOT EXISTS idx_review_queue_store_product ON review_queue(store_name, raw_product);
+CREATE INDEX IF NOT EXISTS idx_alerts_ingredient_store_active ON alert_rules(trigger, enabled);
+CREATE INDEX IF NOT EXISTS idx_flyers_store_active ON flyers(store_name, is_active);
+
+
+-- ============================================================
+-- PHASE 20: LLM Match Cache (004_add_llm_match_cache.sql)
+-- ============================================================
+-- ============================================================
+-- PHASE 4: LLM Match Cache (Recurso 3 do RFC)
+-- Armazena decisões de matching do LLM para evitar chamadas redundantes
+-- TTL: 30 dias (para capturar mudanças de embalagem)
+-- ============================================================
+
+-- Tabela de cache para decisões do LLM
+CREATE TABLE IF NOT EXISTS llm_match_cache (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_raw_name TEXT NOT NULL,
+    brand TEXT DEFAULT '',
+    ingredient_id TEXT NOT NULL,
+    match_decision JSONB NOT NULL,
+    -- JSON structure: {"match": bool, "canonical_name": str, "confidence_score": float, "reason": str, "provider": str}
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    
+    -- Unique constraint on product + brand (avoid duplicates)
+    CONSTRAINT llm_match_cache_product_brand_key UNIQUE (product_raw_name, brand)
+);
+
+-- Índice para busca rápida por product name
+CREATE INDEX IF NOT EXISTS idx_llm_cache_product ON llm_match_cache(product_raw_name);
+
+-- Índice para buscar por ingredient (útil para analytics)
+CREATE INDEX IF NOT EXISTS idx_llm_cache_ingredient ON llm_match_cache(ingredient_id);
+
+-- Índice para buscar por data (para TTL cleanup)
+CREATE INDEX IF NOT EXISTS idx_llm_cache_created ON llm_match_cache(created_at DESC);
+
+-- Trigger para updated_at
+CREATE OR REPLACE FUNCTION update_llm_cache_updated_at()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_llm_cache_updated_at ON llm_match_cache;
+CREATE TRIGGER trg_llm_cache_updated_at
+    BEFORE UPDATE ON llm_match_cache
+    FOR EACH ROW EXECUTE FUNCTION update_llm_cache_updated_at();
+
+-- RLS:allow service_role full access, anon read-only
+ALTER TABLE llm_match_cache ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "service_role_all" ON llm_match_cache
+    FOR ALL USING (auth.role() = 'service_role');
+
+CREATE POLICY "anon_read" ON llm_match_cache
+    FOR SELECT USING (true);
+
+-- ============================================================
+-- Cleanup function para o cache (TTL 30 dias)
+-- ============================================================
+CREATE OR REPLACE FUNCTION cleanup_old_llm_cache(retention_days int DEFAULT 30)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    DELETE FROM llm_match_cache
+    WHERE created_at < now() - (retention_days || ' days')::interval;
+END;
+$$;
+
+COMMENT ON TABLE llm_match_cache IS 'Cache de decisões de matching LLM para evitar chamadas redundantes à API Groq. TTL de 30 dias.';
+COMMENT ON COLUMN llm_match_cache.product_raw_name IS 'Nome bruto do produto conforme extraído do scraper (PK junto com brand)';
+COMMENT ON COLUMN llm_match_cache.brand IS 'Marca extraída do produto (pode ser vazio)';
+COMMENT ON COLUMN llm_match_cache.ingredient_id IS 'ID canônico do ingredienteMatched (ex: leite_condensado_integral)';
+COMMENT ON COLUMN llm_match_cache.match_decision IS 'Decisão completa do LLM em JSON: {match, canonical_name, confidence_score, reason, provider}';
+
+-- ============================================================
+-- PHASE 21: Scraper Health Log (005_add_scraper_health_log.sql)
+============================================================
+-- ============================================================
+-- PHASE S4 (Sprint 4): Scraper Health Log — Self-Healing Tracking
+-- Auto-disable / re-activation history per scraper. Required by
+-- AGENTS.md Lição #15 (self-healing obrigatório). Consumed by
+-- services/scraper_health.py + scripts/heal_scrapers.py + cron
+-- .github/workflows/heal-scrapers.yml (every 15 days).
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS scraper_health_log (
+    id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    scraper_name    TEXT         NOT NULL,
+    -- Lifecycle event types
+    event_type      TEXT         NOT NULL CHECK (event_type IN (
+        'failure',
+        'success',
+        'auto_disabled',
+        'auto_reactivated',
+        'heal_attempt',
+        'heal_success',
+        'heal_failure',
+        'manual_disable',
+        'manual_reactivate'
+    )),
+    -- Per-event context (snapshot at event time)
+    failures_count  INT          NOT NULL DEFAULT 0,
+    is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
+    reason          TEXT,
+    items_found     INT,
+    products_matched INT,
+    flyer_count     INT,
+    error_class     TEXT,        -- e.g. ClientError, LayoutChanged, Timeout
+    attempted_by    TEXT,        -- 'auto' | 'manual:<username>' | 'cron'
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+-- Indices for fast lookup
+CREATE INDEX IF NOT EXISTS idx_scraper_health_log_name
+    ON scraper_health_log(scraper_name, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scraper_health_log_event
+    ON scraper_health_log(event_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scraper_health_log_active_failures
+    ON scraper_health_log(scraper_name, event_type)
+    WHERE event_type = 'failure';
+
+-- Trigger: updated helper for row-level bookkeeping (none today; reserved).
+-- Cleanup function: deletes log rows older than retention (default 180d).
+CREATE OR REPLACE FUNCTION cleanup_scraper_health_log(retention_days int DEFAULT 180)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    DELETE FROM scraper_health_log
+    WHERE created_at < now() - (retention_days || ' days')::interval;
+END;
+$$;
+
+-- Row-Level Security: anon read for transparency, service_role writes.
+ALTER TABLE scraper_health_log ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "service_role_all" ON scraper_health_log
+    FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "anon_read" ON scraper_health_log
+    FOR SELECT USING (true);
+
+COMMENT ON TABLE  scraper_health_log IS
+    'Lifecycle log per scraper: failures, auto-disable, heal attempts. Drives services/scraper_health.py + cron .github/workflows/heal-scrapers.yml every 15d. See AGENTS.md Lição #15.';
+COMMENT ON COLUMN scraper_health_log.event_type IS
+    'failure | success | auto_disabled | auto_reactivated | heal_attempt | heal_success | heal_failure | manual_disable | manual_reactivate';
+COMMENT ON COLUMN scraper_health_log.failures_count IS
+    'Cumulative consecutive failures at the moment of the event.';
+COMMENT ON COLUMN scraper_health_log.error_class IS
+    'Free-form class hint (e.g. ClientError, LayoutChanged, Timeout) used by services.scraper_health.classify_error_for_alert().';
+COMMENT ON COLUMN scraper_health_log.attempted_by IS
+    'auto (cron + policy) | manual:<user> (Lojas tab CRUD) | cron (CI workflow).';
+
+
+-- ============================================================
 -- PHASE 22: RLS fix — service_role-only policies on 6 tables
 -- ============================================================
--- Fix: Phase 1 policies named "Enable write for service role"
--- used USING (true) / WITH CHECK (true) instead of
--- auth.role() = 'service_role'. Any authenticated user could
--- INSERT/UPDATE. Now properly restricted.
+-- ============================================================
+-- Migration 006: Fix RLS policies — service_role only
+-- 
+-- Problem: Phase 1 RLS policies named "Enable write for service role"
+-- use USING (true) / WITH CHECK (true) instead of
+-- auth.role() = 'service_role'. Any authenticated user (or anon)
+-- can INSERT/UPDATE on 6 critical tables.
+-- 
+-- Fix: Drop insecure policies, recreate with proper role check.
+-- ============================================================
 
+-- ============================================================
+-- prices
+-- ============================================================
 DROP POLICY IF EXISTS "Enable write for service role" ON prices;
 DROP POLICY IF EXISTS "Enable update for service role" ON prices;
+
 CREATE POLICY "service_role_insert" ON prices
     FOR INSERT WITH CHECK (auth.role() = 'service_role');
+
 CREATE POLICY "service_role_update" ON prices
     FOR UPDATE USING (auth.role() = 'service_role');
 
+-- ============================================================
+-- price_history
+-- ============================================================
 DROP POLICY IF EXISTS "Enable write for service role" ON price_history;
+
 CREATE POLICY "service_role_insert" ON price_history
     FOR INSERT WITH CHECK (auth.role() = 'service_role');
 
+-- ============================================================
+-- review_queue
+-- ============================================================
 DROP POLICY IF EXISTS "Enable write for service role" ON review_queue;
 DROP POLICY IF EXISTS "Enable update for service role" ON review_queue;
+
 CREATE POLICY "service_role_insert" ON review_queue
     FOR INSERT WITH CHECK (auth.role() = 'service_role');
+
 CREATE POLICY "service_role_update" ON review_queue
     FOR UPDATE USING (auth.role() = 'service_role');
 
+-- ============================================================
+-- scraping_logs
+-- ============================================================
 DROP POLICY IF EXISTS "Enable write for service role" ON scraping_logs;
+
 CREATE POLICY "service_role_insert" ON scraping_logs
     FOR INSERT WITH CHECK (auth.role() = 'service_role');
 
+-- ============================================================
+-- stores
+-- ============================================================
 DROP POLICY IF EXISTS "Enable write for service role" ON stores;
 DROP POLICY IF EXISTS "Enable update for service role" ON stores;
+
 CREATE POLICY "service_role_insert" ON stores
     FOR INSERT WITH CHECK (auth.role() = 'service_role');
+
 CREATE POLICY "service_role_update" ON stores
     FOR UPDATE USING (auth.role() = 'service_role');
 
+-- ============================================================
+-- flyers
+-- ============================================================
 DROP POLICY IF EXISTS "Enable write for service role" ON flyers;
 DROP POLICY IF EXISTS "Enable update for service role" ON flyers;
+
 CREATE POLICY "service_role_insert" ON flyers
     FOR INSERT WITH CHECK (auth.role() = 'service_role');
+
 CREATE POLICY "service_role_update" ON flyers
     FOR UPDATE USING (auth.role() = 'service_role');
 
@@ -1051,11 +1254,22 @@ CREATE POLICY "service_role_update" ON flyers
 -- ============================================================
 -- PHASE 23: REVOKE public EXECUTE + SET search_path on RPCs
 -- ============================================================
--- Fix: exec_sql, exec_sql_query, upsert_price_rpc were
--- SECURITY DEFINER without SET search_path (SB-013) and
--- executable by any anon key holder. Now restricted.
+-- ============================================================
+-- Migration 007: REVOKE public EXECUTE + SET search_path on RPCs
+--
+-- Problem: exec_sql, exec_sql_query, upsert_price_rpc are
+-- SECURITY DEFINER without SET search_path. Any user holding
+-- the anon key can call them (no REVOKE on public schema).
+-- Without SET search_path, search_path injection can hijack
+-- these functions (SB-013).
+--
+-- Fix: REVOKE public access, GRANT only to service_role,
+-- and pin search_path to 'public' on all 3 RPCs.
+-- ============================================================
 
+-- ============================================================
 -- 1. exec_sql
+-- ============================================================
 CREATE OR REPLACE FUNCTION exec_sql(sql text)
 RETURNS void
 LANGUAGE plpgsql
@@ -1066,10 +1280,13 @@ BEGIN
     EXECUTE sql;
 END;
 $$;
+
 REVOKE ALL ON FUNCTION exec_sql(text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION exec_sql(text) TO service_role;
 
+-- ============================================================
 -- 2. exec_sql_query
+-- ============================================================
 CREATE OR REPLACE FUNCTION exec_sql_query(sql text)
 RETURNS JSON
 LANGUAGE plpgsql
@@ -1083,17 +1300,33 @@ BEGIN
     RETURN result;
 END;
 $$;
+
 REVOKE ALL ON FUNCTION exec_sql_query(text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION exec_sql_query(text) TO service_role;
 
+-- ============================================================
 -- 3. upsert_price_rpc
+-- ============================================================
 CREATE OR REPLACE FUNCTION upsert_price_rpc(
-    p_ingredient_id TEXT, p_store_id TEXT, p_source TEXT,
-    p_store_name TEXT, p_raw_product TEXT, p_raw_price NUMERIC,
-    p_raw_unit TEXT, p_collected_at DATE, p_valid_from DATE,
-    p_valid_until DATE, p_validity_raw TEXT, p_collected_weekday TEXT,
-    p_is_promotion BOOLEAN, p_tier INT, p_confidence NUMERIC,
-    p_normalized JSONB, p_city TEXT, p_logistics TEXT, p_brand TEXT
+    p_ingredient_id TEXT,
+    p_store_id TEXT,
+    p_source TEXT,
+    p_store_name TEXT,
+    p_raw_product TEXT,
+    p_raw_price NUMERIC,
+    p_raw_unit TEXT,
+    p_collected_at DATE,
+    p_valid_from DATE,
+    p_valid_until DATE,
+    p_validity_raw TEXT,
+    p_collected_weekday TEXT,
+    p_is_promotion BOOLEAN,
+    p_tier INT,
+    p_confidence NUMERIC,
+    p_normalized JSONB,
+    p_city TEXT,
+    p_logistics TEXT,
+    p_brand TEXT
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -1116,19 +1349,27 @@ BEGIN
     )
     ON CONFLICT (ingredient_id, store_id, collected_at)
     DO UPDATE SET
-        source = EXCLUDED.source, store_name = EXCLUDED.store_name,
-        raw_product = EXCLUDED.raw_product, raw_price = EXCLUDED.raw_price,
-        raw_unit = EXCLUDED.raw_unit, valid_from = EXCLUDED.valid_from,
-        valid_until = EXCLUDED.valid_until, validity_raw = EXCLUDED.validity_raw,
+        source = EXCLUDED.source,
+        store_name = EXCLUDED.store_name,
+        raw_product = EXCLUDED.raw_product,
+        raw_price = EXCLUDED.raw_price,
+        raw_unit = EXCLUDED.raw_unit,
+        valid_from = EXCLUDED.valid_from,
+        valid_until = EXCLUDED.valid_until,
+        validity_raw = EXCLUDED.validity_raw,
         collected_weekday = EXCLUDED.collected_weekday,
-        is_promotion = EXCLUDED.is_promotion, tier = EXCLUDED.tier,
-        confidence = EXCLUDED.confidence, normalized = EXCLUDED.normalized,
-        city = EXCLUDED.city, logistics = EXCLUDED.logistics,
+        is_promotion = EXCLUDED.is_promotion,
+        tier = EXCLUDED.tier,
+        confidence = EXCLUDED.confidence,
+        normalized = EXCLUDED.normalized,
+        city = EXCLUDED.city,
+        logistics = EXCLUDED.logistics,
         brand = EXCLUDED.brand
     RETURNING to_jsonb(prices.*) INTO result;
     RETURN result;
 END;
 $$;
+
 REVOKE ALL ON FUNCTION upsert_price_rpc(
     TEXT, TEXT, TEXT, TEXT, TEXT, NUMERIC, TEXT, DATE,
     DATE, DATE, TEXT, TEXT, BOOLEAN, INT, NUMERIC, JSONB, TEXT, TEXT, TEXT
@@ -1140,7 +1381,173 @@ GRANT EXECUTE ON FUNCTION upsert_price_rpc(
 
 
 -- ============================================================
--- Migration complete. Verify with:
---   SELECT table_name FROM information_schema.tables
---   WHERE table_schema = 'public' ORDER BY table_name;
+-- PHASE 20: formalize scrape_requests table (006_scrape_requests.sql)
 -- ============================================================
+-- Migration 006: Formalize scrape_requests table
+-- This table handles on-demand scraping requests triggered by the Telegram bot.
+
+CREATE TABLE IF NOT EXISTS scrape_requests (
+    id BIGSERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    store_id INTEGER NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'failed')),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    processed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_scrape_requests_status ON scrape_requests(status);
+CREATE INDEX IF NOT EXISTS idx_scrape_requests_user ON scrape_requests(user_id);
+
+
+-- ============================================================
+-- PHASE 24: Store Registry table + RPC functions (009_store_registry.sql)
+-- ============================================================
+-- supabase/009_store_registry.sql
+-- Auto-discovered stores registry with dedup ≥92% and review workflow
+
+CREATE TABLE IF NOT EXISTS store_registry (
+    id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    name            TEXT        NOT NULL,
+    normalized_name TEXT        NOT NULL,  -- name stripped to alnum + spaces, upper
+    tier            INTEGER     NOT NULL DEFAULT 3,
+    type            TEXT        NOT NULL DEFAULT 'manual',
+    logistics       TEXT        DEFAULT 'pickup_local',
+    city            TEXT        DEFAULT '',
+    zone            TEXT        DEFAULT '',
+    coverage        TEXT        DEFAULT '',
+    collection_method TEXT      DEFAULT 'auto',
+    source          TEXT        NOT NULL DEFAULT 'auto',  -- 'yaml' | 'auto' | 'manual'
+    status          TEXT        NOT NULL DEFAULT 'pending_review',  -- pending_review | approved | rejected | merged
+    match_score     REAL        DEFAULT 0,  -- similarity score vs existing store
+    matched_store_id UUID       REFERENCES stores(id) ON DELETE SET NULL,
+    config          JSONB       DEFAULT '{}',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    reviewed_at     TIMESTAMPTZ,
+    reviewed_by     TEXT
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_store_registry_normalized_name ON store_registry (normalized_name);
+CREATE INDEX IF NOT EXISTS idx_store_registry_status ON store_registry (status);
+CREATE INDEX IF NOT EXISTS idx_store_registry_source ON store_registry (source);
+CREATE INDEX IF NOT EXISTS idx_store_registry_matched_store ON store_registry (matched_store_id);
+
+-- Unique constraint on normalized_name to prevent exact duplicates
+CREATE UNIQUE INDEX IF NOT EXISTS uq_store_registry_normalized_name
+    ON store_registry (normalized_name)
+    WHERE status IN ('pending_review', 'approved');
+
+-- Updated_at trigger
+CREATE OR REPLACE FUNCTION update_store_registry_updated_at()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_store_registry_updated_at ON store_registry;
+CREATE TRIGGER trg_store_registry_updated_at
+    BEFORE UPDATE ON store_registry
+    FOR EACH ROW EXECUTE FUNCTION update_store_registry_updated_at();
+
+-- RLS
+ALTER TABLE store_registry ENABLE ROW LEVEL SECURITY;
+
+-- Service role full access
+CREATE POLICY "service_role_all" ON store_registry
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+-- Anon read only
+CREATE POLICY "anon_read" ON store_registry
+    FOR SELECT TO anon USING (true);
+
+-- Function to normalize store name (alnum + space, upper)
+CREATE OR REPLACE FUNCTION normalize_store_name(raw_name TEXT) RETURNS TEXT LANGUAGE plpgsql AS $$
+BEGIN
+    RETURN upper(regexp_replace(raw_name, '[^A-Z0-9 ]', '', 'g'));
+END;
+$$;
+
+-- Helper function to find existing store by name similarity
+CREATE OR REPLACE FUNCTION find_similar_store(p_name TEXT, p_threshold REAL DEFAULT 0.92)
+RETURNS TABLE (
+    id UUID,
+    name TEXT,
+    similarity REAL
+) LANGUAGE plpgsql AS $$
+BEGIN
+    RETURN QUERY
+    SELECT s.id, s.name, 
+           1 - (levenshtein(lower(normalize_store_name(p_name)), lower(s.name))::REAL / GREATEST(length(normalize_store_name(p_name)), length(s.name))) AS similarity
+    FROM stores s
+    WHERE s.is_active = true
+      AND 1 - (levenshtein(lower(normalize_store_name(p_name)), lower(s.name))::REAL / GREATEST(length(normalize_store_name(p_name)), length(s.name))) >= p_threshold
+    ORDER BY similarity DESC
+    LIMIT 3;
+END;
+$$;
+
+-- Function to attempt auto-merge of approved registry entry
+CREATE OR REPLACE FUNCTION merge_approved_store(p_registry_id UUID) RETURNS VOID LANGUAGE plpgsql AS $$
+DECLARE
+    v_registry RECORD;
+    v_store_id UUID;
+BEGIN
+    SELECT * INTO v_registry FROM store_registry WHERE id = p_registry_id AND status = 'approved';
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Registry entry not found or not approved: %', p_registry_id;
+    END IF;
+
+    -- If already matched to existing store, just mark merged
+    IF v_registry.matched_store_id IS NOT NULL THEN
+        UPDATE store_registry SET status = 'merged', reviewed_at = now(), reviewed_by = 'auto' WHERE id = p_registry_id;
+        RETURN;
+    END IF;
+
+    -- Insert new store
+    INSERT INTO stores (name, tier, type, logistics, city, zone, coverage, collection_method, config, source)
+    VALUES (v_registry.name, v_registry.tier, v_registry.type, v_registry.logistics, 
+            v_registry.city, v_registry.zone, v_registry.coverage, v_registry.collection_method,
+            v_registry.config, v_registry.source)
+    RETURNING id INTO v_store_id;
+
+    UPDATE store_registry 
+    SET status = 'merged', 
+        matched_store_id = v_store_id,
+        reviewed_at = now(),
+        reviewed_by = 'auto'
+    WHERE id = p_registry_id;
+END;
+$$;
+
+-- Function to discover new stores from aggregator flyers
+CREATE OR REPLACE FUNCTION discover_stores_from_flyers() RETURNS VOID LANGUAGE plpgsql AS $$
+DECLARE
+    flyer RECORD;
+    norm_name TEXT;
+    existing RECORD;
+BEGIN
+    FOR flyer IN SELECT DISTINCT store_name FROM flyers WHERE store_name IS NOT NULL LOOP
+        norm_name := normalize_store_name(flyer.store_name);
+        
+        -- Check if already in stores
+        SELECT INTO existing id FROM stores WHERE normalize_store_name(name) = norm_name AND is_active = true LIMIT 1;
+        IF FOUND THEN
+            CONTINUE;
+        END IF;
+
+        -- Check if already in registry
+        SELECT INTO existing id FROM store_registry WHERE normalized_name = norm_name AND status IN ('pending_review', 'approved') LIMIT 1;
+        IF FOUND THEN
+            CONTINUE;
+        END IF;
+
+        -- Insert new registry entry
+        INSERT INTO store_registry (name, normalized_name, tier, type, collection_method, source, status, config)
+        VALUES (flyer.store_name, norm_name, 3, 'manual', 'auto', 'auto', 'pending_review', '{"source": "flyer_discovery"}')
+        ON CONFLICT (normalized_name) WHERE status IN ('pending_review', 'approved') DO NOTHING;
+    END LOOP;
+END;
+$$;
