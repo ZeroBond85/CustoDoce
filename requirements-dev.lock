@@ -53,13 +53,6 @@ click==8.4.2
     #   huggingface-hub
     #   streamlit
     #   uvicorn
-colorama==0.4.6
-    # via
-    #   bandit
-    #   click
-    #   pytest
-    #   tqdm
-    #   typer
 cryptography==49.0.0
     # via
     #   pdfminer-six
@@ -426,8 +419,6 @@ typing-extensions==4.16.0
     #   typing-inspection
 typing-inspection==0.4.2
     # via pydantic
-tzdata==2026.3
-    # via pandas
 urllib3==2.7.0
     # via requests
 uvicorn==0.51.0
