@@ -12,39 +12,53 @@ class VtexScraper(BaseWebScraper):
         )
 
     def _search_and_parse(self, ing: dict) -> list[dict]:
+        ing_name = ing.get("canonical_name", "?")
         results = []
         for term in ing.get("search_terms", []):
+            logger.info("[%s] Searching term '%s' for '%s'", self.name, term, ing_name)
             results = self._fetch_products(term.lower())
             if results:
+                logger.info("[%s] Found %d results via term '%s'", self.name, len(results), term)
                 break
         if not results:
-            results = self._fetch_products(ing["canonical_name"].lower())
+            logger.info("[%s] Fallback: canonical '%s'", self.name, ing_name)
+            results = self._fetch_products(ing_name.lower())
         if not results:
             for alias in ing.get("aliases", []):
+                logger.info("[%s] Fallback: alias '%s'", self.name, alias)
                 results = self._fetch_products(alias.lower())
                 if results:
+                    logger.info("[%s] Found %d results via alias '%s'", self.name, len(results), alias)
                     break
         if not results:
+            logger.info("[%s] No results for '%s'", self.name, ing_name)
             return []
         entries = []
         for prod in results:
             entries.extend(self.parse_product(prod, ing))
+        logger.info("[%s] Parsed %d entries for '%s'", self.name, len(entries), ing_name)
         return entries
 
     def _fetch_products(
-        self, query: str, page_size: int = 100, max_pages: int = 20, timeout_total: int = 60
+        self, query: str, page_size: int = 50, max_pages: int = 10, timeout_total: int = 30
     ) -> list[dict]:
-        """Busca produtos com paginação para obter todos os resultados."""
+        """Busca produtos com paginação. Loga progresso periodicamente."""
         import time as _time
         from urllib.parse import quote
 
         all_results = []
         page = 1
         start = _time.time()
+        last_log = start
+        log_interval = 10.0
         try:
             while page <= max_pages:
-                if _time.time() - start > timeout_total:
-                    logger.warning("[%s] Timeout total (%ds) atingido para '%s'", self.name, query, timeout_total)
+                elapsed = _time.time() - start
+                if elapsed > timeout_total:
+                    logger.warning(
+                        "[%s] Timeout (%ds) excedido para '%s' — %d páginas, %d resultados",
+                        self.name, timeout_total, query, page - 1, len(all_results),
+                    )
                     break
                 resp = self._http.get(
                     f"{self.api_endpoint}/{quote(query)}", params={"page": page, "page_size": page_size}
@@ -52,15 +66,25 @@ class VtexScraper(BaseWebScraper):
                 resp.raise_for_status()
                 data = resp.json()
                 if not isinstance(data, list) or not data:
+                    logger.info("[%s] Empty response at page %d for '%s'", self.name, page, query)
                     break
                 all_results.extend(data)
+                now = _time.time()
+                if now - last_log >= log_interval:
+                    logger.info(
+                        "[%s] '%s': page %d/%d, %d results, %.1fs elapsed",
+                        self.name, query, page, max_pages, len(all_results), now - start,
+                    )
+                    last_log = now
                 if len(data) < page_size:
                     break
                 page += 1
                 if self.rate_limit > 0:
                     _time.sleep(self.rate_limit)
         except Exception as e:
-            logger.warning("[%s] Error searching '%s': %s", self.name, query, e)
+            logger.warning("[%s] Error searching '%s' (page %d): %s", self.name, query, page, e)
+        total = _time.time() - start
+        logger.info("[%s] '%s' done: %d results in %.1fs", self.name, query, len(all_results), total)
         return all_results
 
     def parse_product(self, product: dict, ing: dict) -> list[dict]:

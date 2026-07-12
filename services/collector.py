@@ -4,6 +4,8 @@ Collector Service - Coordinates scrapers and processes product matches.
 
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeout
 from contextlib import suppress
 from datetime import UTC, date
 from datetime import datetime as dt_now
@@ -25,13 +27,13 @@ from parsers.semantic_matcher import get_matcher
 from scrapers.aggregator_scraper import TiendeoScraper
 from scrapers.carrefour_scraper import CarrefourScraper
 from scrapers.extra_flyer_scraper import ExtraFlyerScraper
+from scrapers.facebook_flyer_scraper import FacebookFlyerScraper
 from scrapers.flyer_scraper import FlyerScraper
 from scrapers.max_api_scraper import MaxApiScraper
 from scrapers.pao_flyer_scraper import PaoFlyerScraper
 from scrapers.playwright_price_scraper import PlaywrightPriceScraper
 from scrapers.roldao_api_scraper import RoldaoApiScraper
 from scrapers.roldao_flyer_scraper import RoldaoFlyerScraperSync
-from scrapers.facebook_flyer_scraper import FacebookFlyerScraper
 from scrapers.tenda_api_scraper import TendaApiScraper
 from scrapers.vtex_scraper import VtexScraper
 from scrapers.website_scraper import WebsiteScraper
@@ -261,7 +263,11 @@ def process_price_match(
 
         if candidates:
             combined_pct = int(combined * 100)
-            match_reason = f"Tipo: {type_label} | Score combinado: {combined_pct}% (RF: {score:.0f}%, Semântico: {int(semantic_score * 100)}%) | Candidato: '{top_ing['canonical_name']}' | Termo match: '{top_term}'"
+            match_reason = (
+                f"Tipo: {type_label} | Score: {combined_pct}% "
+                f"(RF: {score:.0f}%, Semântico: {int(semantic_score * 100)}%) "
+                f"| Candidato: '{top_ing['canonical_name']}' | Termo: '{top_term}'"
+            )
             if unmatched_words:
                 match_reason += f" | Palavras não matcheadas: {', '.join(sorted(unmatched_words))}"
 
@@ -384,6 +390,8 @@ def _check_zero_products_alert(store_name: str, threshold: int = 3):
 
 def _verify_scrape_results(all_products: list[PriceEntry], store_count: int, skipped_count: int) -> None:
     """Post-scrape verification checklist (Phase 3a)."""
+    if store_count == 0:
+        return
     if not all_products:
         logger.warning("[VERIFY] 0 products collected across %d stores (%d skipped)", store_count, skipped_count)
         return
@@ -395,6 +403,24 @@ def _verify_scrape_results(all_products: list[PriceEntry], store_count: int, ski
         )
 
 
+def _run_scraper_with_timeout(scraper, filtered_ingredients, needs_ingredients_param, store_name, timeout_seconds=900):
+    """Executa scraper.run() com timeout wall-clock via ThreadPoolExecutor."""
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        sig = signature(scraper.run)
+        if needs_ingredients_param:
+            future = executor.submit(
+                scraper.run, filtered_ingredients
+            ) if "ingredients" in sig.parameters else executor.submit(scraper.run)
+        else:
+            future = executor.submit(scraper.run, [])
+        try:
+            return future.result(timeout=timeout_seconds)
+        except FuturesTimeout:
+            logger.error("[%s] TIMEOUT after %ds — scraper.run() excedeu o limite", store_name, timeout_seconds)
+            future.cancel()
+            return []
+
+
 def _collect_generic(
     stores: list[Store],
     scraper_cls: type,
@@ -402,6 +428,7 @@ def _collect_generic(
     label: str,
     needs_ingredients_param: bool = True,
     post_process=None,
+    store_timeout: int = 900,
 ) -> list[PriceEntry]:
     all_products = []
     skipped_count = 0
@@ -437,13 +464,9 @@ def _collect_generic(
             ]
 
             with scraper_cls(store) as scraper:
-                sig = signature(scraper.run)
-                if needs_ingredients_param:
-                    raw_products = (
-                        scraper.run(filtered_ingredients) if "ingredients" in sig.parameters else scraper.run()
-                    )
-                else:
-                    raw_products = scraper.run([])
+                raw_products = _run_scraper_with_timeout(
+                    scraper, filtered_ingredients, needs_ingredients_param, store_name, timeout_seconds=store_timeout
+                )
 
             # Cache hit/miss logging
             cache_status = "hit" if not raw_products else "miss"
@@ -545,8 +568,9 @@ def _collect_prices(
     scraper_cls: type,
     ingredients: list[Ingredient],
     label: str,
+    store_timeout: int = 900,
 ) -> list[PriceEntry]:
-    return _collect_generic(stores, scraper_cls, ingredients, label)
+    return _collect_generic(stores, scraper_cls, ingredients, label, store_timeout=store_timeout)
 
 
 def _collect_flyers(
@@ -648,7 +672,7 @@ def _run_api_flyer_scraper(store: Store) -> list[dict]:
 
 def collect_tier2_vtex(ingredients: list[Ingredient]) -> list[PriceEntry]:
     stores = [s for s in load_stores() if s.get("scraper") == "vtex_scraper" and s.get("type") == "vtex_api"]
-    return _collect_prices(stores, VtexScraper, ingredients, "VTEX")
+    return _collect_prices(stores, VtexScraper, ingredients, "VTEX", store_timeout=600)
 
 
 def collect_tier3_websites(ingredients: list[Ingredient]) -> list[PriceEntry]:
