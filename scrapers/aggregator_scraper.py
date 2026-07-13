@@ -5,11 +5,15 @@ import random
 import re
 import time
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 import httpx
 from selectolax.parser import HTMLParser
 
 from services.logger import logger
+
+if TYPE_CHECKING:
+    from scrapers.playwright_scraper import PlaywrightTiendeoScraper
 
 FOOD_KEYWORDS = {
     "supermercado",
