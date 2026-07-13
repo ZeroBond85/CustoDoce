@@ -4,6 +4,15 @@
 
 ### Added
 
+#### Curadoria Constante — schema + validador + gate para AGENTS/LESSONS/REGRAS
+- **`config/lessons_schema.yaml`**: contrato machine-readable (max_lines, heading_pattern, no_duplicates, monotonic)
+- **`config/regras_schema.yaml`**: contrato machine-readable (pre_commit_layers, layer_names)
+- **`scripts/agents_tool.py`**: `add_lesson()` corrigido (regex `^#{2,3}` enxerga ambos `##`/`###`); novas `validate_lessons()` e `validate_regras()` no `--check` e `--full`
+- **`scripts/sync_docs.py`**: `_count_lessons()` + auto-fix no `_fix_agents_tree()` para contagem de lições em 3 locais do AGENTS.md
+- **`tests/unit/test_validate_lessons.py`**: 7 testes (duplicata, formato, monotônico, REGRAS parity)
+- **CI gate**: `agents_tool --check` já roda no CI `docs-sync` e pre-commit Layer 5 → cobre os 3 documentos
+- **Resultado**: LESSONS.md unificado (`##`→`###`), 8 colisões renumeradas, 64 lições únicas; AGENTS.md com contagens corretas (343 linhas, 64 lições, 11 camadas pre-commit); REGRAS.md alinhado com o hook real (11 camadas)
+
 #### sync_docs v2 — heading-aware stale-ref detector + auto-updater (Sprint 10)
 - **`scripts/sync_docs_v2/`**: 5 novos módulos baseados em markdown-it:
   - `truth.py`: source of truth (test counts, pages, workflows, services)
