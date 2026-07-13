@@ -25,7 +25,7 @@ Toda nova lição extraída de falha no CI usa este template:
 
 ---
 
-### 44. CI integration tests skipados sem motivo (auto-skip exigia `SUPABASE_DB_PASSWORD`)
+### 68. CI integration tests skipados sem motivo (auto-skip exigia `SUPABASE_DB_PASSWORD`)
 
 - **Data + commit**: 2026-07-09
 - **Sintoma**: `integration` job em `ci.yml` reportava `112 skipped in 0.76s`. Auto-skip silencioso, zero indicação de razão.
@@ -203,7 +203,7 @@ Regra permanente:
 - Regras novas de execução vão para REGRAS.md
 - CI valida schema a cada push/merge
 
-### 36. Lesson #33
+### 67. 30 bugs de schema mismatch na auditoria manual do dashboard
 
 30 bugs de schema mismatch encontrados na auditoria manual de 19 páginas do dashboard contra information_schema real do Supabase. Todo dict key access em páginas Streamlit deve ser validado contra schema real (SELECT column_name FROM information_schema.columns WHERE table_name=...). Mocks de teste DEVEM refletir schema real — nunca hand-crafted com keys imaginarias.
 
@@ -240,7 +240,7 @@ Regra permanente:
 - CVEs Medium/Low em dev/test = aceitas até próximo sprint (documentar em `docs/security.md`)
 - Falsos positivos do `deptry` (transitivas reais): NUNCA remover sem grep `import <pkg>` em todo o codebase
 
-### 33. Sprint 13 — Saneamento de working tree com `scripts/sanitize.py`
+### 66. Sprint 13 — Saneamento de working tree com `scripts/sanitize.py`
 
 **Problema:** 1.5GB de resíduo acumulado no working tree (caches Python, wheels baixados manualmente, resíduo do installer miniconda, modelo ONNX de 465MB, artefatos de skills audit, 12 arquivos apátridas commitados).
 
@@ -394,7 +394,7 @@ A segunda causa: `check_for_errors` (`test_e2e_real.py`) usava substrings soltas
 - Fixtures de browser/login em E2E devem ser `scope="session"` para nao estourar tempo de cold-start.
 - "Sem skip": nav ausente = `pytest.fail` com screenshot; pagina sem interacao = PASS. Skip so se for intencional (teste legado explicito).
 
-### 52. Testes de conftest que carregam .env não isolam — monkeypatch `dotenv.load_dotenv` para no-op
+### 69. Testes de conftest que carregam .env não isolam — monkeypatch `dotenv.load_dotenv` para no-op
 
 - **Data + commit**: 2026-07-09 (sessão saneamento-fase-1 pré-tornar-público)
 - **Sintoma**: `tests/unit/test_conftest_missing_creds.py::test_has_real_db_false_quando_env_vazio` (após reorganização do arquivo: `test_has_real_db_false_quando_env_minimo`) falhava intermitentemente em CI. `module._has_real_db() is False` falhava porque retornava `True`. Outros 4 cenários passavam.
@@ -407,7 +407,7 @@ A segunda causa: `check_for_errors` (`test_e2e_real.py`) usava substrings soltas
 - `monkeypatch.delenv` sozinho **não basta** se o módulo re-injeta valores durante import via `load_dotenv`.
 - Alternativa: usar `load_dotenv(..., override=True)` no conftest para permitir que CI (env vars) sobreponha `.env` local — mas isso muda semântica do conftest em produção. Preferível patchar no teste.
 
-### 52. sync_docs.py #sync# so rodava SÓ v2 #CURRENT blocks# # README/REGRAS/API/timestamps ficavam desatualizados no CI mesmo quando --sync era invocado
+### 70. sync_docs.py #sync# so rodava SÓ v2 #CURRENT blocks# — README/REGRAS/API/timestamps ficavam desatualizados
 
 **Causa raiz:** Em , o branch  chamava apenas  (CURRENT blocks em docs arbitrários). Os updateers v1 , , ,  (timestamps) so eram chamados pela funcao , que era invocada apenas sem . Resultado: o CI rodava  (v2 só) e depois  falhava por drift no README/REGRAS/timestamps.
 
@@ -429,7 +429,7 @@ E um terceiro bug menor:  suprime o markup /, entao o regex de contagem nao acha
 - Regex precisa casar a saida literal do pytest # se mudou  para , atualizar.
 
 ---
-## Lição 43: Auditoria profunda de testes (Fases 0-9) — 2026-07-11
+### 58. Auditoria profunda de testes (Fases 0-9) — 2026-07-11
 
 **Sintoma:** Testes mortos, mocks subutilizados, gaps de cobertura, violações Regra #3, workflows inconsistentes.
 
@@ -450,7 +450,7 @@ E um terceiro bug menor:  suprime o markup /, entao o regex de contagem nao acha
 - Mocks centrais → auditar consumo a cada sprint.
 
 ---
-## Lição 44: .gitignore data/store_backups/ — 2026-07-11
+### 59. .gitignore data/store_backups/ — 2026-07-11
 
 **Sintoma:** 3 backups YAML idênticos (115KB) commitados em data/store_backups/ (commit 22fd346).
 
@@ -461,7 +461,7 @@ E um terceiro bug menor:  suprime o markup /, entao o regex de contagem nao acha
 **Regra permanente:** Qualquer pasta que scripts escrevam automaticamente (backups, cache, dumps) → adicionar ao .gitignore ANTES do primeiro commit.
 
 ---
-## Lição 45: Guard rule3_db_password — 2026-07-11
+### 60. Guard rule3_db_password — 2026-07-11
 
 **Sintoma:** Regra #3 AGENTS.md (NUNCA psycopg2/5432, SOMENTE RPC 443) não era enforceada automaticamente.
 
@@ -470,7 +470,7 @@ E um terceiro bug menor:  suprime o markup /, entao o regex de contagem nao acha
 **Regra permanente:** Guard AST em pre-commit/CI para anti-patterns críticos (senhas, portas proibidas, imports perigosos). Rodar em `ci.yml` job `lint`.
 
 ---
-## Lição 46: Cleanup testes mortos — 2026-07-11
+### 61. Cleanup testes mortos — 2026-07-11
 
 **Sintoma:** 5 arquivos testes mortos acumulados:
 - test_sync_md_catchup.py + test_sync_md_catchup.py (script morto)
@@ -483,7 +483,7 @@ E um terceiro bug menor:  suprime o markup /, entao o regex de contagem nao acha
 
 **Regra permanente:** Antes de adicionar teste novo, verificar se similar já existe. `git grep "test_" -- tests/` antes de criar.
 
-## 47. AsyncMock.return_value padrão é AsyncMock, não MagicMock
+### 62. AsyncMock.return_value padrão é AsyncMock, não MagicMock
 
 **Sintoma:** `RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited` ao executar `test_collector_facebook.py::TestFacebookFlyerScraper::test_process_post_parses_products_from_image`.
 
@@ -499,11 +499,11 @@ mock_get.return_value = mock_resp  # ✅
 ```
 `mock_resp` é um `MagicMock` comum, então `raise_for_status()` é síncrono.
 
-## 48. Marcador `slow` para documentação, não filtro automático
+### 63. Marcador `slow` para documentação, não filtro automático
 
 **Decisão:** `test_alert_service.py` (1 teste ~32s) marcado como `@pytest.mark.slow`. O `addopts` global **não** inclui `-m 'not slow'` para evitar quebrar workflows CI que rodam testes lentos (diagnostics, real, integration). O marcador serve como documentação e filtro opcional. Para pular testes lentos localmente: `pytest -m 'not slow'`.
 
-## 49. CRLF root fix: `core.autocrlf = true` no Windows — WSL não precisa
+### 64. CRLF root fix: `core.autocrlf = true` no Windows — WSL não precisa
 
 **Sintoma:** Git emitia "CRLF will be replaced by LF" em todo `git add` de arquivos texto no Windows. Pre-commit Layer 8 bloqueava commits com CRLF. Tentativa de auto-fix no hook não resolvia a raiz — o warning continuava aparecendo.
 
@@ -524,7 +524,7 @@ mock_get.return_value = mock_resp  # ✅
 - Qualquer tentativa de auto-fix de CRLF no pre-commit é PROIBIDA — a correção raiz é configurar o Git corretamente, não tratar sintoma.
 
 
-## 50. st.navigation dessincroniza apos render pesado (Revisao) - clique vira no-op
+### 65. st.navigation dessincroniza apos render pesado (Revisao) - clique vira no-op
 
 **Sintoma:** No CI, `test_all_pages_crawl` (smoke e2e) falhava em Capacidade: URL
 revertia para /revisao. Nao reproduzivel com clique unico local (Capacidade como 2a
@@ -544,7 +544,7 @@ SPA (sem reload) para preservar o login em `st.session_state`. Fallback via `pag
 NAO serve: reload completo destroi `st.session_state.authenticated` e volta para o login.
 
 
-## 51. st.dataframe quebra (pyarrow ArrowInvalid) com coluna JSONB lista mista
+### 51. st.dataframe quebra (pyarrow ArrowInvalid) com coluna JSONB lista mista
 
 **Sintoma:** No CI (Supabase REAL), a pagina "Scrapers & Logs" (e "Scraper Health > Raw Logs")
 quebrava com `pyarrow.lib.ArrowInvalid: ('cannot mix list and non-list, non-null values',
@@ -565,7 +565,7 @@ usam `get_store_health()` (errors como int) nao tem o problema.
 a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 
 
-## 52. Lock files gerados no Windows causam drift no CI (colorama/tzdata)
+### 52. Lock files gerados no Windows causam drift no CI (colorama/tzdata)
 
 - **Data + commit**: 2026-07-12 (07e6466)
 - **Sintoma**: `dependency-audit.yml` job `lock-validation` falhava com `requirements.lock is out of sync with .in files` (e potencialmente os outros 3 lock files). O `git diff` mostrava `colorama==0.4.6` e `tzdata==2026.3` presentes nos locks commitados mas ausentes na regeneração do CI.
@@ -576,7 +576,7 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 **Regra preventiva**: Lock files (`.lock`) devem ser gerados **SEMPRE em Linux** (WSL `custodoce-314` ou Docker `python:3.14-slim`) — NUNCA no Windows. Pacotes condicionais de plataforma (`colorama`, `tzdata`, `win32api`, etc.) entram apenas no OS que os precisa, causing drift silencioso entre Windows/CI-Linux.
 
 
-## 53. `load_stores()` dropava silenciosamente lojas sem `scrape_frequencies`
+### 53. `load_stores()` dropava silenciosamente lojas sem `scrape_frequencies`
 
 - **Data + commit**: 2026-07-13
 - **Sintoma**: ~64/71 lojas ativas em YAML nunca apareciam no pipeline — `collect_*()` sempre retornava vazio para a maioria dos scrapers. O log não mostrava erro, apenas "0 stores".
@@ -585,7 +585,7 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Teste de regressão**: `test_validate_mocks_against_manifest` (indireto — validar que o mapper cobre todas). Teste direto ainda não escrito.
 
 
-## 54. Type-drift: FKs `INTEGER`/`UUID` para `stores(id)` quando `stores.id` é `TEXT`
+### 54. Type-drift: FKs `INTEGER`/`UUID` para `stores(id)` quando `stores.id` é `TEXT`
 
 - **Data + commit**: 2026-07-13
 - **Sintoma**: Migrations `006_scrape_requests.sql` e `009_store_registry.sql` declaravam `store_id INTEGER REFERENCES stores(id)` e retorno `id UUID` em `find_similar_store()` — incompatíveis com `stores.id TEXT`.
@@ -598,7 +598,7 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Teste de regressão**: `validate_db_schema.py` deve ganhar um check de `REFERENCES stores(id)` com tipo `TEXT` — pendente.
 
 
-## 55. Agregador Promotons roteado para scraper errado (`TiendeoScraper` em vez de `PlaywrightAggregatorScraper`)
+### 55. Agregador Promotons roteado para scraper errado (`TiendeoScraper` em vez de `PlaywrightAggregatorScraper`)
 
 - **Data + commit**: 2026-07-13 (f524ce6)
 - **Sintoma**: Promotons sempre retornava 0 resultados, mesmo estando ativo. Nenhum erro — apenas silêncio.
@@ -607,7 +607,7 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Teste de regressão**: `validate_scrapers.py --validate` (rodar no WSL) deve mostrar items do Promotons.
 
 
-## 56. F541 lint (f-string sem placeholder) escapou para o CI — validação local incompleta
+### 56. F541 lint (f-string sem placeholder) escapou para o CI — validação local incompleta
 
 - **Data + commit**: 2026-07-13 (49278da)
 - **Sintoma**: CI job `lint` falhou com 7× `F541 f-string without any placeholders` em `scripts/validate_scrapers.py:41,53,54,55,148,193,197`.
@@ -616,7 +616,7 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Teste de regressão**: `ruff check scripts/validate_scrapers.py` deve passar.
 
 
-## 57. Lint F541 escapou porque pre-commit não incluía ruff — gap de processo
+### 57. Lint F541 escapou porque pre-commit não incluía ruff — gap de processo
 
 - **Data + commit**: 2026-07-13 (49278da)
 - **Sintoma**: CI job `lint` falhou com F541 em `validate_scrapers.py` que não foi detectado localmente. CI job `docs-sync` também falhou — ambos escaparam porque validamos apenas deploy/sync/FKs, não `ruff check .` completo.

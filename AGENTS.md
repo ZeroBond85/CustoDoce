@@ -1,6 +1,6 @@
 # CustoDoce - Memória do Projeto
 
-> **~370 linhas vivo.** Lições → `LESSONS.md`. Regras infra → `REGRAS.md`.
+> **~343 linhas vivo.** Lições → `LESSONS.md`. Regras infra → `REGRAS.md`.
 
 ## Regras Mandatórias (Top 10)
 
@@ -64,7 +64,7 @@ CustoDoce/
 │   ├── skills-maintenance.yml                       # Cron mensal (dia 1, 9am UTC)
 │   └── dependency-audit.yml                         # Cron mensal (dia 1, 9am UTC) — pip-audit + deptry + licenses
 ├── .githooks/
-│   ├── pre-commit                                     # 8 camadas (secret, gitignore, detect-secrets, doc sync, size, watchdog, agents, skills, residue, crlf auto-fix)
+│   ├── pre-commit                                     # 11 camadas (SECRET GUARD, GITIGNORE IMPORTS, DETECT-SECRETS, RUFF LINT, DOC SYNC, SIZE GUARD, DOC WATCHDOG, AGENTS SCHEMA, SKILL DRIFT, RESIDUE GUARD, CRLF GUARD)
 │   └── pre-push                                       # Python, 9 checks paralelos (block + auto-fix sync_docs)
 ├── config/
 │   ├── ingredients.yaml, stores.yaml, features.yaml
@@ -95,7 +95,7 @@ CustoDoce/
 ├── requirements.lock       # = requirements-test.lock (backward compat)
 ├── requirements.txt        # = requirements-prod.in (pip-audit source)
 ├── AGENTS.md          # ← este arquivo (vivo, ~370 linhas)
-├── LESSONS.md         # 32 lições aprendidas
+├── LESSONS.md         # 64 lições aprendidas
 └── REGRAS.md          # Ambiente, hooks, comandos
 ```
 
@@ -282,8 +282,8 @@ python -m pytest tests/diagnostics/ -q -m slow
 | pytest (diagnostics, slow) | 4 passing |
 | Schema manifest | 17 tabelas/views com types, not_null, defaults, constraints |
 | Mock validation tests | 97 parametrizados (colunas, tipos, not_null, FKs, CHECK, jsonb) |
-| AGENTS.md | ~370 linhas (Sprint 12 workflow optimization) |
-| LESSONS.md | 43 lições |
+| AGENTS.md | ~343 linhas (Sprint 12 workflow optimization) |
+| LESSONS.md | 64 lições |
 | REGRAS.md | Ambiente + hooks + comandos |
 | CI lint/type/test | ✅ Todos verdes (Python 3.14.6) |
 | E2E (cloud) | ⏳ Mensal (Playwright) |
@@ -336,7 +336,7 @@ Para WSL: `custodoce-314` (Conda, Python 3.14). Detalhes em `REGRAS.md`.
 
 ## Documentação Relacionada
 
-- `LESSONS.md` — 43 lições (CI, mocks, schema, scrapers, monitoração, segurança)
+- `LESSONS.md` — 64 lições (CI, mocks, schema, scrapers, monitoração, segurança)
 - `REGRAS.md` — Ambiente, hooks, comandos, arquitetura
 - `docs/skills.md` — Skills OpenCode (globais + overlays locais)
 - `docs/changelog.md` — Histórico por fase/sprint

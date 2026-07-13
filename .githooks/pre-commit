@@ -8,7 +8,7 @@
 # Layer 2: DOC SYNC            - BLOQUEIA se codigo mudou sem docs (YES bypass, A auto-sync)
 # Layer 3: SIZE GUARD          - BLOQUEIA arquivo >100MB (GitHub rejeita; mais vale parar antes)
 # Layer 4: DOC WATCHDOG        - AVISO leve sobre outros docs
-# Layer 5: AGENTS SCHEMA       - BLOQUEIA se AGENTS.md não passar no schema check
+# Layer 5: AGENTS SCHEMA       - BLOQUEIA se AGENTS.md/LESSONS.md/REGRAS.md não passarem no schema check (agents_tool --check)
 # Layer 8: CRLF GUARD          - BLOQUEIA arquivos texto com CRLF (previne churn de line-ending)
 #
 # Para pular TODOS os checks:  git commit --no-verify  (usar com consciencia)
@@ -229,7 +229,7 @@ if echo "${STAGED:-}" | grep -qE "$TEST_PATTERNS"; then
 fi
 
 # ----------------------------------------------------------------
-# 5. AGENTS SCHEMA - bloqueante se AGENTS.md estiver staged e invalido
+# 5. AGENTS SCHEMA - bloqueante se AGENTS.md/LESSONS.md/REGRAS.md estiverem staged e invalidos (agents_tool --check)
 # ----------------------------------------------------------------
 if echo "${STAGED:-}" | grep -q 'AGENTS\.md$'; then
   if [ -n "$PY" ] && [ -f "scripts/agents_tool.py" ] && [ -f "config/agents_schema.yaml" ]; then
