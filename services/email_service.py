@@ -359,10 +359,19 @@ def send_scraper_error(store_name: str, error: str, to_email: str | None = None)
 # ── Envio genérico ────────────────────────────────────────────────────
 def send_email(to_email: str, subject: str, html_body: str):
     """Simple email sender using the existing SMTP config."""
+    if not is_email_configured():
+        _LOG.warning("email_skipped: SMTP credentials not configured")
+        return
+
     host, port, user, password, from_addr = _get_smtp_config()
 
-    if not user or not password or not to_email:
-        raise ValueError("SMTP credentials not configured")
+    if not user or not password:
+        _LOG.warning("email_skipped: SMTP credentials incomplete")
+        return
+
+    if not to_email:
+        _LOG.warning("email_skipped: to_email is empty")
+        return
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
@@ -397,11 +406,16 @@ def send_daily_report(
     to_email: str | None = None,
     subject: str | None = None,
 ):
+    if not is_email_configured():
+        _LOG.warning("daily_report_skipped", reason="SMTP credentials not configured")
+        return
+
     host, port, user, password, from_addr = _get_smtp_config()
     to_email = to_email or os.environ.get("ALERT_EMAIL_TO", user)
 
     if not user or not password or not to_email:
-        raise ValueError("SMTP_USER/SMTP_PASSWORD/ALERT_EMAIL_TO (ou GMAIL_USER/GMAIL_APP_PASSWORD) must be set.")
+        _LOG.warning("daily_report_skipped", reason="SMTP credentials incomplete")
+        return
 
     msg = MIMEMultipart("mixed")
     msg["Subject"] = subject or f"📊 Cotação de Preços CustoDoce • {date.today().strftime('%d/%m/%Y')}"
