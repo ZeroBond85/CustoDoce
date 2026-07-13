@@ -38,7 +38,7 @@ def _dry_run():
 
     total = sum(len(v) for v in by_scraper.values())
     print(f"\n{'='*60}")
-    print(f"VALIDATE SCRAPERS — DRY RUN")
+    print("VALIDATE SCRAPERS — DRY RUN")
     print(f"{'='*60}")
     print(f"\nTotal active stores in YAML: {total}")
     print(f"\n{'Scraper Type':<35} {'Count':<6}  Stores")
@@ -50,9 +50,9 @@ def _dry_run():
 
     # Cross-ref with collector.py load_stores() logic
     print(f"{'='*60}")
-    print(f"NOTE: load_stores() also requires Supabase (scrape_frequencies).")
-    print(f"Stores without a freq row OR with enabled=True pass through.")
-    print(f"Stores with enabled=False in freq row are excluded.")
+    print("NOTE: load_stores() also requires Supabase (scrape_frequencies).")
+    print("Stores without a freq row OR with enabled=True pass through.")
+    print("Stores with enabled=False in freq row are excluded.")
     print(f"{'='*60}\n")
 
 
@@ -145,7 +145,7 @@ def _do_validate(allow_write: bool = False):
             all_ok = False
 
     print(f"\n{'='*60}")
-    print(f"SUMMARY")
+    print("SUMMARY")
     print(f"{'='*60}")
     print(f"{'Phase':<40} {'Items':<8} {'Time':<8} Status")
     print(f"{'-'*40:<40} {'-'*8:<8} {'-'*8:<8} {'-'*10}")
@@ -190,11 +190,11 @@ def _check_fks():
 
     if errors:
         print(f"\n{'='*60}")
-        print(f"FK TYPE DRIFT DETECTED")
+        print("FK TYPE DRIFT DETECTED")
         print(f"{'='*60}")
         for fname, lineno, match in errors:
             print(f"  {fname}:{lineno}: {match}")
-        print(f"\n  Fix: change INTEGER/UUID to TEXT in REFERENCES stores(id)\n")
+        print("\n  Fix: change INTEGER/UUID to TEXT in REFERENCES stores(id)\n")
         sys.exit(1)
     else:
         print(f"\n{'='*60}")
