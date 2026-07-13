@@ -1,9 +1,9 @@
 # `collector` — API
 
-> Última atualização: 2026-07-13 16:38 UTC
+> Última atualização: 2026-07-13 22:24 UTC
 > Gerado por AST parsing dos serviços em `services/collector.py`.
 
-## Funções Públicas (17)
+## Funções Públicas (18)
 
 ### build_product_entry(store: Store, ingredient: Ingredient, raw_product: str, raw_price: float, raw_unit: str, confidence: float, validity_raw: str, brand: str)
 
@@ -16,6 +16,8 @@
 ### collect_extra_flyers(ingredients: list[Ingredient])
 
 ### collect_facebook_flyers(ingredients: list[Ingredient])
+
+### collect_giga_flyer(ingredients: list[Ingredient])
 
 ### collect_pao_flyers(ingredients: list[Ingredient])
 

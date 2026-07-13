@@ -15,6 +15,8 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+from PIL import Image
+
 from services.http_client import get_client
 from services.logger import logger
 
@@ -40,18 +42,13 @@ def _downscale_image(image_bytes: bytes) -> bytes:
     imagem ja estiver pequena, devolve os bytes originais.
     """
     try:
-        from PIL import Image
-    except Exception:
-        return image_bytes
-
-    try:
-        with Image.open(io.BytesIO(image_bytes)) as im:
-            im = im.convert("RGB")
+        with Image.open(io.BytesIO(image_bytes)) as im_raw:
+            im = im_raw.convert("RGB")
             longest = max(im.size)
             if longest > VISION_MAX_DIM:
                 scale = VISION_MAX_DIM / longest
                 new_size = (max(1, int(im.width * scale)), max(1, int(im.height * scale)))
-                im = im.resize(new_size, Image.LANCZOS)
+                im = im.resize(new_size, Image.Resampling.LANCZOS)
 
             quality = VISION_JPEG_QUALITY
             for _ in range(4):
@@ -193,8 +190,8 @@ def _strip_json_fence(content: str) -> str:
     """
     text = content.strip()
     if text.startswith("```"):
-        text = text.split("```", 2)
-        text = text[1] if len(text) > 1 else content
+        parts = text.split("```", 2)
+        text = parts[1] if len(parts) > 1 else content
         if text.lstrip().lower().startswith("json"):
             text = text.lstrip()[4:]
     start, end = text.find("{"), text.rfind("}")
