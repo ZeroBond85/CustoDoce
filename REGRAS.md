@@ -12,6 +12,7 @@
 | Dashboard (Streamlit) | **Windows** | Renderização e rede local nativa | `.venv314` |
 | Scripts de deploy, DB, SQL | **Windows** | Python direto via RPC/HTTPS | `.venv314` |
 | Shell scripts (.sh), Git complexo | **WSL (Debian)** | PowerShell quebra escapes/heredocs | Bash |
+| `git push` com pre-push completo | **WSL (Debian)** | pre-push roda `sync_docs`, `ci_local`, `schema_mocks` — todas as deps instaladas no `custodoce-314` | `custodoce-314` (Conda) |
 | Simular CI Linux, Scrapers Reais | **WSL (Debian)** | Idêntico ao GitHub Actions (Ubuntu) | `custodoce-314` (Conda) |
 | Playwright, OCR (Tesseract) | **WSL (Debian)** | Browser automation e dependências SO | `custodoce-314` (Conda) |
 | Testes E2E / Visual | **WSL (Debian)** | Estabilidade do Chromium Headless | `custodoce-314` (Conda) |
@@ -113,6 +114,8 @@ Checks (rodam em paralelo via ThreadPoolExecutor, exceto os sequenciais 1 e 2):
    - `check_environment_parity.py`
 
 **Nota**: `sync_docs` roda **apenas** no pre-push (versão rigorosa `--check --strict` + auto-fix). O `ci_local.py` **não** roda mais docs-sync (evita duplicação de "2 docs sync"). Para checar manualmente: `python scripts/sync_docs.py --check --strict`.
+
+**⚠️ Windows**: O pre-push **não funciona completamente** no Windows porque `sync_docs.py` importa todo o projeto (exige todas as deps instaladas). No Windows, use `git push --no-verify` ou `git pw` (que aceita falha do pre-push e continua). O ambiente canônico para push com validação completa é **WSL** (`custodoce-314`).
 
 **Otimização (Fase 1)**: checks independentes rodam em paralelo; wall-time ≈ max(ci_local, demais) em vez de soma. `audit_secrets` escopado a commits outgoing. Rede (`gh`, `pip-audit`) tem timeout.
 
