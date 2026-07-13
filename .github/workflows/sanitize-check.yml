@@ -20,6 +20,8 @@ jobs:
           cache-dependency-path: requirements-prod.lock
       - name: Install deps
         run: pip install -r requirements-prod.lock -q
+        env:
+          PIP_NO_WARN_YANKED: 1
       - name: Dry-run sanitize (fail if residue detected)
         run: |
           python scripts/sanitize.py --dry-run 2>&1

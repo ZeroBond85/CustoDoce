@@ -1,6 +1,6 @@
 # `import_service` — API
 
-> Última atualização: 2026-07-12 00:08 UTC
+> Última atualização: 2026-07-13 15:09 UTC
 > Gerado por AST parsing dos serviços em `services/import_service.py`.
 
 ## Funções Públicas (1)

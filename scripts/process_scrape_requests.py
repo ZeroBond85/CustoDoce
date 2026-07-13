@@ -50,6 +50,7 @@ def main():
             from services.collector import (
                 CarrefourScraper,
                 ExtraFlyerScraper,
+                FacebookFlyerScraper,
                 FlyerScraper,
                 MaxApiScraper,
                 PaoFlyerScraper,
@@ -71,6 +72,7 @@ def main():
                 "roldao_api_scraper": RoldaoApiScraper,
                 "max_api_scraper": MaxApiScraper,
                 "playwright_price_scraper": PlaywrightPriceScraper,
+                "facebook_flyer_scraper": FacebookFlyerScraper,
             }
 
             scraper_name = store.get("scraper")

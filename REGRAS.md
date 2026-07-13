@@ -1,5 +1,5 @@
 # REGRAS.md — Ambiente, Hooks, Comandos
-> Última atualização: 2026-07-11 19:50 UTC
+> Última atualização: 2026-07-13 15:09 UTC
 
 > Ambiente de execução, hooks de git, comandos de rotina e configurações obrigatórias.
 > Extraído de AGENTS.md original (seções "Ambiente", "Pre-commit/pre-push hooks", "OpenCode Skills Strategy").
@@ -7,7 +7,7 @@
 ## Ambiente: Escolha do Executor
 
 | Tarefa | Executor | Motivo | Tooling |
-|--------|----------|--------|----------|
+|--------|----------|--------|---------|
 | ruff, mypy, pytest (unit/schema) | **Windows** | Latência zero, sem overhead de WSL | `.venv314` |
 | Dashboard (Streamlit) | **Windows** | Renderização e rede local nativa | `.venv314` |
 | Scripts de deploy, DB, SQL | **Windows** | Python direto via RPC/HTTPS | `.venv314` |
@@ -15,6 +15,7 @@
 | Simular CI Linux, Scrapers Reais | **WSL (Debian)** | Idêntico ao GitHub Actions (Ubuntu) | `custodoce-314` (Conda) |
 | Playwright, OCR (Tesseract) | **WSL (Debian)** | Browser automation e dependências SO | `custodoce-314` (Conda) |
 | Testes E2E / Visual | **WSL (Debian)** | Estabilidade do Chromium Headless | `custodoce-314` (Conda) |
+| **Gerar lock files (`pip-compile`)** | **WSL (Debian)** | CI roda em Ubuntu Linux; Windows inclui `colorama`/`tzdata` que não existem no Linux → drift | `custodoce-314` + `PIP_EXTRA_INDEX_URL` |
 
 ### ⚠️ CRLF vs LF: Toda Geração de Docs Roda no WSL
 
@@ -46,13 +47,20 @@ git add docs/ && git commit              # pre-commit feliz
 4. **Paridade de Versões (Obrigatório — expandida)**:
    - **Python local (Windows/WSL) DEVE ser igual ao CI (GitHub Actions) e Cloud (Streamlit)**.
    - **Versões obrigatórias**: `pyproject.toml` (target-version), `runtime.txt`, `.devcontainer/devcontainer.json`, workflows (`PYTHON_VERSION`), e `pyproject.toml` (mypy `python_version`) — todos Python **3.14.x**.
-   - **Lock files (requirements-*.lock)** são a única fonte de verdade. `requirements.txt` e `requirements.lock` são cópias do `requirements-test.lock`. Toda instalação via `pip install` em workflow DEVE usar `package==X.Y.Z` (nunca sem pin).
-   - **Actions @tags**: Consistentes em TODOS os workflows: `checkout@v7`, `setup-python@v6`, `cache@v4`, `upload-artifact@v7`. Qualquer outlier bloqueia merge.
+   - **Lock files (requirements-*.lock)** são a única fonte de verdade. `requirements.txt` e `requirements.lock` são cópias do `requirements-test.lock`. Toda instalação via `pip install` em workflow DEVE usar `package==X.Y.Z` (nunca sem pin). (Geração: ver item 5 — WSL obrigatório.)
+   - **Actions @tags**: Consistentes em TODOS os workflows: `checkout@v7`, `setup-python@v6`, `cache@v6`, `upload-artifact@v7`. Qualquer outlier bloqueia merge.
    - **System deps (tesseract/poppler/playwright)**: Instalados com mesmos comandos em CI, WSL e devcontainer. `packages.txt` é lista canônica; alterações refletidas em todos os locais.
    - **.devcontainer**: Deve espelhar o Python target do projeto e instalar via lock files (`requirements-prod.lock`), não `requirements.txt`.
    - **Verificação**: `python scripts/check_environment_parity.py` (roda no CI job `lint`, falha HARD em divergência).
    - **Qualquer discrepância bloqueia merge** — CI valida no alvo real.
-   - **Drift de WSL**: Checar periodicamente: `wsl bash -c 'python --version && /home/ericsf/custodoce-314/bin/pip --version'`
+    - **Drift de WSL**: Checar periodicamente: `wsl bash -c 'python --version && /home/ericsf/custodoce-314/bin/pip --version'`
+5. **WSL = Linux Canônico (Anti-Drift de Plataforma)**: Toda tarefa que depende de **resolver dependências em ambiente Linux** deve rodar no WSL (`custodoce-314`) — NUNCA no Windows. O CI (GitHub Actions) roda em Ubuntu; o WSL é nosso Ubuntu local. Isso previne drift silencioso de pacotes condicionais de plataforma (`colorama`, `tzdata`, etc.) que existem no Windows mas não no Linux. Tarefas obrigatórias em WSL:
+   - **`pip-compile`** (geração de lock files): `PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu pip-compile --allow-unsafe --output-file=requirements-prod.lock requirements-prod.in`
+   - **`pip install -r requirements-test.lock`** (quando testar integração/CI locally)
+   - **Playwright, OCR, scrapers** (browser automation)
+   - **`sync_docs.py`** (evitar CRLF, ver seção CRLF acima)
+   - Qualquer `pip install` que precise de pacotes com `manylinux` wheels
+   - **Exceção**: Instalação de deps puras Python (ruff, mypy) pode rodar no Windows sem drift.
 
 
 ## Windows (PowerShell) — Padrão para Python

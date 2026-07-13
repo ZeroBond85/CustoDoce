@@ -2,7 +2,7 @@
   "_meta": {
     "generator": "scripts/generate_schema_manifest.py",
     "source": "consolidated_migration.sql",
-    "tables": 16,
+    "tables": 19,
     "version": 2
   },
   "alert_recipients": {
@@ -64,7 +64,8 @@
       "template",
       "enabled",
       "created_at",
-      "updated_at"
+      "updated_at",
+      "description"
     ],
     "constraints": {
       "check": [
@@ -103,6 +104,7 @@
       "channel": "text",
       "condition": "jsonb",
       "created_at": "timestamptz",
+      "description": "text",
       "enabled": "boolean",
       "frequency_minutes": "int",
       "id": "uuid",
@@ -118,7 +120,8 @@
       "key",
       "enabled",
       "description",
-      "updated_at"
+      "updated_at",
+      "created_at"
     ],
     "constraints": {
       "check": [],
@@ -129,6 +132,7 @@
       "unique": []
     },
     "defaults": {
+      "created_at": "now()",
       "enabled": "false",
       "updated_at": "now()"
     },
@@ -136,6 +140,7 @@
     "not_null": [],
     "not_null_no_default": [],
     "types": {
+      "created_at": "timestamptz",
       "description": "text",
       "enabled": "boolean",
       "key": "text",
@@ -164,7 +169,8 @@
       "valid_from",
       "valid_until",
       "collected_at",
-      "processed_at"
+      "processed_at",
+      "is_active"
     ],
     "constraints": {
       "check": [],
@@ -189,6 +195,7 @@
       "image_height": "0",
       "image_type": "'webp'",
       "image_width": "0",
+      "is_active": "TRUE",
       "ocr_confidence": "0.0",
       "ocr_status": "'pending'",
       "ocr_text": "''",
@@ -222,6 +229,7 @@
       "image_type": "text",
       "image_url": "text",
       "image_width": "int",
+      "is_active": "boolean",
       "ocr_confidence": "decimal(4,3)",
       "ocr_status": "text",
       "ocr_text": "text",
@@ -289,6 +297,58 @@
       "updated_at": "timestamptz"
     }
   },
+  "llm_match_cache": {
+    "columns": [
+      "id",
+      "product_raw_name",
+      "brand",
+      "ingredient_id",
+      "match_decision",
+      "created_at",
+      "updated_at"
+    ],
+    "constraints": {
+      "check": [],
+      "fk": [],
+      "pk": [
+        "id"
+      ],
+      "unique": [
+        [
+          "product_raw_name",
+          "brand"
+        ]
+      ]
+    },
+    "defaults": {
+      "brand": "''",
+      "created_at": "now()",
+      "id": "gen_random_uuid()",
+      "updated_at": "now()"
+    },
+    "generated": {},
+    "not_null": [
+      "product_raw_name",
+      "ingredient_id",
+      "match_decision",
+      "created_at",
+      "updated_at"
+    ],
+    "not_null_no_default": [
+      "product_raw_name",
+      "ingredient_id",
+      "match_decision"
+    ],
+    "types": {
+      "brand": "text",
+      "created_at": "timestamptz",
+      "id": "uuid",
+      "ingredient_id": "text",
+      "match_decision": "jsonb",
+      "product_raw_name": "text",
+      "updated_at": "timestamptz"
+    }
+  },
   "price_history": {
     "columns": [
       "id",
@@ -307,7 +367,9 @@
       "is_promotion",
       "collected_at",
       "brand",
-      "price_per_kg"
+      "price_per_kg",
+      "logistics",
+      "created_at"
     ],
     "constraints": {
       "check": [],
@@ -338,6 +400,7 @@
       "brand": "''",
       "collected_at": "NOW()",
       "collected_weekday": "''",
+      "created_at": "now()",
       "id": "uuid_generate_v4()",
       "is_promotion": "FALSE",
       "normalized": "NULL",
@@ -367,9 +430,11 @@
       "brand": "text",
       "collected_at": "timestamptz",
       "collected_weekday": "text",
+      "created_at": "timestamptz",
       "id": "uuid",
       "ingredient_id": "text",
       "is_promotion": "boolean",
+      "logistics": "text",
       "normalized": "jsonb",
       "price_id": "uuid",
       "price_per_kg": "numeric",
@@ -767,24 +832,78 @@
       "updated_at": "timestamptz"
     }
   },
+  "scrape_requests": {
+    "columns": [
+      "id",
+      "user_id",
+      "store_id",
+      "status",
+      "created_at",
+      "processed_at"
+    ],
+    "constraints": {
+      "check": [
+        {
+          "expression": "status IN ('pending', 'completed', 'failed')"
+        }
+      ],
+      "fk": [
+        {
+          "columns": [
+            "store_id"
+          ],
+          "references": {
+            "column": "id",
+            "on_delete": "CASCADE",
+            "table": "stores"
+          }
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "unique": []
+    },
+    "defaults": {
+      "created_at": "NOW()",
+      "status": "'pending'"
+    },
+    "generated": {},
+    "not_null": [
+      "user_id",
+      "store_id",
+      "status"
+    ],
+    "not_null_no_default": [
+      "user_id",
+      "store_id"
+    ],
+    "types": {
+      "created_at": "timestamptz",
+      "id": "bigserial",
+      "processed_at": "timestamptz",
+      "status": "text",
+      "store_id": "text",
+      "user_id": "text"
+    }
+  },
   "scraper_health_log": {
     "columns": [
       "id",
       "scraper_name",
       "event_type",
-      "error_class",
-      "reason",
       "failures_count",
       "is_active",
+      "reason",
+      "items_found",
+      "products_matched",
+      "flyer_count",
+      "error_class",
       "attempted_by",
       "created_at"
     ],
     "constraints": {
-      "check": [
-        {
-          "expression": "event_type IN ('failure', 'success', 'auto_disabled', 'auto_reactivated')"
-        }
-      ],
+      "check": [],
       "fk": [],
       "pk": [
         "id"
@@ -792,16 +911,17 @@
       "unique": []
     },
     "defaults": {
-      "attempted_by": "'auto'",
-      "created_at": "NOW()",
+      "created_at": "now()",
       "failures_count": "0",
-      "id": "uuid_generate_v4()",
+      "id": "gen_random_uuid()",
       "is_active": "TRUE"
     },
     "generated": {},
     "not_null": [
       "scraper_name",
       "event_type",
+      "failures_count",
+      "is_active",
       "created_at"
     ],
     "not_null_no_default": [
@@ -813,9 +933,12 @@
       "created_at": "timestamptz",
       "error_class": "text",
       "event_type": "text",
-      "failures_count": "integer",
+      "failures_count": "int",
+      "flyer_count": "int",
       "id": "uuid",
       "is_active": "boolean",
+      "items_found": "int",
+      "products_matched": "int",
       "reason": "text",
       "scraper_name": "text"
     }
@@ -830,7 +953,8 @@
       "items_found",
       "items_matched",
       "errors",
-      "duration_seconds"
+      "duration_seconds",
+      "created_at"
     ],
     "constraints": {
       "check": [],
@@ -841,6 +965,7 @@
       "unique": []
     },
     "defaults": {
+      "created_at": "now()",
       "duration_seconds": "0",
       "errors": "'[]'",
       "id": "uuid_generate_v4()",
@@ -859,6 +984,7 @@
       "store_name"
     ],
     "types": {
+      "created_at": "timestamptz",
       "duration_seconds": "integer",
       "errors": "jsonb",
       "finished_at": "timestamptz",
@@ -868,6 +994,100 @@
       "started_at": "timestamptz",
       "status": "text",
       "store_name": "text"
+    }
+  },
+  "store_registry": {
+    "columns": [
+      "id",
+      "name",
+      "normalized_name",
+      "tier",
+      "type",
+      "logistics",
+      "city",
+      "zone",
+      "coverage",
+      "collection_method",
+      "source",
+      "status",
+      "match_score",
+      "matched_store_id",
+      "config",
+      "created_at",
+      "updated_at",
+      "reviewed_at",
+      "reviewed_by"
+    ],
+    "constraints": {
+      "check": [],
+      "fk": [
+        {
+          "columns": [
+            "matched_store_id"
+          ],
+          "references": {
+            "column": "id",
+            "on_delete": "SET NULL",
+            "table": "stores"
+          }
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "unique": []
+    },
+    "defaults": {
+      "city": "''",
+      "collection_method": "'auto'",
+      "config": "'{}'",
+      "coverage": "''",
+      "created_at": "now()",
+      "id": "gen_random_uuid()",
+      "logistics": "'pickup_local'",
+      "match_score": "0",
+      "source": "'auto'",
+      "status": "'pending_review'",
+      "tier": "3",
+      "type": "'manual'",
+      "updated_at": "now()",
+      "zone": "''"
+    },
+    "generated": {},
+    "not_null": [
+      "name",
+      "normalized_name",
+      "tier",
+      "type",
+      "source",
+      "status",
+      "created_at",
+      "updated_at"
+    ],
+    "not_null_no_default": [
+      "name",
+      "normalized_name"
+    ],
+    "types": {
+      "city": "text",
+      "collection_method": "text",
+      "config": "jsonb",
+      "coverage": "text",
+      "created_at": "timestamptz",
+      "id": "uuid",
+      "logistics": "text",
+      "match_score": "real",
+      "matched_store_id": "text",
+      "name": "text",
+      "normalized_name": "text",
+      "reviewed_at": "timestamptz",
+      "reviewed_by": "text",
+      "source": "text",
+      "status": "text",
+      "tier": "integer",
+      "type": "text",
+      "updated_at": "timestamptz",
+      "zone": "text"
     }
   },
   "stores": {

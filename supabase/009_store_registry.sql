@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS store_registry (
     source          TEXT        NOT NULL DEFAULT 'auto',  -- 'yaml' | 'auto' | 'manual'
     status          TEXT        NOT NULL DEFAULT 'pending_review',  -- pending_review | approved | rejected | merged
     match_score     REAL        DEFAULT 0,  -- similarity score vs existing store
-    matched_store_id UUID       REFERENCES stores(id) ON DELETE SET NULL,
+    matched_store_id TEXT       REFERENCES stores(id) ON DELETE SET NULL,
     config          JSONB       DEFAULT '{}',
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -69,7 +69,7 @@ $$;
 -- Helper function to find existing store by name similarity
 CREATE OR REPLACE FUNCTION find_similar_store(p_name TEXT, p_threshold REAL DEFAULT 0.92)
 RETURNS TABLE (
-    id UUID,
+    id TEXT,
     name TEXT,
     similarity REAL
 ) LANGUAGE plpgsql AS $$
@@ -89,7 +89,7 @@ $$;
 CREATE OR REPLACE FUNCTION merge_approved_store(p_registry_id UUID) RETURNS VOID LANGUAGE plpgsql AS $$
 DECLARE
     v_registry RECORD;
-    v_store_id UUID;
+    v_store_id TEXT;
 BEGIN
     SELECT * INTO v_registry FROM store_registry WHERE id = p_registry_id AND status = 'approved';
     IF NOT FOUND THEN

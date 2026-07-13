@@ -64,20 +64,36 @@ def sync_store_fields() -> int:
     return updated
 
 
+def _default_frequency_by_tier(tier: int) -> int:
+    """Get default frequency_minutes for a store tier."""
+    return {1: 10080, 2: 1440, 3: 1440, 4: 43200}.get(tier, 1440)
+
+
 def sync_scrape_frequencies() -> int:
+    """Upsert scrape_frequencies for every active store in YAML.
+
+    Uses the store's actual DB id (queried by name), avoiding slug-drift.
+    """
     c = get_service_client()
-    freqs = [
-        ("extra_folheteria", 1, 10080),
-        ("pao_de_acucar_fresh", 1, 10080),
-        ("dona_dani_ingredientes", 2, 1440),
-        # New stores (slugified IDs must match stores.id from sync_stores_bidirectional.py)
-        ("rede_krill", 2, 1440),
-        ("rede_krill_facebook", 3, 10080),
-        ("mercado_primos", 3, 10080),
-        ("supermercados_saito", 3, 10080),
-    ]
+    yaml_path = Path(__file__).resolve().parent.parent / "config" / "stores.yaml"
+    with open(yaml_path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+
     synced = 0
-    for store_id, tier, freq in freqs:
+    for s in data.get("stores", []):
+        is_active = s.get("is_active", True)
+        if not is_active:
+            continue
+        name = s.get("name", "")
+        if not name:
+            continue
+        r = c.table("stores").select("id, tier").ilike("name", name).maybe_single().execute()
+        if not r or not r.data:
+            logger.info("MISSING store in DB: %s — skipping freq", name)
+            continue
+        store_id = r.data["id"]
+        tier = r.data["tier"]
+        freq = _default_frequency_by_tier(tier)
         c.table("scrape_frequencies").upsert(
             {
                 "store_id": store_id,
@@ -90,6 +106,7 @@ def sync_scrape_frequencies() -> int:
             }
         ).execute()
         synced += 1
+
     return synced
 
 

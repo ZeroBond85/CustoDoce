@@ -41,10 +41,11 @@ def test_send_email_success(mock_smtp):
         mock_smtp.quit.assert_called()
 
 
-def test_send_email_no_creds():
+def test_send_email_no_creds(caplog):
     with patch.dict(os.environ, {}, clear=True):
-        with pytest.raises(ValueError, match="SMTP credentials not configured"):
-            send_email("to@test.com", "Subject", "Body")
+        send_email("to@test.com", "Subject", "Body")
+        assert "email_skipped" in caplog.text
+        assert "SMTP credentials not configured" in caplog.text
 
 
 @pytest.mark.parametrize(
@@ -55,7 +56,7 @@ def test_send_email_no_creds():
         (None, True),
     ],
 )
-def test_send_email_to_validation(mock_smtp, to_email, expected_raise):
+def test_send_email_to_validation(mock_smtp, caplog, to_email, expected_raise):
     with patch.dict(
         os.environ,
         {
@@ -64,8 +65,8 @@ def test_send_email_to_validation(mock_smtp, to_email, expected_raise):
         },
     ):
         if expected_raise:
-            with pytest.raises(ValueError):
-                send_email(to_email, "Subject", "Body")
+            send_email(to_email, "Subject", "Body")
+            assert "email_skipped" in caplog.text
         else:
             send_email(to_email, "Subject", "Body")
 

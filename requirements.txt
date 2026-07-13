@@ -41,3 +41,7 @@ joblib>=1.5
 # Streamlit Cloud instala versão flutuante diferente do lock local/CI e o
 # st.dataframe falha com ArrowInvalid em colunas JSONB (Licao #51).
 pyarrow==24.0.0
+
+# charset-normalizer: PINADO porque 3.4.8 está YANKED do PyPI (yanked warning em CI).
+# Usar 3.4.7 (última versão válida) até que uma versão >=3.4.9 seja publicada.
+charset-normalizer==3.4.7

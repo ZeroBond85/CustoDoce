@@ -19,7 +19,6 @@ on:
   pull_request:
     paths:
       - 'requirements.txt'
-      - 'requirements.txt'
       - 'requirements-prod.in'
       - 'requirements-dev.in'
       - 'requirements-test.in'
@@ -31,6 +30,7 @@ on:
 env:
   PYTHON_VERSION: '3.14.6'
   PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
+  PIP_NO_WARN_YANKED: 1
 
 concurrency:
   group: dependency-audit-${{ github.ref }}
@@ -55,16 +55,19 @@ jobs:
         env:
           PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
         run: |
-          pip-compile --allow-unsafe --output-file=requirements-prod.lock requirements-prod.in
-          pip-compile --allow-unsafe --output-file=requirements-dev.lock requirements-dev.in requirements-prod.in
-          pip-compile --allow-unsafe --output-file=requirements-test.lock requirements-test.in requirements-dev.in requirements-prod.in
+          pip-compile --allow-unsafe --no-strip-extras --output-file=requirements-prod.lock requirements-prod.in
+          pip-compile --allow-unsafe --no-strip-extras --output-file=requirements-dev.lock requirements-dev.in requirements-prod.in
+          pip-compile --allow-unsafe --no-strip-extras --output-file=requirements-test.lock requirements-test.in requirements-dev.in requirements-prod.in
           cp requirements-test.lock requirements.lock
       - name: Check if lock files changed
         run: |
           for f in requirements.lock requirements-prod.lock requirements-dev.lock requirements-test.lock; do
             git diff --exit-code "$f" && echo "$f is up to date" || {
               echo "::error::$f is out of sync with .in files"
-              echo "::error::Run locally: PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu && pip-compile --allow-unsafe --output-file=$f ..."
+              echo "::error::CRITICAL: Lock files MUST be generated on WSL/Linux (NOT Windows)."
+              echo "::error::Run in WSL: cd /mnt/c/Zerobond/Code/CustoDoce && conda activate custodoce-314"
+              echo "::error::Then: PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu pip-compile --allow-unsafe --no-strip-extras --output-file=$f ..."
+              echo "::error::See LESSONS.md #52, REGRAS.md rule 5."
               exit 1
             }
           done

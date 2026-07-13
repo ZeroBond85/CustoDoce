@@ -11,6 +11,7 @@ on:
 env:
   PYTHON_VERSION: '3.14.6'
   PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
+  PIP_NO_WARN_YANKED: 1
 
 concurrency:
   group: ci-e2e-only-${{ github.ref }}
@@ -32,7 +33,7 @@ jobs:
       - run: pip install -r requirements-test.lock
       - name: Cache Playwright browsers
         id: pw-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('requirements-test.lock') }}

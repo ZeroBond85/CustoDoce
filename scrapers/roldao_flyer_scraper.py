@@ -104,7 +104,7 @@ class RoldaoFlyerScraper:
     async def _fetch_page(self) -> str:
         """Busca e renderiza a página de ofertas."""
         pool = await get_browser_pool()
-        browser = pool.browser
+        browser = await pool.get_browser()
         context = await browser.new_context(
             user_agent=(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -124,7 +124,7 @@ class RoldaoFlyerScraper:
     async def run_async(self) -> list[dict]:
         """Executa o scraper de forma assíncrona."""
         pool = await get_browser_pool()
-        browser = pool.browser
+        browser = await pool.get_browser()
         context = await browser.new_context(
             user_agent=(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "

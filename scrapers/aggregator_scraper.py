@@ -1,11 +1,19 @@
+from __future__ import annotations
+
 import asyncio
+import random
 import re
+import time
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 import httpx
 from selectolax.parser import HTMLParser
 
 from services.logger import logger
+
+if TYPE_CHECKING:
+    from scrapers.playwright_scraper import PlaywrightTiendeoScraper
 
 FOOD_KEYWORDS = {
     "supermercado",
@@ -134,6 +142,18 @@ CITY_SLUGS = {
 }
 
 
+# User-Agent pool for rotation (helps avoid IP-based blocking)
+UA_POOL = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
+]
+
+DEFAULT_UA = UA_POOL[0]
+
+
 class TiendeoScraper:
     def __init__(self, store_config: dict):
         self.store = store_config
@@ -141,16 +161,21 @@ class TiendeoScraper:
         self.base_url = store_config["base_url"].rstrip("/")
         self.regions = store_config.get("regions", [])
         self.sp_zones = store_config.get("sp_zones", [])
+        self.ua_pool = UA_POOL
         self.session = httpx.Client(
             timeout=30.0,
             follow_redirects=True,
             headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/125.0.0.0 Safari/537.36"
-                ),
-                "Accept": "text/html,application/xhtml+xml",
+                "User-Agent": DEFAULT_UA,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Cache-Control": "max-age=0",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "none",
+                "Sec-Fetch-User": "?1",
+                "Upgrade-Insecure-Requests": "1",
             },
         )
 
@@ -167,14 +192,63 @@ class TiendeoScraper:
                 urls.append((f"{self.base_url}/{slug}", city_name))
         return urls
 
+    def _rotate_ua(self) -> str:
+        return random.choice(self.ua_pool)  # noqa: S311
+
+    def _retry_config(self) -> tuple[int, float, float]:
+        """Return (max_retries, base_delay, max_delay)"""
+        return 3, 2.0, 15.0
+
     def fetch_city(self, url: str) -> str | None:
-        try:
-            resp = self.session.get(url)
-            resp.raise_for_status()
-            return resp.text
-        except Exception as e:
-            logger.error("Error fetching %s: %s", url, e)
-            return None
+        """Fetch with retry, UA rotation, and exponential backoff."""
+        max_retries, base_delay, max_delay = self._retry_config()
+
+        for attempt in range(max_retries + 1):
+            ua = self._rotate_ua()
+            self.session.headers.update({"User-Agent": ua})
+
+            try:
+                resp = self.session.get(url, timeout=30.0)
+                resp.raise_for_status()
+                html = resp.text
+
+                # Verify we got real content (not blocked/empty)
+                if len(html) < 10000 or "data-testid=\"flyer_list_item\"" not in html:
+                    logger.warning("[%s] Suspicious response for %s (len=%d, flyers=%d) - attempt %d/%d",
+                                   self.name, url, len(html), html.count("data-testid=\"flyer_list_item\""), attempt + 1, max_retries + 1)
+                    if attempt < max_retries:
+                        delay = min(base_delay * (2 ** attempt) + random.uniform(0, 1), max_delay)  # noqa: S311
+                        logger.info("[%s] Retrying in %.1fs...", self.name, delay)
+                        time.sleep(delay)
+                        continue
+
+                return html
+
+            except httpx.HTTPStatusError as e:
+                logger.warning("[%s] HTTP %d for %s - attempt %d/%d", self.name, e.response.status_code, url, attempt + 1, max_retries + 1)
+            except Exception as e:
+                logger.warning("[%s] Error fetching %s: %s - attempt %d/%d", self.name, url, e, attempt + 1, max_retries + 1)
+
+            if attempt < max_retries:
+                delay = min(base_delay * (2 ** attempt) + random.uniform(0, 1), max_delay)  # noqa: S311
+                logger.info("[%s] Retrying in %.1fs...", self.name, delay)
+                time.sleep(delay)
+
+        logger.error("[%s] All retries exhausted for %s", self.name, url)
+        return None
+
+    def _build_city_urls(self) -> list[tuple[str, str]]:
+        urls = []
+        for slug in self.regions:
+            city_name = CITY_SLUGS.get(slug, slug.replace("-", " ").title())
+            if slug == "sao-paulo":
+                urls.append((f"{self.base_url}/sao-paulo", "São Paulo"))
+                for zone in self.sp_zones:
+                    zone_slug = zone.lower().replace(" ", "-")
+                    urls.append((f"{self.base_url}/sao-paulo/{zone_slug}", f"São Paulo - {zone}"))
+            else:
+                urls.append((f"{self.base_url}/{slug}", city_name))
+        return urls
 
     def parse_flyers(self, html: str, region: str) -> list[dict]:
         tree = HTMLParser(html)
@@ -243,23 +317,29 @@ class TiendeoScraper:
         return today.year + 1 if month < today.month else today.year
 
     async def _fetch_city_async(self, client: httpx.AsyncClient, url: str) -> str | None:
-        try:
-            resp = await client.get(url)
-            resp.raise_for_status()
-            return resp.text
-        except Exception as e:
-            logger.error("Error fetching %s: %s", url, e)
-            return None
+        for attempt in range(3):
+            try:
+                resp = await client.get(url, timeout=30.0)
+                resp.raise_for_status()
+                html = resp.text
+                if len(html) < 10000 or "data-testid=\"flyer_list_item\"" not in html:
+                    logger.warning("[%s] Suspicious async response for %s (len=%d)", self.name, url, len(html))
+                    if attempt < 2:
+                        await asyncio.sleep(2 ** attempt)
+                        continue
+                return html
+            except Exception as e:
+                logger.warning("[%s] Async fetch error %s: %s", self.name, url, e)
+                if attempt < 2:
+                    await asyncio.sleep(2 ** attempt)
+        return None
 
     async def run_async(self) -> list[dict]:
         city_urls = self._build_city_urls()
         headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/125.0.0.0 Safari/537.36"
-            ),
-            "Accept": "text/html,application/xhtml+xml",
+            "User-Agent": random.choice(UA_POOL),  # noqa: S311
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
         }
 
         async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=headers) as client:
@@ -277,3 +357,53 @@ class TiendeoScraper:
 
     def run(self) -> list[dict]:
         return asyncio.run(self.run_async())
+
+
+# Fallback Playwright-based scraper for when HTTP requests fail/block.
+class TiendeoPlaywrightScraper:
+    """Fallback scraper using Playwright when HTTP requests fail/block."""
+
+    def __init__(self, store_config: dict):
+        self.store = store_config
+        self.name = store_config["name"]
+        self.base_url = store_config["base_url"].rstrip("/")
+        self.regions = store_config.get("regions", [])
+        self.sp_zones = store_config.get("sp_zones", [])
+        self.CITY_SLUGS = CITY_SLUGS
+
+    def _build_city_urls(self) -> list[tuple[str, str]]:
+        urls = []
+        for slug in self.regions:
+            city_name = CITY_SLUGS.get(slug, slug.replace("-", " ").title())
+            if slug == "sao-paulo":
+                urls.append((f"{self.base_url}/sao-paulo", "São Paulo"))
+                for zone in self.sp_zones:
+                    zone_slug = zone.lower().replace(" ", "-")
+                    urls.append((f"{self.base_url}/sao-paulo/{zone_slug}", f"São Paulo - {zone}"))
+            else:
+                urls.append((f"{self.base_url}/{slug}", city_name))
+        return urls
+
+    def _build_playwright_scraper(self) -> PlaywrightTiendeoScraper:
+        """Lazy import to avoid Playwright dependency in environments without it."""
+        from scrapers.playwright_scraper import PlaywrightTiendeoScraper
+        config = self.store.copy()
+        config["scraper_type"] = "tiendeo"
+        return PlaywrightTiendeoScraper(config)
+
+    def run(self) -> list[dict]:
+        """Run with retry logic and UA rotation for CI resilience."""
+        http_scraper = TiendeoScraper(self.store)
+        flyers = http_scraper.run()
+
+        if flyers:
+            logger.info("[%s] HTTP scraper succeeded: %d flyers", self.name, len(flyers))
+            return flyers
+
+        logger.warning("[%s] HTTP returned 0 flyers after retries; no Playwright fallback available", self.name)
+        return []
+
+
+# Backward compatibility - TiendeoScraper uses aggregator_scraper.py
+# This class is for Kimbino, Portafolhetos, Roldão, Promotons (JS portals)
+

@@ -24,6 +24,9 @@ concurrency:
   group: skills-maintenance-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PIP_NO_WARN_YANKED: 1
+
 jobs:
   maintenance:
     runs-on: ubuntu-latest

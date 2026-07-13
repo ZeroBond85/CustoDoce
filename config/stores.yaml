@@ -240,7 +240,7 @@ stores:
   - name: "Amendolate"
     tier: 2
     type: "website_catalog"
-    is_active: false
+    is_active: true
     logistics: "pickup_sp"
     base_url: "https://www.amendolate.com.br"
     search_url: "https://www.amendolate.com.br/busca?q={query}"
@@ -250,7 +250,7 @@ stores:
       product_price: [".price", ".preco", ".preco-promocional"]
     address: "Rua Schilling, 577 - Vila Leopoldina, SP"
     zone: "oeste"
-    coverage: "4.210 SKUs - chocolates, leite condensado, corantes, pasta americana, formas, utensílios - Loja Própria (ex-VTEX)"
+    coverage: "4.210 SKUs - chocolates, leite condensado, corantes, pasta americana, formas, utensílios"
     collection_method: "automated"
     scraper: "website_scraper"
     priority: 10
@@ -306,11 +306,20 @@ stores:
     is_active: true
     logistics: "pickup_local"
     base_url: "https://www.lojasredekrill.com.br"
+    # A busca /busca?q= deste tema Lojas Integrada retorna 0 produtos (SPA
+    # não renderiza resultados de busca). As páginas de departamento sim.
+    # Usamos browse_urls (categorias) e coletamos todos os produtos; o
+    # process_price_match filtra por ingrediente downstream.
     search_url: "https://www.lojasredekrill.com.br/busca?q={query}"
+    browse_urls:
+      - "https://www.lojasredekrill.com.br/departamentos/doces-e-sobremesas-1"
+      - "https://www.lojasredekrill.com.br/departamentos/frios-e-laticinios-1"
+      - "https://www.lojasredekrill.com.br/departamentos/leites-1"
+      - "https://www.lojasredekrill.com.br/departamentos/mercearia-alimentos-basicos-1"
     selectors:
-      product_card: [".product-card", ".produto-card", ".item-produto", "[class*=product]", "[class*=produto]"]
-      product_name: [".product-name a", ".nome-produto", ".product-title a", "h2 a", "h3 a"]
-      product_price: [".product-price", ".preco-produto", ".price", ".sale-price"]
+      product_card: [".vip-card-produto", ".produto-card", ".item-produto", "[class*=product]", "[class*=produto]"]
+      product_name: [".vip-card-produto-descricao", ".product-name a", ".nome-produto", ".product-title a", "h2 a", "h3 a"]
+      product_price: ["[data-cy=preco]", ".product-price", ".preco-produto", ".price", ".sale-price"]
     address: "Praia Grande, SP"
     city: "Praia Grande"
     zone: "baixada_santista"
@@ -356,12 +365,17 @@ stores:
   - name: "Casa dos Confeiteiros"
     tier: 2
     type: "website_catalog"
-    is_active: false
+    is_active: true
     logistics: "pickup_sp"
-    base_url: "https://www.casadosconfeiteiros.com.br"
-    address: "São Paulo"
-    zone: "centro"
-    coverage: "Insumos gerais confeitaria (inativo - domínio fora do ar)"
+    base_url: "https://www.casadoconfeiteiro.com.br"
+    search_url: "https://www.casadoconfeiteiro.com.br/busca?q={query}"
+    selectors:
+      product_card: [".product", "li.product", ".product-item", ".item"]
+      product_name: [".product-name", "h2 a", ".product-title"]
+      product_price: [".price", ".amount", ".preco"]
+    address: "Av. Adão Focesi, 283 - Jardim do Lago, Campinas, SP"
+    zone: "interior_sp"
+    coverage: "Insumos gerais confeitaria, panificação, chocolates, embalagens"
     collection_method: "automated"
     scraper: "website_scraper"
     priority: 14
@@ -382,12 +396,17 @@ stores:
   - name: "Doce Festa"
     tier: 2
     type: "website_catalog"
-    is_active: false
+    is_active: true
     logistics: "pickup_sp"
-    base_url: "https://www.docefesta.com.br"
-    address: "São Paulo"
-    zone: "centro"
-    coverage: "Artigos festa + insumos (inativo - domínio fora do ar)"
+    base_url: "https://www.doceefesta.com.br"
+    search_url: "https://www.doceefesta.com.br/busca?q={query}"
+    selectors:
+      product_card: [".product", "li.product", ".product-item", ".item"]
+      product_name: [".woocommerce-loop-product__title", "h2 a", ".product-title"]
+      product_price: [".price", ".amount", ".preco"]
+    address: "Rua São Caetano, s/n - Vila Industrial, Sertãozinho, SP"
+    zone: "interior_sp"
+    coverage: "Artigos festa + insumos confeitaria — 32 anos de mercado"
     collection_method: "automated"
     scraper: "website_scraper"
     priority: 16
@@ -395,12 +414,13 @@ stores:
   - name: "GP Distribuidora"
     tier: 2
     type: "website_catalog"
-    is_active: false
+    is_active: true
     logistics: "pickup_sp"
     base_url: "https://www.gpdistribuidora.com.br"
-    address: "São Paulo"
-    zone: "centro"
-    coverage: "Empresa de logística, não tem e-commerce de ingredientes"
+    search_url: "https://loja.gpdistribuidora.com.br/busca?q={query}"
+    address: "Distrito Federal"
+    zone: "centro_oeste"
+    coverage: "Distribuição de congelados DF/GO — testar se tem ingredientes confeitaria"
     collection_method: "automated"
     scraper: "website_scraper"
     priority: 17
@@ -613,7 +633,7 @@ stores:
 
   - name: "Promotons"
     tier: 3
-    type: "aggregator"
+    type: "aggregator_js"
     experimental: true
     base_url: "https://www.promotons.com.br"
     regions:
@@ -626,7 +646,7 @@ stores:
       - "sao-paulo"
     sp_zones: ["zona-sul"]
     collection_method: "automated"
-    scraper: "aggregator_scraper"
+    scraper: "playwright_scraper"
     priority: 31
 
   # ============================================================================
@@ -935,12 +955,32 @@ stores:
   - name: "Proplastik"
     tier: 2
     type: "website_catalog"
-    is_active: false
+    is_active: true
     logistics: "pickup_local"
     base_url: "https://www.proplastik.com.br"
+    search_url: "https://www.proplastik.com.br/busca?q={query}"
+    selectors:
+      product_card: [".product", "li.product", ".product-item", ".item"]
+      product_name: [".product-name", "h2 a", ".product-title"]
+      product_price: [".price", ".amount", ".preco"]
     address: "Rua João Pessoa, 10 - Centro, Santos"
     city: "Santos"
-    coverage: "Embalagens, descartáveis, festas (inativo - só embalagens)"
+    units:
+      - name: "Santos Centro"
+        address: "Rua João Pessoa, 10 - Centro, Santos"
+      - name: "São Vicente"
+        address: "São Vicente, SP"
+      - name: "Praia Grande"
+        address: "Praia Grande, SP"
+      - name: "Guarujá"
+        address: "Guarujá, SP"
+      - name: "Santos Gonzaga"
+        address: "Santos, SP"
+      - name: "Santos Embaré"
+        address: "Santos, SP"
+      - name: "Proplastik Produtos Naturais"
+        address: "Santos, SP"
+    coverage: "40 anos, 60k itens — embalagens, festas, chocolates Harald, granulado, chocolate em pó, Callebaut, confeitaria — 9 lojas Baixada Santista"
     collection_method: "automated"
     scraper: "website_scraper"
     priority: 38
@@ -948,12 +988,17 @@ stores:
   - name: "Bezerra Embalagens"
     tier: 2
     type: "website_catalog"
-    is_active: false
+    is_active: true
     logistics: "pickup_local"
-    base_url: "https://bezerraembalagens.com.br"
+    base_url: "https://www.bezerraembalagens.com.br"
+    search_url: "https://www.bezerraembalagens.com.br/busca?q={query}"
+    selectors:
+      product_card: [".product", ".product-item", ".item", "[class*=produto]"]
+      product_name: [".product-name", ".nome-produto", "h2 a", "h3 a"]
+      product_price: [".price", ".preco", ".amount"]
     address: "Rua Santa Cecília, 499 - Balneário Regina Maria, Mongaguá"
     city: "Mongaguá"
-    coverage: "Embalagens (inativo - só embalagens)"
+    coverage: "Artigos festa, embalagens, Chantilly Fleischmann, Liga Neutra Marvi — confeitaria parcial"
     collection_method: "automated"
     scraper: "website_scraper"
     priority: 39
@@ -1065,19 +1110,23 @@ stores:
     priority: 49
 
   - name: "Ingredientes Santa Vita"
-    tier: 4
-    type: "manual"
-    is_active: false
+    tier: 2
+    type: "website_catalog"
+    is_active: true
     logistics: "pickup_local"
     base_url: "https://www.ingredientessantavita.com.br"
-    platform: "loja_integrada"
+    search_url: "https://www.ingredientessantavita.com.br/busca?q={query}"
+    selectors:
+      product_card: [".product", ".product-item", ".item", "[class*=produto]"]
+      product_name: [".product-name", ".nome-produto", "h2 a", "h3 a"]
+      product_price: [".price", ".preco", ".amount"]
     address: "Rua Santa Ifigênia - Centro, São Paulo"
     city: "São Paulo"
     units:
       - name: "Matriz"
         address: "Zona Cerealista, São Paulo"
-    coverage: "Insumos para panificação e confeitaria - Loja Integrada com login wall e conteudo JS - requer autenticacao para precos"
-    collection_method: "manual"
+    coverage: "Insumos panificação e confeitaria — login wall p/ preços, scraper pode precisar Playwright"
+    collection_method: "automated"
     scraper: "website_scraper"
     contact: ""
     priority: 52

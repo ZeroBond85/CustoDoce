@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Pre-commit hook (CustoDoce) — blindado para committers Windows + POSIX
 #
-# Layer 1: SECRET GUARD        - BLOQUEIA chave de API em staged (irreversivel: iria vazar)
-# Layer 1.5: GITIGNORE IMPORTS - BLOQUEIA se staged importa arquivo gitignored
-# Layer 1.7: DETECT-SECRETS    - BLOQUEIA se detect-secrets encontrar segredo
+# Layer 1: SECRET GUARD         - BLOQUEIA chave de API em staged
+# Layer 1.5: GITIGNORE IMPORTS - BLOQUEIA staged importa gitignored
+# Layer 1.7: DETECT-SECRETS    - BLOQUEIA detect-secrets encontrar segredo
+# Layer 1.8: RUFF LINT         - BLOQUEIA ruff encontrar erros em .py staged
 # Layer 2: DOC SYNC            - BLOQUEIA se codigo mudou sem docs (YES bypass, A auto-sync)
 # Layer 3: SIZE GUARD          - BLOQUEIA arquivo >100MB (GitHub rejeita; mais vale parar antes)
 # Layer 4: DOC WATCHDOG        - AVISO leve sobre outros docs
@@ -86,6 +87,38 @@ if [ -n "${STAGED:-}" ]; then
       echo "$SCAN_OUT" | python -c "import sys,json; d=json.load(sys.stdin); [print(f'  {f}: {s[\"type\"]}') for f in d.get('results',{}) for s in d['results'][f]]" 2>/dev/null || echo "$SCAN_OUT"
       echo ""
       echo "Se for falso positivo: detect-secrets audit --update .secrets.baseline"
+      exit 1
+    fi
+  fi
+fi
+
+# ----------------------------------------------------------------
+# 1.8. RUFF LINT - BLOQUEIA se ruff encontrar erros em .py staged
+# ----------------------------------------------------------------
+if [ -n "${STAGED:-}" ]; then
+  PY_STAGED=$(echo "$STAGED" | tr ' ' '\n' | grep -E '\.py$' || true)
+  if [ -n "$PY_STAGED" ]; then
+    # Resolve venv Python (mesma logica do pre-push)
+    RUFF_PY=""
+    for CAND in ".venv314/Scripts/python" ".venv314/bin/python"; do
+      if [ -f "$CAND" ]; then
+        RUFF_PY="$CAND"
+        break
+      fi
+    done
+    if [ -z "$RUFF_PY" ]; then
+      command -v python3 &>/dev/null && RUFF_PY="python3" || RUFF_PY="python"
+    fi
+    RUFF_OUTPUT=$("$RUFF_PY" -m ruff check --quiet $PY_STAGED 2>&1 || true)
+    if [ -n "$RUFF_OUTPUT" ]; then
+      echo ""
+      echo "🚨 COMMIT BLOQUEADO: Erros de lint (ruff) nos arquivos staged:"
+      echo ""
+      echo "$RUFF_OUTPUT"
+      echo ""
+      echo "Para auto-fix: ruff check --fix $(find .venv* -name python -o -name python.exe 2>/dev/null | head -1) -m ruff check --fix $PY_STAGED"
+      echo "Ou 'git commit --no-verify' para emergencia (NAO recomendado)"
+      echo ""
       exit 1
     fi
   fi
@@ -285,6 +318,50 @@ if [ -n "${STAGED:-}" ]; then
     echo "ℹ️  [INFO] CRLF detectado em arquivos staged (autocrlf=true converte para LF):"
     echo -e "$CRLF_FILES"
     echo ""
+  fi
+fi
+
+# ----------------------------------------------------------------
+# 9. WINDOWS-ONLY PACKAGES GUARD — Bloqueia commit de lock files
+#    gerados no Windows (colorama, tzdata, etc.)
+#    LESSONS.md #52, REGRAS.md regra 5.
+#    Lock files DEVEM ser gerados em WSL/Linux (custodoce-314).
+# ----------------------------------------------------------------
+WIN_ONLY_PKGS="colorama|tzdata|pywin32|pywin32-ctypes|win32api|win32con|winerror|pywinpty"
+if [ -n "${STAGED:-}" ]; then
+  LOCK_HITS=""
+  OIFS="$IFS"
+  IFS=$'\n'
+  for FILE in $STAGED; do
+    IFS="$OIFS"
+    case "$FILE" in
+      requirements*.lock)
+        if [ -f "$FILE" ]; then
+          HITS=$(grep -nE "^(${WIN_ONLY_PKGS})==" "$FILE" 2>/dev/null || true)
+          if [ -n "$HITS" ]; then
+            LOCK_HITS="${LOCK_HITS}${LOCK_HITS:+\n}  $FILE:\n$HITS"
+          fi
+        fi
+        ;;
+    esac
+  done
+  IFS="$OIFS"
+  if [ -n "$LOCK_HITS" ]; then
+    echo ""
+    echo "❌  [BLOCKED] Pacotes Windows-only detectados em lock files staged:"
+    echo -e "$LOCK_HITS"
+    echo ""
+    echo "Lock files DEVEM ser gerados em WSL/Linux (custodoce-314), NUNCA no Windows."
+    echo "Veja: LESSONS.md #52, REGRAS.md regra 5."
+    echo ""
+    echo "Acoes:"
+    echo "  - Regenere os lock files em WSL:"
+    echo "    cd /mnt/c/Zerobond/Code/CustoDoce"
+    echo "    conda activate custodoce-314"
+    echo "    PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu pip-compile --allow-unsafe --output-file=requirements-prod.lock requirements-prod.in"
+    echo "  - Ou use 'git commit --no-verify' para emergencia (NAO recomendado)"
+    echo ""
+    exit 1
   fi
 fi
 

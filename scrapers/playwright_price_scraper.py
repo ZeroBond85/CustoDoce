@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import re
 
 from selectolax.parser import HTMLParser
@@ -13,6 +14,12 @@ class PlaywrightPriceScraper(BaseWebScraper):
     def __init__(self, store_config: dict):
         super().__init__(store_config)
         self.search_url = store_config.get("search_url") or f"{self.base_url}/busca?q={{query}}"
+        # browse_urls: full category/department URLs. Some Lojas Integrada
+        # (Tray) themes expose a broken /busca?q= search (returns no products)
+        # while department pages render products correctly. When set, the
+        # scraper browses these pages and collects ALL products; downstream
+        # process_price_match filters by ingredient.
+        self.browse_urls = list(store_config.get("browse_urls", []) or [])
         self.selectors = {**DEFAULT_SELECTORS, **store_config.get("selectors", {})}
 
     def run(self, ingredients: list[dict]) -> list[dict]:
@@ -29,9 +36,16 @@ class PlaywrightPriceScraper(BaseWebScraper):
             )
         )
         try:
-            for ing in ingredients:
-                products = await self._search_and_parse_async(context, ing)
-                all_products.extend(products)
+            if self.browse_urls:
+                logger.info("[%s] browse mode: %d category URLs", self.name, len(self.browse_urls))
+                for url in self.browse_urls:
+                    products = await self._fetch_url(context, url, browse=True)
+                    logger.info("[%s] %d products from %s", self.name, len(products), url)
+                    all_products.extend(products)
+            else:
+                for ing in ingredients:
+                    products = await self._search_and_parse_async(context, ing)
+                    all_products.extend(products)
         finally:
             await context.close()
         return all_products
@@ -59,10 +73,38 @@ class PlaywrightPriceScraper(BaseWebScraper):
         from urllib.parse import quote
 
         url = self.search_url.format(query=quote(query))
+        return await self._fetch_url(context, url, browse=False)
+
+    async def _fetch_url(self, context, url: str, browse: bool = False) -> list[dict]:
         page = await context.new_page()
         try:
-            await page.goto(url, wait_until="networkidle", timeout=30000)
-            await page.wait_for_timeout(2000)
+            # domcontentloaded resolves as soon as the SPA shell is parsed.
+            # networkidle is unsafe on JS-heavy sites: the network often never
+            # goes fully idle, causing every request to burn the full 30s timeout.
+            await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            # Wait for product cards to actually render (graceful if absent).
+            first_card_sel = self.selectors["product_card"][0]
+            with contextlib.suppress(Exception):
+                await page.wait_for_selector(first_card_sel, timeout=10000)
+            if browse:
+                # Some themes paginate via a "ver mais" button instead of
+                # URL pagination. Click up to 3 times to expand the listing.
+                for _ in range(3):
+                    try:
+                        clicked = await page.evaluate(
+                            """() => {
+                                const btns = Array.from(document.querySelectorAll('button'));
+                                const b = btns.find(x => (x.textContent||'').trim().toLowerCase() === 'ver mais');
+                                if (b) { b.scrollIntoView(); b.click(); return true; }
+                                return false;
+                            }"""
+                        )
+                    except Exception:
+                        clicked = False
+                    if not clicked:
+                        break
+                    await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(1500)
             html = await page.content()
         except Exception as e:
             logger.warning("[%s] Playwright error for '%s': %s", self.name, url, e)

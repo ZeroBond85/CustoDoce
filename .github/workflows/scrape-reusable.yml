@@ -46,6 +46,7 @@ on:
 env:
   PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
   PYTHONPATH: ${{ github.workspace }}
+  PIP_NO_WARN_YANKED: 1
 
 jobs:
   setup:
@@ -104,7 +105,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-por poppler-utils
-          pip install "playwright>=1.61,<1.62"
+          pip install playwright==1.61.0
           playwright install chromium
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
@@ -146,7 +147,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-prod.lock
       - name: Install playwright (required by services.collector import)
-        run: pip install "playwright>=1.61,<1.62"
+        run: pip install playwright==1.61.0
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - name: Enrich + report + cleanup (finalize, runs once)
