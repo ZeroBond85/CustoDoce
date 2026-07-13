@@ -642,7 +642,7 @@ CREATE INDEX IF NOT EXISTS idx_flyers_store_active ON flyers(store_name, is_acti
     if health_log_path.exists():
         gen.append("\n-- ============================================================")
         gen.append("-- PHASE 21: Scraper Health Log (005_add_scraper_health_log.sql)")
-        gen.append("============================================================")
+        gen.append("-- ============================================================")
         gen.append(health_log_path.read_text(encoding="utf-8"))
 
     # ─── PHASE 22: RLS fix — service_role-only policies ────────────────
@@ -681,7 +681,8 @@ CREATE INDEX IF NOT EXISTS idx_flyers_store_active ON flyers(store_name, is_acti
 
 
 def _split_sql_statements(sql: str) -> list[str]:
-    """Split SQL by ; respecting dollar-quote $$ ... $$ blocks and string literals."""
+    """Split SQL by ; respecting dollar-quote $$ ... $$ blocks and string literals.
+    Comments (-- and /* */) are skipped entirely — not included in statements."""
     stmts = []
     current = []
     in_dollar = False
@@ -691,31 +692,29 @@ def _split_sql_statements(sql: str) -> list[str]:
     while i < len(sql):
         c = sql[i]
 
-        # Line comment --
+        # Line comment -- (skip entirely, do not append to current)
         if not in_dollar and not in_block_comment and c == "-" and i + 1 < len(sql) and sql[i + 1] == "-":
             in_line_comment = True
-            current.append(c)
-            i += 1
+            i += 2
             continue
 
         if in_line_comment:
             if c == "\n":
                 in_line_comment = False
-            current.append(c)
             i += 1
             continue
 
-        # Block comment /* */
+        # Block comment /* */ (skip entirely, do not append to current)
         if not in_dollar and c == "/" and i + 1 < len(sql) and sql[i + 1] == "*":
             in_block_comment = True
-            current.append(c)
-            i += 1
+            i += 2
             continue
 
         if in_block_comment:
             if c == "*" and i + 1 < len(sql) and sql[i + 1] == "/":
                 in_block_comment = False
-            current.append(c)
+                i += 2
+                continue
             i += 1
             continue
 
