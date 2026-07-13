@@ -1,7 +1,5 @@
 import asyncio
-import random
 import re
-import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -21,6 +19,7 @@ CITY_SLUGS = {
     "peruibe": "Peruíbe",
     "sao-paulo": "São Paulo",
 }
+
 
 # Portal-specific configurations
 PORTAL_CONFIG = {
@@ -95,7 +94,7 @@ def get_portal_config(source: str) -> dict:
         "flyer_link_patterns": [r"/brochure/", r"/flyer/", r"/oferta/", r"/encarte/"],
         "pagination": "auto-scroll",
         "wait_timeout": 30000,
-    })
+    }
 
 
 class PlaywrightAggregatorScraper:
@@ -106,7 +105,6 @@ class PlaywrightAggregatorScraper:
         self.regions = store_config.get("regions", [])
         self.sp_zones = store_config.get("sp_zones", [])
         self.portal_config = get_portal_config(self.name)
-        self.logger = logger
 
     def _build_city_urls(self) -> list[tuple[str, str]]:
         """Build city-specific URLs based on portal requirements."""
@@ -118,7 +116,6 @@ class PlaywrightAggregatorScraper:
             city_url_pattern = portal_config.get("city_url_pattern", "ofertas/{city}")
             for slug in self.regions:
                 city_name = CITY_SLUGS.get(slug, slug.replace("-", " ").title())
-                # Use ofertas/{city}/ pattern for Portafolhetos
                 urls.append((f"{self.base_url}/ofertas/{slug}/", city_name))
             return urls
 
@@ -152,11 +149,9 @@ class PlaywrightAggregatorScraper:
             for sel in portal_config["wait_selectors"]:
                 try:
                     count = await self._count_elements(page, sel)
-                    if count > 0:
-                        # Verify it's not a placeholder
-                        if not await self._is_placeholder(page, sel):
-                            self.logger.info(f"[{self.name}] Real content found: {count} cards via '{sel}'")
-                            return True
+                    if count > 0 and not await self._is_placeholder(page, sel):
+                        self.logger.info(f"[{self.name}] Real content found: {count} cards via '{sel}'")
+                        return True
                 except Exception:
                     pass
 
@@ -266,7 +261,6 @@ class PlaywrightAggregatorScraper:
                     continue
 
                 if not img_src and not flyer_url:
-                    # Still add if we have title and it's not a placeholder
                     if title and "placeholder" not in title.lower() and "skeleton" not in title.lower():
                         pass
                     else:
@@ -284,8 +278,8 @@ class PlaywrightAggregatorScraper:
                 if flyer_url:
                     flyer["flyer_url"] = flyer_url if flyer_url.startswith("http") else f"{self.base_url}{flyer_url}"
 
-                if date_end:
-                    flyer["flyer_date_end"] = date_end
+                if date_match:
+                    flyer["flyer_date_end"] = date_match.group(1)
 
                 flyers.append(flyer)
 
@@ -387,8 +381,7 @@ class PlaywrightTiendeoScraper:
         try:
             await page.goto(url, wait_until="domcontentloaded", timeout=30000)
             await page.wait_for_timeout(2000)
-            html = await page.content()
-            return html
+            return await page.content()
         except Exception as e:
             logger.warning("[%s] Playwright error for %s: %s", self.name, url, e)
             return None
