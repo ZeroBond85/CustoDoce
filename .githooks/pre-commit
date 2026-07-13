@@ -274,7 +274,7 @@ fi
 # 7. RESIDUE GUARD - BLOQUEIA commit com artefatos de runtime no stage
 # ----------------------------------------------------------------
 if [ -n "${STAGED:-}" ]; then
-  RESIDUE_PATTERNS='\.whl$|^miniconda\.sh$|^pyenv_bashrc\.txt$|^C\?Usersericsf/|^CustoDoce\.7z$|\.archive/sanitize/|^data/check_.*\.py$|^data/wf_detail\.py$|^data/dispatch\.json$|^check_alerts\.py$|^check_flyers\.py$|^check_ingredients\.py$|^debug_alert\.py$|^data/audit/|^data/skills_backup/|^skills-lock\.json$'
+  RESIDUE_PATTERNS='\.whl$|^miniconda\.sh$|^pyenv_bashrc\.txt$|^C\?Usersericsf/|^CustoDoce\.7z$|\.archive/sanitize/|^data/check_.*\.py$|^data/wf_detail\.py$|^data/dispatch\.json$|^check_alerts\.py$|^check_flyers\.py$|^check_ingredients\.py$|^debug_alert\.py$|^data/audit/|^data/skills_backup/|^skills-lock\.json$|^scrapers/[A-Za-z0-9]{8,}$'
   RESIDUE_HITS=$(echo "$STAGED" | grep -E "$RESIDUE_PATTERNS" || true)
   if [ -n "$RESIDUE_HITS" ]; then
     echo ""
