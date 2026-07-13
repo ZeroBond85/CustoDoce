@@ -60,11 +60,15 @@ def load_stores() -> list[Store]:
     if not all_stores:
         return []
     client = get_supabase()
-    freq = client.table("scrape_frequencies").select("store_id").eq("enabled", True).execute()
-    enabled_ids = {f["store_id"] for f in (freq.data or [])}
-    if not enabled_ids:
-        return all_stores
-    return [s for s in all_stores if s.get("id") in enabled_ids]
+    freq = client.table("scrape_frequencies").select("store_id, enabled").execute()
+    freq_by_store = {}
+    for f in (freq.data or []):
+        sid = f.get("store_id")
+        if sid:
+            freq_by_store[sid] = f.get("enabled", True)
+    # Include store if it has no freq row (use tier default), or if its freq row is enabled.
+    # Explicitly disabled rows (enabled=False) still exclude the store.
+    return [s for s in all_stores if s.get("id") not in freq_by_store or freq_by_store.get(s["id"], True)]
 
 
 def _extract_validity_from_product(product_text: str) -> str:

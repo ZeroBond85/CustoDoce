@@ -100,7 +100,7 @@ create trigger trg_schedules_updated_at
 -- ============================================================
 create table if not exists scrape_frequencies (
     id uuid primary key default gen_random_uuid(),
-    store_id uuid references stores(id) on delete cascade,
+    store_id TEXT references stores(id) on delete cascade,
     tier int,
     frequency_minutes int default 1440,
     max_retries int default 2,

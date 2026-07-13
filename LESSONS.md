@@ -573,4 +573,35 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Correção**: Removido `colorama==0.4.6` e `tzdata==2026.3` dos 4 lock files (prod/dev/test/requirements.lock). `requirements.lock` = `cp requirements-test.lock` (como o CI faz). Para regenerar corretamente: **sempre usar WSL/Ubuntu** (Docker ou `custodoce-314`) com `PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu pip-compile --allow-unsafe`.
 - **Teste de regressão**: O próprio CI (`dependency-audit.yml` → `lock-validation`) é o teste — se os locks divergirem, o job falha em <2min.
 
-**Regra preventiva**: Lock files (`.lock`) devem ser gerados **SEMPRE em Linux** (WSL `custodoce-314` ou Docker `python:3.14-slim`) — NUNCA no Windows. Pacotes condicionais de plataforma (`colorama`, `tzdata`, `win32api`, etc.) entram apenas no OS que os precisa, causando drift silencioso entre Windows/CI-Linux.
+**Regra preventiva**: Lock files (`.lock`) devem ser gerados **SEMPRE em Linux** (WSL `custodoce-314` ou Docker `python:3.14-slim`) — NUNCA no Windows. Pacotes condicionais de plataforma (`colorama`, `tzdata`, `win32api`, etc.) entram apenas no OS que os precisa, causing drift silencioso entre Windows/CI-Linux.
+
+
+## 53. `load_stores()` dropava silenciosamente lojas sem `scrape_frequencies`
+
+- **Data + commit**: 2026-07-13
+- **Sintoma**: ~64/71 lojas ativas em YAML nunca apareciam no pipeline — `collect_*()` sempre retornava vazio para a maioria dos scrapers. O log não mostrava erro, apenas "0 stores".
+- **Causa raiz**: `services/collector.py:63-65` — `load_stores()` fazia `.select("store_id").eq("enabled", True)` e usava interseção (`in enabled_ids`). Lojas **sem nenhuma linha** em `scrape_frequencies` eram excluídas silenciosamente. A maioria das lojas reativadas não tinha freq row.
+- **Correção**: `services/collector.py:58-71` — agora carrega TODAS as linhas de scrape_frequencies (incluindo `enabled=False`). Lojas sem freq row passam pelo filtro; apenas lojas com `enabled=False` explícito são excluídas (kill-switch).
+- **Teste de regressão**: `test_validate_mocks_against_manifest` (indireto — validar que o mapper cobre todas). Teste direto ainda não escrito.
+
+
+## 54. Type-drift: FKs `INTEGER`/`UUID` para `stores(id)` quando `stores.id` é `TEXT`
+
+- **Data + commit**: 2026-07-13
+- **Sintoma**: Migrations `006_scrape_requests.sql` e `009_store_registry.sql` declaravam `store_id INTEGER REFERENCES stores(id)` e retorno `id UUID` em `find_similar_store()` — incompatíveis com `stores.id TEXT`.
+- **Causa raiz**: `stores.id` foi migrado de `UUID`/`INTEGER` para `TEXT` (slug) em seed.sql/consolidated, mas migrations mais antigas nunca foram atualizadas. `deploy_database.py` já corrigia `scrape_frequencies` inline (linhas 65-82) mas carregava `006` e `009` verbatim.
+- **Correção**:
+  - `supabase/migrations/006_scrape_requests.sql:7`: `INTEGER` → `TEXT`
+  - `supabase/009_store_registry.sql:72`: `id UUID` → `TEXT` (assinatura)
+  - `supabase/009_store_registry.sql:92`: `v_store_id UUID` → `TEXT` (variável)
+  - `supabase/migrations/008_store_registry.sql`: deletado (duplicata de 009)
+- **Teste de regressão**: `validate_db_schema.py` deve ganhar um check de `REFERENCES stores(id)` com tipo `TEXT` — pendente.
+
+
+## 55. Agregador Promotons roteado para scraper errado (`TiendeoScraper` em vez de `PlaywrightAggregatorScraper`)
+
+- **Data + commit**: 2026-07-13
+- **Sintoma**: Promotons sempre retornava 0 resultados, mesmo estando ativo. Nenhum erro — apenas silêncio.
+- **Causa raiz**: Promotons estava classificado como `type: aggregator` + `scraper: aggregator_scraper` no YAML. Isso o roteava para `collect_aggregators_ssr()` → `_run_ssr_scraper()` → `TiendeoScraper(store)` (linhas 705-712). `TiendeoScraper` usa `data-testid="flyer_list_item"` — seletor do Tiendeo, que não existe no DOM do Promotons. O scraper correto já existia: `PlaywrightAggregatorScraper` com `PORTAL_CONFIG["promotons"]` em `playwright_scraper.py:58`.
+- **Correção**: `config/stores.yaml:636,649`: mudou `type: aggregator` → `aggregator_js` e `scraper: aggregator_scraper` → `playwright_scraper`. Agora roteia para `collect_aggregators_js()` → `PlaywrightAggregatorScraper` que usa `get_portal_config("promotons")`.
+- **Teste de regressão**: `validate_scrapers.py --validate` (rodar no WSL) deve mostrar items do Promotons.
