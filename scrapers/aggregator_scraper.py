@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import random
 import re
@@ -135,6 +137,7 @@ CITY_SLUGS = {
     "sao-paulo": "São Paulo",
 }
 
+
 # User-Agent pool for rotation (helps avoid IP-based blocking)
 UA_POOL = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
@@ -186,7 +189,7 @@ class TiendeoScraper:
         return urls
 
     def _rotate_ua(self) -> str:
-        return random.choice(self.ua_pool)  # nosec B311
+        return random.choice(self.ua_pool)  # noqa: S311
 
     def _retry_config(self) -> tuple[int, float, float]:
         """Return (max_retries, base_delay, max_delay)"""
@@ -210,7 +213,7 @@ class TiendeoScraper:
                     logger.warning("[%s] Suspicious response for %s (len=%d, flyers=%d) - attempt %d/%d",
                                    self.name, url, len(html), html.count("data-testid=\"flyer_list_item\""), attempt + 1, max_retries + 1)
                     if attempt < max_retries:
-                        delay = min(base_delay * (2 ** attempt) + random.uniform(0, 1), max_delay)  # nosec B311
+                        delay = min(base_delay * (2 ** attempt) + random.uniform(0, 1), max_delay)  # noqa: S311
                         logger.info("[%s] Retrying in %.1fs...", self.name, delay)
                         time.sleep(delay)
                         continue
@@ -223,7 +226,7 @@ class TiendeoScraper:
                 logger.warning("[%s] Error fetching %s: %s - attempt %d/%d", self.name, url, e, attempt + 1, max_retries + 1)
 
             if attempt < max_retries:
-                delay = min(base_delay * (2 ** attempt) + random.uniform(0, 1), max_delay)  # nosec B311
+                delay = min(base_delay * (2 ** attempt) + random.uniform(0, 1), max_delay)  # noqa: S311
                 logger.info("[%s] Retrying in %.1fs...", self.name, delay)
                 time.sleep(delay)
 
@@ -330,7 +333,7 @@ class TiendeoScraper:
     async def run_async(self) -> list[dict]:
         city_urls = self._build_city_urls()
         headers = {
-            "User-Agent": random.choice(UA_POOL),
+            "User-Agent": random.choice(UA_POOL),  # noqa: S311
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
             "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
         }
@@ -352,7 +355,7 @@ class TiendeoScraper:
         return asyncio.run(self.run_async())
 
 
-# Fallback Playwright-based scraper for when HTTP fails (e.g., IP blocking)
+# Fallback Playwright-based scraper for when HTTP requests fail/block.
 class TiendeoPlaywrightScraper:
     """Fallback scraper using Playwright when HTTP requests fail/block."""
 
@@ -395,3 +398,12 @@ class TiendeoPlaywrightScraper:
 
         logger.warning("[%s] HTTP returned 0 flyers after retries; no Playwright fallback available", self.name)
         return []
+
+
+# Backward compatibility - TiendeoScraper uses aggregator_scraper.py
+# This class is for Kimbino, Portafolhetos, Roldão, Promotons (JS portals)
+ 
+ 
+ 
+ 
+
