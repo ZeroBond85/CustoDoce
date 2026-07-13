@@ -883,7 +883,7 @@
       "id": "bigserial",
       "processed_at": "timestamptz",
       "status": "text",
-      "store_id": "integer",
+      "store_id": "text",
       "user_id": "text"
     }
   },
@@ -1077,7 +1077,7 @@
       "id": "uuid",
       "logistics": "text",
       "match_score": "real",
-      "matched_store_id": "uuid",
+      "matched_store_id": "text",
       "name": "text",
       "normalized_name": "text",
       "reviewed_at": "timestamptz",

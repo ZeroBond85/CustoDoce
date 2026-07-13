@@ -1,5 +1,5 @@
 # Lições Aprendidas
-> Última atualização: 2026-07-12 12:00 UTC
+> Última atualização: 2026-07-13 15:09 UTC
 
 > Extraídas de AGENTS.md. Numeração original preservada.
 > Regras de execução/ambiente → `REGRAS.md`.
@@ -600,8 +600,26 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 
 ## 55. Agregador Promotons roteado para scraper errado (`TiendeoScraper` em vez de `PlaywrightAggregatorScraper`)
 
-- **Data + commit**: 2026-07-13
+- **Data + commit**: 2026-07-13 (f524ce6)
 - **Sintoma**: Promotons sempre retornava 0 resultados, mesmo estando ativo. Nenhum erro — apenas silêncio.
 - **Causa raiz**: Promotons estava classificado como `type: aggregator` + `scraper: aggregator_scraper` no YAML. Isso o roteava para `collect_aggregators_ssr()` → `_run_ssr_scraper()` → `TiendeoScraper(store)` (linhas 705-712). `TiendeoScraper` usa `data-testid="flyer_list_item"` — seletor do Tiendeo, que não existe no DOM do Promotons. O scraper correto já existia: `PlaywrightAggregatorScraper` com `PORTAL_CONFIG["promotons"]` em `playwright_scraper.py:58`.
 - **Correção**: `config/stores.yaml:636,649`: mudou `type: aggregator` → `aggregator_js` e `scraper: aggregator_scraper` → `playwright_scraper`. Agora roteia para `collect_aggregators_js()` → `PlaywrightAggregatorScraper` que usa `get_portal_config("promotons")`.
 - **Teste de regressão**: `validate_scrapers.py --validate` (rodar no WSL) deve mostrar items do Promotons.
+
+
+## 56. F541 lint (f-string sem placeholder) escapou para o CI — validação local incompleta
+
+- **Data + commit**: 2026-07-13 (49278da)
+- **Sintoma**: CI job `lint` falhou com 7× `F541 f-string without any placeholders` em `scripts/validate_scrapers.py:41,53,54,55,148,193,197`.
+- **Causa raiz**: `scripts/validate_scrapers.py` foi criado durante a sessão mas `ruff check .` não foi executado antes do commit. Validamos deploy, sync e FKs, mas pulamos o lint local.
+- **Correção**: `scripts/validate_scrapers.py:41,53,54,55,148,193,197` — substituído `f"..."` por `"..."` (sem placeholder). Commit 49278da.
+- **Teste de regressão**: `ruff check scripts/validate_scrapers.py` deve passar.
+
+
+## 57. Lint F541 escapou porque pre-commit não incluía ruff — gap de processo
+
+- **Data + commit**: 2026-07-13 (49278da)
+- **Sintoma**: CI job `lint` falhou com F541 em `validate_scrapers.py` que não foi detectado localmente. CI job `docs-sync` também falhou — ambos escaparam porque validamos apenas deploy/sync/FKs, não `ruff check .` completo.
+- **Causa raiz**: `.githooks/pre-commit` tinha 11 layers (secret, detect-secrets, doc sync, size, etc.) mas **não rodava ruff**. Nenhuma barreira local impedia commitar código com lint errado. A docs-sync também não tinha bloqueio no pre-commit para o caso geral (só para `.opencode/skills/` alterados).
+- **Correção**: `.githooks/pre-commit` — adicionada **Layer 1.8: RUFF LINT** que roda `ruff check --quiet` em todos os `.py` staged e BLOQUEIA se houver erros. Agora o pre-commit tem 12 camadas de proteção.
+- **Teste de regressão**: O próprio pre-commit é o teste — qualquer commit com `.py` que tenha lint error será bloqueado automaticamente.
