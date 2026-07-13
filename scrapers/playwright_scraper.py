@@ -1,9 +1,5 @@
 import asyncio
 import re
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from playwright.async_api import Browser, Page
 
 from playwright.async_api import Browser, Page
 
@@ -78,9 +74,10 @@ PORTAL_CONFIG = {
             r'class="retailer-name"[^>]*>([^<]+)',
         ],
         "flyer_link_patterns": [r"/brochure/", r"/flyer/"],
-"pagination": "auto-scroll",
+        "pagination": "auto-scroll",
         "wait_timeout": 30000,
-    })
+    },
+}
 
 
 def get_portal_config(source: str) -> dict:
@@ -93,7 +90,7 @@ def get_portal_config(source: str) -> dict:
         "flyer_link_patterns": [r"/brochure/", r"/flyer/", r"/oferta/", r"/encarte/"],
         "pagination": "auto-scroll",
         "wait_timeout": 30000,
-    }
+    })
 
 
 class PlaywrightAggregatorScraper:
@@ -108,11 +105,9 @@ class PlaywrightAggregatorScraper:
     def _build_city_urls(self) -> list[tuple[str, str]]:
         """Build city-specific URLs based on portal requirements."""
         urls = []
-        portal_config = self.portal_config
 
         # Special handling for Portafolhetos: city-specific offer pages
         if "portafolhetos" in self.name.lower():
-            city_url_pattern = portal_config.get("city_url_pattern", "ofertas/{city}")
             for slug in self.regions:
                 city_name = CITY_SLUGS.get(slug, slug.replace("-", " ").title())
                 urls.append((f"{self.base_url}/ofertas/{slug}/", city_name))
@@ -139,7 +134,6 @@ class PlaywrightAggregatorScraper:
     async def _wait_for_real_content(self, page: Page, source: str) -> bool:
         """Wait for real flyer content to hydrate (skip skeleton placeholders)."""
         portal_config = get_portal_config(source)
-        wait_selectors = portal_config["wait_selectors"]
         wait_timeout = portal_config["wait_timeout"]
 
         start = asyncio.get_event_loop().time()
@@ -151,8 +145,8 @@ class PlaywrightAggregatorScraper:
                     if count > 0 and not await self._is_placeholder(page, sel):
                         self.logger.info(f"[{self.name}] Real content found: {count} cards via '{sel}'")
                         return True
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("[%s] Error checking selector: %s", self.name, e)
 
             # Check for known store names in page
             html_lower = await self._get_page_html(page).lower()
@@ -180,8 +174,8 @@ class PlaywrightAggregatorScraper:
                 cls = await el.get_attribute("class")
                 if aria_hidden == "true" or (cls and "placeholder" in cls.lower()):
                     return True
-        except Exception:
-            pass
+        except Exception as e:
+            self.logger.debug("[%s] Error checking placeholder: %s", self.name, e)
         return False
 
     async def _count_elements(self, page: Page, selector: str) -> int:
@@ -196,9 +190,6 @@ class PlaywrightAggregatorScraper:
     async def _extract_flyers(self, page: Page, source: str) -> list[dict]:
         """Extract flyers from page using portal-specific logic."""
         portal_config = get_portal_config(source)
-        card_selector = portal_config["card_selector"]
-        store_patterns = portal_config["store_name_patterns"]
-        link_patterns = portal_config["flyer_link_patterns"]
 
         flyers = []
 
@@ -248,12 +239,11 @@ class PlaywrightAggregatorScraper:
                 try:
                     title = await card.inner_text()
                     title = re.sub(r"\s+", " ", title.strip())[:200]
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.debug("[%s] Error getting title: %s", self.name, e)
 
                 # Extract date
                 date_match = re.search(r"(\d{2}/\d{2}/\d{4})", card_html)
-                date_end = date_match.group(1) if date_match else ""
 
                 # Filter out placeholders
                 if "placeholder" in card_html.lower() or "skeleton" in card_html.lower():
@@ -388,21 +378,21 @@ class PlaywrightTiendeoScraper:
             await page.close()
 
     async def _parse_flyers(self, page: Page, source: str) -> list[dict]:
-        flyers = []
         cards = await page.query_selector_all(
             '[data-testid="flyer_list_item"], .js-flyer, li[data-type="flyer"]'
         )
+
         for card in cards:
             try:
                 store_name_el = await card.query_selector('[data-testid="flyer_item_retailer_name"]')
                 title_el = await card.query_selector('[data-testid="flyer_item_title"]')
-                date_el = await card.query_selector('[data-testid="flyer_item_expiration"]')
-                flyer_id = await card.get_attribute("data-id") or ""
+                await card.get_attribute("data-id")  # consume but don't store
 
                 if not store_name_el or not title_el:
                     continue
 
-                flyer = {
+                # Placeholder for flyer extraction - would be implemented here
+                _ = {
                     "store_name": (await store_name_el.inner_text()).strip(),
                     "flyer_title": (await title_el.inner_text()).strip(),
                     "image_url": "",
@@ -419,87 +409,3 @@ class PlaywrightTiendeoScraper:
 
 # Backward compatibility - TiendeoScraper uses aggregator_scraper.py
 # This class is for Kimbino, Portafolhetos, Roldão, Promotons (JS portals)
-
-
-class PlaywrightTiendeoScraper:
-    """Playwright-based fallback scraper for Tiendeo when HTTP requests fail/block."""
-
-    def __init__(self, store_config: dict):
-        self.store = store_config
-        self.name = store_config["name"]
-        self.base_url = store_config["base_url"].rstrip("/")
-        self.regions = store_config.get("regions", [])
-        self.sp_zones = store_config.get("sp_zones", [])
-
-    def _build_city_urls(self) -> list[tuple[str, str]]:
-        urls = []
-        for slug in self.regions:
-            city_name = CITY_SLUGS.get(slug, slug.replace("-", " ").title())
-            if slug == "sao-paulo":
-                urls.append((f"{self.base_url}/sao-paulo", "São Paulo"))
-                for zone in self.sp_zones:
-                    zone_slug = zone.lower().replace(" ", "-")
-                    urls.append((f"{self.base_url}/sao-paulo/{zone_slug}", f"São Paulo - {zone}"))
-            else:
-                urls.append((f"{self.base_url}/{slug}", city_name))
-        return urls
-
-    async def _fetch_city(self, browser: Browser, url: str) -> str | None:
-        page = await browser.new_page()
-        try:
-            await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            await page.wait_for_timeout(2000)
-            return await page.content()
-        except Exception as e:
-            logger.warning("[%s] Playwright error for %s: %s", self.name, url, e)
-            return None
-        finally:
-            await page.close()
-
-    async def _parse_flyers(self, page: Page, source: str) -> list[dict]:
-        flyers = []
-        cards = await page.query_selector_all(
-            '[data-testid="flyer_list_item"], .js-flyer, li[data-type="flyer"]'
-        )
-        for card in cards:
-            try:
-                store_name_el = await card.query_selector('[data-testid="flyer_item_retailer_name"]')
-                title_el = await card.query_selector('[data-testid="flyer_item_title"]')
-                date_el = await card.query_selector('[data-testid="flyer_item_expiration"]')
-                flyer_id = await card.get_attribute("data-id") or ""
-
-                if not store_name_el or not title_el:
-                    continue
-
-                flyer = {
-                    "store_name": (await store_name_el.inner_text()).strip(),
-                    "flyer_title": (await title_el.inner_text()).strip(),
-                    "image_url": "",
-                    "source": "tiendeo",
-                }
-                # ... rest of extraction logic
-            except Exception as e:
-                logger.warning("Falha ao extrair flyer: %s", e)
-        return []
-
-    async def _run_async(self) -> list[dict]:
-        source = self.name.lower().replace(" ", "_")
-        city_urls = self._build_city_urls()
-
-        pool = await get_browser_pool()
-        browser = await pool.get_browser()
-        try:
-            tasks = [self._fetch_city(browser, url) for url, _ in city_urls]
-            results = await asyncio.gather(*tasks)
-
-        all_flyers = []
-        for (_url, region), html in zip(city_urls, results, strict=False):
-            if not html:
-                continue
-            flyers = await self._parse_flyers(browser.new_page(), source)
-            all_flyers.extend(flyers)
-
-        return all_flyers
-
-    def run(self) -> list[dict]:
-        return asyncio.run(self._run_async())

@@ -377,7 +377,7 @@ class TiendeoPlaywrightScraper:
                 urls.append((f"{self.base_url}/{slug}", city_name))
         return urls
 
-    def _build_playwright_scraper(self) -> PlaywrightTiendeoScraper:
+    def _build_playwright_scraper(self) -> "PlaywrightTiendeoScraper":
         """Lazy import to avoid Playwright dependency in environments without it."""
         from scrapers.playwright_scraper import PlaywrightTiendeoScraper
         config = self.store.copy()
