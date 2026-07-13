@@ -25,7 +25,7 @@ Toda nova lição extraída de falha no CI usa este template:
 
 ---
 
-### 68. CI integration tests skipados sem motivo (auto-skip exigia `SUPABASE_DB_PASSWORD`)
+### 1. CI integration tests skipados sem motivo (auto-skip exigia `SUPABASE_DB_PASSWORD`)
 
 - **Data + commit**: 2026-07-09
 - **Sintoma**: `integration` job em `ci.yml` reportava `112 skipped in 0.76s`. Auto-skip silencioso, zero indicação de razão.
@@ -35,7 +35,7 @@ Toda nova lição extraída de falha no CI usa este template:
 
 
 
-### 1. Mocks — boundary layer, not internal functions
+### 2. Mocks — boundary layer, not internal functions
 
 ```python
 # ❌ ERRADO: patcha onde a função é definida
@@ -49,31 +49,31 @@ def test_x(): ...
 
 Ou marca como `@pytest.mark.integration` e deixa o conftest `db_conn` resolver via RPC.
 
-### 2. Tests que tocam Supabase real — marque `integration`
+### 3. Tests que tocam Supabase real — marque `integration`
 
 Marque com `@pytest.mark.integration`. `pyproject.toml` tem `addopts = "-m 'not slow and not integration'"`.
 
-### 3. `exec_sql_query` RPC (porta 443), NUNCA `psycopg2` (porta 5432)
+### 4. `exec_sql_query` RPC (porta 443), NUNCA `psycopg2` (porta 5432)
 
 GitHub Actions bloqueia porta 5432. Use o fixture `db_conn` do `tests/conftest.py`.
 
-### 4. Cleanup POST test, não só PRE
+### 5. Cleanup POST test, não só PRE
 
 Setup PRE não basta — sempre cleanup POST também. Filtre por `collected_at = today` ao validar.
 
-### 5. `deploy_check.py` — required vs optional env
+### 6. `deploy_check.py` — required vs optional env
 
 Required: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`. Optional: `GMAIL_*`, `AUTH_SECRET_KEY`, `SUPABASE_ANON_KEY`, `TELEGRAM_*`. Opcionais viram WARN, não bloqueiam.
 
-### 6. Pre-commit hook SECRETS GUARD — bloqueia, não skipa
+### 7. Pre-commit hook SECRETS GUARD — bloqueia, não skipa
 
 Padrões: `sk-*`, `gsk_*`, `sk-or-*`, `sk-or-v1-*`, `sk-proj-*`, `hf_*`, `github_pat_*`, `nvapi-*`, `mOns*`, `AQ.*`.
 
-### 7. `PIP_INDEX_URL` → `PIP_EXTRA_INDEX_URL`
+### 8. `PIP_INDEX_URL` → `PIP_EXTRA_INDEX_URL`
 
 Para torch CPU em CI: use `PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu`. `PIP_INDEX_URL` SUBSTITUI PyPI e quebra `ruff`/`mypy`.
 
-### 8. `get_supabase()` deve ter fallback se `SUPABASE_ANON_KEY` faltar
+### 9. `get_supabase()` deve ter fallback se `SUPABASE_ANON_KEY` faltar
 
 ```python
 # ✅ CERTO:
@@ -82,11 +82,11 @@ key = os.environ.get("SUPABASE_ANON_KEY") or os.environ.get("SUPABASE_SERVICE_RO
 
 `get_supabase()` prefere `SUPABASE_ANON_KEY` mas aceita `SUPABASE_SERVICE_ROLE_KEY` como fallback.
 
-### 9. `SUPABASE_ANON_KEY` deve ser passado explicitamente nos jobs CI
+### 10. `SUPABASE_ANON_KEY` deve ser passado explicitamente nos jobs CI
 
 A secret existe no GitHub mas precisa ser mapeada no workflow. Sempre adicionar `SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}`.
 
-### 10. `exec_sql_query` RPC — sem trailing semicolons
+### 11. `exec_sql_query` RPC — sem trailing semicolons
 
 SQL com `;` no final quebra a subquery. Remova qualquer `;` no final de queries enviadas via `client.rpc("exec_sql_query", {"sql": sql})`.
 
@@ -94,11 +94,11 @@ SQL com `;` no final quebra a subquery. Remova qualquer `;` no final de queries 
 
 E2E contra infra externa que hiberna = sempre continue-on-error + warmup agressivo (min 6 rounds, 3min total). Verificar Lição #18 (failure() com continue-on-error).
 
-### 14. Auto-disable scrapers — SEMPRE investigar causa raiz antes
+### 13. Auto-disable scrapers — SEMPRE investigar causa raiz antes
 
 Antes de mexer em `is_active`, fazer dry-run do `_auto_disable_if_needed`. Logs devem mostrar CAUSA detalhada.
 
-### 15. Self-healing OBRIGATORIO em todos os scrapers
+### 14. Self-healing OBRIGATORIO em todos os scrapers
 
 API obrigatória:
 - `record_failure(scraper_name, reason, items_found, products_matched, flyer_count, attempted_by)`
@@ -115,41 +115,41 @@ self_healing:
   recovery_min_items: 1
 ```
 
-### 16. Causa raiz > Mascarar
+### 15. Causa raiz > Mascarar
 
 Investigar raiz ANTES de aplicar patches. Logar `error_class` (Timeout|SSLError|LayoutChanged|...). Causa raiz ≠ log.message.
 
-### 17. `hashFiles()` no GHA só funciona com arquivos trackados pelo git
+### 16. `hashFiles()` no GHA só funciona com arquivos trackados pelo git
 
 ```yaml
 # ✅ CERTO:
 if: steps.file.outputs.filename != ''
 ```
 
-### 18. `if: failure()` não dispara dentro de `continue-on-error: true` jobs
+### 17. `if: failure()` não dispara dentro de `continue-on-error: true` jobs
 
 Use `if: always() && steps.meu_teste.outcome == 'failure'` e adicione `id:` ao step.
 
-### 19. Script inline Python em heredoc no YAML — delimiter na coluna 0
+### 18. Script inline Python em heredoc no YAML — delimiter na coluna 0
 
 Solução: extrair para arquivo `.py` separado.
 
-### 20. Streamlit Cloud virou SPA (React) — HTTP warmup é inútil
+### 19. Streamlit Cloud virou SPA (React) — HTTP warmup é inútil
 
 Playwright (browser real) é obrigatório. CI (push/PR) usa localhost:8501. Schedule mensal testa cloud real.
 
-### 21. `page.wait_for_timeout()` é frágil para cold start E2E — use polling
+### 20. `page.wait_for_timeout()` é frágil para cold start E2E — use polling
 
 Sempre usar polling (45s) para elementos que dependem de renderização assíncrona.
 
-### 22. `httpx>=0.28` pode resolver para 1.x — sempre pin upper bound
+### 21. `httpx>=0.28` pode resolver para 1.x — sempre pin upper bound
 
 ```txt
 # ✅ CERTO:
 httpx>=0.28,<1.0
 ```
 
-### 24. "Pré-existente" não é desculpa — corrija ou prove que é bloqueado
+### 22. "Pré-existente" não é desculpa — corrija ou prove que é bloqueado
 
 "Pré-existente" exige prova. Se é 1-5 linhas e não quebra nada, corrija agora.
 
@@ -157,39 +157,39 @@ httpx>=0.28,<1.0
 
 Toda migration SQL nova DEVE ser adicionada ao `generate_consolidated()`.
 
-### 25. Novo código = novos testes
+### 24. Novo código = novos testes
 
 Módulo novo = `test_<modulo>.py` no mesmo PR. Unitários puros primeiro (mock I/O), integração depois.
 
-### 26. Push → Acompanha CI até PASS
+### 25. Push → Acompanha CI até PASS
 
 Análise prévia → resiliência durante → completude no fim. `--no-verify` só em emergência real, com justificativa no commit.
 
-### 29. Sidebar/navigation NÃO renderizava em headless por TypeError/AttributeError silencioso
+### 26. Sidebar/navigation NÃO renderizava em headless por TypeError/AttributeError silencioso
 
 Root cause: `get_longitudinal_winners()` sem argumento `days` + `normalized` bool em vez de dict. Fix: `days=90` + `isinstance` guard.
 
-### 30. Normalized pode ser `true` (bool) no Supabase — NUNCA use `p.get("normalized") or {}`
+### 27. Normalized pode ser `true` (bool) no Supabase — NUNCA use `p.get("normalized") or {}`
 
 Commit: `da3e9f6`. SEMPRE proteger com `isinstance(raw, dict)` antes de `.get("price_per_kg")`. 21 ocorrências em 7 arquivos.
 
-### 31. Schema Sync Validation — pre-req obrigatório antes de push
+### 28. Schema Sync Validation — pre-req obrigatório antes de push
 
 3 camadas: Contract tests (`test_dashboard_query_shapes.py`) + Schema introspection (pre-push) + Mocks realistas (dump real).
 
-### 32. Mocks devem refletir realidade — gerar de dump real, não hand-crafted
+### 29. Mocks devem refletir realidade — gerar de dump real, não hand-crafted
 
 Fixtures de teste = dump real do Supabase. Se mock precisa de caso edge, adicionar explicitamente ao fixture real, não inventar.
 
-### 33. Contract tests como primeira linha de defesa — não E2E
+### 30. Contract tests como primeira linha de defesa — não E2E
 
 Novo query em `dashboard_queries.py` = novo teste em `test_dashboard_query_shapes.py` no MESMO PR. E2E é validação de UX, não de schema.
 
-### 34. CI leve para iteração E2E — não queimar free tier no pipeline completo
+### 31. CI leve para iteração E2E — não queimar free tier no pipeline completo
 
 Iteração de bug E2E = branch + `ci-e2e-only.yml` (~4 min). Full CI só no merge final.
 
-### 35. AGENTS.md sanitization (Sprint 11) — schema, split, agents_tool.py
+### 32. AGENTS.md sanitization (Sprint 11) — schema, split, agents_tool.py
 
 AGENTS.md cresceu para 974 linhas, misturando lições, regras infra, ambiente e projeto vivo. Split em 3 arquivos + schema YAML + ferramenta de gestão:
 
@@ -203,11 +203,11 @@ Regra permanente:
 - Regras novas de execução vão para REGRAS.md
 - CI valida schema a cada push/merge
 
-### 67. 30 bugs de schema mismatch na auditoria manual do dashboard
+### 33. 30 bugs de schema mismatch na auditoria manual do dashboard
 
 30 bugs de schema mismatch encontrados na auditoria manual de 19 páginas do dashboard contra information_schema real do Supabase. Todo dict key access em páginas Streamlit deve ser validado contra schema real (SELECT column_name FROM information_schema.columns WHERE table_name=...). Mocks de teste DEVEM refletir schema real — nunca hand-crafted com keys imaginarias.
 
-### 37. Drift skills ↔ docs ↔ disco é recorrente — SST operacional
+### 34. Drift skills ↔ docs ↔ disco é recorrente — SST operacional
 
 **Causa raiz:** `sync_docs.py` detectava drift numérico (test counts, pages) mas nunca inspecionava `.opencode/skills/`. Skills podiam ser adicionadas/removidas sem qualquer falha em CI. Três verdades conflitavam: disco, `APPROVED_SKILLS` (hardcoded), e docs.
 
@@ -220,7 +220,7 @@ Regra permanente:
 
 **Regra permanente:** Toda skill nova = SST em 3 lugares verificáveis. `sync_docs --check` é o portão. Não editar `docs/skills.md` manualmente.
 
-### 38. Dependency drift recorrente — auditoria automatizada obrigatória
+### 35. Dependency drift recorrente — auditoria automatizada obrigatória
 
 **Causa raiz:** O projeto tinha `pip-audit --strict` no `ci.yml:lint` (linha 33), mas cobria apenas `requirements.txt` (prod). CVEs em deps de teste/dev (`diskcache 5.6.3`, `pytest 8.3.3`) só eram descobertas em scans manuais. E o time não tinha como **descobrir** novas vulns automaticamente após release.
 
@@ -240,7 +240,7 @@ Regra permanente:
 - CVEs Medium/Low em dev/test = aceitas até próximo sprint (documentar em `docs/security.md`)
 - Falsos positivos do `deptry` (transitivas reais): NUNCA remover sem grep `import <pkg>` em todo o codebase
 
-### 66. Sprint 13 — Saneamento de working tree com `scripts/sanitize.py`
+### 36. Sprint 13 — Saneamento de working tree com `scripts/sanitize.py`
 
 **Problema:** 1.5GB de resíduo acumulado no working tree (caches Python, wheels baixados manualmente, resíduo do installer miniconda, modelo ONNX de 465MB, artefatos de skills audit, 12 arquivos apátridas commitados).
 
@@ -256,7 +256,7 @@ Regra permanente:
 - Hook RESIDUE GUARD bloqueia commit acidental de resíduo — `--no-verify` é bypass de emergência
 - `scripts/sanitize.py --rollback` reverte o último `--execute` via snapshot em `.archive/sanitize/`
 
-### 36. CI status check antes de push — pipeline verde ou bloqueia
+### 37. CI status check antes de push — pipeline verde ou bloqueia
 
 Antes de qualquer push para `master`, verificar se o CI está verde. O pre-push hook step [0/5] faz essa checagem automaticamente:
 - CI verde → OK, prossegue
@@ -267,7 +267,7 @@ Ordem: primeiro verificar CI, depois executar os demais steps locais.
 
 Autenticação: `gh auth login` ou `GH_TOKEN` no `.env`. Responsabilidade do desenvolvedor de não pushar sobre CI vermelho a menos que seja a correção.
 
-### 39. Monitoração é essencial — se não é monitorado, assuma que está quebrado
+### 38. Monitoração é essencial — se não é monitorado, assuma que está quebrado
 
 **Causa raiz:** Phase 0 security baseline descobriu 6 RLS policies inseguras, 3 RPCs `SECURITY DEFINER` sem `REVOKE`, fallback silencioso de `get_service_client()`, admin app gerando senha aleatória invisível, e JWT morto — tudo passando despercebido por meses porque **não havia monitoração em nenhum desses pontos**.
 
@@ -292,7 +292,7 @@ Toda mitigação foi reativa. Com monitoração, teriam sido descobertas proativ
 - `git pw` (CI watch) é obrigatório para todo push — não monitorar CI é aceitar merge silencioso de breaking change
 - Se um componente quebrou e ninguém percebeu, a culpa não é do componente — é da falta de monitoração
 
-### 42. Monitoração de CI em shells com timeout (Polling vs Watch)
+### 39. Monitoração de CI em shells com timeout (Polling vs Watch)
   
  **Causa raiz:** O comando `gh run watch` mantém uma conexão aberta e aguarda a conclusão do run. Em ambientes de shell com timeout estrito (ex: 120s), o comando é interrompido prematuramente, impedindo o acompanhamento do CI até o fim.
   
@@ -303,7 +303,7 @@ Toda mitigação foi reativa. Com monitoração, teriam sido descobertas proativ
   
  **Regra permanente:** Agentes devem implementar loops de polling com intervalos (ex: 30s) para monitorar a conclusão do CI, evitando a dependência de comandos de watch de longa duração.
  
-### 43. Scheduled workflows não devem usar GH_PAT custom token no Checkout
+### 40. Scheduled workflows não devem usar GH_PAT custom token no Checkout
 **Causa raiz:** No run https://github.com/ZeroBond85/CustoDoce/actions/runs/28803088935 (scheduled, master), o Checkout falhou 3× com `fatal: could not read Username for 'https://github.com': terminal prompts disabled` porque `with: token: ${{ secrets.GH_PAT }}` força prompt interativo ausente em modo scheduled; e o `python -c "import httpx"` nos alertas de commit/e-mail também quebrou (provavelmente por ambiente restrito).
 **Solução:** Remover `with: token:` do step "Checkout" em `.github/workflows/scrape.yml` (mantido o default); substituir `python -c "import httpx"` por `curl -X POST` direto nos passos "Alert on commit failure" e "Alert on email failure"; GH_PAT preservado apenas no step "Commit Latest Pushing latest prices" (git push).
 **Validação:** Run https://github.com/ZeroBond85/CustoDoce/actions/runs/28803210736 (on_demand_scrape.yml, scheduled) rodou verde com checkout sem token. Novo teste unitário `tests/unit/test_scrape_workflow.py` garantindo que `.github/workflows/scrape.yml` NÃO contém `token: ${{ secrets.GH_PAT` no step de checkout.
@@ -311,11 +311,11 @@ Toda mitigação foi reativa. Com monitoração, teriam sido descobertas proativ
 
 
 
-### 44. GH Actions Step Validation
+### 41. GH Actions Step Validation
 
 Steps sem 'run:' ou 'uses:' geram 'failure' com 0 jobs. yaml.safe_load nao detecta. Validar com test_all_steps_have_run_or_uses() antes de push.
 
-### 45. git_push.py timeout — Polling obrigatório para CI Watch em shells com timeout
+### 42. git_push.py timeout — Polling obrigatório para CI Watch em shells com timeout
 
 **Causa raiz:** O script `scripts/git_push.py` usa `gh run watch --exit-status` (linha 136-141) que mantém conexão aberta até o CI completar. Em shells com timeout estrito (ex: 120s padrão), o comando é interrompido prematuramente, perdendo o status final do CI (success/failure) e impedindo o auto-retry.
 
@@ -326,7 +326,7 @@ Steps sem 'run:' ou 'uses:' geram 'failure' com 0 jobs. yaml.safe_load nao detec
 - Todo agente que monitorar CI deve usar polling repetitivo até conclusão final
 - Se shell timeout < tempo do CI, o watch falha e perde a conclusão
 
-### 46. Serviços com dependências opcionais — retorne False, não levante exceção
+### 43. Serviços com dependências opcionais — retorne False, não levante exceção
 
 **Causa raiz:** `services/telegram_service.py::send_telegram_message()` levantava `ValueError("TELEGRAM_TOKEN must be set")` quando o token não estava configurado. Isso propagava como `logger.error` no `main.py`, poluindo logs de CI com falsos positivos (exit code 0, mas parecia erro).
 
@@ -342,7 +342,7 @@ A mesma regra vale para `send_email()` em `email_service.py` — levantava `Valu
 - Quem chama deve tratar falha de notificação como warning, não erro
 - O `main.py` não deve logar como `logger.error` falhas de notificação
 
-### 47. Scripts referenciados em workflows devem ter test de existência
+### 44. Scripts referenciados em workflows devem ter test de existência
 
 **Causa raiz:** `scripts/enrich_prices.py` estava referenciado em `.github/workflows/scrape-reusable.yml` mas o arquivo nunca existiu no repositório. A CI rodou 3 vezes (`enrich` job fail) até o script ser criado.
 
@@ -350,7 +350,7 @@ A mesma regra vale para `send_email()` em `email_service.py` — levantava `Valu
 
 **Regra permanente:** TODO script referenciado em qualquer workflow YAML deve ter um test de existência correspondente em `tests/unit/test_ci_infrastructure.py`.
 
-### 48. `pip-audit --strict` NÃO significa "falha em vulnerabilidades"
+### 45. `pip-audit --strict` NÃO significa "falha em vulnerabilidades"
 
 **Causa raiz:** Workflow `ci.yml` usava `pip-audit --strict -s osv -r requirements.txt` no step "Audit dependencies". O flag `--strict` no pip-audit 2.x significa **"falha se a COLETA de dependências falhar"** (não "falha em vulns"). Em CI (ubuntu/Py3.14) a coleta de alguma dependência de `requirements.txt` falha → exit 1 mesmo com "No known vulnerabilities found". Combinado com `set -e` implícito do GitHub Actions, o script morria antes do check de severidade.
 
@@ -361,7 +361,7 @@ A mesma regra vale para `send_email()` em `email_service.py` — levantava `Valu
 - `--strict` = falha em erro de COLETA de dependência (falso positivo em ambientes com extra-index-url, Py3.14, etc.)
 - Em workflows, sempre capturar exit code de pip-audit explicitamente (`set +e` antes, `set -e` depois) para o check de severidade rodar
 
-### 49. Falha de CI pré-existente = GAP de teste, tratar imediatamente
+### 46. Falha de CI pré-existente = GAP de teste, tratar imediatamente
 
 **Causa raiz:** O pre-push hook avisou "CI está vermelho" (master com F401 em `test_alert_service.py`/`test_telegram_service.py` + pip-audit bug). O agente tratou como "não são nossas mudanças, fora de escopo" e seguiu. Isso viola AGENTS.md regra #11 ("Falha no CI = Gap de Teste... 'Tentar de novo' é proibido").
 
@@ -373,7 +373,7 @@ A mesma regra vale para `send_email()` em `email_service.py` — levantava `Valu
 - Sempre reproduzir localmente + corrigir + LESSONS.md (mesmo que o bug não venha das nossas mudanças)
 
 
-### 50. E2E real/interactions: login exige usuario E senha; sidebar usa <a> (st.navigation)
+### 47. E2E real/interactions: login exige usuario E senha; sidebar usa <a> (st.navigation)
 
 **Causa raiz:** Os testes E2E (`tests/e2e/test_e2e_real.py`, `tests/e2e/conftest.py`) falhavam em massa porque o fluxo de login so preenchia `input[type=password]` e NAO o campo "Usuario". O `dashboard/login_page.py` exige `username AND password` nao-vazios (`login_page.py:161-167`); sem usuario o login falha, o `st.navigation()` nunca renderiza a sidebar (`admin/app.py:120-128` faz `st.stop()`), e entao:
 - `e2e-interactions` dava `pytest.skip` em todas as 19 abas (nav link nao encontrado)
@@ -394,7 +394,7 @@ A segunda causa: `check_for_errors` (`test_e2e_real.py`) usava substrings soltas
 - Fixtures de browser/login em E2E devem ser `scope="session"` para nao estourar tempo de cold-start.
 - "Sem skip": nav ausente = `pytest.fail` com screenshot; pagina sem interacao = PASS. Skip so se for intencional (teste legado explicito).
 
-### 69. Testes de conftest que carregam .env não isolam — monkeypatch `dotenv.load_dotenv` para no-op
+### 48. Testes de conftest que carregam .env não isolam — monkeypatch `dotenv.load_dotenv` para no-op
 
 - **Data + commit**: 2026-07-09 (sessão saneamento-fase-1 pré-tornar-público)
 - **Sintoma**: `tests/unit/test_conftest_missing_creds.py::test_has_real_db_false_quando_env_vazio` (após reorganização do arquivo: `test_has_real_db_false_quando_env_minimo`) falhava intermitentemente em CI. `module._has_real_db() is False` falhava porque retornava `True`. Outros 4 cenários passavam.
@@ -407,7 +407,7 @@ A segunda causa: `check_for_errors` (`test_e2e_real.py`) usava substrings soltas
 - `monkeypatch.delenv` sozinho **não basta** se o módulo re-injeta valores durante import via `load_dotenv`.
 - Alternativa: usar `load_dotenv(..., override=True)` no conftest para permitir que CI (env vars) sobreponha `.env` local — mas isso muda semântica do conftest em produção. Preferível patchar no teste.
 
-### 70. sync_docs.py #sync# so rodava SÓ v2 #CURRENT blocks# — README/REGRAS/API/timestamps ficavam desatualizados
+### 49. sync_docs.py #sync# so rodava SÓ v2 #CURRENT blocks# — README/REGRAS/API/timestamps ficavam desatualizados
 
 **Causa raiz:** Em , o branch  chamava apenas  (CURRENT blocks em docs arbitrários). Os updateers v1 , , ,  (timestamps) so eram chamados pela funcao , que era invocada apenas sem . Resultado: o CI rodava  (v2 só) e depois  falhava por drift no README/REGRAS/timestamps.
 
@@ -429,7 +429,7 @@ E um terceiro bug menor:  suprime o markup /, entao o regex de contagem nao acha
 - Regex precisa casar a saida literal do pytest # se mudou  para , atualizar.
 
 ---
-### 58. Auditoria profunda de testes (Fases 0-9) — 2026-07-11
+### 50. Auditoria profunda de testes (Fases 0-9) — 2026-07-11
 
 **Sintoma:** Testes mortos, mocks subutilizados, gaps de cobertura, violações Regra #3, workflows inconsistentes.
 
@@ -450,7 +450,7 @@ E um terceiro bug menor:  suprime o markup /, entao o regex de contagem nao acha
 - Mocks centrais → auditar consumo a cada sprint.
 
 ---
-### 59. .gitignore data/store_backups/ — 2026-07-11
+### 51. .gitignore data/store_backups/ — 2026-07-11
 
 **Sintoma:** 3 backups YAML idênticos (115KB) commitados em data/store_backups/ (commit 22fd346).
 
@@ -461,7 +461,7 @@ E um terceiro bug menor:  suprime o markup /, entao o regex de contagem nao acha
 **Regra permanente:** Qualquer pasta que scripts escrevam automaticamente (backups, cache, dumps) → adicionar ao .gitignore ANTES do primeiro commit.
 
 ---
-### 60. Guard rule3_db_password — 2026-07-11
+### 52. Guard rule3_db_password — 2026-07-11
 
 **Sintoma:** Regra #3 AGENTS.md (NUNCA psycopg2/5432, SOMENTE RPC 443) não era enforceada automaticamente.
 
@@ -470,7 +470,7 @@ E um terceiro bug menor:  suprime o markup /, entao o regex de contagem nao acha
 **Regra permanente:** Guard AST em pre-commit/CI para anti-patterns críticos (senhas, portas proibidas, imports perigosos). Rodar em `ci.yml` job `lint`.
 
 ---
-### 61. Cleanup testes mortos — 2026-07-11
+### 53. Cleanup testes mortos — 2026-07-11
 
 **Sintoma:** 5 arquivos testes mortos acumulados:
 - test_sync_md_catchup.py + test_sync_md_catchup.py (script morto)
@@ -483,7 +483,7 @@ E um terceiro bug menor:  suprime o markup /, entao o regex de contagem nao acha
 
 **Regra permanente:** Antes de adicionar teste novo, verificar se similar já existe. `git grep "test_" -- tests/` antes de criar.
 
-### 62. AsyncMock.return_value padrão é AsyncMock, não MagicMock
+### 54. AsyncMock.return_value padrão é AsyncMock, não MagicMock
 
 **Sintoma:** `RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited` ao executar `test_collector_facebook.py::TestFacebookFlyerScraper::test_process_post_parses_products_from_image`.
 
@@ -499,11 +499,11 @@ mock_get.return_value = mock_resp  # ✅
 ```
 `mock_resp` é um `MagicMock` comum, então `raise_for_status()` é síncrono.
 
-### 63. Marcador `slow` para documentação, não filtro automático
+### 55. Marcador `slow` para documentação, não filtro automático
 
 **Decisão:** `test_alert_service.py` (1 teste ~32s) marcado como `@pytest.mark.slow`. O `addopts` global **não** inclui `-m 'not slow'` para evitar quebrar workflows CI que rodam testes lentos (diagnostics, real, integration). O marcador serve como documentação e filtro opcional. Para pular testes lentos localmente: `pytest -m 'not slow'`.
 
-### 64. CRLF root fix: `core.autocrlf = true` no Windows — WSL não precisa
+### 56. CRLF root fix: `core.autocrlf = true` no Windows — WSL não precisa
 
 **Sintoma:** Git emitia "CRLF will be replaced by LF" em todo `git add` de arquivos texto no Windows. Pre-commit Layer 8 bloqueava commits com CRLF. Tentativa de auto-fix no hook não resolvia a raiz — o warning continuava aparecendo.
 
@@ -524,7 +524,7 @@ mock_get.return_value = mock_resp  # ✅
 - Qualquer tentativa de auto-fix de CRLF no pre-commit é PROIBIDA — a correção raiz é configurar o Git corretamente, não tratar sintoma.
 
 
-### 65. st.navigation dessincroniza apos render pesado (Revisao) - clique vira no-op
+### 57. st.navigation dessincroniza apos render pesado (Revisao) - clique vira no-op
 
 **Sintoma:** No CI, `test_all_pages_crawl` (smoke e2e) falhava em Capacidade: URL
 revertia para /revisao. Nao reproduzivel com clique unico local (Capacidade como 2a
@@ -544,7 +544,7 @@ SPA (sem reload) para preservar o login em `st.session_state`. Fallback via `pag
 NAO serve: reload completo destroi `st.session_state.authenticated` e volta para o login.
 
 
-### 51. st.dataframe quebra (pyarrow ArrowInvalid) com coluna JSONB lista mista
+### 58. st.dataframe quebra (pyarrow ArrowInvalid) com coluna JSONB lista mista
 
 **Sintoma:** No CI (Supabase REAL), a pagina "Scrapers & Logs" (e "Scraper Health > Raw Logs")
 quebrava com `pyarrow.lib.ArrowInvalid: ('cannot mix list and non-list, non-null values',
@@ -565,7 +565,7 @@ usam `get_store_health()` (errors como int) nao tem o problema.
 a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 
 
-### 52. Lock files gerados no Windows causam drift no CI (colorama/tzdata)
+### 59. Lock files gerados no Windows causam drift no CI (colorama/tzdata)
 
 - **Data + commit**: 2026-07-12 (07e6466)
 - **Sintoma**: `dependency-audit.yml` job `lock-validation` falhava com `requirements.lock is out of sync with .in files` (e potencialmente os outros 3 lock files). O `git diff` mostrava `colorama==0.4.6` e `tzdata==2026.3` presentes nos locks commitados mas ausentes na regeneração do CI.
@@ -576,7 +576,7 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 **Regra preventiva**: Lock files (`.lock`) devem ser gerados **SEMPRE em Linux** (WSL `custodoce-314` ou Docker `python:3.14-slim`) — NUNCA no Windows. Pacotes condicionais de plataforma (`colorama`, `tzdata`, `win32api`, etc.) entram apenas no OS que os precisa, causing drift silencioso entre Windows/CI-Linux.
 
 
-### 53. `load_stores()` dropava silenciosamente lojas sem `scrape_frequencies`
+### 60. `load_stores()` dropava silenciosamente lojas sem `scrape_frequencies`
 
 - **Data + commit**: 2026-07-13
 - **Sintoma**: ~64/71 lojas ativas em YAML nunca apareciam no pipeline — `collect_*()` sempre retornava vazio para a maioria dos scrapers. O log não mostrava erro, apenas "0 stores".
@@ -585,7 +585,7 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Teste de regressão**: `test_validate_mocks_against_manifest` (indireto — validar que o mapper cobre todas). Teste direto ainda não escrito.
 
 
-### 54. Type-drift: FKs `INTEGER`/`UUID` para `stores(id)` quando `stores.id` é `TEXT`
+### 61. Type-drift: FKs `INTEGER`/`UUID` para `stores(id)` quando `stores.id` é `TEXT`
 
 - **Data + commit**: 2026-07-13
 - **Sintoma**: Migrations `006_scrape_requests.sql` e `009_store_registry.sql` declaravam `store_id INTEGER REFERENCES stores(id)` e retorno `id UUID` em `find_similar_store()` — incompatíveis com `stores.id TEXT`.
@@ -598,7 +598,7 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Teste de regressão**: `validate_db_schema.py` deve ganhar um check de `REFERENCES stores(id)` com tipo `TEXT` — pendente.
 
 
-### 55. Agregador Promotons roteado para scraper errado (`TiendeoScraper` em vez de `PlaywrightAggregatorScraper`)
+### 62. Agregador Promotons roteado para scraper errado (`TiendeoScraper` em vez de `PlaywrightAggregatorScraper`)
 
 - **Data + commit**: 2026-07-13 (f524ce6)
 - **Sintoma**: Promotons sempre retornava 0 resultados, mesmo estando ativo. Nenhum erro — apenas silêncio.
@@ -607,7 +607,7 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Teste de regressão**: `validate_scrapers.py --validate` (rodar no WSL) deve mostrar items do Promotons.
 
 
-### 56. F541 lint (f-string sem placeholder) escapou para o CI — validação local incompleta
+### 63. F541 lint (f-string sem placeholder) escapou para o CI — validação local incompleta
 
 - **Data + commit**: 2026-07-13 (49278da)
 - **Sintoma**: CI job `lint` falhou com 7× `F541 f-string without any placeholders` em `scripts/validate_scrapers.py:41,53,54,55,148,193,197`.
@@ -616,7 +616,7 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Teste de regressão**: `ruff check scripts/validate_scrapers.py` deve passar.
 
 
-### 57. Lint F541 escapou porque pre-commit não incluía ruff — gap de processo
+### 64. Lint F541 escapou porque pre-commit não incluía ruff — gap de processo
 
 - **Data + commit**: 2026-07-13 (49278da)
 - **Sintoma**: CI job `lint` falhou com F541 em `validate_scrapers.py` que não foi detectado localmente. CI job `docs-sync` também falhou — ambos escaparam porque validamos apenas deploy/sync/FKs, não `ruff check .` completo.

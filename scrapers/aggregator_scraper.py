@@ -225,9 +225,9 @@ class TiendeoScraper:
                 return html
 
             except httpx.HTTPStatusError as e:
-                logger.warning("[%s] HTTP %d for %s - attempt %d/%d", self.name, e.response.status_code, url, attempt + 1, max_retries + 1)
+                logger.error("[%s] HTTP %d for %s - attempt %d/%d", self.name, e.response.status_code, url, attempt + 1, max_retries + 1)
             except Exception as e:
-                logger.warning("[%s] Error fetching %s: %s - attempt %d/%d", self.name, url, e, attempt + 1, max_retries + 1)
+                logger.error("[%s] Error fetching %s: %s - attempt %d/%d", self.name, url, e, attempt + 1, max_retries + 1)
 
             if attempt < max_retries:
                 delay = min(base_delay * (2 ** attempt) + random.uniform(0, 1), max_delay)  # noqa: S311

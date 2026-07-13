@@ -21,7 +21,7 @@ class CarrefourScraper(BaseWebScraper):
             resp.raise_for_status()
             return resp.text
         except Exception as e:
-            logger.warning("[%s] Error fetching '%s': %s", self.name, url, e)
+            logger.error("[%s] Error fetching '%s': %s", self.name, url, e)
             return None
 
     def _search_and_parse(self, ing: dict) -> list[dict]:

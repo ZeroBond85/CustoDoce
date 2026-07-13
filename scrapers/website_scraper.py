@@ -21,7 +21,7 @@ class WebsiteScraper(BaseWebScraper):
             resp.raise_for_status()
             return resp.text
         except Exception as e:
-            logger.warning("[%s] Error fetching '%s': %s", self.name, url, e)
+            logger.error("[%s] Error fetching '%s': %s", self.name, url, e)
             return None
 
     def parse_products(self, html: str) -> list[dict]:

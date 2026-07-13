@@ -239,34 +239,21 @@ stores:
 
   - name: "Amendolate"
     tier: 2
-    type: "website_catalog"
+    type: "website_js"
     is_active: true
     logistics: "pickup_sp"
-    base_url: "https://www.amendolate.com.br"
-    search_url: "https://www.amendolate.com.br/busca?q={query}"
+    base_url: "https://amendolate.lojaintegrada.com.br"
+    search_url: "https://amendolate.lojaintegrada.com.br/buscar?q={query}"
     selectors:
-      product_card: ["li", ".product-item", ".item", ".produto"]
-      product_name: ["a", ".product-name", ".nome-produto", "h3 a"]
-      product_price: [".price", ".preco", ".preco-promocional"]
+      product_card: [".listagem-item", "[data-id]", ".product-card", ".produto-card"]
+      product_name: [".nome-produto", ".product-name a", ".product-title a"]
+      product_price: [".preco-promocional", ".product-price", ".price", ".sale-price"]
     address: "Rua Schilling, 577 - Vila Leopoldina, SP"
     zone: "oeste"
-    coverage: "4.210 SKUs - chocolates, leite condensado, corantes, pasta americana, formas, utensílios"
+    coverage: "4.210 SKUs - chocolates, leite condensado, corantes, pasta americana, formas, utensílios — Loja Integrada/Tray"
     collection_method: "automated"
-    scraper: "website_scraper"
+    scraper: "playwright_price_scraper"
     priority: 10
-    headers:
-      Referer: "https://www.amendolate.com.br/"
-      Origin: "https://www.amendolate.com.br"
-      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
-      Accept-Language: "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7"
-      Accept-Encoding: "gzip, deflate, br"
-      Connection: "keep-alive"
-      Upgrade-Insecure-Requests: "1"
-      Sec-Fetch-Dest: "document"
-      Sec-Fetch-Mode: "navigate"
-      Sec-Fetch-Site: "same-origin"
-      Sec-Fetch-User: "?1"
-      Cache-Control: "max-age=0"
 
   - name: "Central Flavor"
     tier: 2
@@ -715,6 +702,7 @@ stores:
     collection_method: "automated"
     scraper: "facebook_flyer_scraper"
     priority: 35
+    is_active: false
     # Fallback manual fields
     address: "Praia Grande, SP"
     contact: "facebook.com/RedeKrill"
@@ -730,6 +718,7 @@ stores:
     collection_method: "automated"
     scraper: "facebook_flyer_scraper"
     priority: 36
+    is_active: false
     address: "Mongaguá, SP"
     contact: "facebook.com/MERCADOPRIMOS1"
 
@@ -744,6 +733,7 @@ stores:
     collection_method: "automated"
     scraper: "facebook_flyer_scraper"
     priority: 37
+    is_active: false
     address: "Itanhaém, SP"
     contact: "facebook.com/supermercados.saito"
 

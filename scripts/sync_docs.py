@@ -34,9 +34,14 @@ import json
 import os
 import re
 import sys
+import warnings
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
+
+# Suppress Streamlit "No runtime found" warnings when importing dashboard components
+os.environ.setdefault("STREAMLIT_DISABLE_CACHING_WARNING", "1")
+warnings.filterwarnings("ignore", message="No runtime found, using MemoryCacheStorageManager", category=UserWarning, module="streamlit.runtime.caching.cache_data_api")
 
 os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 

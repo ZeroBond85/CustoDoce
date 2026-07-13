@@ -47,6 +47,7 @@ env:
   PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
   PYTHONPATH: ${{ github.workspace }}
   PIP_NO_WARN_YANKED: 1
+  STREAMLIT_DISABLE_CACHING_WARNING: 1
 
 jobs:
   setup:
@@ -113,9 +114,9 @@ jobs:
         id: scrape_tier
         run: |
           python main.py --tier ${{ matrix.tier }} --no-finalize --mode ${{ inputs.mode }} ${{ inputs.dry_run && '--dry-run' || '' }} 2>&1 | tee /tmp/scrape_${{ matrix.tier }}.log
-          if grep -qE '\[error\s*\]|"level":\s*"error"' /tmp/scrape_${{ matrix.tier }}.log 2>/dev/null; then
+          if grep -qE '\[error\s*\]|"level":\s*"error"|Error fetching|Client error|HTTP [45][0-9][0-9]' /tmp/scrape_${{ matrix.tier }}.log 2>/dev/null; then
             echo "::error::[error] entries found in scrape output for tier ${{ matrix.tier }}"
-            grep -E '\[error\s*\]|"level":\s*"error"' /tmp/scrape_${{ matrix.tier }}.log
+            grep -E '\[error\s*\]|"level":\s*"error"|Error fetching|Client error|HTTP [45][0-9][0-9]' /tmp/scrape_${{ matrix.tier }}.log
             exit 1
           fi
         shell: bash
