@@ -24,6 +24,8 @@ LESSONS = ROOT / "LESSONS.md"
 SCHEMA = ROOT / "config" / "agents_schema.yaml"
 REGRAS = ROOT / "REGRAS.md"
 SKILLS = ROOT / "docs" / "skills.md"
+LESSONS_SCHEMA = ROOT / "config" / "lessons_schema.yaml"
+REGRAS_SCHEMA = ROOT / "config" / "regras_schema.yaml"
 
 
 def load_schema() -> dict:
@@ -90,6 +92,45 @@ def load_schema() -> dict:
                         "target": target_match.group(1),
                         "reason": reason_match.group(1),
                     }
+    return result
+
+
+def load_lessons_schema() -> dict:
+    """Load lessons schema from YAML."""
+    if not LESSONS_SCHEMA.exists():
+        return {}
+    result: dict = {"max_lines": 700, "no_duplicates": True, "monotonic": True, "checkable": True}
+    text = LESSONS_SCHEMA.read_text(encoding="utf-8")
+    for line in text.splitlines():
+        if line.startswith("max_lines:"):
+            with contextlib.suppress(ValueError):
+                result["max_lines"] = int(line.split(":", 1)[1].strip())
+        elif line.startswith("no_duplicates:"):
+            result["no_duplicates"] = line.split(":", 1)[1].strip() == "true"
+        elif line.startswith("monotonic:"):
+            result["monotonic"] = line.split(":", 1)[1].strip() == "true"
+        elif line.startswith("checkable:"):
+            result["checkable"] = line.split(":", 1)[1].strip() == "true"
+    return result
+
+
+def load_regras_schema() -> dict:
+    """Load regras schema from YAML."""
+    if not REGRAS_SCHEMA.exists():
+        return {}
+    result: dict = {"pre_commit_layers": 0, "layer_names": []}
+    text = REGRAS_SCHEMA.read_text(encoding="utf-8")
+    current_list = None
+    for line in text.splitlines():
+        if line.startswith("pre_commit_layers:"):
+            with contextlib.suppress(ValueError):
+                result["pre_commit_layers"] = int(line.split(":", 1)[1].strip())
+        elif line.startswith("layer_names:"):
+            current_list = "layer_names"
+        elif current_list == "layer_names" and line.strip().startswith("- "):
+            result["layer_names"].append(line.strip()[2:].strip().strip('"'))
+        elif current_list and not line.strip().startswith("- "):
+            current_list = None
     return result
 
 
@@ -309,8 +350,8 @@ def add_lesson(title: str, body: str) -> str:
         LESSONS.write_text("# Lições Aprendidas\n\n", encoding="utf-8")
 
     content = LESSONS.read_text(encoding="utf-8")
-    # Find highest lesson number
-    nums = [int(m) for m in re.findall(r"^### (\d+)\.", content, re.MULTILINE)]
+    # Find highest lesson number (both ### and ## formats)
+    nums = [int(m) for m in re.findall(r"^#{2,3} (\d+)\.", content, re.MULTILINE)]
     next_num = max(nums) + 1 if nums else 1
 
     new_lesson = f"\n### {next_num}. {title}\n\n{body}\n"
@@ -318,10 +359,109 @@ def add_lesson(title: str, body: str) -> str:
     return f"Lição #{next_num} adicionada ao LESSONS.md"
 
 
+def validate_lessons(content: str | None = None) -> list[str]:
+    """Validate LESSONS.md against schema."""
+    issues: list[str] = []
+    if content is None:
+        if not LESSONS.exists():
+            issues.append("LESSONS.md nao encontrado")
+            return issues
+        content = LESSONS.read_text(encoding="utf-8")
+    lines = content.splitlines()
+    schema = load_lessons_schema()
+
+    # Check max_lines
+    max_lines = schema.get("max_lines", 700)
+    if len(lines) > max_lines:
+        issues.append(f"LESSONS.md tem {len(lines)} linhas (max {max_lines})")
+
+    # Find all lesson headings (### or ## with number)
+    lesson_heads = []
+    for i, line in enumerate(lines):
+        m = re.match(r"^#{2,3} (\d+)\.", line)
+        if m:
+            lesson_heads.append({"num": int(m.group(1)), "line": i + 1, "text": line.strip()})
+
+    if not lesson_heads:
+        issues.append("Nenhuma licao encontrada em LESSONS.md")
+        return issues
+
+    # Check format: must be ### not ##
+    for h in lesson_heads:
+        if h["text"].startswith("## "):
+            issues.append(
+                f"Licao #{h['num']} (linha {h['line']}) usa '## ' em vez de '### '"
+            )
+
+    if not schema.get("checkable", True):
+        return issues
+
+    # Check no duplicates
+    if schema.get("no_duplicates", True):
+        seen: set[int] = set()
+        for h in lesson_heads:
+            if h["num"] in seen:
+                matching = [x for x in lesson_heads if x["num"] == h["num"]]
+                lines_str = ", ".join(f"L{x['line']}" for x in matching)
+                issues.append(f"Licao #{h['num']} duplicada ({lines_str})")
+            seen.add(h["num"])
+
+    # Check monotonic order (warning only, non-blocking)
+    if schema.get("monotonic", True):
+        prev_num = 0
+        for h in lesson_heads:
+            if h["num"] < prev_num:
+                print(
+                    f"  [WARN] Ordem monotônica quebrada: #{h['num']} (linha {h['line']}) depois de #{prev_num}",
+                    file=sys.stderr,
+                )
+            prev_num = h["num"]
+
+    return issues
+
+
+def validate_regras(content: str | None = None) -> list[str]:
+    """Validate REGRAS.md against schema (pre-commit layer parity)."""
+    issues: list[str] = []
+    if content is None:
+        if not REGRAS.exists():
+            issues.append("REGRAS.md nao encontrado")
+            return issues
+        content = REGRAS.read_text(encoding="utf-8")
+
+    schema = load_regras_schema()
+    expected = schema.get("pre_commit_layers", 0)
+    if not expected:
+        return issues
+
+    # Find "Pre-commit Hook" section
+    section_match = re.search(
+        r"(?:## Pre-commit Hook|## Pre-commit|## Pre-commit Hook?\b).*?(?=\n## |\Z)",
+        content,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if not section_match:
+        issues.append("Secao 'Pre-commit Hook' nao encontrada em REGRAS.md")
+        return issues
+
+    section = section_match.group(0)
+    numbered_lines = re.findall(r"^\d+(?:\.\d+)?[\.\)]\s*\S", section, re.MULTILINE)
+    actual_count = len(numbered_lines)
+
+    if actual_count != expected:
+        issues.append(
+            f"REGRAS.md documenta {actual_count} camadas de pre-commit "
+            f"(secao 'Pre-commit Hook'), mas schema espera {expected} "
+            f"conforme config/regras_schema.yaml"
+        )
+
+    return issues
+
+
 def run_full() -> tuple[bool, list[str]]:
     """Run full documentation validation."""
     all_issues: list[str] = []
-    print("[1/4] Validando schema do AGENTS.md...", file=sys.stderr)
+    print("[1/6] Validando schema do AGENTS.md...", file=sys.stderr)
     schema_issues = check_schema()
     if schema_issues:
         for i in schema_issues:
@@ -330,7 +470,7 @@ def run_full() -> tuple[bool, list[str]]:
     else:
         print("  [OK] Schema valido", file=sys.stderr)
 
-    print("[2/4] Rodando sync_docs v1 (test counts, pages)...", file=sys.stderr)
+    print("[2/6] Rodando sync_docs v1 (test counts, pages)...", file=sys.stderr)
     sync_issues = run_sync_docs()
     if sync_issues:
         for i in sync_issues:
@@ -339,7 +479,7 @@ def run_full() -> tuple[bool, list[str]]:
     else:
         print("  [OK] sync_docs v1 ok", file=sys.stderr)
 
-    print("[3/4] Rodando V2 --analyze (todos .md)...", file=sys.stderr)
+    print("[3/6] Rodando V2 --analyze (todos .md)...", file=sys.stderr)
     v2_issues = run_v2_analyze()
     if v2_issues:
         for i in v2_issues:
@@ -348,7 +488,25 @@ def run_full() -> tuple[bool, list[str]]:
     else:
         print("  [OK] V2 --analyze ok", file=sys.stderr)
 
-    print("[4/4] Estado atual...", file=sys.stderr)
+    print("[4/6] Validando LESSONS.md...", file=sys.stderr)
+    lessons_issues = validate_lessons()
+    if lessons_issues:
+        for i in lessons_issues:
+            print(f"  [FAIL] {i}", file=sys.stderr)
+        all_issues.extend(lessons_issues)
+    else:
+        print("  [OK] LESSONS.md valido", file=sys.stderr)
+
+    print("[5/6] Validando REGRAS.md...", file=sys.stderr)
+    regras_issues = validate_regras()
+    if regras_issues:
+        for i in regras_issues:
+            print(f"  [FAIL] {i}", file=sys.stderr)
+        all_issues.extend(regras_issues)
+    else:
+        print("  [OK] REGRAS.md valido", file=sys.stderr)
+
+    print("[6/6] Estado atual...", file=sys.stderr)
     status = show_status()
     for line in status.splitlines():
         print(f"  {line}", file=sys.stderr)
@@ -372,11 +530,16 @@ def main():
 
     if args.check:
         issues = check_schema()
-        if issues:
-            for i in issues:
+        lessons_issues = validate_lessons()
+        regras_issues = validate_regras()
+        all_issues = issues + lessons_issues + regras_issues
+        if all_issues:
+            for i in all_issues:
                 print(f"[FAIL] {i}")
             sys.exit(1)
         print("[OK] Schema valido")
+        print("[OK] LESSONS.md valido")
+        print("[OK] REGRAS.md valido")
         return
 
     if args.full:

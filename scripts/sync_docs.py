@@ -399,6 +399,14 @@ def _extract_workflows() -> list[str]:
     return sorted([f.stem for f in wf_dir.glob("*.yml")])
 
 
+def _count_lessons() -> int:
+    """Count lessons in LESSONS.md (### N. headings)."""
+    if not _LESSONS.exists():
+        return 0
+    content = _LESSONS.read_text(encoding="utf-8")
+    return len(re.findall(r"^### \d+\.", content, re.MULTILINE))
+
+
 def _current_timestamp() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
 
@@ -411,6 +419,7 @@ def _build_agents_state() -> dict:
     workflows = _extract_workflows()
 
     total_tests = sum(test_counts.values())
+    lessons_count = _count_lessons()
 
     return {
         "updated_at": _current_timestamp(),
@@ -421,6 +430,7 @@ def _build_agents_state() -> dict:
         "services_api": services_api,
         "workflows": workflows,
         "workflows_count": len(workflows),
+        "lessons_count": lessons_count,
         "api_services": sorted(services_api.keys()),
     }
 
@@ -540,13 +550,37 @@ def _fix_streamlit_skill_row(content: str, pages_count: int) -> str:
 
 
 def _fix_agents_tree(content: str, state: dict) -> str:
-    """Apply all 3 auto-fixers to AGENTS.md content."""
+    """Apply all auto-fixers to AGENTS.md content."""
     tc = state["test_counts"]
     unit_count = tc.get("unit", 0)
     pages_count = _count_dashboard_pages()
+    lessons_count = state.get("lessons_count", 0)
+
     content = _fix_tree_test_count(content, unit_count)
     content = _fix_page_import_count(content, pages_count)
     content = _fix_streamlit_skill_row(content, pages_count)
+
+    # Fix LESSONS.md count in directory tree comment (e.g. "32 lições" → real)
+    content = re.sub(
+        r"(├── LESSONS\.md\s+# )\d+( lições aprendidas)",
+        rf"\g<1>{lessons_count}\g<2>",
+        content,
+    )
+
+    # Fix LESSONS.md count in Status Atual table
+    content = re.sub(
+        r"(\| LESSONS\.md \| )\d+( lições \|)",
+        rf"\g<1>{lessons_count}\g<2>",
+        content,
+    )
+
+    # Fix LESSONS.md count in Documentação Relacionada section
+    content = re.sub(
+        r"(- `LESSONS\.md` — )\d+( lições )",
+        rf"\g<1>{lessons_count}\g<2>",
+        content,
+    )
+
     return content
 
 

@@ -1,0 +1,14 @@
+# Schema do REGRAS.md — espelha o pre-commit real
+pre_commit_layers: 11
+layer_names:
+  - "SECRET GUARD"
+  - "GITIGNORE IMPORTS"
+  - "DETECT-SECRETS"
+  - "RUFF LINT"
+  - "DOC SYNC"
+  - "SIZE GUARD"
+  - "DOC WATCHDOG"
+  - "AGENTS SCHEMA"
+  - "SKILL DRIFT"
+  - "RESIDUE GUARD"
+  - "CRLF GUARD"

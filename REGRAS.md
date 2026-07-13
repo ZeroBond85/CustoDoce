@@ -54,7 +54,7 @@ git add docs/ && git commit              # pre-commit feliz
    - **.devcontainer**: Deve espelhar o Python target do projeto e instalar via lock files (`requirements-prod.lock`), não `requirements.txt`.
    - **Verificação**: `python scripts/check_environment_parity.py` (roda no CI job `lint`, falha HARD em divergência).
    - **Qualquer discrepância bloqueia merge** — CI valida no alvo real.
-    - **Drift de WSL**: Checar periodicamente: `wsl bash -c 'python --version && /home/ericsf/custodoce-314/bin/pip --version'`
+     - **Drift de WSL**: Checar periodicamente: `wsl bash -c 'python --version && ~/custodoce-314/bin/pip --version'`
 5. **WSL = Linux Canônico (Anti-Drift de Plataforma)**: Toda tarefa que depende de **resolver dependências em ambiente Linux** deve rodar no WSL (`custodoce-314`) — NUNCA no Windows. O CI (GitHub Actions) roda em Ubuntu; o WSL é nosso Ubuntu local. Isso previne drift silencioso de pacotes condicionais de plataforma (`colorama`, `tzdata`, etc.) que existem no Windows mas não no Linux. Tarefas obrigatórias em WSL:
    - **`pip-compile`** (geração de lock files): `PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu pip-compile --allow-unsafe --output-file=requirements-prod.lock requirements-prod.in`
    - **`pip install -r requirements-test.lock`** (quando testar integração/CI locally)
@@ -88,15 +88,19 @@ git config core.autocrlf false         # LF = LF (nao converte CRLF)
 git config core.fileMode false         # permissoes nao travam em Windows
 ```
 
-## Pre-commit Hook (`.githooks/pre-commit`)
+## Pre-commit Hook (`.githooks/pre-commit`) — 11 camadas
 
-4 layers existentes:
-1. **SECRET GUARD**: BLOQUEIA se `sk-*`, `gsk_*`, `sk-or-*` etc. forem staged (irreversível)
-2. **DOC SYNC**: AVISA se código mudou sem changelog (usuário confirma com ENTER)
-3. **SIZE GUARD**: BLOQUEIA se arquivo >100MB staged (GitHub rejeita)
-4. **DOC WATCHDOG**: AVISO leve sobre tests/README
-
-**Layer 5 (novo)**: Se AGENTS.md estiver staged, roda `python scripts/agents_tool.py --check`. Se falhar, bloqueia o commit.
+1. **SECRET GUARD**: BLOQUEIA chave de API em staged
+1.5 **GITIGNORE IMPORTS**: BLOQUEIA staged que importa itens gitignorados
+1.7 **DETECT-SECRETS**: BLOQUEIA se detect-secrets encontrar segredo
+1.8 **RUFF LINT**: BLOQUEIA se ruff encontrar erros em .py staged
+2. **DOC SYNC**: BLOQUEIA se código mudou sem docs (YES bypass / A auto-sync)
+3. **SIZE GUARD**: BLOQUEIA arquivo >100MB staged (GitHub rejeita)
+4. **DOC WATCHDOG**: AVISO leve sobre outros docs
+5. **AGENTS SCHEMA**: BLOQUEIA se AGENTS.md não passar em `agents_tool.py --check` (valida schema + LESSONS.md + REGRAS.md)
+6. **SKILL DRIFT**: BLOQUEIA se `.opencode/skills/` mudou sem `sync_docs --check` alinhado
+7. **RESIDUE GUARD**: BLOQUEIA commit com artefatos de runtime no stage
+8. **CRLF GUARD**: BLOQUEIA arquivos texto com CRLF (previne churn de line-ending)
 
 ## Pre-push Hook (`.githooks/pre-push`)
 
