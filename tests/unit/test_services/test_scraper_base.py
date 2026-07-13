@@ -23,6 +23,19 @@ class TestBaseWebScraper:
         assert scraper.rate_limit == 1.0
         assert scraper._http is not None
 
+    def test_default_accept_encoding_without_brotli(self):
+        """Root fix: o header NUNCA anuncia 'br' (brotli) porque o runtime
+        nao tem decoder — caso contrario o httpx retorna bytes ilegiveis.
+
+        Esta eh a causa raiz do bug da BarraDoce e afeta todos os scrapers
+        BaseWebScraper. Se brotli for suportado no futuro (brotlicffi nas
+        requirements), este teste e o header devem ser atualizados juntos.
+        """
+        scraper = self._make_concrete_scraper()
+        ae = scraper._http.headers.get("Accept-Encoding", "")
+        assert "br" not in ae
+        assert "gzip" in ae
+
     def test_constructor_custom_rate_limit(self):
         scraper = self._make_concrete_scraper(rate_limit=0.5)
         assert scraper.rate_limit == 0.5

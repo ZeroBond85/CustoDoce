@@ -221,9 +221,9 @@ def test_real_vtex_scraper_casa_santa_luzia():
 
 
 @pytest.mark.slow
-def test_real_playwright_scraper_barradoce():
-    """Test real Playwright scraping for BarraDoce."""
-    from scrapers.playwright_price_scraper import PlaywrightPriceScraper
+def test_real_ecomplus_scraper_barradoce():
+    """Test real e-com.plus (SSR) scraping for BarraDoce."""
+    from scrapers.ecomplus_scraper import EcomplusScraper
     from services.supabase_client import get_service_client
 
     client = get_service_client()
@@ -233,7 +233,7 @@ def test_real_playwright_scraper_barradoce():
     if not store:
         pytest.skip("BarraDoce not in DB")
 
-    scraper = PlaywrightPriceScraper(store)
+    scraper = EcomplusScraper(store)
     try:
         ingredients = [{"canonical_name": "Leite Condensado Integral", "search_terms": ["leite condensado"]}]
         products = scraper.run(ingredients)

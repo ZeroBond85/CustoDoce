@@ -6,9 +6,14 @@ from unittest.mock import patch
 
 import pytest
 
+import io
+from unittest.mock import MagicMock
+
 from parsers.vision_strategies import (
     VisionResult,
+    _downscale_image,
     _safe_parse,
+    GeminiVisionStrategy,
     GroqVisionStrategy,
     OpenRouterVisionStrategy,
     HFVisionStrategy,
@@ -79,6 +84,70 @@ class TestHFVisionStrategy:
             vision = HFVisionStrategy()
             assert vision.api_key == "test-key"
 
+    def test_init_falls_back_to_huggingface_api_key(self):
+        with patch.dict("os.environ", {"HUGGINGFACE_API_KEY": "hf-alt"}, clear=True):
+            vision = HFVisionStrategy()
+            assert vision.api_key == "hf-alt"
+
+    def test_hf_api_key_takes_precedence(self):
+        with patch.dict("os.environ", {"HF_API_KEY": "primary", "HUGGINGFACE_API_KEY": "alt"}):
+            vision = HFVisionStrategy()
+            assert vision.api_key == "primary"
+
+
+class TestSafeParseFence:
+    def test_parses_markdown_fenced_json(self):
+        content = '```json\n{"products": [{"product": "Leite", "price": 4.99}], "raw_text": "x"}\n```'
+        result = _safe_parse(content)
+        assert result is not None
+        assert result.products[0]["product"] == "Leite"
+
+    def test_parses_json_with_surrounding_text(self):
+        content = 'Aqui esta:\n{"products": [{"product": "Acucar", "price": 3.5}]}\nfim'
+        result = _safe_parse(content)
+        assert result is not None
+        assert result.products[0]["product"] == "Acucar"
+
+    def test_plain_json_still_works(self):
+        result = _safe_parse('{"products": [], "raw_text": "y"}')
+        assert result is not None
+        assert result.products == []
+
+
+class TestGeminiVisionStrategy:
+    def test_init_from_google_api_key(self):
+        with patch.dict("os.environ", {"GOOGLE_API_KEY": "g-key"}, clear=True):
+            v = GeminiVisionStrategy()
+            assert v.api_key == "g-key"
+            assert v.model == "gemini-2.5-flash-lite"
+            assert v.model in v.url
+
+    def test_init_falls_back_to_gemini_api_key(self):
+        with patch.dict("os.environ", {"GEMINI_API_KEY": "gem"}, clear=True):
+            v = GeminiVisionStrategy()
+            assert v.api_key == "gem"
+
+    def test_headers_use_goog_api_key(self):
+        with patch.dict("os.environ", {"GOOGLE_API_KEY": "g-key"}):
+            v = GeminiVisionStrategy()
+            assert v._get_headers()["x-goog-api-key"] == "g-key"
+
+    def test_extract_content_parses_gemini_format(self):
+        v = GeminiVisionStrategy()
+        data = {"candidates": [{"content": {"parts": [{"text": '{"products": []}'}]}}]}
+        assert v._extract_content(data) == '{"products": []}'
+
+    def test_extract_content_handles_malformed(self):
+        v = GeminiVisionStrategy()
+        assert v._extract_content({}) == ""
+
+    def test_payload_uses_inline_data(self):
+        v = GeminiVisionStrategy()
+        payload = v._get_payload(b"img")
+        parts = payload["contents"][0]["parts"]
+        assert any("inline_data" in p for p in parts)
+        assert payload["generationConfig"]["responseMimeType"] == "application/json"
+
 
 class TestVisionChain:
     def test_get_vision_chain_returns_list(self):
@@ -86,12 +155,80 @@ class TestVisionChain:
         assert isinstance(chain, list)
         assert len(chain) >= 1
 
+    def test_chain_includes_gemini_after_groq(self):
+        names = [s.provider_name for s in get_vision_chain()]
+        assert "gemini" in names
+        assert names.index("groq") < names.index("gemini")
+
 
 class TestExtractProductsViaVision:
     def test_extract_products_no_config_returns_none(self):
         with patch.dict("os.environ", {}, clear=True):
             result = extract_products_via_vision(b"fake image")
             assert result is None
+
+
+def _make_png(width: int, height: int) -> bytes:
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (width, height), (200, 120, 50)).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+class TestDownscaleImage:
+    def test_large_image_is_shrunk_and_jpeg(self):
+        big = _make_png(2245, 3389)
+        out = _downscale_image(big)
+        from PIL import Image
+
+        with Image.open(io.BytesIO(out)) as im:
+            assert max(im.size) <= 1600
+            assert im.format == "JPEG"
+        assert len(out) <= 900_000
+
+    def test_invalid_bytes_returns_original(self):
+        junk = b"not an image"
+        assert _downscale_image(junk) == junk
+
+
+class TestRetryOn429:
+    def _resp(self, status, headers=None, json_body=None):
+        r = MagicMock()
+        r.status_code = status
+        r.headers = headers or {}
+        r.json.return_value = json_body or {}
+        r.raise_for_status.return_value = None
+        return r
+
+    def test_retries_then_succeeds(self, monkeypatch):
+        monkeypatch.setenv("GROQ_API_KEY", "k")
+        monkeypatch.setattr("parsers.vision_strategies.VISION_MAX_RETRIES", 2)
+        monkeypatch.setattr("parsers.vision_strategies.time.sleep", lambda *_: None)
+        strat = GroqVisionStrategy()
+        ok = self._resp(
+            200,
+            json_body={"choices": [{"message": {"content": '{"products": [{"product": "abc", "price": 1.0}]}'}}]},
+        )
+        client = MagicMock()
+        client.post.side_effect = [self._resp(429, headers={"Retry-After": "0"}), ok]
+        monkeypatch.setattr("parsers.vision_strategies.get_client", lambda: client)
+        result = strat.extract(b"img")
+        assert result is not None
+        assert result.products[0]["product"] == "abc"
+        assert client.post.call_count == 2
+
+    def test_gives_up_after_max_retries(self, monkeypatch):
+        monkeypatch.setenv("GROQ_API_KEY", "k")
+        monkeypatch.setattr("parsers.vision_strategies.VISION_MAX_RETRIES", 1)
+        monkeypatch.setattr("parsers.vision_strategies.time.sleep", lambda *_: None)
+        strat = GroqVisionStrategy()
+        client = MagicMock()
+        client.post.return_value = self._resp(429, headers={"Retry-After": "0"})
+        monkeypatch.setattr("parsers.vision_strategies.get_client", lambda: client)
+        result = strat.extract(b"img")
+        assert result is None
+        assert client.post.call_count == 2
 
 
 if __name__ == "__main__":

@@ -26,9 +26,11 @@ from parsers.normalizer import normalize_price
 from parsers.semantic_matcher import get_matcher
 from scrapers.aggregator_scraper import TiendeoScraper
 from scrapers.carrefour_scraper import CarrefourScraper
+from scrapers.ecomplus_scraper import EcomplusScraper
 from scrapers.extra_flyer_scraper import ExtraFlyerScraper
 from scrapers.facebook_flyer_scraper import FacebookFlyerScraper
 from scrapers.flyer_scraper import FlyerScraper
+from scrapers.giga_flyer_scraper import GigaFlyerScraper
 from scrapers.max_api_scraper import MaxApiScraper
 from scrapers.pao_flyer_scraper import PaoFlyerScraper
 from scrapers.playwright_price_scraper import PlaywrightPriceScraper
@@ -697,9 +699,19 @@ def collect_carrefour(ingredients: list[Ingredient]) -> list[PriceEntry]:
 
 def collect_tier2_js(ingredients: list[Ingredient]) -> list[PriceEntry]:
     stores = [
-        s for s in load_stores() if s.get("scraper") == "playwright_price_scraper" and s.get("type") == "website_js"
+        s
+        for s in load_stores()
+        if s.get("type") == "website_js" and s.get("scraper") in ("playwright_price_scraper", "ecomplus_scraper")
     ]
-    return _collect_prices(stores, PlaywrightPriceScraper, ingredients, "Playwright")
+    all_products: list[PriceEntry] = []
+    for store in stores:
+        scraper_cls = (
+            PlaywrightPriceScraper
+            if store.get("scraper") == "playwright_price_scraper"
+            else EcomplusScraper
+        )
+        all_products += _collect_prices([store], scraper_cls, ingredients, "WebJS")
+    return all_products
 
 
 def collect_aggregators_ssr() -> list[dict]:
@@ -729,6 +741,13 @@ def collect_roldao_flyer(ingredients: list[Ingredient]) -> list[PriceEntry]:
         s for s in load_stores() if s.get("scraper") == "roldao_flyer_scraper" and s.get("type") == "aggregator_js"
     ]
     return _collect_prices(stores, RoldaoFlyerScraperSync, ingredients, "RoldaoFlyer")
+
+
+def collect_giga_flyer(ingredients: list[Ingredient]) -> list[PriceEntry]:
+    stores = [
+        s for s in load_stores() if s.get("scraper") == "giga_flyer_scraper" and s.get("type") == "aggregator_js"
+    ]
+    return _collect_prices(stores, GigaFlyerScraper, ingredients, "GigaFlyer")
 
 
 def collect_facebook_flyers(ingredients: list[Ingredient]) -> list[PriceEntry]:

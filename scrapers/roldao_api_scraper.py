@@ -3,6 +3,7 @@ import hashlib
 import httpx
 
 from scrapers.base_web_scraper import BaseWebScraper
+from scrapers.flyer_ocr import extract_flyer_products
 from services.logger import logger
 
 
@@ -68,9 +69,18 @@ class RoldaoApiScraper(BaseWebScraper):
         return []
 
     def run(self, ingredients: list[dict]) -> list[dict]:
-        all_entries = []
+        image_entries = []
         posts = self.get_posts()
         for post in posts:
-            parsed = self.parse_post(post)
-            all_entries.extend(parsed)
-        return all_entries
+            image_entries.extend(self.parse_post(post))
+
+        products = extract_flyer_products(
+            self._http, image_entries, self.name, source="roldao_flyer"
+        )
+        if products:
+            self.report_success(items_found=len(products), products_matched=0, flyer_count=len(image_entries))
+        else:
+            self.report_failure(
+                reason="no products extracted from flyers", items_found=0, products_matched=0
+            )
+        return products

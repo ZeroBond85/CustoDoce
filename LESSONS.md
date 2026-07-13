@@ -623,3 +623,22 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Causa raiz**: `.githooks/pre-commit` tinha 11 layers (secret, detect-secrets, doc sync, size, etc.) mas **não rodava ruff**. Nenhuma barreira local impedia commitar código com lint errado. A docs-sync também não tinha bloqueio no pre-commit para o caso geral (só para `.opencode/skills/` alterados).
 - **Correção**: `.githooks/pre-commit` — adicionada **Layer 1.8: RUFF LINT** que roda `ruff check --quiet` em todos os `.py` staged e BLOQUEIA se houver erros. Agora o pre-commit tem 12 camadas de proteção.
 - **Teste de regressão**: O próprio pre-commit é o teste — qualquer commit com `.py` que tenha lint error será bloqueado automaticamente.
+
+
+### 65. Encartes vision-LLM (Max/Roldão/Giga): keys precisam estar no workflow de produção
+
+- **Data + commit**: 2026-07-13
+- **Sintoma**: Extração vision de encartes (Groq/Gemini) funcionava 100% local (`.env` carregado) mas falharia silenciosamente em produção — `scrape.yml`/`scrape-reusable.yml` só passavam secrets do Supabase, sem `GROQ_API_KEY`/`GOOGLE_API_KEY`.
+- **Causa raiz**: Novos providers vision adicionados ao código (`parsers/vision_strategies.py`) sem wiring correspondente no `env:` do step de scraping nem na declaração `secrets:` do reusable workflow. Local ≠ produção (viola paridade, regra 10).
+- **Correção**: (1) `scrape-reusable.yml` — `GROQ_API_KEY`/`GOOGLE_API_KEY` em `workflow_call.secrets` (optional) + `env:` do step `main.py --tier`. (2) `scrape.yml` e `on_demand_scrape.yml` — repassam ambos secrets. (3) `gh secret set` para os 2 valores validados.
+- **Detalhes vision**: Groq (`llama-4-scout-17b`) é 3–8x mais rápido que Gemini (`gemini-2.5-flash-lite`) e igualmente preciso → **Groq primário, Gemini fallback** (chain Groq→Gemini→OpenRouter→HF). Gemini truncava JSON em `maxOutputTokens`; imagens grandes davam 413 → `_downscale_image` (PIL ≤1600px, JPEG ≤900KB). Giga: cards `img[class*=encartesSection__image]` já são páginas full-size — não precisa abrir modal.
+- **Teste de regressão**: `tests/unit/test_services/test_flyer_ocr.py` (12) + `tests/unit/test_vision_strategies.py` (downscale/retry/gemini/fence). YAML dos workflows validado com `yaml.safe_load`.
+
+
+### 66. Indentação de bloco malformada em stores.yaml passa despercebida até `yaml.safe_load`
+
+- **Data + commit**: 2026-07-13
+- **Sintoma**: 6 testes falharam com `yaml.parser.ParserError: expected <block end>` apontando para o bloco `Proplastik` (`config/stores.yaml:967`).
+- **Causa raiz**: Sessão anterior deixou as 4 primeiras linhas do bloco Proplastik com 1 espaço a mais (3/5 espaços em vez de 2/4). YAML só quebra quando um item de sequência desalinha do resto — passou silenciosamente até um parse real.
+- **Correção**: Re-indentado `- name`/`tier`/`type`/`is_active` para 2/4 espaços. Proplastik também desativado (`is_active: false`) — dava TIMEOUT de 532s e 0 cobertura, desperdiçando minutos do free-tier.
+- **Teste de regressão**: `tests/unit/test_deploy_check.py::test_yaml_files_parse` e `test_stores_config.py` cobrem parse + schema de stores.yaml.

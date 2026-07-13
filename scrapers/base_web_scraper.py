@@ -104,7 +104,12 @@ class BaseWebScraper(ABC):
             ),
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
             "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Accept-Encoding": "gzip, deflate, br",
+            # NOTE: do NOT advertise "br" (brotli). The runtime (venv/CI/Streamlit)
+            # has no brotli decoder installed, so httpx cannot decode a brotli
+            # response and returns undecoded garbage. Servers then negotiate
+            # gzip/deflate, which httpx decodes natively. If brotli support is
+            # ever added (brotlicffi in requirements), this can be re-added.
+            "Accept-Encoding": "gzip, deflate",
             "Connection": "keep-alive",
             "Upgrade-Insecure-Requests": "1",
             "Sec-Fetch-Dest": "document",
