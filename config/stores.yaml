@@ -272,7 +272,7 @@ stores:
   - name: "BarraDoce"
     tier: 2
     type: "website_js"
-    is_active: true
+    is_active: false
     logistics: "pickup_sp"
     base_url: "https://www.barradoce.com.br"
     search_url: "https://www.barradoce.com.br/busca?q={query}"
@@ -282,7 +282,7 @@ stores:
       product_price: [".product-price", ".preco-produto", ".price", ".sale-price"]
     address: "Av. dos Eucaliptos, 305 - Indianópolis, SP"
     zone: "sul"
-    coverage: "Atacado chocolates, ingredientes, confeitaria"
+    coverage: "Atacado chocolates, ingredientes, confeitaria — Playwright lento (desativado)"
     collection_method: "automated"
     scraper: "playwright_price_scraper"
     priority: 12
