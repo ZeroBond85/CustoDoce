@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS store_registry (
     source          TEXT        NOT NULL DEFAULT 'auto',  -- 'yaml' | 'auto' | 'manual'
     status          TEXT        NOT NULL DEFAULT 'pending_review',  -- pending_review | approved | rejected | merged
     match_score     REAL        DEFAULT 0,  -- similarity score vs existing store
-    matched_store_id UUID       REFERENCES stores(id) ON DELETE SET NULL,
+    matched_store_id TEXT       REFERENCES stores(id) ON DELETE SET NULL,
     config          JSONB       DEFAULT '{}',
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
