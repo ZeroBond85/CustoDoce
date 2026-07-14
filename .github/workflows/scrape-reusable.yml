@@ -26,6 +26,10 @@ on:
         required: false
       TELEGRAM_CHAT_ID:
         required: false
+      GROQ_API_KEY:
+        required: false
+      GOOGLE_API_KEY:
+        required: false
   workflow_dispatch:
     inputs:
       mode:
@@ -47,6 +51,7 @@ env:
   PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
   PYTHONPATH: ${{ github.workspace }}
   PIP_NO_WARN_YANKED: 1
+  PYTHONUNBUFFERED: '1'
   STREAMLIT_DISABLE_CACHING_WARNING: 1
 
 jobs:
@@ -126,6 +131,8 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           CI_JOB_START: ${{ env.CI_JOB_START }}
       - name: Check time budget for scraping
         run: python scripts/check_time_budget.py --timeout-minutes 120 --label "scrape-tier-${{ matrix.tier }}"

@@ -1,6 +1,7 @@
 import hashlib
 
 from scrapers.base_web_scraper import BaseWebScraper
+from scrapers.flyer_ocr import extract_flyer_products
 
 
 class MaxApiScraper(BaseWebScraper):
@@ -9,7 +10,8 @@ class MaxApiScraper(BaseWebScraper):
         self.api_base = store_config.get("api_base", "https://institucional.supermuffato.com.br/webtools/services/api")
         self.api_endpoint = store_config.get("api_endpoint", "sm-rds-ofertas.php")
         self.api_params = store_config.get("api_params", "action=getOffers&store={store_id}")
-        self.store_id = store_config.get("store_id", "75")
+        # store_id 120 = Max Atacadista Butanta (Sao Paulo capital). store 75 = Parana (nao usar).
+        self.store_id = store_config.get("store_id", "120")
 
     def get_offers(self, store_id: str = None) -> list[dict]:
         sid = store_id or self.store_id
@@ -46,9 +48,18 @@ class MaxApiScraper(BaseWebScraper):
         return []
 
     def run(self, ingredients: list[dict]) -> list[dict]:
-        all_entries = []
+        image_entries = []
         offers = self.get_offers()
         for offer in offers:
-            parsed = self.parse_offer(offer)
-            all_entries.extend(parsed)
-        return all_entries
+            image_entries.extend(self.parse_offer(offer))
+
+        products = extract_flyer_products(
+            self._http, image_entries, self.name, source="max_flyer"
+        )
+        if products:
+            self.report_success(items_found=len(products), products_matched=0, flyer_count=len(image_entries))
+        else:
+            self.report_failure(
+                reason="no products extracted from flyers", items_found=0, products_matched=0
+            )
+        return products

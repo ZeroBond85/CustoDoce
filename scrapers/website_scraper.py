@@ -24,6 +24,40 @@ class WebsiteScraper(BaseWebScraper):
             logger.error("[%s] Error fetching '%s': %s", self.name, url, e)
             return None
 
+    def fetch_browse(self, url: str) -> str | None:
+        try:
+            resp = self._http.get(url)
+            resp.raise_for_status()
+            return resp.text
+        except Exception as e:
+            logger.error("[%s] Error fetching browse '%s': %s", self.name, url, e)
+            return None
+
+    def run(self, ingredients: list[dict]) -> list[dict]:
+        """Coleta via browse_urls (departamentos) quando configurado.
+
+        Para lojas SPA cuja busca nao renderiza (ex.: Lojas Integrada),
+        as paginas de departamento sao server-rendered e muito mais rapidas
+        que N buscas por ingrediente. Sem browse_urls, cai no padrao
+        (1 busca por ingrediente).
+        """
+        browse_urls = self.store.get("browse_urls") or []
+        if not browse_urls:
+            return super().run(ingredients)
+
+        logger.info("[%s] browse_urls mode: %d paginas de departamento", self.name, len(browse_urls))
+        all_entries: list[dict] = []
+        for i, url in enumerate(browse_urls, 1):
+            html = self.fetch_browse(url)
+            self._throttle()
+            if not html:
+                logger.warning("[%s] browse %d/%d vazio: %s", self.name, i, len(browse_urls), url)
+                continue
+            found = self.parse_products(html)
+            logger.info("[%s] browse %d/%d: %d produtos", self.name, i, len(browse_urls), len(found))
+            all_entries.extend(found)
+        return all_entries
+
     def parse_products(self, html: str) -> list[dict]:
         tree = HTMLParser(html)
         cards = self._find_nodes(tree)

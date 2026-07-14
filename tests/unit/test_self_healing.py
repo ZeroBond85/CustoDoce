@@ -167,6 +167,7 @@ EXPECTED_ACTIVE_SCRAPERS = {
     "scrapers.playwright_price_scraper.PlaywrightPriceScraper",
     "scrapers.aggregator_scraper.TiendeoScraper",
     "scrapers.roldao_flyer_scraper.RoldaoFlyerScraperSync",
+    "scrapers.giga_flyer_scraper.GigaFlyerScraper",
 }
 
 

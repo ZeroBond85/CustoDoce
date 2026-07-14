@@ -1,6 +1,6 @@
 # `supabase_client` — API
 
-> Última atualização: 2026-07-13 16:38 UTC
+> Última atualização: 2026-07-14 00:59 UTC
 > Gerado por AST parsing dos serviços em `services/supabase_client.py`.
 
 ## Funções Públicas (2)

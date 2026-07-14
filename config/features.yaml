@@ -25,6 +25,12 @@ features:
     aggregators: true
     ocr_fallback: true
 
+  # Vision-LLM para encartes graficos (Roldao/Max/Giga). Tesseract puro produz
+  # lixo nesses flyers densos, entao usa-se vision (Groq -> OpenRouter -> HF).
+  # Requer GROQ_API_KEY (ou OPENROUTER/HF) no ambiente. Degrada p/ OCR se ausente.
+  ai:
+    vision: true
+
   matcher:
     threshold: 80
     review_queue: true

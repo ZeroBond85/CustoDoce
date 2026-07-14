@@ -151,11 +151,21 @@ stores:
   - name: "Max Atacadista SP"
     tier: 1
     type: "api_flyer"
+    is_active: true
     logistics: "pickup_sp"
     cities: ["São Paulo"]
     units:
-      - name: "SP - Zona Sul"
-        address: "São Paulo, SP"
+      - name: "SP - Butantã"
+        address: "São Paulo, SP - Butantã"
+      - name: "SP - Interlagos"
+        address: "São Paulo, SP - Interlagos"
+      - name: "SP - Lapa"
+        address: "São Paulo, SP - Lapa"
+      - name: "SP - Morumbi"
+        address: "São Paulo, SP - Morumbi"
+    # store 120 = Butantã (SP). Lojas SP capital compartilham o encarte "max-expansao".
+    # NÃO usar store 75 (Paraná). Lista completa via sm-rds-NossasLojas.php?action=getStores.
+    store_id: "120"
     api_base: "https://institucional.supermuffato.com.br/webtools/services/api"
     api_endpoint: "sm-rds-ofertas.php"
     api_params: "action=getOffers&store={store_id}"
@@ -272,19 +282,29 @@ stores:
   - name: "BarraDoce"
     tier: 2
     type: "website_js"
-    is_active: false
+    is_active: true
     logistics: "pickup_sp"
     base_url: "https://www.barradoce.com.br"
     search_url: "https://www.barradoce.com.br/busca?q={query}"
+    # e-com.plus (cloudcommerce) storefront: cards are server-rendered (SSR),
+    # so a plain httpx+selectolax scraper works without a browser (no 900s timeout).
+    # Pagination via ?p=N. Heading tag differs per template:
+    #   * category/listing -> <h3 class="...ui-link...">
+    #   * search results   -> <h5 class="...ui-link...">
+    browse_urls:
+      - "https://www.barradoce.com.br/categoria/ingredientes"
+    max_pages: 12
     selectors:
-      product_card: [".product-card", ".produto-card", ".item-produto", "[class*=product]", "[class*=produto]"]
-      product_name: [".product-name a", ".nome-produto", ".product-title a", "h2 a", "h3 a"]
-      product_price: [".product-price", ".preco-produto", ".price", ".sale-price"]
+      product_card: ["a[href^='/produto/']"]
+      product_name: ["h3.ui-link", "h5.ui-link", "h3", "h5", "a.ui-link"]
+      product_price: ["strong.text-base-800"]
+      product_old_price: ["s"]
+      product_discount: ["span.uno-zmd234"]
     address: "Av. dos Eucaliptos, 305 - Indianópolis, SP"
     zone: "sul"
-    coverage: "Atacado chocolates, ingredientes, confeitaria — Playwright lento (desativado)"
+    coverage: "Atacado chocolates, ingredientes, confeitaria — e-com.plus SSR (httpx)"
     collection_method: "automated"
-    scraper: "playwright_price_scraper"
+    scraper: "ecomplus_scraper"
     priority: 12
 
   - name: "Rede Krill"
@@ -352,7 +372,7 @@ stores:
   - name: "Casa dos Confeiteiros"
     tier: 2
     type: "website_catalog"
-    is_active: true
+    is_active: false
     logistics: "pickup_sp"
     base_url: "https://www.casadoconfeiteiro.com.br"
     search_url: "https://www.casadoconfeiteiro.com.br/busca?q={query}"
@@ -362,7 +382,7 @@ stores:
       product_price: [".price", ".amount", ".preco"]
     address: "Av. Adão Focesi, 283 - Jardim do Lago, Campinas, SP"
     zone: "interior_sp"
-    coverage: "Insumos gerais confeitaria, panificação, chocolates, embalagens"
+    coverage: "Insumos confeitaria (inativo — busca retorna 404, decisão de remover)"
     collection_method: "automated"
     scraper: "website_scraper"
     priority: 14
@@ -401,13 +421,13 @@ stores:
   - name: "GP Distribuidora"
     tier: 2
     type: "website_catalog"
-    is_active: true
+    is_active: false
     logistics: "pickup_sp"
     base_url: "https://www.gpdistribuidora.com.br"
     search_url: "https://loja.gpdistribuidora.com.br/busca?q={query}"
     address: "Distrito Federal"
     zone: "centro_oeste"
-    coverage: "Distribuição de congelados DF/GO — testar se tem ingredientes confeitaria"
+    coverage: "Congelados DF/GO — fora da região (Baixada/SP), sem ingredientes (inativo)"
     collection_method: "automated"
     scraper: "website_scraper"
     priority: 17
@@ -427,9 +447,10 @@ stores:
 
   - name: "Giga Atacadista"
     tier: 2
-    type: "vtex_api"
+    type: "aggregator_js"
     logistics: "pickup_sp"
     base_url: "https://www.giga.com.vc"
+    encartes_url: "https://www.giga.com.vc/encartes"
     api_endpoint: "https://www.giga.com.vc/api/catalog_system/pub/products/search"
     units:
       - name: "SP - Castelo Branco"
@@ -448,7 +469,7 @@ stores:
     zone: "oeste"
     coverage: "Atacarejo geral - laticínios, mercearia, bebidas, hortifrúti, carnes"
     collection_method: "automated"
-    scraper: "vtex_scraper"
+    scraper: "giga_flyer_scraper"
     priority: 53
 
   # ============================================================================
@@ -771,13 +792,14 @@ stores:
   - name: "Chocoexpress"
     tier: 2
     type: "website_catalog"
+    is_active: true
     logistics: "pickup_sp"
     base_url: "https://www.chocoexpress.com.br"
     search_url: "https://www.chocoexpress.com.br/loja/busca.php?palavra_busca={query}"
     selectors:
       product_card: [".product", "li.product", ".product-item", ".item"]
-      product_name: [".woocommerce-loop-product__title", "h2 a", ".product-title"]
-      product_price: [".price", ".amount", ".woocommerce-Price-amount"]
+      product_name: ["[itemprop=name]", ".woocommerce-loop-product__title", "h2 a", ".product-title"]
+      product_price: [".prices__price", ".price", ".amount", ".woocommerce-Price-amount"]
     address: "SP Capital"
     zone: "sul"
     coverage: "Chocolates Nestlé, coberturas, leite condensado, confeitaria, sorveteria - 8.000+ itens"
@@ -945,7 +967,7 @@ stores:
   - name: "Proplastik"
     tier: 2
     type: "website_catalog"
-    is_active: true
+    is_active: false
     logistics: "pickup_local"
     base_url: "https://www.proplastik.com.br"
     search_url: "https://www.proplastik.com.br/busca?q={query}"
@@ -1105,11 +1127,11 @@ stores:
     is_active: true
     logistics: "pickup_local"
     base_url: "https://www.ingredientessantavita.com.br"
-    search_url: "https://www.ingredientessantavita.com.br/busca?q={query}"
+    search_url: "https://www.ingredientessantavita.com.br/buscar?q={query}"
     selectors:
-      product_card: [".product", ".product-item", ".item", "[class*=produto]"]
-      product_name: [".product-name", ".nome-produto", "h2 a", "h3 a"]
-      product_price: [".price", ".preco", ".amount"]
+      product_card: ["[class*=produto]", ".product", ".product-item", ".item"]
+      product_name: [".nome-produto", ".product-name", "h2 a", "h3 a"]
+      product_price: [".preco-produto", ".price", ".preco", ".amount"]
     address: "Rua Santa Ifigênia - Centro, São Paulo"
     city: "São Paulo"
     units:

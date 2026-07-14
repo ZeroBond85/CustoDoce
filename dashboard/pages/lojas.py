@@ -91,6 +91,8 @@ def render_lojas():
                         "pao_flyer_scraper",
                         "extra_flyer_scraper",
                         "facebook_flyer_scraper",
+                        "giga_flyer_scraper",
+                        "ecomplus_scraper",
                         "manual",
                     ],
                     index=[
@@ -106,6 +108,8 @@ def render_lojas():
                         "pao_flyer_scraper",
                         "extra_flyer_scraper",
                         "facebook_flyer_scraper",
+                        "giga_flyer_scraper",
+                        "ecomplus_scraper",
                         "manual",
                     ].index(default["scraper"]),
                 )

@@ -159,3 +159,9 @@ data/skills_backup/
 # E2E regression screenshots (test artifacts, not source)
 data/regression_screenshots/
 scripts/archive/
+
+# Temporary dev helper scripts (underscore-prefixed, not production code)
+scripts/_*.py
+data/_*.jsonl
+data/_coverage_result.jsonl
+scripts/_local_test_barradoce.py

@@ -22,8 +22,8 @@ def test_stores_yaml_schema_compliance():
         "tenda_api_scraper", "roldao_api_scraper", "max_api_scraper",
         "carrefour_scraper", "playwright_scraper", "playwright_price_scraper",
         "pao_flyer_scraper", "extra_flyer_scraper", "aggregator_scraper",
-        "roldao_flyer_scraper", "facebook_flyer_scraper", "manual",
-        "manual_visit_spreadsheet",
+        "roldao_flyer_scraper", "facebook_flyer_scraper", "giga_flyer_scraper",
+        "manual", "manual_visit_spreadsheet",
     }
 
     for s in stores:

@@ -86,6 +86,7 @@ TIER_PLAN: list[tuple[str, str, bool]] = [
     ("1", "collect_extra_flyers", True),
     ("1", "collect_pao_flyers", True),
     ("1", "collect_roldao_flyer", True),
+    ("1", "collect_giga_flyer", True),
     ("1", "process_ocr_queue", False),
     ("2a", "collect_tier2_vtex", True),
     ("2a", "collect_carrefour", True),
