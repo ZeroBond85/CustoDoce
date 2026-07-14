@@ -64,21 +64,26 @@ class GigaFlyerScraper(BaseWebScraper):
         return products
 
     async def _collect_flyer_images(self) -> list[dict]:
+        logger.info("[%s] Playwright: abrindo browser + pool", self.name)
         pool = await get_browser_pool()
         context = await pool.new_context(user_agent=_UA)
         page = await context.new_page()
         try:
+            logger.info("[%s] Playwright: navegando para %s", self.name, self.encartes_url)
             await page.goto(self.encartes_url, wait_until="networkidle", timeout=45000)
+            logger.info("[%s] Playwright: pagina carregada, aguardando render (3s)", self.name)
             await page.wait_for_timeout(3000)
             # Overlays (cookie/promo) atrasam ou interceptam; removemos antes de ler.
             await page.evaluate(
                 "() => document.querySelectorAll("
                 "'[class*=modal_overlay],#onetrust-consent-sdk').forEach(e => e.remove())"
             )
+            logger.info("[%s] Playwright: extraindo cards de encarte (img[class*=encartesSection__image])", self.name)
             cards = await page.eval_on_selector_all(
                 "img[class*=encartesSection__image]",
                 "els => els.map(e => ({src: e.src, alt: e.alt || ''}))",
             )
+            logger.info("[%s] Playwright: %d cards encontrados", self.name, len(cards))
         finally:
             await page.close()
             await context.close()

@@ -463,6 +463,7 @@ def _collect_generic(
             skipped_count += 1
             continue
 
+        logger.info("[%s] >>> INICIANDO coleta (timeout=%ds)", store_name, store_timeout)
         try:
             # Per-ingredient scraper filter
             from services.config import get_feature
@@ -478,9 +479,10 @@ def _collect_generic(
                     scraper, filtered_ingredients, needs_ingredients_param, store_name, timeout_seconds=store_timeout
                 )
 
+            elapsed = int((dt_now.now(UTC) - started_at).total_seconds())
             # Cache hit/miss logging
             cache_status = "hit" if not raw_products else "miss"
-            logger.info("[%s] Cache %s: %d raw products found", store_name, cache_status, len(raw_products))
+            logger.info("[%s] <<< FIM coleta (%ds) — Cache %s: %d raw products found", store_name, elapsed, cache_status, len(raw_products))
 
             if hasattr(scraper, "_thumbnail") and scraper._thumbnail:
                 try:

@@ -95,8 +95,17 @@ def extract_flyer_products(
     products: list[dict] = []
     seen: set[str] = set()
     processed = 0
+    counted: set[str] = set()
+    total = 0
+    for e in image_entries:
+        h = e.get("image_hash") or e.get("image_url") or ""
+        if e.get("image_url") and h not in counted:
+            counted.add(h)
+            total += 1
+    logger.info("[flyer_ocr] %s: iniciando %d encarte(s) (source=%s)", store_name, total, source)
     for entry in image_entries:
         if max_images is not None and processed >= max_images:
+            logger.info("[flyer_ocr] %s: limite max_images=%d atingido", store_name, max_images)
             break
         url = entry.get("image_url")
         if not url:
@@ -108,14 +117,19 @@ def extract_flyer_products(
 
         image_bytes = _download_image(http, url)
         if not image_bytes:
+            logger.warning("[flyer_ocr] %s: encarte %d/%d falhou ao baixar", store_name, processed + 1, total)
             continue
         processed += 1
+        logger.info("[flyer_ocr] %s: encarte %d/%d baixado (%d KB) — extraindo via vision…", store_name, processed, total, len(image_bytes) // 1024)
 
         fallback_validity = entry.get("post_date") or entry.get("validity_raw") or ""
+        found = 0
         for item in _extract_one(image_bytes, store_name):
             norm = _normalize(item, store_name, source, fallback_validity)
             if norm:
                 products.append(norm)
+                found += 1
+        logger.info("[flyer_ocr] %s: encarte %d/%d -> %d produtos", store_name, processed, total, found)
 
     logger.info("[flyer_ocr] %s: %d produtos de %d imagens", store_name, len(products), processed)
     return products

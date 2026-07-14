@@ -51,6 +51,7 @@ env:
   PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
   PYTHONPATH: ${{ github.workspace }}
   PIP_NO_WARN_YANKED: 1
+  PYTHONUNBUFFERED: '1'
   STREAMLIT_DISABLE_CACHING_WARNING: 1
 
 jobs:
