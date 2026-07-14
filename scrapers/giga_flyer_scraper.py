@@ -70,7 +70,7 @@ class GigaFlyerScraper(BaseWebScraper):
         page = await context.new_page()
         try:
             logger.info("[%s] Playwright: navegando para %s", self.name, self.encartes_url)
-            await page.goto(self.encartes_url, wait_until="networkidle", timeout=45000)
+            await page.goto(self.encartes_url, wait_until="domcontentloaded", timeout=45000)
             logger.info("[%s] Playwright: pagina carregada, aguardando render (3s)", self.name)
             await page.wait_for_timeout(3000)
             # Overlays (cookie/promo) atrasam ou interceptam; removemos antes de ler.

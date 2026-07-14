@@ -4,7 +4,7 @@ Collector Service - Coordinates scrapers and processes product matches.
 
 import os
 import re
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from concurrent.futures import TimeoutError as FuturesTimeout
 from contextlib import suppress
 from datetime import UTC, date
@@ -431,6 +431,131 @@ def _run_scraper_with_timeout(scraper, filtered_ingredients, needs_ingredients_p
             return []
 
 
+def _scrape_store(
+    store: Store,
+    scraper_cls: type,
+    ingredients: list[Ingredient],
+    label: str,
+    needs_ingredients_param: bool,
+    post_process,
+    store_timeout: int,
+) -> tuple[str, list[PriceEntry]]:
+    """Coleta UMA loja (thread-safe). Retorna (nome, produtos)."""
+    store_name = store.get("name", "unknown")
+    started_at = dt_now.now(UTC)
+    scraper_name = {
+        "FlyerScraper": "pdf_flyers",
+        "AggregatorScraper": "aggregators",
+        "VtexScraper": "vtex",
+    }.get(scraper_cls.__name__, scraper_cls.__name__.lower().replace("scraper", ""))
+
+    logger.info("[%s] >>> INICIANDO coleta (timeout=%ds)", store_name, store_timeout)
+    try:
+        from services.config import get_feature
+
+        filtered_ingredients = [
+            ing
+            for ing in ingredients
+            if get_feature(f"features.scrapers.{scraper_name}", ingredient=ing["canonical_name"], default=True)
+        ]
+
+        with scraper_cls(store) as scraper:
+            raw_products = _run_scraper_with_timeout(
+                scraper, filtered_ingredients, needs_ingredients_param, store_name, timeout_seconds=store_timeout
+            )
+
+        elapsed = int((dt_now.now(UTC) - started_at).total_seconds())
+        cache_status = "hit" if not raw_products else "miss"
+        logger.info("[%s] <<< FIM coleta (%ds) — Cache %s: %d raw products found", store_name, elapsed, cache_status, len(raw_products))
+
+        if hasattr(scraper, "_thumbnail") and scraper._thumbnail:
+            try:
+                from services.flyer_service import _upload_flyer_thumbnail
+
+                thumb_url = _upload_flyer_thumbnail(store_name, scraper._thumbnail)
+                if thumb_url:
+                    upsert_flyer(
+                        {
+                            "store_name": store_name,
+                            "region": store.get("region", ""),
+                            "city": store.get("city", ""),
+                            "flyer_title": f"Panfleto {date.today().strftime('%d/%m/%Y')}",
+                            "image_url": thumb_url,
+                            "source": "pdf_scrape",
+                        }
+                    )
+            except Exception as e:
+                logger.debug("[%s] Flyer record save failed: %s", store_name, e)
+
+        if not raw_products:
+            logger.info("[%s] No products found", store_name)
+            log_scraper_run(store_name, "completed", 0, 0, started_at=started_at)
+            _check_zero_products_alert(store_name)
+            with suppress(Exception):
+                from services.scraper_health import record_success
+
+                record_success(
+                    store_name, items_found=0, products_matched=0, flyer_count=0, attempted_by="collector"
+                )
+            return store_name, []
+
+        matched = 0
+        entries: list[PriceEntry] = []
+        for prod in raw_products:
+            if post_process:
+                entry = post_process(store, prod, ingredients)
+            else:
+                entry = process_price_match(
+                    store,
+                    prod.get("product", ""),
+                    prod.get("price", 0),
+                    prod.get("unit", ""),
+                    ingredients,
+                    validity_raw=prod.get("validity_raw", ""),
+                    brand=prod.get("brand", ""),
+                    source_url=prod.get("source_url", ""),
+                )
+            if entry:
+                matched += 1
+                entries.append(entry)
+
+        logger.info("[%s] %d products, %d matched", store_name, len(raw_products), matched)
+        log_scraper_run(store_name, "completed", len(raw_products), matched, started_at=started_at)
+        _check_zero_products_alert(store_name)
+        with suppress(Exception):
+            from services.scraper_health import record_success
+
+            record_success(
+                store_name,
+                items_found=len(raw_products),
+                products_matched=matched,
+                flyer_count=0,
+                attempted_by="collector",
+            )
+        return store_name, entries
+
+    except Exception as e:
+        logger.error("[%s] %s: %s", label, store_name, e)
+        log_scraper_run(store_name, "error", 0, 0, str(e), started_at=started_at)
+        with suppress(Exception):
+            from services.email_service import send_scraper_error
+
+            send_scraper_error(store_name, str(e))
+        _auto_disable_if_needed(store_name)
+        with suppress(Exception):
+            from services.scraper_health import record_failure
+
+            record_failure(
+                store_name,
+                reason=str(e),
+                items_found=0,
+                products_matched=0,
+                flyer_count=0,
+                attempted_by="collector",
+            )
+        return store_name, []
+
+
 def _collect_generic(
     stores: list[Store],
     scraper_cls: type,
@@ -438,138 +563,47 @@ def _collect_generic(
     label: str,
     needs_ingredients_param: bool = True,
     post_process=None,
-    store_timeout: int = 900,
+    store_timeout: int = 300,
+    max_workers: int = 3,
 ) -> list[PriceEntry]:
-    all_products = []
+    all_products: list[PriceEntry] = []
     skipped_count = 0
 
-    # Map class names to feature flag keys
-    class_to_flag = {
-        "FlyerScraper": "pdf_flyers",
-        "AggregatorScraper": "aggregators",
-        "VtexScraper": "vtex",
-    }
-    scraper_name = class_to_flag.get(scraper_cls.__name__, scraper_cls.__name__.lower().replace("scraper", ""))
-
+    # Freshness check (sequencial, barato) — define quais lojas vao rodar.
+    pending: list[Store] = []
     for store in stores:
         store_name = store.get("name", "unknown")
         started_at = dt_now.now(UTC)
-
-        # Phase 3a: should_skip — check freshness before scraping
         skip, skip_reason = _should_skip_store(store)
         if skip:
             logger.info("[%s] %s", store_name, skip_reason)
             log_scraper_run(store_name, "skipped", 0, 0, errors=[skip_reason], started_at=started_at)
             skipped_count += 1
             continue
+        pending.append(store)
 
-        logger.info("[%s] >>> INICIANDO coleta (timeout=%ds)", store_name, store_timeout)
-        try:
-            # Per-ingredient scraper filter
-            from services.config import get_feature
+    logger.info("[%s] %d lojas pendentes para coleta (parallel max_workers=%d)", label, len(pending), max_workers)
+    if not pending:
+        _verify_scrape_results(all_products, len(stores), skipped_count)
+        return all_products
 
-            filtered_ingredients = [
-                ing
-                for ing in ingredients
-                if get_feature(f"features.scrapers.{scraper_name}", ingredient=ing["canonical_name"], default=True)
-            ]
-
-            with scraper_cls(store) as scraper:
-                raw_products = _run_scraper_with_timeout(
-                    scraper, filtered_ingredients, needs_ingredients_param, store_name, timeout_seconds=store_timeout
-                )
-
-            elapsed = int((dt_now.now(UTC) - started_at).total_seconds())
-            # Cache hit/miss logging
-            cache_status = "hit" if not raw_products else "miss"
-            logger.info("[%s] <<< FIM coleta (%ds) — Cache %s: %d raw products found", store_name, elapsed, cache_status, len(raw_products))
-
-            if hasattr(scraper, "_thumbnail") and scraper._thumbnail:
-                try:
-                    from services.flyer_service import _upload_flyer_thumbnail
-
-                    thumb_url = _upload_flyer_thumbnail(store_name, scraper._thumbnail)
-                    if thumb_url:
-                        upsert_flyer(
-                            {
-                                "store_name": store_name,
-                                "region": store.get("region", ""),
-                                "city": store.get("city", ""),
-                                "flyer_title": f"Panfleto {date.today().strftime('%d/%m/%Y')}",
-                                "image_url": thumb_url,
-                                "source": "pdf_scrape",
-                            }
-                        )
-                except Exception as e:
-                    logger.debug("[%s] Flyer record save failed: %s", store_name, e)
-
-            if not raw_products:
-                logger.info("[%s] No products found", store_name)
-                log_scraper_run(store_name, "completed", 0, 0, started_at=started_at)
-                _check_zero_products_alert(store_name)
-                # Sprint 4: zero products (resolved ok) but informs heuristic
-                with suppress(Exception):
-                    from services.scraper_health import record_success
-
-                    record_success(
-                        store_name, items_found=0, products_matched=0, flyer_count=0, attempted_by="collector"
-                    )
-                continue
-
-            matched = 0
-            for prod in raw_products:
-                if post_process:
-                    entry = post_process(store, prod, ingredients)
-                else:
-                    entry = process_price_match(
-                        store,
-                        prod.get("product", ""),
-                        prod.get("price", 0),
-                        prod.get("unit", ""),
-                        ingredients,
-                        validity_raw=prod.get("validity_raw", ""),
-                        brand=prod.get("brand", ""),
-                        source_url=prod.get("source_url", ""),
-                    )
-                if entry:
-                    matched += 1
-                    all_products.append(entry)
-
-            logger.info("[%s] %d products, %d matched", store_name, len(raw_products), matched)
-            log_scraper_run(store_name, "completed", len(raw_products), matched, started_at=started_at)
-            _check_zero_products_alert(store_name)
-            # Sprint 4: success branch resets failure counter
-            with suppress(Exception):
-                from services.scraper_health import record_success
-
-                record_success(
-                    store_name,
-                    items_found=len(raw_products),
-                    products_matched=matched,
-                    flyer_count=0,
-                    attempted_by="collector",
-                )
-
-        except Exception as e:
-            logger.error("[%s] %s: %s", label, store_name, e)
-            log_scraper_run(store_name, "error", 0, 0, str(e), started_at=started_at)
-            from services.email_service import send_scraper_error
-
-            with suppress(Exception):
-                send_scraper_error(store_name, str(e))
-            _auto_disable_if_needed(store_name)
-            # Sprint 4: failures route through unified scraper_health
-            with suppress(Exception):
-                from services.scraper_health import record_failure
-
-                record_failure(
-                    store_name,
-                    reason=str(e),
-                    items_found=0,
-                    products_matched=0,
-                    flyer_count=0,
-                    attempted_by="collector",
-                )
+    with ThreadPoolExecutor(max_workers=min(max_workers, max(1, len(pending)))) as ex:
+        futures = {
+            ex.submit(
+                _scrape_store,
+                store,
+                scraper_cls,
+                ingredients,
+                label,
+                needs_ingredients_param,
+                post_process,
+                store_timeout,
+            ): store.get("name", "unknown")
+            for store in pending
+        }
+        for fut in as_completed(futures):
+            _name, prods = fut.result()
+            all_products.extend(prods)
 
     _verify_scrape_results(all_products, len(stores), skipped_count)
     return all_products
@@ -580,7 +614,7 @@ def _collect_prices(
     scraper_cls: type,
     ingredients: list[Ingredient],
     label: str,
-    store_timeout: int = 900,
+    store_timeout: int = 300,
 ) -> list[PriceEntry]:
     return _collect_generic(stores, scraper_cls, ingredients, label, store_timeout=store_timeout)
 
@@ -684,7 +718,7 @@ def _run_api_flyer_scraper(store: Store) -> list[dict]:
 
 def collect_tier2_vtex(ingredients: list[Ingredient]) -> list[PriceEntry]:
     stores = [s for s in load_stores() if s.get("scraper") == "vtex_scraper" and s.get("type") == "vtex_api"]
-    return _collect_prices(stores, VtexScraper, ingredients, "VTEX", store_timeout=600)
+    return _collect_prices(stores, VtexScraper, ingredients, "VTEX", store_timeout=300)
 
 
 def collect_tier3_websites(ingredients: list[Ingredient]) -> list[PriceEntry]:
