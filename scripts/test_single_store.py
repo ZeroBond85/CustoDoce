@@ -92,7 +92,11 @@ def main() -> int:
         "error": None,
     }
     try:
-        collected = method(ingredients)
+        import inspect
+
+        # collect_aggregators_ssr/js não recebem ingredients (usam load_stores interno).
+        takes_args = len(inspect.signature(method).parameters) > 0
+        collected = method(ingredients) if takes_args else method()
         result["ok"] = True
         result["collected"] = len(collected) if isinstance(collected, list) else 0
     except Exception as exc:  # noqa: BLE001 - queremos capturar tudo no teste
