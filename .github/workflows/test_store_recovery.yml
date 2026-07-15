@@ -22,6 +22,9 @@ concurrency:
   group: store-recovery-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  PYTHONPATH: ${{ github.workspace }}
+
 jobs:
   prepare:
     runs-on: ubuntu-latest
@@ -31,12 +34,14 @@ jobs:
       - id: set
         shell: bash
         run: |
-          python - <<'PY'
+          MATRIX=$(python - <<'PY'
           import json, os
           raw = os.environ.get("STORES", "")
           stores = [s.strip() for s in raw.split(",") if s.strip()]
-          print("matrix=" + json.dumps(stores))
+          print(json.dumps(stores))
           PY
+          )
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
         env:
           STORES: ${{ github.event.inputs.stores }}
 
