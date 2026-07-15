@@ -51,6 +51,8 @@ stores:
   - name: "Spani Atacadista"
     tier: 1
     type: "pdf_flyer"
+    is_active: false
+    inactive_reason: "URL pattern {store-slug}-{hash}.pdf nunca foi resolvido — template quebrado desde criacao"
     logistics: "pickup_local"
     cities: ["São Vicente", "Praia Grande", "Mongaguá"]
     units:
@@ -159,7 +161,8 @@ stores:
   - name: "Max Atacadista SP"
     tier: 1
     type: "api_flyer"
-    is_active: true
+    is_active: false
+    inactive_reason: "DNS de institucional.supermuffato.com.br nao resolve (Errno -5) — verificar se site voltou"
     logistics: "pickup_sp"
     cities: ["São Paulo"]
     units:
@@ -829,6 +832,8 @@ stores:
   - name: "Central do Confeiteiro"
     tier: 2
     type: "website_catalog"
+    is_active: false
+    inactive_reason: "Timeout persistente (300s) — browse URL /loja/ nao responde ou DNS falha"
     logistics: "pickup_local"
     base_url: "https://www.centraldoconfeiteiro.com.br"
     search_url: "https://www.centraldoconfeiteiro.com.br/loja/busca.php?palavra_busca={query}"
@@ -867,6 +872,8 @@ stores:
   - name: "Chefon"
     tier: 2
     type: "website_catalog"
+    is_active: false
+    inactive_reason: "HTTP 429 Too Many Requests em todas as requisições (browse + search) — site bloqueia scraper"
     logistics: "pickup_sp"
     base_url: "https://chefon.com.br"
     search_url: "https://chefon.com.br/search?q={query}&type=product"

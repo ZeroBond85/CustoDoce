@@ -809,7 +809,9 @@ def collect_tier2_js(ingredients: list[Ingredient]) -> list[PriceEntry]:
             if store.get("scraper") == "playwright_price_scraper"
             else EcomplusScraper
         )
-        all_products += _collect_prices([store], scraper_cls, ingredients, "WebJS")
+        # Playwright stores need more time: browser launch + page rendering
+        store_timeout = 600 if store.get("scraper") == "playwright_price_scraper" else 300
+        all_products += _collect_prices([store], scraper_cls, ingredients, "WebJS", store_timeout=store_timeout)
     return all_products
 
 

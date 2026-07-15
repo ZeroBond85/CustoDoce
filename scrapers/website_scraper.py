@@ -29,13 +29,9 @@ class WebsiteScraper(BaseWebScraper):
 
     @_retry_with_backoff(max_retries=2, base_delay=2.0, max_delay=10.0)
     def fetch_browse(self, url: str) -> str | None:
-        try:
-            resp = self._http.get(url)
-            resp.raise_for_status()
-            return resp.text
-        except Exception as e:
-            logger.error("[%s] Error fetching browse '%s': %s", self.name, url, e)
-            return None
+        resp = self._http.get(url)
+        resp.raise_for_status()
+        return resp.text
 
     def run(self, ingredients: list[dict]) -> list[dict]:
         """Coleta via browse_urls (departamentos) quando configurado.
