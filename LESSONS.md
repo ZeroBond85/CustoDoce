@@ -1,5 +1,5 @@
 # Lições Aprendidas
-> Última atualização: 2026-07-15 00:43 UTC
+> Última atualização: 2026-07-15 16:50 UTC
 
 > Extraídas de AGENTS.md. Numeração original preservada.
 > Regras de execução/ambiente → `REGRAS.md`.
@@ -642,3 +642,11 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Causa raiz**: Sessão anterior deixou as 4 primeiras linhas do bloco Proplastik com 1 espaço a mais (3/5 espaços em vez de 2/4). YAML só quebra quando um item de sequência desalinha do resto — passou silenciosamente até um parse real.
 - **Correção**: Re-indentado `- name`/`tier`/`type`/`is_active` para 2/4 espaços. Proplastik também desativado (`is_active: false`) — dava TIMEOUT de 532s e 0 cobertura, desperdiçando minutos do free-tier.
 - **Teste de regressão**: `tests/unit/test_deploy_check.py::test_yaml_files_parse` e `test_stores_config.py` cobrem parse + schema de stores.yaml.
+
+### 67. scrape_frequencies com linhas duplicadas quebra integração e load_stores
+
+- **Data + commit**: 2026-07-15 (121d6c6)
+- **Sintoma**: CI `#403` (f978595): `test_real_scrape_frequencies_join` → `AssertionError: Expected >=20 enabled frequencies, got 11`. Também `test_workflow_checks::test_all_workflows_have_concurrency` falhou porque `test_store_recovery.yml` não tinha `concurrency:` no nível raiz.
+- **Causa raiz**: `scrape_frequencies` acumulou **6053 linhas para só 70 `store_id` distintos** (duplicatas de código legado). (a) O `.in_(store_ids)` com 708 IDs estoura o limite de 1000 linhas do PostgREST → amostra não filtrada/truncada → contagem errada no teste; (b) `services/collector.py:load_stores()` faz last-write-wins sobre as duplicatas, podendo excluir loja ativa se uma duplicata `enabled=false` vier por último.
+- **Correção**: Deduplicado no Supabase (mantido 1 linha/`store_id`, `enabled=true` se houver) → 70 linhas limpas, 38 ativas+habilitadas. `test_store_recovery.yml` ganhou bloco `concurrency` no raiz. `record_failure` já roteia erros transitórios para `record_transient_failure` e não insere/duplica freq.
+- **Teste de regressão**: `tests/integration/test_real_integration.py::test_real_scrape_frequencies_no_duplicates` (assere 0 duplicatas por `store_id`).
