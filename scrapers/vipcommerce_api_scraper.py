@@ -41,6 +41,9 @@ DEFAULT_DEPT_KEYWORDS = [
 
 
 class VipCommerceApiScraper(BaseWebScraper):
+    # Scraper puramente HTTP (login + API JSON) com timeouts delimitados:
+    # seguro rodar no processo pai (evita o spawn lento no Windows).
+    safe_in_parent = True
     def __init__(self, store_config: dict):
         super().__init__(store_config)
         self.api_base = (store_config.get("vip_api_base") or DEFAULT_API_BASE).rstrip("/")

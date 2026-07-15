@@ -98,3 +98,24 @@ def test_compute_md5(store_config):
     res3 = scraper._compute_md5(b"world")
     assert res1 == res2
     assert res1 != res3
+
+
+class TestMaxImageNormalization:
+    def test_preserves_working_host(self):
+        from scrapers.max_api_scraper import MaxApiScraper
+
+        scraper = MaxApiScraper(
+            {"name": "Max Atacadista SP", "base_url": "https://x.com", "image_host": "institucional.supermuffato.com.br"}
+        )
+        url = "//institucional.supermuffato.com.br/webtools/files/ofertas/1/a (1).jpeg"
+        out = scraper._normalize_image(url)
+        # Deve virar https:// e MANTER o host que responde 200 (não trocar por fallback 404).
+        assert out.startswith("https://institucional.supermuffato.com.br/")
+        assert "maxatacadista" not in out
+
+    def test_keeps_existing_https_url(self):
+        from scrapers.max_api_scraper import MaxApiScraper
+
+        scraper = MaxApiScraper({"name": "Max Atacadista SP", "base_url": "https://x.com"})
+        url = "https://institucional.supermuffato.com.br/files/a.jpeg"
+        assert scraper._normalize_image(url) == url

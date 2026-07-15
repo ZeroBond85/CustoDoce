@@ -90,6 +90,7 @@ def main() -> int:
         "method": method.__name__,
         "ok": False,
         "collected": 0,
+        "extracted": 0,
         "error": None,
     }
     try:
@@ -104,10 +105,27 @@ def main() -> int:
         result["error"] = f"{type(exc).__name__}: {exc}"
         result["traceback"] = traceback.format_exc(limit=5)
 
-    # 0 produtos = falha real (timeout/rate-limit/site morto), nunca "sucesso".
+    # Distinguir falha real de "flyer sem ingredientes monitorados". O collector
+    # popula collector.LAST_RUN_STATS[store]={extracted, matched} durante a coleta,
+    # então NÃO re-raspamos (evita double-scrape e gasto de vision-API):
+    # - extracted=0 (não extraiu NENHUM produto do site/flyer) = FALHA real
+    #   (timeout, rate-limit, site morto, OCR travado) -> reprovado.
+    # - extracted>0 mas matched/collected=0 (extraiu produtos, mas 0 bateram com os
+    #   23 ingredientes monitorados, ex.: flyer de supermercado geral) = VIÁVEL,
+    #   não é erro de scraper. Aprovado para fins de recuperação de loja.
+    stats = getattr(collector, "LAST_RUN_STATS", {}).get(store.get("name", target), {})
+    result["extracted"] = stats.get("extracted", result["collected"])
     if result["ok"] and result["collected"] == 0:
-        result["ok"] = False
-        result["error"] = result["error"] or "0 produtos coletados (timeout/rate-limit/site indisponível)"
+        if result["extracted"] > 0:
+            result["ok"] = True
+            result["error"] = (
+                result["error"]
+                or f"{result['extracted']} produtos extraídos, mas 0 bateram com os ingredientes "
+                f"monitorados (flyer de supermercado geral — viável, sem itens de confeitaria esta semana)"
+            )
+        else:
+            result["ok"] = False
+            result["error"] = result["error"] or "0 produtos coletados (timeout/rate-limit/site indisponível)"
 
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0 if result["ok"] else 1

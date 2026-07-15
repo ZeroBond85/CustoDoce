@@ -55,6 +55,12 @@ API_SCRAPER_MAP = {
     "max_api_scraper": MaxApiScraper,
 }
 
+# Estatísticas da última coleta por loja (raw extraído vs. casado), populado por
+# _scrape_store. Usado por ferramentas de diagnóstico (test_single_store) para
+# distinguir "0 extraído" (falha real) de "extraído mas 0 casou" (flyer sem
+# ingredientes monitorados). Não persiste; reflete só a última execução no processo.
+LAST_RUN_STATS: dict[str, dict[str, int]] = {}
+
 
 def load_ingredients() -> list[Ingredient]:
     return get_active_ingredients()
@@ -551,9 +557,30 @@ def _scrape_store(
             if get_feature(f"features.scrapers.{scraper_name}", ingredient=ing["canonical_name"], default=True)
         ]
 
-        raw_products, thumbnail = _run_scraper_isolated(
-            scraper_cls, store, filtered_ingredients, needs_ingredients_param, store_name, timeout_seconds=store_timeout
-        )
+        # Scrapers puramente HTTP (sem browser) com timeouts delimitados são
+        # seguros para rodar no processo pai: evita o overhead/instabilidade do
+        # spawn de subprocesso no Windows (que degrada ~50x requisições HTTP).
+        # Scrapers com browser (Playwright) continuam isolados para não travar
+        # o pipeline se o Chrome pendulum.
+        if getattr(scraper_cls, "safe_in_parent", False):
+            from contextlib import suppress
+
+            try:
+                scraper = scraper_cls(store)
+                raw_products = scraper.run(filtered_ingredients) if needs_ingredients_param else scraper.run()
+                thumbnail = None
+            except Exception as exc:  # noqa: BLE001
+                logger.error("[%s] erro no scraper (safe_in_parent): %s", store_name, exc)
+                with suppress(Exception):
+                    from services.scraper_health import record_failure
+
+                    record_failure(store_name, reason=str(exc), attempted_by="collector")
+                raw_products = []
+            raw_products = raw_products or []
+        else:
+            raw_products, thumbnail = _run_scraper_isolated(
+                scraper_cls, store, filtered_ingredients, needs_ingredients_param, store_name, timeout_seconds=store_timeout
+            )
 
         elapsed = int((dt_now.now(UTC) - started_at).total_seconds())
         cache_status = "hit" if not raw_products else "miss"
@@ -580,6 +607,7 @@ def _scrape_store(
 
         if not raw_products:
             logger.info("[%s] No products found", store_name)
+            LAST_RUN_STATS[store_name] = {"extracted": 0, "matched": 0}
             log_scraper_run(store_name, "completed", 0, 0, started_at=started_at)
             _check_zero_products_alert(store_name)
             with suppress(Exception):
@@ -611,6 +639,7 @@ def _scrape_store(
                 entries.append(entry)
 
         logger.info("[%s] %d products, %d matched", store_name, len(raw_products), matched)
+        LAST_RUN_STATS[store_name] = {"extracted": len(raw_products), "matched": matched}
         log_scraper_run(store_name, "completed", len(raw_products), matched, started_at=started_at)
         _check_zero_products_alert(store_name)
         with suppress(Exception):

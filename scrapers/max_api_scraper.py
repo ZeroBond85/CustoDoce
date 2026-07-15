@@ -40,16 +40,16 @@ class MaxApiScraper(BaseWebScraper):
         return []
 
     def _normalize_image(self, image_url: str) -> str:
-        """Corrige host da imagem se o primário estiver morto (usa fallback)."""
+        """Corrige URL de imagem: protocol-relative (//) vira https://.
+
+        NÃO troca o host por fallback — o host retornado pela API já é o
+        correto (ex.: institucional.supermuffato.com.br). Trocar por um
+        fallback que 404a quebra o download do encarte (bug #70).
+        """
         if not image_url:
             return image_url
         if image_url.startswith("//"):
             image_url = "https:" + image_url
-        # Se a imagem aponta para o host primário morto, troca pelo primeiro fallback vivo.
-        if self.image_host and self.image_host in image_url and self.image_host_fallbacks:
-            for fb in self.image_host_fallbacks:
-                image_url = image_url.replace(self.image_host, fb)
-                break
         return image_url
 
     def parse_offer(self, offer: dict) -> list[dict]:

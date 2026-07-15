@@ -197,9 +197,6 @@ stores:
     api_endpoint: "sm-rds-ofertas.php"
     api_params: "action=getOffers&store={store_id}"
     image_host: "institucional.supermuffato.com.br"
-    image_host_fallbacks:
-      - "maxatacadista.com.br"
-      - "www.maxatacadista.com.br"
     max_flyer_pages: 10
     publish_day: "thursday"
     collection_method: "automated"
@@ -918,6 +915,7 @@ stores:
       - "https://chefon.com.br/collections/chocolate"
       - "https://chefon.com.br/collections/confeitaria"
     browse_parallel: true
+    browse_url_timeout: 35
     selectors:
       product_card: [".product-card", ".card", ".product-item", ".product"]
       product_name: [".product-title a", "h3 a", ".card__heading a", ".full-unstyled-link"]

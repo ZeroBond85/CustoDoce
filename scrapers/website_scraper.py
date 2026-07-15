@@ -11,11 +11,18 @@ from services.logger import logger
 
 
 class WebsiteScraper(BaseWebScraper):
+    # Scraper HTTP (requests) com timeouts por-URL: seguro no processo pai
+    # (evita o spawn lento/no Windows que degrada as requisições).
+    safe_in_parent = True
+
     def __init__(self, store_config: dict):
         super().__init__(store_config)
         self.search_url = store_config.get("search_url") or f"{self.base_url}/busca?q={{query}}"
         self.selectors = {**DEFAULT_SELECTORS, **store_config.get("selectors", {})}
         self.browse_parallel = store_config.get("browse_parallel", False)
+        # Teto de parede por URL de browse: evita que UMA url lenta/travada
+        # (Cloudflare, WAF) segure o loop paralelo inteiro. Default 30s.
+        self.browse_url_timeout = float(store_config.get("browse_url_timeout", 30))
 
     def fetch_search(self, query: str) -> str | None:
         url = self.search_url.format(query=quote(query))
@@ -28,10 +35,27 @@ class WebsiteScraper(BaseWebScraper):
             return None
 
     @_retry_with_backoff(max_retries=2, base_delay=2.0, max_delay=10.0)
-    def fetch_browse(self, url: str) -> str | None:
+    def _fetch_browse_raw(self, url: str) -> str | None:
         resp = self._http.get(url)
         resp.raise_for_status()
         return resp.text
+
+    def fetch_browse(self, url: str) -> str | None:
+        """Busca com teto de parede por URL (anti-travamento em Cloudflare/WAF)."""
+        from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+
+        if self.browse_url_timeout and self.browse_url_timeout > 0:
+            with ThreadPoolExecutor(max_workers=1) as ex:
+                fut = ex.submit(self._fetch_browse_raw, url)
+                try:
+                    return fut.result(timeout=self.browse_url_timeout)
+                except FuturesTimeout:
+                    logger.warning(
+                        "[%s] browse %s estourou teto de %ds (Cloudflare/WAF?) — ignorado",
+                        self.name, url, int(self.browse_url_timeout),
+                    )
+                    return None
+        return self._fetch_browse_raw(url)
 
     def run(self, ingredients: list[dict]) -> list[dict]:
         """Coleta via browse_urls (departamentos) quando configurado.
