@@ -94,6 +94,26 @@ def test_fetch_dept_products_paginates_up_to_cap(store_config):
     assert len(products) == 2
 
 
+def test_fetch_search_products_url_encodes_percent(store_config):
+    """Termos com '%' (ex.: 'Creme de Leite 20%') devem ser URL-encoded p/ evitar 400."""
+    scraper = VipCommerceApiScraper(store_config)
+    scraper._token = "JWT"
+    scraper.max_pages_per_search = 1
+
+    captured = {}
+
+    def _fake_get(url, headers=None):
+        captured["url"] = url
+        return _resp({"data": {"produtos": []}, "paginator": {"total_pages": 1}})
+
+    with patch.object(scraper._http, "get", side_effect=_fake_get):
+        scraper._fetch_search_products("Creme de Leite 20%")
+    # '20%' vira '20%25'; espacos viram '+'
+    assert "Creme+de+Leite+20%25" in captured["url"]
+    # nao ha '%' solto alem do codigo %25 (apenas 1 ocorrencia de '%')
+    assert captured["url"].count("%") == 1
+
+
 def test_run_reports_failure_when_login_fails(store_config):
     scraper = VipCommerceApiScraper(store_config)
     with (

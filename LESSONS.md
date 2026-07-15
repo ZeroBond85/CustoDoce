@@ -681,9 +681,20 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 
 ### 71. scrape_frequencies acumulou 424 linhas duplicadas → CI integration vermelho
 
-- **Data + commit**: 2026-07-15
-- **Sintoma**: `tests/integration/test_real_integration.py::test_real_scrape_frequencies_no_duplicates` falhou em CI: 424 linhas duplicadas por `store_id` (494 total vs 70 lojas). Detectado após o commit de recuperação de lojas (era pré-existente, não causado por ele).
+- **Data + commit**: 2026-07-15. **Sintoma**: `test_real_scrape_frequencies_no_duplicates` falhou em CI: 424 duplicadas por `store_id` (494 vs 70 lojas). Era pré-existente (não do commit de recuperação).
 - **Causa raiz**: `upsert_scrape_frequency()` chamava `client.table("scrape_frequencies").upsert(data)` **sem `on_conflict`**. Como a PK é `id UUID DEFAULT gen_random_uuid()`, cada upsert gerava uma NOVA linha em vez de atualizar — acumulando ~7 linhas/loja ao longo do tempo. Não havia unique index em `store_id` para impedir. `load_stores()` faz last-write-wins e o limite de 1000 linhas do PostgREST também era ameaçado.
 - **Correção**: (1) Deduplicado o DB real via REST `delete().in_("id", ...)` (manter o `updated_at` mais recente por `store_id`): 494→70 linhas, 0 duplicatas. (2) `upsert_scrape_frequency` agora passa `on_conflict="store_id"`. (3) Nova migration `supabase/010_scrape_frequencies_unique.sql` + registrada em `generate_consolidated()` (PHASE 25): `CREATE UNIQUE INDEX uq_scrape_frequencies_store_id`. (4) Teste de regressão `tests/unit/test_services/test_config.py::test_upsert_scrape_frequency_uses_on_conflict_store_id` (mock captura `on_conflict`).
-- **Nota**: `exec_sql_query` (porta 443) só aceita SELECT — DELETE/mutação deve ir via REST client normal, não via RPC.
-- **Teste de regressão**: `tests/unit/test_services/test_config.py::test_upsert_scrape_frequency_uses_on_conflict_store_id`; `tests/integration/test_real_integration.py::test_real_scrape_frequencies_no_duplicates` (já existia, agora verde).
+- **Nota**: `exec_sql_query` (443) só aceita SELECT. Regressão: `test_config.py::test_upsert_scrape_frequency_uses_on_conflict_store_id`; `test_real_integration.py::test_real_scrape_frequencies_no_duplicates` (verde).
+
+### 72. Vision fallback falhava em 429: ~60s/imagem, estourava timeout do Max
+
+- **Data + commit**: 2026-07-15. **Sintoma**: `test_store_recovery` do Max: `TIMEOUT 300s`, 0 produtos, 86x `[groq_vision] Rate limited`. Groq 429 em TODAS as imagens (10 encartes) obedecia `Retry-After: 30s` ×2 = ~60s/imagem; Gemini (fallback) deu 503/JSON invalido → nenhuma imagem extraída. Spani/Krill OK; Chefon falhou só por nome errado no arg.
+- **Causa raiz**: (1) `get_vision_chain()` instanciava estratégias NOVAS a cada imagem → o circuit breaker resetava por imagem e NUNCA abria → Groq re-tentado 429 em todas as imagens. (2) Em 429, o codigo obedecia ao `Retry-After` (30s) em vez de ceder ao proximo provider. (3) Modelos fracos (`llama-4-scout-17b`, `llava-1.5-7b`) mal extraem JSON de flyer.
+- **Correção**: (1) Cadeia em cache module-level (`_get_cached_chain()`) — breaker persiste entre imagens. (2) `VISION_FAIL_FAST_ON_429` (default on): em 429 com fallback, abre o breaker e retorna None sem esperar `Retry-After` → cadeia pula p/ Gemini/OpenRouter/HF. (3) `_has_fallback` por posição. (4) Modelos melhores: Gemini `gemini-2.5-flash` (era flash-lite), OpenRouter `llama-4-scout-17b:free` (era gemma-4-31b), HF `llava-1.5-13b-hf` (era 7b). (5) Krill: `_fetch_search_products` usa `quote_plus` (`20%` causava 400).
+- **Teste de regressão**: `test_vision_strategies.py` (`test_cached_chain_returns_same_instances`, `test_cached_chain_breaker_persists_across_images`, `test_groq_429_opens_breaker_so_next_provider_is_tried`, `test_chain_marks_has_fallback_except_last`); `test_vipcommerce_api_scraper.py::test_fetch_search_products_url_encodes_percent`.
+
+### 73. Store Recovery: usar o `name` exato da loja no arg da matriz
+
+- **Data + commit**: 2026-07-15
+- **Sintoma/causa**: recovery com `stores="...,Chefon Atacadista,..."` falhou (`loja não encontrada`); o arg usa o `name` exato da coluna `stores.name` e a loja no DB chama-se `Chefon`.
+- **Correção**: passar sempre o `name` de `get_store_by_name`. Falha de entrada, não de scraper.

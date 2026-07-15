@@ -245,7 +245,11 @@ class VipCommerceApiScraper(BaseWebScraper):
     def _fetch_search_products(self, term: str) -> list[dict]:
         # Endpoint real descoberto em produção: /loja/buscas/produtos/termo/{termo}?page=N
         products: list[dict] = []
-        term_url = term.replace(" ", "+")
+        # URL-encode correto do termo: substitui espaco por + e codifica o resto
+        # (ex.: '%' em '20%' vira %25), evitando 400 Bad Request do servidor.
+        from urllib.parse import quote_plus
+
+        term_url = quote_plus(term)
         page = 1
         total_pages = 1
         while page <= min(total_pages, self.max_pages_per_search):

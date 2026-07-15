@@ -32,6 +32,10 @@ VISION_MAX_BYTES = int(os.environ.get("VISION_MAX_BYTES", "900000"))
 # Retry em rate-limit (429): Groq free-tier limita requisicoes de vision.
 VISION_MAX_RETRIES = int(os.environ.get("VISION_MAX_RETRIES", "2"))
 VISION_RETRY_BASE = float(os.environ.get("VISION_RETRY_BASE", "2.0"))
+# Em cadeia de fallback, um 429 significa "provider globalmente limitado agora":
+# abrimos o circuit breaker e passamos para o proximo provider em vez de obedecer
+# ao Retry-After (que queimava ~60s por imagem e estourava o timeout do scrape).
+VISION_FAIL_FAST_ON_429 = os.environ.get("VISION_FAIL_FAST_ON_429", "1") not in ("0", "false", "False")
 
 
 def _downscale_image(image_bytes: bytes) -> bytes:
@@ -85,6 +89,9 @@ class VisionStrategy(ABC):
         self._last_failure = 0.0
         self._circuit_open = False
         self._last_request_time = 0.0
+        # True se ha outro provider depois deste na cadeia (habilita fail-fast
+        # em 429). Definido por get_vision_chain()/_get_cached_chain().
+        self._has_fallback = False
 
     def record_failure(self):
         self._failure_count += 1
@@ -92,6 +99,13 @@ class VisionStrategy(ABC):
         if self._failure_count >= CB_THRESHOLD:
             self._circuit_open = True
             logger.warning("[%s_vision] Circuit breaker OPEN after %d failures", self.provider_name, CB_THRESHOLD)
+
+    def open_circuit(self):
+        """Abre o circuit breaker imediatamente (usado em 429 quando ha fallback)."""
+        self._failure_count = CB_THRESHOLD
+        self._circuit_open = True
+        self._last_failure = time.time()
+        logger.warning("[%s_vision] Circuit breaker OPEN (rate-limited, ceding to next provider)", self.provider_name)
 
     def record_success(self):
         self._failure_count = 0
@@ -150,6 +164,13 @@ class VisionStrategy(ABC):
                 resp = get_client().post(self.url, headers=headers, json=payload, timeout=DEFAULT_TIMEOUT)
 
                 if resp.status_code == 429:
+                    if VISION_FAIL_FAST_ON_429 and self._has_fallback:
+                        # Provider globalmente limitado: abre o breaker e cede ao
+                        # proximo da cadeia SEM esperar o Retry-After (poupa o
+                        # orcamento de tempo do scrape). O breaker reseta apos o
+                        # cooldown e tentamos de novo mais tarde na mesma run.
+                        self.open_circuit()
+                        return None
                     if attempt < VISION_MAX_RETRIES:
                         wait = self._retry_after(resp, attempt)
                         logger.warning(
@@ -280,7 +301,7 @@ class GeminiVisionStrategy(VisionStrategy):
     def __init__(self):
         super().__init__()
         self.api_key = os.environ.get("GOOGLE_API_KEY", "") or os.environ.get("GEMINI_API_KEY", "")
-        self.model = os.environ.get("GEMINI_VISION_MODEL", "gemini-2.5-flash-lite")
+        self.model = os.environ.get("GEMINI_VISION_MODEL", "gemini-2.5-flash")
         self.url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
 
     def _get_payload(self, image_bytes: bytes) -> dict:
@@ -321,7 +342,7 @@ class OpenRouterVisionStrategy(VisionStrategy):
         super().__init__()
         self.api_key = os.environ.get("OPENROUTER_API_KEY", "")
         self.url = "https://openrouter.ai/api/v1/chat/completions"
-        self.model = os.environ.get("OPENROUTER_VISION_MODEL", "google/gemma-4-31b-it:free")
+        self.model = os.environ.get("OPENROUTER_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct:free")
 
     def _get_payload(self, image_bytes: bytes) -> dict:
         b64 = self._encode_image(image_bytes)
@@ -358,7 +379,7 @@ class HFVisionStrategy(VisionStrategy):
     def __init__(self):
         super().__init__()
         self.api_key = os.environ.get("HF_API_KEY", "") or os.environ.get("HUGGINGFACE_API_KEY", "")
-        self.url = os.environ.get("HF_VISION_URL", "https://api-inference.huggingface.co/models/llava-hf/llava-1.5-7b-hf")
+        self.url = os.environ.get("HF_VISION_URL", "https://api-inference.huggingface.co/models/llava-hf/llava-1.5-13b-hf")
 
     def _get_payload(self, image_bytes: bytes) -> dict:
         b64 = self._encode_image(image_bytes)
@@ -393,20 +414,53 @@ class HFVisionStrategy(VisionStrategy):
 
 # Factory to get the fallback chain
 def get_vision_chain() -> list[VisionStrategy]:
-    """Return the vision strategy chain in fallback order."""
-    return [
+    """Return a FRESH vision strategy chain in fallback order.
+
+    Usado por quem quer instancias novas por chamada (testes). Para o fluxo de
+    producao (varias imagens na mesma run), prefira ``_get_cached_chain()`` para
+    que o circuit breaker persista entre imagens.
+    """
+    chain = [
         GroqVisionStrategy(),
         GeminiVisionStrategy(),
         OpenRouterVisionStrategy(),
         HFVisionStrategy(),
     ]
+    for i, s in enumerate(chain):
+        s._has_fallback = i < len(chain) - 1
+    return chain
+
+
+# Instancia unica (module-level) — o circuit breaker persiste entre imagens de
+# um mesmo scrape, entao um provider 429 uma vez nao eh re-tentado 60s por imagem.
+_CACHED_CHAIN: list[VisionStrategy] | None = None
+
+
+def _get_cached_chain() -> list[VisionStrategy]:
+    global _CACHED_CHAIN
+    if _CACHED_CHAIN is None:
+        _CACHED_CHAIN = get_vision_chain()
+    return _CACHED_CHAIN
 
 
 def extract_products_via_vision(image_bytes: bytes) -> list[dict] | None:
-    """Try each vision strategy in order until one succeeds."""
-    for strategy in get_vision_chain():
+    """Try each vision strategy in order until one succeeds.
+
+    Usa a cadeia em cache (estado de circuit breaker compartilhado entre todas
+    as imagens do scrape) para adaptar-se a limites de taxa: assim que um
+    provider esgota o breaker, ele e pulado ate o cooldown, cedendo aos demais.
+    """
+    for strategy in _get_cached_chain():
+        if not strategy.is_available():
+            continue
         result = strategy.extract(image_bytes)
         if result and result.products:
             logger.info("[Vision] %s extracted %d products", strategy.provider_name, len(result.products))
             return result.products
     return None
+
+
+def reset_vision_chain() -> None:
+    """Forca recriacao da cadeia em cache (ex.: novo scrape, testes)."""
+    global _CACHED_CHAIN
+    _CACHED_CHAIN = None

@@ -18,6 +18,8 @@ from parsers.vision_strategies import (
     OpenRouterVisionStrategy,
     HFVisionStrategy,
     get_vision_chain,
+    _get_cached_chain,
+    reset_vision_chain,
     extract_products_via_vision,
 )
 
@@ -119,7 +121,7 @@ class TestGeminiVisionStrategy:
         with patch.dict("os.environ", {"GOOGLE_API_KEY": "g-key"}, clear=True):
             v = GeminiVisionStrategy()
             assert v.api_key == "g-key"
-            assert v.model == "gemini-2.5-flash-lite"
+            assert v.model == "gemini-2.5-flash"
             assert v.model in v.url
 
     def test_init_falls_back_to_gemini_api_key(self):
@@ -160,12 +162,87 @@ class TestVisionChain:
         assert "gemini" in names
         assert names.index("groq") < names.index("gemini")
 
+    def test_chain_marks_has_fallback_except_last(self):
+        chain = get_vision_chain()
+        assert chain[0]._has_fallback is True
+        assert chain[-1]._has_fallback is False
+
+    def test_cached_chain_returns_same_instances(self):
+        reset_vision_chain()
+        c1 = _get_cached_chain()
+        c2 = _get_cached_chain()
+        assert c1 is c2
+        # mesmo objeto -> o circuit breaker persiste entre imagens da run
+        assert [id(s) for s in c1] == [id(s) for s in c2]
+
+    def test_cached_chain_breaker_persists_across_images(self, monkeypatch):
+        """Regressao: 429 numa imagem abre o breaker e pula o provider nas proximas.
+
+        Antes, get_vision_chain() criava instancias novas por imagem -> o breaker
+        resetava e Groq era re-tentado (60s de Retry-After) em CADA imagem,
+        estourando o timeout do scrape (caso Max Atacadista).
+        """
+        reset_vision_chain()
+        monkeypatch.setenv("GROQ_API_KEY", "k")
+        monkeypatch.setenv("VISION_FAIL_FAST_ON_429", "1")
+        monkeypatch.setattr("parsers.vision_strategies.time.sleep", lambda *_: None)
+        chain = _get_cached_chain()
+        groq = next(s for s in chain if s.provider_name == "groq")
+        client = MagicMock()
+        client.post.return_value = _resp429()
+        monkeypatch.setattr("parsers.vision_strategies.get_client", lambda: client)
+        # mesma imagem repetida: 1a chamada abre breaker, 2a deve ser skipada
+        r1 = groq.extract(b"img")
+        assert r1 is None
+        r2 = groq.extract(b"img")
+        assert r2 is None
+        # breaker aberto -> 2a chamada nem tocou a rede
+        assert client.post.call_count == 1
+        assert groq._circuit_open is True
+
 
 class TestExtractProductsViaVision:
     def test_extract_products_no_config_returns_none(self):
         with patch.dict("os.environ", {}, clear=True):
             result = extract_products_via_vision(b"fake image")
             assert result is None
+
+    def test_groq_429_opens_breaker_so_next_provider_is_tried(self, monkeypatch):
+        """Em 429 com fallback, Groq abre o breaker (fail-fast) e a cadeia
+        cede ao provider seguinte em vez de obedecer ao Retry-After de 30s."""
+        reset_vision_chain()
+        monkeypatch.setenv("GROQ_API_KEY", "k")
+        monkeypatch.setenv("GOOGLE_API_KEY", "g")
+        monkeypatch.setenv("VISION_FAIL_FAST_ON_429", "1")
+        monkeypatch.setattr("parsers.vision_strategies.time.sleep", lambda *_: None)
+
+        chain = _get_cached_chain()
+        groq = next(s for s in chain if s.provider_name == "groq")
+        gemini = next(s for s in chain if s.provider_name == "gemini")
+
+        groq_client = MagicMock()
+        groq_client.post.return_value = _resp429()
+        gemini_client = MagicMock()
+        gemini_client.post.return_value = _resp(
+            200,
+            json_body={"candidates": [{"content": {"parts": [{"text": '{"products": [{"product": "Leite", "price": 4.0}]}'}]}}]},
+        )
+
+        def _get_client():
+            # Groq 429 na 1a chamada; apos abrir breaker, a cadeia chama Gemini
+            if not groq._circuit_open:
+                return groq_client
+            return gemini_client
+
+        monkeypatch.setattr("parsers.vision_strategies.get_client", _get_client)
+
+        result = extract_products_via_vision(b"img")
+        assert result is not None
+        assert result[0]["product"] == "Leite"
+        # Groq foi chamado uma vez (429) e NAO esperou Retry-After
+        assert groq_client.post.call_count == 1
+        # Gemini (fallback) foi efetivamente usado
+        assert gemini_client.post.call_count == 1
 
 
 def _make_png(width: int, height: int) -> bytes:
@@ -194,12 +271,25 @@ class TestDownscaleImage:
 
 class TestRetryOn429:
     def _resp(self, status, headers=None, json_body=None):
-        r = MagicMock()
-        r.status_code = status
-        r.headers = headers or {}
-        r.json.return_value = json_body or {}
-        r.raise_for_status.return_value = None
-        return r
+        return _resp(status, headers, json_body)
+
+
+def _resp429(headers=None):
+    r = MagicMock()
+    r.status_code = 429
+    r.headers = headers or {"Retry-After": "30"}
+    r.json.return_value = {}
+    r.raise_for_status.return_value = None
+    return r
+
+
+def _resp(status, headers=None, json_body=None):
+    r = MagicMock()
+    r.status_code = status
+    r.headers = headers or {}
+    r.json.return_value = json_body or {}
+    r.raise_for_status.return_value = None
+    return r
 
     def test_retries_then_succeeds(self, monkeypatch):
         monkeypatch.setenv("GROQ_API_KEY", "k")
