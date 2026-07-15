@@ -85,11 +85,11 @@ class PlaywrightPriceScraper(BaseWebScraper):
             # domcontentloaded resolves as soon as the SPA shell is parsed.
             # networkidle is unsafe on JS-heavy sites: the network often never
             # goes fully idle, causing every request to burn the full 30s timeout.
-            await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            await page.goto(url, wait_until="domcontentloaded", timeout=15000)
             # Wait for product cards to actually render (graceful if absent).
             first_card_sel = self.selectors["product_card"][0]
             with contextlib.suppress(Exception):
-                await page.wait_for_selector(first_card_sel, timeout=10000)
+                await page.wait_for_selector(first_card_sel, timeout=5000)
             if browse:
                 # Some themes paginate via a "ver mais" button instead of
                 # URL pagination. Click up to 3 times to expand the listing.

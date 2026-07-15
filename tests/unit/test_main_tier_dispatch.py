@@ -118,6 +118,7 @@ def _args(argv):
         "finalize": False,
         "no_finalize": False,
         "dry_run": False,
+        "force": False,
         "mode": "cron",
     }
     i = 0
@@ -133,6 +134,8 @@ def _args(argv):
             kwargs["no_finalize"] = True
         if a == "--dry-run":
             kwargs["dry_run"] = True
+        if a == "--force":
+            kwargs["force"] = True
         i += 1
     return SimpleNamespace(**kwargs)
 

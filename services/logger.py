@@ -8,6 +8,7 @@ def setup_logger():
     """
     Configures structlog for structured logging.
     - Local: Pretty colored console output.
+    - CI: Console output without colors (ANSI-free for grep).
     - Prod/Staging: JSON output for log aggregators.
     """
     env = os.environ.get("APP_ENV", "local").lower()
@@ -21,11 +22,11 @@ def setup_logger():
         structlog.processors.format_exc_info,
     ]
 
-    if env == "local":
-        # Pretty print for local development
+    if env == "ci":
+        processors.append(structlog.dev.ConsoleRenderer(colors=False))
+    elif env == "local":
         processors.append(structlog.dev.ConsoleRenderer())
     else:
-        # JSON output for production/staging (Grafana, ELK, etc.)
         processors.append(structlog.processors.JSONRenderer())
 
     structlog.configure(

@@ -6,7 +6,7 @@ from urllib.parse import quote
 from selectolax.parser import HTMLParser
 
 from parsers.unit_extractor import extract_unit
-from scrapers.base_web_scraper import DEFAULT_SELECTORS, BaseWebScraper
+from scrapers.base_web_scraper import DEFAULT_SELECTORS, BaseWebScraper, _retry_with_backoff
 from services.logger import logger
 
 
@@ -27,6 +27,7 @@ class WebsiteScraper(BaseWebScraper):
             logger.error("[%s] Error fetching '%s': %s", self.name, url, e)
             return None
 
+    @_retry_with_backoff(max_retries=2, base_delay=2.0, max_delay=10.0)
     def fetch_browse(self, url: str) -> str | None:
         try:
             resp = self._http.get(url)

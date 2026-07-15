@@ -11,6 +11,7 @@ healing (record_success/failure) fica a cargo do scraper que a chama.
 """
 from __future__ import annotations
 
+import time
 from collections.abc import Iterable
 
 import httpx
@@ -21,13 +22,20 @@ from services.logger import logger
 
 
 def _download_image(http: httpx.Client, url: str) -> bytes | None:
-    try:
-        resp = http.get(url, follow_redirects=True, timeout=40.0)
-        resp.raise_for_status()
-        return resp.content
-    except Exception as exc:
-        logger.warning("[flyer_ocr] download failed %s: %s", url, exc)
-        return None
+    for attempt in range(3):
+        try:
+            resp = http.get(url, follow_redirects=True, timeout=40.0)
+            resp.raise_for_status()
+            return resp.content
+        except Exception as exc:
+            if attempt < 2:
+                wait = 2.0 * (attempt + 1)
+                logger.warning("[flyer_ocr] download failed %s (attempt %d/3): %s — retrying in %.0fs", url, attempt + 1, exc, wait)
+                time.sleep(wait)
+            else:
+                logger.error("[flyer_ocr] download failed %s (3/3): %s — giving up", url, exc)
+                return None
+    return None
 
 
 def _normalize(item: dict, store_name: str, source: str, fallback_validity: str) -> dict | None:

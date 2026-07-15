@@ -430,7 +430,7 @@ def _mp_worker(q, kind, target_mod, target_name, store, extra):
             ingredients, needs = extra
             with target(store) as scraper:
                 sig = signature(scraper.run)
-                raw = scraper.run(ingredients) if needs and "ingredients" in sig.parameters else scraper.run([])
+                raw = scraper.run(ingredients) if needs and "ingredients" in sig.parameters else scraper.run()
                 thumb = getattr(scraper, "_thumbnail", None)
             q.put(("ok", (raw if raw is not None else [], thumb)))
         else:  # callable (ex.: run_fn de agregador)
@@ -451,7 +451,11 @@ def _spawn_isolated(kind, target_mod, target_name, store, store_name, timeout_se
     p.start()
     p.join(timeout=timeout_seconds)
     if p.is_alive():
-        logger.error("[%s] TIMEOUT after %ds — encerrando processo", store_name, timeout_seconds)
+        scraper_type = target_mod.replace("scrapers.", "")
+        logger.error(
+            "[%s] TIMEOUT after %ds — encerrando processo (scraper=%s, store=%s)",
+            store_name, timeout_seconds, scraper_type, store.get("name", store_name),
+        )
         p.terminate()
         with suppress(Exception):
             p.join(timeout=10)
@@ -657,7 +661,12 @@ def _collect_generic(
             for store in pending
         }
         for fut in as_completed(futures):
+            store_name = futures[fut]
             _name, prods = fut.result()
+            if prods:
+                logger.info("[%s] coleta OK: %d produtos", store_name, len(prods))
+            else:
+                logger.warning("[%s] coleta vazia: 0 produtos", store_name)
             all_products.extend(prods)
 
     _verify_scrape_results(all_products, len(stores), skipped_count)

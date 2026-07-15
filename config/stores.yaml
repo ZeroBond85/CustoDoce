@@ -178,6 +178,7 @@ stores:
     api_endpoint: "sm-rds-ofertas.php"
     api_params: "action=getOffers&store={store_id}"
     image_host: "institucional.supermuffato.com.br"
+    max_flyer_pages: 10
     publish_day: "thursday"
     collection_method: "automated"
     scraper: "max_api_scraper"
@@ -267,6 +268,11 @@ stores:
     logistics: "pickup_sp"
     base_url: "https://amendolate.lojaintegrada.com.br"
     search_url: "https://amendolate.lojaintegrada.com.br/buscar?q={query}"
+    browse_urls:
+      - "https://amendolate.lojaintegrada.com.br/departamentos/chocolates"
+      - "https://amendolate.lojaintegrada.com.br/departamentos/leite-condensado"
+      - "https://amendolate.lojaintegrada.com.br/departamentos/creme-de-leite"
+      - "https://amendolate.lojaintegrada.com.br/departamentos/granulados"
     selectors:
       product_card: [".listagem-item", "[data-id]", ".product-card", ".produto-card"]
       product_name: [".nome-produto", ".product-name a", ".product-title a"]
@@ -306,7 +312,7 @@ stores:
     #   * search results   -> <h5 class="...ui-link...">
     browse_urls:
       - "https://www.barradoce.com.br/categoria/ingredientes"
-    max_pages: 12
+    max_pages: 5
     selectors:
       product_card: ["a[href^='/produto/']"]
       product_name: ["h3.ui-link", "h5.ui-link", "h3", "h5", "a.ui-link"]

@@ -12,6 +12,7 @@ class MaxApiScraper(BaseWebScraper):
         self.api_params = store_config.get("api_params", "action=getOffers&store={store_id}")
         # store_id 120 = Max Atacadista Butanta (Sao Paulo capital). store 75 = Parana (nao usar).
         self.store_id = store_config.get("store_id", "120")
+        self.max_flyer_pages = int(store_config.get("max_flyer_pages", 0)) or 20
 
     def get_offers(self, store_id: str = None) -> list[dict]:
         sid = store_id or self.store_id
@@ -54,7 +55,7 @@ class MaxApiScraper(BaseWebScraper):
             image_entries.extend(self.parse_offer(offer))
 
         products = extract_flyer_products(
-            self._http, image_entries, self.name, source="max_flyer"
+            self._http, image_entries[:self.max_flyer_pages], self.name, source="max_flyer"
         )
         if products:
             self.report_success(items_found=len(products), products_matched=0, flyer_count=len(image_entries))
