@@ -79,8 +79,12 @@ def extract_flyer_products(
     store_name: str,
     source: str = "flyer",
     max_images: int | None = None,
+    max_concurrency: int = 1,
 ) -> list[dict]:
     """Baixa cada encarte e extrai produtos (vision-first -> OCR).
+
+    Imagens processadas em paralelo (asyncio + semaforo) para nao ficar
+    sequencial quando ha varios encartes (ex.: Max tem 21 imagens).
 
     Args:
         http: cliente httpx (usa verify/redirects ja configurados no scraper).
@@ -88,13 +92,15 @@ def extract_flyer_products(
         store_name: nome da loja (para logs e campo ``store``).
         source: rotulo de origem (ex.: ``roldao_flyer``).
         max_images: limite opcional de imagens processadas (free-tier/rate-limit).
+        max_concurrency: nivel de paralelismo no vision (default 4).
 
     Returns:
         Lista de produtos normalizados. Vazia se nada foi extraido.
     """
+    import asyncio
+
     products: list[dict] = []
     seen: set[str] = set()
-    processed = 0
     counted: set[str] = set()
     total = 0
     for e in image_entries:
@@ -102,34 +108,65 @@ def extract_flyer_products(
         if e.get("image_url") and h not in counted:
             counted.add(h)
             total += 1
-    logger.info("[flyer_ocr] %s: iniciando %d encarte(s) (source=%s)", store_name, total, source)
-    for entry in image_entries:
-        if max_images is not None and processed >= max_images:
-            logger.info("[flyer_ocr] %s: limite max_images=%d atingido", store_name, max_images)
-            break
+    logger.info("[flyer_ocr] %s: iniciando %d encarte(s) (source=%s, conc=%d)", store_name, total, source, max_concurrency)
+
+    sem = asyncio.Semaphore(max_concurrency)
+    processed = 0
+
+    async def _worker(entry: dict) -> list[dict]:
+        nonlocal processed
         url = entry.get("image_url")
         if not url:
-            continue
+            return []
         image_hash = entry.get("image_hash") or url
         if image_hash in seen:
-            continue
+            return []
         seen.add(image_hash)
-
-        image_bytes = _download_image(http, url)
+        async with sem:
+            loop = asyncio.get_event_loop()
+            image_bytes = await loop.run_in_executor(None, _download_image, http, url)
         if not image_bytes:
-            logger.warning("[flyer_ocr] %s: encarte %d/%d falhou ao baixar", store_name, processed + 1, total)
-            continue
-        processed += 1
-        logger.info("[flyer_ocr] %s: encarte %d/%d baixado (%d KB) — extraindo via vision…", store_name, processed, total, len(image_bytes) // 1024)
-
+            logger.warning("[flyer_ocr] %s: encarte falhou ao baixar", store_name)
+            return []
+        processed_local = processed + 1
+        processed = processed_local
+        logger.info(
+            "[flyer_ocr] %s: encarte %d/%d baixado (%d KB) — extraindo via vision…",
+            store_name,
+            processed_local,
+            total,
+            len(image_bytes) // 1024,
+        )
         fallback_validity = entry.get("post_date") or entry.get("validity_raw") or ""
         found = 0
+        out: list[dict] = []
         for item in _extract_one(image_bytes, store_name):
             norm = _normalize(item, store_name, source, fallback_validity)
             if norm:
-                products.append(norm)
+                out.append(norm)
                 found += 1
-        logger.info("[flyer_ocr] %s: encarte %d/%d -> %d produtos", store_name, processed, total, found)
+        logger.info("[flyer_ocr] %s: encarte %d/%d -> %d produtos", store_name, processed_local, total, found)
+        return out
+
+    async def _run() -> list[list[dict]]:
+        tasks = []
+        idx = 0
+        for entry in image_entries:
+            if max_images is not None and idx >= max_images:
+                logger.info("[flyer_ocr] %s: limite max_images=%d atingido", store_name, max_images)
+                break
+            if not entry.get("image_url"):
+                continue
+            h = entry.get("image_hash") or entry.get("image_url")
+            if h in seen:
+                continue
+            idx += 1
+            tasks.append(asyncio.ensure_future(_worker(entry)))
+        return await asyncio.gather(*tasks)
+
+    results = asyncio.run(_run())
+    for r in results:
+        products.extend(r)
 
     logger.info("[flyer_ocr] %s: %d produtos de %d imagens", store_name, len(products), processed)
     return products

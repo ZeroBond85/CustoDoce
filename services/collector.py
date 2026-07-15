@@ -2,10 +2,11 @@
 Collector Service - Coordinates scrapers and processes product matches.
 """
 
+import importlib
+import multiprocessing as mp
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from concurrent.futures import TimeoutError as FuturesTimeout
 from contextlib import suppress
 from datetime import UTC, date
 from datetime import datetime as dt_now
@@ -413,22 +414,75 @@ def _verify_scrape_results(all_products: list[PriceEntry], store_count: int, ski
         )
 
 
-def _run_scraper_with_timeout(scraper, filtered_ingredients, needs_ingredients_param, store_name, timeout_seconds=900):
-    """Executa scraper.run() com timeout wall-clock via ThreadPoolExecutor."""
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        sig = signature(scraper.run)
-        if needs_ingredients_param:
-            future = executor.submit(
-                scraper.run, filtered_ingredients
-            ) if "ingredients" in sig.parameters else executor.submit(scraper.run)
-        else:
-            future = executor.submit(scraper.run, [])
-        try:
-            return future.result(timeout=timeout_seconds)
-        except FuturesTimeout:
-            logger.error("[%s] TIMEOUT after %ds — scraper.run() excedeu o limite", store_name, timeout_seconds)
-            future.cancel()
-            return []
+def _mp_worker(q, kind, target_mod, target_name, store, extra):
+    """Roda alvo isolado em processo filho e devolve resultado via queue.
+
+    Rodar em processo (e nao thread) garante que, em caso de travamento
+    (ex.: launch do browser preso), o processo inteiro — incluindo o Chrome
+    filho — possa ser terminado sem deixar zumbi que trava as lojas seguintes.
+    """
+    try:
+        mod = importlib.import_module(target_mod)
+        target = getattr(mod, target_name)
+        if kind == "scraper":
+            ingredients, needs = extra
+            with target(store) as scraper:
+                sig = signature(scraper.run)
+                raw = scraper.run(ingredients) if needs and "ingredients" in sig.parameters else scraper.run([])
+                thumb = getattr(scraper, "_thumbnail", None)
+            q.put(("ok", (raw if raw is not None else [], thumb)))
+        else:  # callable (ex.: run_fn de agregador)
+            result = target(store)
+            q.put(("ok", result if result is not None else []))
+    except Exception as exc:  # noqa: BLE001 - relata falha ao pai
+        q.put(("err", str(exc)))
+
+
+def _spawn_isolated(kind, target_mod, target_name, store, store_name, timeout_seconds, extra=None):
+    """Spawn de processo filho com timeout hard; termina o processo no expiry."""
+    mp_q = mp.get_context("spawn").Queue()
+    p = mp.get_context("spawn").Process(
+        target=_mp_worker,
+        args=(mp_q, kind, target_mod, target_name, store, extra),
+        daemon=True,
+    )
+    p.start()
+    p.join(timeout=timeout_seconds)
+    if p.is_alive():
+        logger.error("[%s] TIMEOUT after %ds — encerrando processo", store_name, timeout_seconds)
+        p.terminate()
+        with suppress(Exception):
+            p.join(timeout=10)
+        return None
+    try:
+        status, payload = mp_q.get(timeout=15)
+    except Exception:  # noqa: BLE001
+        return None
+    if status == "err":
+        raise RuntimeError(f"falha no scraper: {payload}")
+    return payload
+
+
+def _run_scraper_isolated(scraper_cls, store, ingredients, needs_ingredients, store_name, timeout_seconds=300):
+    """Executa o scraper em processo filho com timeout hard.
+
+    O launch do browser (``cls(store)``) e o ``scraper.run()`` ficam DENTRO do
+    processo filho, entao um travamento em qualquer ponto e coberto pelo timeout:
+    ao estourar, o processo e terminado (junto com o Chrome), liberando recursos
+    para as lojas seguintes. Retorna ``(raw_products, thumbnail)``.
+    """
+    res = _spawn_isolated("scraper", scraper_cls.__module__, scraper_cls.__name__, store, store_name, timeout_seconds, extra=(ingredients, needs_ingredients))
+    if res is None:
+        return [], None
+    return res
+
+
+def _run_callable_isolated(func, store, store_name, timeout_seconds=300):
+    """Executa ``func(store)`` em processo filho com timeout hard (agregadores)."""
+    res = _spawn_isolated("callable", func.__module__, func.__name__, store, store_name, timeout_seconds)
+    if res is None:
+        return []
+    return res[0] if isinstance(res, tuple) else res
 
 
 def _scrape_store(
@@ -459,20 +513,19 @@ def _scrape_store(
             if get_feature(f"features.scrapers.{scraper_name}", ingredient=ing["canonical_name"], default=True)
         ]
 
-        with scraper_cls(store) as scraper:
-            raw_products = _run_scraper_with_timeout(
-                scraper, filtered_ingredients, needs_ingredients_param, store_name, timeout_seconds=store_timeout
-            )
+        raw_products, thumbnail = _run_scraper_isolated(
+            scraper_cls, store, filtered_ingredients, needs_ingredients_param, store_name, timeout_seconds=store_timeout
+        )
 
         elapsed = int((dt_now.now(UTC) - started_at).total_seconds())
         cache_status = "hit" if not raw_products else "miss"
         logger.info("[%s] <<< FIM coleta (%ds) — Cache %s: %d raw products found", store_name, elapsed, cache_status, len(raw_products))
 
-        if hasattr(scraper, "_thumbnail") and scraper._thumbnail:
+        if thumbnail:
             try:
                 from services.flyer_service import _upload_flyer_thumbnail
 
-                thumb_url = _upload_flyer_thumbnail(store_name, scraper._thumbnail)
+                thumb_url = _upload_flyer_thumbnail(store_name, thumbnail)
                 if thumb_url:
                     upsert_flyer(
                         {
@@ -564,7 +617,7 @@ def _collect_generic(
     needs_ingredients_param: bool = True,
     post_process=None,
     store_timeout: int = 300,
-    max_workers: int = 3,
+    max_workers: int = 4,
 ) -> list[PriceEntry]:
     all_products: list[PriceEntry] = []
     skipped_count = 0
@@ -630,10 +683,9 @@ def _collect_flyers(
         store_name = store.get("name", "unknown")
         try:
             if scraper_cls:
-                with scraper_cls(store) as scraper:
-                    entries = scraper.run([]) if hasattr(scraper, "run") else []
+                entries, _thumb = _run_scraper_isolated(scraper_cls, store, [], False, store_name, timeout_seconds=300)
             elif run_fn:
-                entries = run_fn(store)
+                entries = _run_callable_isolated(run_fn, store, store_name, timeout_seconds=300)
             else:
                 continue
 

@@ -1,4 +1,6 @@
+import json
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import quote
 
 from selectolax.parser import HTMLParser
@@ -13,6 +15,7 @@ class WebsiteScraper(BaseWebScraper):
         super().__init__(store_config)
         self.search_url = store_config.get("search_url") or f"{self.base_url}/busca?q={{query}}"
         self.selectors = {**DEFAULT_SELECTORS, **store_config.get("selectors", {})}
+        self.browse_parallel = store_config.get("browse_parallel", False)
 
     def fetch_search(self, query: str) -> str | None:
         url = self.search_url.format(query=quote(query))
@@ -45,20 +48,41 @@ class WebsiteScraper(BaseWebScraper):
         if not browse_urls:
             return super().run(ingredients)
 
+        import time as _time
+        start_ts = _time.time()
         logger.info("[%s] browse_urls mode: %d paginas de departamento", self.name, len(browse_urls))
         all_entries: list[dict] = []
-        for i, url in enumerate(browse_urls, 1):
-            html = self.fetch_browse(url)
-            self._throttle()
-            if not html:
-                logger.warning("[%s] browse %d/%d vazio: %s", self.name, i, len(browse_urls), url)
-                continue
-            found = self.parse_products(html)
-            logger.info("[%s] browse %d/%d: %d produtos", self.name, i, len(browse_urls), len(found))
-            all_entries.extend(found)
+
+        if self.browse_parallel:
+            with ThreadPoolExecutor(max_workers=min(4, len(browse_urls))) as ex:
+                url_map = {ex.submit(self.fetch_browse, url): url for url in browse_urls}
+                for fut in as_completed(url_map):
+                    url = url_map[fut]
+                    html = fut.result()
+                    if not html:
+                        logger.warning("[%s] browse %s falhou (0 bytes)", self.name, url)
+                        continue
+                    found = self.parse_products(html)
+                    logger.info("[%s] browse %s -> %d produtos", self.name, url, len(found))
+                    all_entries.extend(found)
+        else:
+            for i, url in enumerate(browse_urls, 1):
+                html = self.fetch_browse(url)
+                self._throttle()
+                if not html:
+                    logger.warning("[%s] browse %d/%d vazio: %s", self.name, i, len(browse_urls), url)
+                    continue
+                found = self.parse_products(html)
+                logger.info("[%s] browse %d/%d: %d produtos (%.1fs)", self.name, i, len(browse_urls), len(found), _time.time() - start_ts)
+                all_entries.extend(found)
+        logger.info("[%s] browse total: %d produtos em %.1fs", self.name, len(all_entries), _time.time() - start_ts)
         return all_entries
 
     def parse_products(self, html: str) -> list[dict]:
+        products = self._parse_jsonld(html)
+        if products:
+            return products
+
         tree = HTMLParser(html)
         cards = self._find_nodes(tree)
         products = []
@@ -83,6 +107,36 @@ class WebsiteScraper(BaseWebScraper):
                 }
             )
 
+        return products
+
+    def _parse_jsonld(self, html: str) -> list[dict]:
+        """Extrai produtos de JSON-LD embedado (VTEX IO / Schema.org)."""
+        products: list[dict] = []
+        m = re.findall(r'<script\s+type="application/ld\+json"[^>]*>(.*?)</script>', html, re.DOTALL | re.IGNORECASE)
+        for block in m:
+            try:
+                data = json.loads(block.strip())
+                items = []
+                if data.get("@type") == "ItemList":
+                    items = data.get("itemListElement", [])
+                for entry in items:
+                    item = entry.get("item", {})
+                    if not item.get("name"):
+                        continue
+                    offers = item.get("offers", {})
+                    price = offers.get("lowPrice") or offers.get("price") or 0
+                    if price <= 0:
+                        continue
+                    name = item["name"].strip()
+                    products.append({
+                        "product": name,
+                        "price": float(price),
+                        "unit": extract_unit(name),
+                        "validity_raw": "",
+                        "brand": "",
+                    })
+            except (json.JSONDecodeError, TypeError, ValueError):
+                continue
         return products
 
     def _find_nodes(self, tree: HTMLParser) -> list:
