@@ -30,6 +30,10 @@ on:
         required: false
       GOOGLE_API_KEY:
         required: false
+      OPENROUTER_API_KEY:
+        required: false
+      HF_API_KEY:
+        required: false
   workflow_dispatch:
     inputs:
       mode:
@@ -118,7 +122,7 @@ jobs:
       - name: Run scraping for tier ${{ matrix.tier }}
         id: scrape_tier
         run: |
-          python main.py --tier ${{ matrix.tier }} --no-finalize --mode ${{ inputs.mode }} ${{ inputs.dry_run && '--dry-run' || '' }} 2>&1 | tee /tmp/scrape_${{ matrix.tier }}.log
+          ulimit -n 65536 && python main.py --tier ${{ matrix.tier }} --no-finalize --mode ${{ inputs.mode }} ${{ inputs.dry_run && '--dry-run' || '' }} 2>&1 | tee /tmp/scrape_${{ matrix.tier }}.log
           if grep -qE '\[error\s*\]|"level":\s*"error"|Error fetching|Client error|HTTP [45][0-9][0-9]' /tmp/scrape_${{ matrix.tier }}.log 2>/dev/null; then
             echo "::error::[error] entries found in scrape output for tier ${{ matrix.tier }}"
             grep -E '\[error\s*\]|"level":\s*"error"|Error fetching|Client error|HTTP [45][0-9][0-9]' /tmp/scrape_${{ matrix.tier }}.log
@@ -133,6 +137,8 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          HF_API_KEY: ${{ secrets.HF_API_KEY }}
           CI_JOB_START: ${{ env.CI_JOB_START }}
       - name: Check time budget for scraping
         run: python scripts/check_time_budget.py --timeout-minutes 120 --label "scrape-tier-${{ matrix.tier }}"

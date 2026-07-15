@@ -101,6 +101,7 @@ class PlaywrightAggregatorScraper:
         self.regions = store_config.get("regions", [])
         self.sp_zones = store_config.get("sp_zones", [])
         self.portal_config = get_portal_config(self.name)
+        self.logger = logger
 
     def _build_city_urls(self) -> list[tuple[str, str]]:
         """Build city-specific URLs based on portal requirements."""

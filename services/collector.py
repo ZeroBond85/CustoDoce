@@ -617,7 +617,7 @@ def _collect_generic(
     needs_ingredients_param: bool = True,
     post_process=None,
     store_timeout: int = 300,
-    max_workers: int = 4,
+    max_workers: int = 2,
 ) -> list[PriceEntry]:
     all_products: list[PriceEntry] = []
     skipped_count = 0
