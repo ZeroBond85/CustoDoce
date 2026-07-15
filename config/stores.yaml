@@ -71,6 +71,7 @@ stores:
     vip_cd_id: "15"
     vip_login_key: "df072f85df9bf7dd71b6811c34bdbaa4f219d98775b56cff9dfa5f8ca1bf8469"
     vip_max_pages_per_dept: 6
+    rate_limit: 0
     regions:
       - "santos"
       - "sao-vicente"
@@ -349,30 +350,45 @@ stores:
 
   - name: "Rede Krill"
     tier: 2
-    type: "website_js"
-    # reactivation_note: Playwright timeout — pool reforçado (--single-process, /dev/shm, retry de launch) e timeout por loja
+    type: "vipcommerce_api"
+    # reactivation_note: loja roda na plataforma VipCommerce (mesma da Spani).
+    # A busca /busca?q= (SPA) não renderiza; a API JSON pública expõe
+    # /buscas/produtos/termo/{termo} que devolve direto os ingredientes
+    # monitorados (muito mais eficiente que raspar o SPA/Playwright).
     logistics: "pickup_local"
     base_url: "https://www.lojasredekrill.com.br"
-    # A busca /busca?q= deste tema Lojas Integrada retorna 0 produtos (SPA
-    # não renderiza resultados de busca). As páginas de departamento sim.
-    # Usamos browse_urls (categorias) e coletamos todos os produtos; o
-    # process_price_match filtra por ingrediente downstream.
-    search_url: "https://www.lojasredekrill.com.br/busca?q={query}"
-    browse_urls:
-      - "https://www.lojasredekrill.com.br/departamentos/doces-e-sobremesas-1"
-      - "https://www.lojasredekrill.com.br/departamentos/frios-e-laticinios-1"
-      - "https://www.lojasredekrill.com.br/departamentos/leites-1"
-      - "https://www.lojasredekrill.com.br/departamentos/mercearia-alimentos-basicos-1"
-    selectors:
-      product_card: [".vip-card-produto", ".produto-card", ".item-produto", "[class*=product]", "[class*=produto]"]
-      product_name: [".vip-card-produto-descricao", ".product-name a", ".nome-produto", ".product-title a", "h2 a", "h3 a"]
-      product_price: ["[data-cy=preco]", ".product-price", ".preco-produto", ".price", ".sale-price"]
+    vip_domain: "lojasredekrill.com.br"
+    vip_api_base: "https://services.vipcommerce.com.br/api-admin/v1"
+    vip_org_id: "216"
+    vip_filial_id: "1"
+    vip_cd_id: "20"
+    vip_login_key: "df072f85df9bf7dd71b6811c34bdbaa4f219d98775b56cff9dfa5f8ca1bf8469"
+    vip_mode: "search"
+    vip_max_pages_per_search: 1
+    rate_limit: 0
+    vip_search_ingredients:
+      - "Leite Condensado Integral"
+      - "Creme de Leite 20% Gordura"
+      - "Chocolate 50% Cacau"
+      - "Leite em Pó Integral"
+      - "Açúcar Mascavo"
+      - "Açúcar Confeiteiro"
+      - "Chocolate 70% Cacau"
+      - "Farinha de Trigo"
+      - "Gotas de Chocolate Meio Amargo"
+      - "Gotas de Chocolate Branco"
+      - "Manteiga"
+      - "Fermento Químico em Pó"
+      - "Essência de Baunilha"
+      - "Granulado Ao Leite"
+      - "Granulado Branco"
+      - "Coco Ralado Grosso sem Açúcar"
     address: "Praia Grande, SP"
     city: "Praia Grande"
     zone: "baixada_santista"
     coverage: "Atacado e varejo ingredientes confeitaria, chocolates, laticínios"
     collection_method: "automated"
-    scraper: "playwright_price_scraper"
+    scraper: "vipcommerce_api_scraper"
     priority: 13
 
   - name: "Casa Santa Luzia"

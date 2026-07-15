@@ -52,7 +52,22 @@ class VipCommerceApiScraper(BaseWebScraper):
         self.login_username = store_config.get("vip_login_username", "loja")
         self.dept_keywords = [k.lower() for k in (store_config.get("vip_dept_keywords") or DEFAULT_DEPT_KEYWORDS)]
         self.max_pages_per_dept = int(store_config.get("vip_max_pages_per_dept", 15))
+        self.max_pages_per_search = int(store_config.get("vip_max_pages_per_search", 3))
+        # Modo de coleta: 'dept' (navega departamentos de confeitaria) ou
+        # 'search' (busca direta pelos termos dos ingredientes monitorados).
+        # 'search' é muito mais eficiente: devolve só produtos relevantes.
+        self.mode = (store_config.get("vip_mode") or "dept").lower()
+        # Filtro opcional de ingredientes: se informado (lista de canonical_name),
+        # só esses ingredientes são buscados. Reduz drasticamente o volume de
+        # requisições/upserts quando a loja só carrega um subconjunto (ex: Krill).
+        self.search_ingredients = [str(x).strip().lower() for x in (store_config.get("vip_search_ingredients") or [])]
         self._token: str | None = None
+
+    def _filter_ingredients(self, ingredients: list[dict]) -> list[dict]:
+        if not self.search_ingredients:
+            return ingredients
+        wanted = set(self.search_ingredients)
+        return [ing for ing in ingredients if (ing.get("canonical_name") or "").strip().lower() in wanted]
 
     def _host_from_base_url(self) -> str:
         host = urlparse(self.base_url).netloc or self.base_url
@@ -69,11 +84,14 @@ class VipCommerceApiScraper(BaseWebScraper):
             h["Authorization"] = f"Bearer {self._token}"
         return h
 
-    def _dept_base(self) -> str:
+    def _loja_base(self) -> str:
         return (
             f"{self.api_base}/org/{self.org_id}/filial/{self.filial_id}"
-            f"/centro_distribuicao/{self.cd_id}/loja/classificacoes_mercadologicas/departamentos"
+            f"/centro_distribuicao/{self.cd_id}/loja"
         )
+
+    def _dept_base(self) -> str:
+        return f"{self._loja_base()}/classificacoes_mercadologicas/departamentos"
 
     def _login(self) -> bool:
         if not (self.org_id and self.login_key and self.domain):
@@ -128,6 +146,8 @@ class VipCommerceApiScraper(BaseWebScraper):
                 break
             data = payload.get("data") or []
             for raw in data:
+                if not isinstance(raw, dict):
+                    continue
                 parsed = self._parse_product(raw)
                 if parsed:
                     products.append(parsed)
@@ -174,15 +194,84 @@ class VipCommerceApiScraper(BaseWebScraper):
         if not self._login():
             self.report_failure(reason="VipCommerce login falhou", items_found=0, products_matched=0)
             return []
-        departments = self._select_departments()
-        if not departments:
-            self.report_failure(reason="nenhum departamento VipCommerce selecionado", items_found=0, products_matched=0)
-            return []
-        all_products: list[dict] = []
-        for dep in departments:
-            all_products.extend(self._fetch_dept_products(dep))
+        if self.mode == "search":
+            all_products = self._run_search(self._filter_ingredients(ingredients))
+        else:
+            all_products = self._run_departments()
         if all_products:
             self.report_success(items_found=len(all_products), products_matched=0)
         else:
             self.report_failure(reason="0 produtos coletados da API VipCommerce", items_found=0, products_matched=0)
         return all_products
+
+    def _run_departments(self) -> list[dict]:
+        departments = self._select_departments()
+        if not departments:
+            return []
+        all_products: list[dict] = []
+        for dep in departments:
+            all_products.extend(self._fetch_dept_products(dep))
+        return all_products
+
+    def _run_search(self, ingredients: list[dict]) -> list[dict]:
+        # Termos únicos: ingredientes compartilham canonical/aliases, então
+        # deduplicar evita N requisições redundantes (economiza tempo de
+        # orçamento no free tier). O matcher downstream cobre todos os ingredientes.
+        unique_terms: list[str] = []
+        seen_terms: set[str] = set()
+        for ing in ingredients:
+            terms = list(ing.get("search_terms", []))
+            if ing.get("canonical_name"):
+                terms.append(ing["canonical_name"])
+            terms.extend(ing.get("aliases", []))
+            for term in terms:
+                if term and term.lower() not in seen_terms:
+                    seen_terms.add(term.lower())
+                    unique_terms.append(term)
+        all_products: list[dict] = []
+        seen: set[str] = set()
+        for term in unique_terms:
+            for prod in self._fetch_search_products(term):
+                key = prod["product"]
+                if key not in seen:
+                    seen.add(key)
+                    all_products.append(prod)
+            self._throttle()
+        return all_products
+
+    def _fetch_search_products(self, term: str) -> list[dict]:
+        # Endpoint real descoberto em produção: /loja/buscas/produtos/termo/{termo}?page=N
+        products: list[dict] = []
+        term_url = term.replace(" ", "+")
+        page = 1
+        total_pages = 1
+        while page <= min(total_pages, self.max_pages_per_search):
+            url = (
+                f"{self._loja_base()}/buscas/produtos/termo/{term_url}?page={page}"
+            )
+            try:
+                resp = self._http.get(url, headers=self._headers())
+                resp.raise_for_status()
+                payload = resp.json() or {}
+            except Exception as e:
+                logger.warning("[%s] VipCommerce busca '%s' p%d falhou: %s | url=%s", self.name, term, page, e, url)
+                break
+            data = payload.get("data") or {}
+            # Busca: produtos em data["produtos"] (lista). Departamento:
+            # data é a própria lista de produtos.
+            items = data.get("produtos") if isinstance(data, dict) else data
+            if not isinstance(items, list):
+                items = []
+            for raw in items:
+                if not isinstance(raw, dict):
+                    continue
+                parsed = self._parse_product(raw)
+                if parsed:
+                    products.append(parsed)
+            paginator = payload.get("paginator") or {}
+            total_pages = int(paginator.get("total_pages", 1) or 1)
+            page += 1
+            self._throttle()
+        if products:
+            logger.info("[%s] VipCommerce busca '%s': %d produtos", self.name, term, len(products))
+        return products
