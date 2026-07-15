@@ -915,7 +915,9 @@ def process_ocr_queue() -> int:
             processed += 1
 
         except Exception as e:
-            logger.error("[OCR] Error processing flyer %s: %s", flyer.get("id"), e)
+            logger.warning("[OCR] Error processing flyer %s: %s — marking as failed", flyer.get("id"), e)
+            with suppress(Exception):
+                mark_failed(flyer["id"])
             with suppress(Exception):
                 mark_failed(flyer["id"])
 

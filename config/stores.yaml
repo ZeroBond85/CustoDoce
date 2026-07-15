@@ -267,7 +267,8 @@ stores:
   - name: "Amendolate"
     tier: 2
     type: "website_js"
-    is_active: true
+    is_active: false
+    inactive_reason: "Timeout persistente mesmo com 600s — Playwright nao consegue lanca browser ou pagina nao carrega no CI"
     logistics: "pickup_sp"
     base_url: "https://amendolate.lojaintegrada.com.br"
     search_url: "https://amendolate.lojaintegrada.com.br/buscar?q={query}"
@@ -304,7 +305,8 @@ stores:
   - name: "BarraDoce"
     tier: 2
     type: "website_js"
-    is_active: true
+    is_active: false
+    inactive_reason: "Timeout 300s mesmo com max_pages=5 — httpx.get() pendura no CI"
     logistics: "pickup_sp"
     base_url: "https://www.barradoce.com.br"
     search_url: "https://www.barradoce.com.br/busca?q={query}"
@@ -332,7 +334,8 @@ stores:
   - name: "Rede Krill"
     tier: 2
     type: "website_js"
-    is_active: true
+    is_active: false
+    inactive_reason: "Timeout persistente mesmo com 600s — Playwright nao consegue lanca browser ou pagina nao carrega no CI"
     logistics: "pickup_local"
     base_url: "https://www.lojasredekrill.com.br"
     # A busca /busca?q= deste tema Lojas Integrada retorna 0 produtos (SPA
