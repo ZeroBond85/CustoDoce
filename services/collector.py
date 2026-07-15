@@ -59,6 +59,23 @@ def load_ingredients() -> list[Ingredient]:
     return get_active_ingredients()
 
 
+def _merge_store_config(store: Store) -> Store:
+    """Promove chaves da coluna `config` (jsonb) para o topo do dict da loja.
+
+    Scrapers leem configs específicas (browse_urls, api_base, headers,
+    verify_ssl, api_base_fallbacks, image_host_fallbacks, anti_bot, rate_limit,
+    vision_timeout_seconds, store_slug, ...) via ``store.get(...)``. Essas chaves
+    não são colunas da tabela `stores`; ficam em `config`. Sem promovê-las, o
+    scraper em CI perde a configuração (ex: Rede Krill sem browse_urls cai no
+    /busca?q= quebrado → 0 produtos). Colunas reais têm precedência sobre config.
+    """
+    cfg = store.get("config")
+    if not isinstance(cfg, dict) or not cfg:
+        return store
+    merged = {**cfg, **store}
+    return merged
+
+
 def load_stores() -> list[Store]:
     all_stores = get_active_stores()
     if not all_stores:
@@ -72,7 +89,8 @@ def load_stores() -> list[Store]:
             freq_by_store[sid] = f.get("enabled", True)
     # Include store if it has no freq row (use tier default), or if its freq row is enabled.
     # Explicitly disabled rows (enabled=False) still exclude the store.
-    return [s for s in all_stores if s.get("id") not in freq_by_store or freq_by_store.get(s["id"], True)]
+    active = [s for s in all_stores if s.get("id") not in freq_by_store or freq_by_store.get(s["id"], True)]
+    return [_merge_store_config(s) for s in active]
 
 
 def _extract_validity_from_product(product_text: str) -> str:

@@ -1,6 +1,6 @@
 # `email_service` — API
 
-> Última atualização: 2026-07-15 16:13 UTC
+> Última atualização: 2026-07-15 18:08 UTC
 > Gerado por AST parsing dos serviços em `services/email_service.py`.
 
 ## Funções Públicas (6)

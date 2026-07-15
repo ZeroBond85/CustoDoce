@@ -59,6 +59,10 @@ class MockQueryBuilder:
         self._applied_filters.append(("limit", n))
         return self
 
+    def range(self, start, end):
+        self._applied_filters.append(("range", start, end))
+        return self
+
     def single(self):
         self._single_mode = True
         return self

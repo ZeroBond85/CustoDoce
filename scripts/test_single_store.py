@@ -72,6 +72,9 @@ def main() -> int:
         available = [s.get("name") for s in get_active_stores()]
         print(json.dumps({"error": f"loja {target!r} não encontrada", "available": available}))
         return 2
+    # Promove config jsonb (browse_urls, api_base, headers, ...) para o topo,
+    # igual ao load_stores real — senão o scraper roda sem sua configuração.
+    store = collector._merge_store_config(store)
 
     method = _resolve_method(store)
 
