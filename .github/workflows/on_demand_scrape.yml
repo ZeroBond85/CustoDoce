@@ -18,6 +18,7 @@ jobs:
     uses: ./.github/workflows/scrape-reusable.yml
     with:
       mode: on_demand
+      force: true
       stores_filter: ${{ github.event.inputs.stores_filter || github.event.client_payload.stores_filter }}
     secrets:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

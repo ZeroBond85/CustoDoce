@@ -17,6 +17,11 @@ on:
         required: false
         type: boolean
         default: false
+      force:
+        description: 'Ignorar freshness check (coleta full)'
+        required: false
+        type: boolean
+        default: false
     secrets:
       SUPABASE_URL:
         required: true
@@ -47,6 +52,11 @@ on:
         type: string
       dry_run:
         description: 'Modo de teste (não executa scraping real)'
+        required: false
+        type: boolean
+        default: false
+      force:
+        description: 'Ignorar freshness check (coleta full)'
         required: false
         type: boolean
         default: false
@@ -122,7 +132,7 @@ jobs:
       - name: Run scraping for tier ${{ matrix.tier }}
         id: scrape_tier
         run: |
-          ulimit -n 65536 && python main.py --tier ${{ matrix.tier }} --no-finalize --mode ${{ inputs.mode }} ${{ inputs.dry_run && '--dry-run' || '' }} 2>&1 | tee /tmp/scrape_${{ matrix.tier }}.log
+          ulimit -n 65536 && python main.py --tier ${{ matrix.tier }} --no-finalize --mode ${{ inputs.mode }} ${{ inputs.dry_run && '--dry-run' || '' }} ${{ inputs.force && '--force' || '' }} 2>&1 | tee /tmp/scrape_${{ matrix.tier }}.log
           if grep -qE '\[error\s*\]|"level":\s*"error"|Error fetching|Client error|HTTP [45][0-9][0-9]' /tmp/scrape_${{ matrix.tier }}.log 2>/dev/null; then
             echo "::error::[error] entries found in scrape output for tier ${{ matrix.tier }}"
             grep -E '\[error\s*\]|"level":\s*"error"|Error fetching|Client error|HTTP [45][0-9][0-9]' /tmp/scrape_${{ matrix.tier }}.log
