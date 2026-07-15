@@ -128,8 +128,8 @@ stores:
   # TIER 1B - PDF DIRETO SP CAPITAL (Atacadistas com filial em SP)
   # ============================================================================
   - name: "Sam's Club SP"
-    tier: 1
-    type: "vtex_api"
+    tier: 3
+    type: "website_catalog"
     logistics: "pickup_sp"
     cities: ["São Paulo"]
     units:
@@ -142,10 +142,18 @@ stores:
       - name: "SP - Jabaquara"
         address: "Av. Eng. George Corbisier, 273 - Jabaquara, SP"
     base_url: "https://www.samsclub.com.br"
-    api_endpoint: "https://www.samsclub.com.br/api/catalog_system/pub/products/search"
-    publish_day: "thursday"
     collection_method: "automated"
-    scraper: "vtex_scraper"
+    scraper: "website_scraper"
+    browse_urls:
+      - "https://www.samsclub.com.br/categoria/padaria-e-confeitaria"
+      - "https://www.samsclub.com.br/categoria/mercearia-doce"
+      - "https://www.samsclub.com.br/categoria/mercearia"
+      - "https://www.samsclub.com.br/categoria/frios-e-laticinios"
+    selectors:
+      product_card: ["a[data-testid='search-product-card']", "a[href^='/produto/']"]
+      product_name: ["h2"]
+      product_price: [".text-price-default"]
+    browse_parallel: true
     priority: 50
 
   - name: "Max Atacadista SP"
@@ -200,16 +208,21 @@ stores:
   # TIER 2 - E-COMMERCE SP CAPITAL (API VTEX / Site Próprio - Entregam na Baixada)
   # ============================================================================
   - name: "Loja Santo Antônio"
-    tier: 2
-    type: "vtex_api"
+    tier: 3
+    type: "website_catalog"
     logistics: "pickup_sp"
     base_url: "https://www.lojasantoantonio.com.br"
-    api_endpoint: "https://www.lojasantoantonio.com.br/api/catalog_system/pub/products/search"
     address: "Rua da Cantareira, 56 - Centro, SP"
     zone: "centro"
     coverage: "Referência completa - chocolates, ingredientes, embalagens, utensílios"
     collection_method: "automated"
-    scraper: "vtex_scraper"
+    scraper: "website_scraper"
+    browse_urls:
+      - "https://www.lojasantoantonio.com.br/confeitaria"
+      - "https://www.lojasantoantonio.com.br/chocolates"
+      - "https://www.lojasantoantonio.com.br/ofertas"
+      - "https://www.lojasantoantonio.com.br/ofertas-clube-da-meire"
+    browse_parallel: true
     priority: 7
 
   - name: "Bom Baiano / Loja de Doces"

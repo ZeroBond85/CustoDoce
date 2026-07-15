@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import re
+import time as _time
 
 from selectolax.parser import HTMLParser
 
@@ -37,11 +38,14 @@ class PlaywrightPriceScraper(BaseWebScraper):
         )
         try:
             if self.browse_urls:
-                logger.info("[%s] browse mode: %d category URLs", self.name, len(self.browse_urls))
-                for url in self.browse_urls:
-                    products = await self._fetch_url(context, url, browse=True)
-                    logger.info("[%s] %d products from %s", self.name, len(products), url)
+                logger.info("[%s] browse mode: %d category URLs (asyncio.gather paralelo)", self.name, len(self.browse_urls))
+                t0 = _time.time()
+                tasks = [self._fetch_url(context, url, browse=True) for url in self.browse_urls]
+                results = await asyncio.gather(*tasks)
+                for url_idx, products in enumerate(results):
+                    logger.info("[%s] %d products from %s (%.1fs)", self.name, len(products), self.browse_urls[url_idx], _time.time() - t0)
                     all_products.extend(products)
+                logger.info("[%s] browse total: %d produtos %d urls em %.1fs", self.name, len(all_products), len(self.browse_urls), _time.time() - t0)
             else:
                 for ing in ingredients:
                     products = await self._search_and_parse_async(context, ing)
