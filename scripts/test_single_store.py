@@ -40,6 +40,7 @@ def _resolve_method(store: dict):
         "roldao_flyer_scraper": collector.collect_roldao_flyer,
         "giga_flyer_scraper": collector.collect_giga_flyer,
         "vtex_scraper": collector.collect_tier2_vtex,
+        "vipcommerce_api_scraper": collector.collect_vipcommerce,
         "carrefour_scraper": collector.collect_carrefour,
         "playwright_price_scraper": collector.collect_tier2_js,
         "ecomplus_scraper": collector.collect_tier2_js,

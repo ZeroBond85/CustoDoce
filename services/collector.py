@@ -38,6 +38,7 @@ from scrapers.playwright_price_scraper import PlaywrightPriceScraper
 from scrapers.roldao_api_scraper import RoldaoApiScraper
 from scrapers.roldao_flyer_scraper import RoldaoFlyerScraperSync
 from scrapers.tenda_api_scraper import TendaApiScraper
+from scrapers.vipcommerce_api_scraper import VipCommerceApiScraper
 from scrapers.vtex_scraper import VtexScraper
 from scrapers.website_scraper import WebsiteScraper
 from services.config_db import get_active_ingredients, get_active_stores
@@ -855,6 +856,14 @@ def collect_tier2_vtex(ingredients: list[Ingredient]) -> list[PriceEntry]:
 def collect_tier3_websites(ingredients: list[Ingredient]) -> list[PriceEntry]:
     stores = [s for s in load_stores() if s.get("scraper") == "website_scraper" and s.get("type") == "website_catalog"]
     return _collect_prices(stores, WebsiteScraper, ingredients, "Website")
+
+
+def collect_vipcommerce(ingredients: list[Ingredient]) -> list[PriceEntry]:
+    stores = [
+        s for s in load_stores()
+        if s.get("scraper") == "vipcommerce_api_scraper" and s.get("type") == "vipcommerce_api"
+    ]
+    return _collect_prices(stores, VipCommerceApiScraper, ingredients, "VipCommerce", store_timeout=300)
 
 
 def collect_carrefour(ingredients: list[Ingredient]) -> list[PriceEntry]:

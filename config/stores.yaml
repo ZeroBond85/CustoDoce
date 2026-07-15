@@ -49,11 +49,12 @@ stores:
     priority: 2
 
   - name: "Spani Atacadista"
-    tier: 3
-    type: "aggregator"
-    # reactivation_note: url_pattern S3 {store-slug}-{hash}.pdf tinha placeholders
-    # literais (nunca resolvido). Fonte real do encarte = Tiendeo (store page
-    # dedicada). Reaproveita TiendeoScraper via store_slug.
+    tier: 2
+    type: "vipcommerce_api"
+    # reactivation_note: fonte real = e-commerce VipCommerce (spanionline.com.br),
+    # mesma plataforma da Rede Krill. API JSON pública via login de loja anônimo →
+    # paginação por departamentos de confeitaria. Substitui a rota antiga Tiendeo
+    # (url_pattern S3 nunca resolvido).
     logistics: "pickup_local"
     cities: ["São Vicente", "Praia Grande", "Mongaguá"]
     units:
@@ -61,15 +62,22 @@ stores:
         address: "Av. Antônio Emmerich, 112 - Centro, São Vicente"
       - name: "Praia Grande"
         address: "Av. Pres. Kennedy, 7000 - Canto do Forte, Praia Grande"
-    base_url: "https://www.tiendeo.com.br"
+    base_url: "https://www.spanionline.com.br"
     store_slug: "spani-atacadista"
+    vip_domain: "spanionline.com.br"
+    vip_api_base: "https://services-beta.vipcommerce.com.br/api-admin/v1"
+    vip_org_id: "67"
+    vip_filial_id: "1"
+    vip_cd_id: "15"
+    vip_login_key: "df072f85df9bf7dd71b6811c34bdbaa4f219d98775b56cff9dfa5f8ca1bf8469"
+    vip_max_pages_per_dept: 6
     regions:
       - "santos"
       - "sao-vicente"
       - "praia-grande"
     publish_day: "wednesday"
     collection_method: "automated"
-    scraper: "aggregator_scraper"
+    scraper: "vipcommerce_api_scraper"
     priority: 3
 
   - name: "Mercadão Atacadista"
