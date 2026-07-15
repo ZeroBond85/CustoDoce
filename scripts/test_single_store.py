@@ -23,8 +23,8 @@ import traceback
 os.environ.setdefault("CUSTODOCE_FORCE_SCRAPE", "1")
 
 from services import collector
+from services.config_db import get_store_by_name, get_active_stores
 
-_real_load_stores = collector.load_stores
 load_ingredients = collector.load_ingredients
 
 
@@ -65,10 +65,12 @@ def main() -> int:
     target = sys.argv[1]
     max_seconds = int(sys.argv[2]) if len(sys.argv) > 2 else 900
 
-    all_stores = _real_load_stores()
-    store = next((s for s in all_stores if s.get("name") == target), None)
+    # Resolve direto no DB (get_store_by_name) — ignora o filtro scrape_frequencies.enabled
+    # e o cap de 1000 linhas do PostgREST, então lojas pausadas/isoladas são encontradas.
+    store = get_store_by_name(target)
     if store is None:
-        print(json.dumps({"error": f"loja {target!r} não encontrada", "available": [s.get("name") for s in all_stores]}))
+        available = [s.get("name") for s in get_active_stores()]
+        print(json.dumps({"error": f"loja {target!r} não encontrada", "available": available}))
         return 2
 
     method = _resolve_method(store)
@@ -93,6 +95,11 @@ def main() -> int:
     except Exception as exc:  # noqa: BLE001 - queremos capturar tudo no teste
         result["error"] = f"{type(exc).__name__}: {exc}"
         result["traceback"] = traceback.format_exc(limit=5)
+
+    # 0 produtos = falha real (timeout/rate-limit/site morto), nunca "sucesso".
+    if result["ok"] and result["collected"] == 0:
+        result["ok"] = False
+        result["error"] = result["error"] or "0 produtos coletados (timeout/rate-limit/site indisponível)"
 
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0 if result["ok"] else 1

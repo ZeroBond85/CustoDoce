@@ -94,8 +94,18 @@ def get_active_stores(tier: int | None = None, store_type: str | None = None) ->
         query = query.eq("tier", tier)
     if store_type:
         query = query.eq("type", store_type)
-    result = query.execute()
-    return result.data or []
+    # PostgREST caps a single response at 1000 rows; paginate to avoid silently
+    # dropping active stores once the table grows past that (e.g. test fixtures).
+    all_data: list[Store] = []
+    page = 0
+    while True:
+        batch = query.range(page * 1000, page * 1000 + 999).execute()
+        rows = batch.data or []
+        all_data.extend(rows)
+        if len(rows) < 1000:
+            break
+        page += 1
+    return all_data
 
 
 def get_all_stores(include_inactive: bool = False) -> list[Store]:

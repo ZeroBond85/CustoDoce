@@ -116,3 +116,62 @@ def test_get_feature_flag():
             mock_get_supabase.return_value = mock_client
             result = get_feature_flag(key, default)
             assert result == expected, f"Failed for key={key}, mock_data={mock_data}, default={expected}"
+
+
+def test_get_active_stores_paginates_beyond_1000():
+    from unittest.mock import patch
+
+    from services.config_db import get_active_stores
+
+    batches = [
+        [{"id": str(i), "is_active": True} for i in range(1000)],
+        [{"id": str(i)} for i in range(1000, 1200)],
+    ]
+    with patch("services.config_db.get_supabase") as mock_get_supabase:
+        mock_client = MagicMock()
+        query = MagicMock()
+        query.range.side_effect = [
+            MagicMock(execute=MagicMock(return_value=MagicMock(data=batches[0]))),
+            MagicMock(execute=MagicMock(return_value=MagicMock(data=batches[1]))),
+        ]
+        mock_client.table.return_value.select.return_value.eq.return_value.order.return_value = query
+        mock_get_supabase.return_value = mock_client
+
+        result = get_active_stores()
+
+        assert len(result) == 1200
+        assert query.range.call_count == 2
+
+
+def test_test_single_store_fails_on_zero_products():
+    import sys
+    from unittest.mock import patch
+
+    import scripts.test_single_store as t
+
+    store = {"name": "X", "type": "website_js", "scraper": "playwright_price_scraper"}
+    with patch.object(t, "get_store_by_name", return_value=store), patch.object(
+        t, "load_ingredients", return_value=[]
+    ), patch("services.collector.load_stores", return_value=[store]), patch(
+        "services.collector.collect_tier2_js", new=lambda ingredients: []
+    ), patch.object(sys, "argv", ["test_single_store.py", "X"]):
+        rc = t.main()
+
+    assert rc == 1
+
+
+def test_test_single_store_resolves_paused_store():
+    import sys
+    from unittest.mock import patch
+
+    import scripts.test_single_store as t
+
+    store = {"name": "Paused", "type": "website_js", "scraper": "playwright_price_scraper"}
+    with patch.object(t, "get_store_by_name", return_value=store), patch.object(
+        t, "load_ingredients", return_value=[]
+    ), patch("services.collector.load_stores", return_value=[store]), patch(
+        "services.collector.collect_tier2_js", new=lambda ingredients: [{"name": "p"}]
+    ), patch.object(sys, "argv", ["test_single_store.py", "Paused"]):
+        rc = t.main()
+
+    assert rc == 0
