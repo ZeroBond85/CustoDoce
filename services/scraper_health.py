@@ -48,6 +48,28 @@ THRESHOLD_FAILURES = int(os.environ.get("SCRAPER_HEALTH_THRESHOLD", "3"))
 RECOVERY_MIN_ITEMS = int(os.environ.get("SCRAPER_HEALTH_RECOVERY_ITEMS", "1"))
 MIN_IDLE_DAYS_BEFORE_HEAL = int(os.environ.get("SCRAPER_HEALTH_HEAL_DAYS", "15"))
 
+# ─── Error classification policy (root-cause resilience) ───────────────────────
+# Erros TRANSITÓRIOS (infra/rede/rate-limit/recurso): contornáveis, a loja
+# permanece ativa e retenta na próxima janela. NÃO acionam auto-disable.
+TRANSIENT_ERROR_CLASSES = {
+    "Timeout",
+    "DNSError",
+    "ConnectError",
+    "RateLimit",
+    "SSLError",
+    "ProxyConfigError",
+    "ResourceError",
+    "Other",
+}
+
+# Erros PERMANENTES: a loja REALMENTE parou de funcionar (seletor/HTML mudou,
+# ou bloqueio anti-bot definitivo). Só estes contam para o auto-disable após
+# THRESHOLD_FAILURES consecutivas — evita perder lojas por falhas contornáveis.
+PERMANENT_ERROR_CLASSES = {
+    "LayoutChanged",
+    "AntiBot",
+}
+
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -85,6 +107,10 @@ def classify_error_for_alert(reason: str | None) -> str:
     s = reason.lower()
     if "timeout" in s or "timed out" in s:
         return "Timeout"
+    if "dns" in s or "no address" in s or "name resolution" in s or "getaddrinfo" in s or "errno -5" in s:
+        return "DNSError"
+    if "errno 11" in s or "resource temporarily unavailable" in s or "too many open files" in s or "emfile" in s:
+        return "ResourceError"
     if "ssl" in s or "tls" in s or "certificate" in s:
         return "SSLError"
     if "proxy" in s:
@@ -99,6 +125,8 @@ def classify_error_for_alert(reason: str | None) -> str:
         return "AntiBot"
     if "rate" in s or "429" in s or "too many" in s:
         return "RateLimit"
+    if "forbidden" in s or "403" in s or "cloudflare" in s or "captcha" in s or "robot" in s:
+        return "AntiBot"
     return "Other"
 
 
@@ -180,6 +208,53 @@ def compute_all_health_scores(health_data: list[dict]) -> list[dict]:
 # ─── Core API ──────────────────────────────────────────────────────────────────
 
 
+def record_transient_failure(
+    scraper_name: str,
+    error_class: str = "Other",
+    reason: str | None = None,
+    items_found: int = 0,
+    products_matched: int = 0,
+    flyer_count: int = 0,
+    attempted_by: str = "auto",
+) -> dict:
+    """Registra falha TRANSITÓRIA (rede/timeout/rate-limit/recurso).
+
+    NÃO conta para o auto-disable e NÃO desativa a loja — é um erro
+    contornável de infra/rede. Apenas registra métrica/observabilidade para
+    que o problema seja visível sem penalizar a loja. O contador de falhas
+    permanentes é preservado (não é zerado).
+    """
+    try:
+        client = get_service_client()
+    except Exception as exc:
+        logger.warning("scraper_health.record_transient_failure: no supabase (%s)", exc)
+        return {"recorded": False, "reason": "no-client"}
+
+    try:
+        failures_count = _count_consecutive_failures(client, scraper_name)
+    except Exception:
+        failures_count = 0
+
+    try:
+        client.table("scraper_health_log").insert(
+            {
+                "scraper_name": scraper_name,
+                "event_type": "transient_failure",
+                "failures_count": failures_count,
+                "is_active": True,
+                "reason": (reason or "")[:512],
+                "items_found": items_found,
+                "products_matched": products_matched,
+                "flyer_count": flyer_count,
+                "error_class": error_class,
+                "attempted_by": attempted_by,
+            }
+        ).execute()
+    except Exception as exc:
+        logger.debug("scraper_health_log transient insert failed for %s: %s", scraper_name, exc)
+    return {"recorded": True, "transient": True, "auto_disabled": False, "error_class": error_class}
+
+
 def record_failure(
     scraper_name: str,
     reason: str | None = None,
@@ -191,14 +266,29 @@ def record_failure(
     """Record a failure and auto-disable the scraper if THRESHOLD_FAILURES hit.
 
     Returns a small summary of what happened (used by scripts/heal_scrapers.py).
+
+    Erros transitórios (rede/timeout/rate-limit/recurso) são roteados para
+    record_transient_failure e NÃO disparam auto-disable — ver
+    TRANSIENT_ERROR_CLASSES / PERMANENT_ERROR_CLASSES.
     """
+    error_class = classify_error_for_alert(reason)
+    if error_class in TRANSIENT_ERROR_CLASSES:
+        return record_transient_failure(
+            scraper_name,
+            error_class=error_class,
+            reason=reason,
+            items_found=items_found,
+            products_matched=products_matched,
+            flyer_count=flyer_count,
+            attempted_by=attempted_by,
+        )
+
     try:
         client = get_service_client()
     except Exception as exc:
         logger.warning("scraper_health.record_failure: no supabase client (%s)", exc)
         return {"recorded": False, "reason": "no-client"}
 
-    error_class = classify_error_for_alert(reason)
     failures_count = _count_consecutive_failures(client, scraper_name)
     regressions = []
 

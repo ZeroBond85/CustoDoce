@@ -58,7 +58,7 @@ def test_base_flyer_scraper_exposes_failure_hook():
 
 
 def test_record_failure_writes_log_only_when_no_threshold(monkeypatch):
-    """If fewer than THRESHOLD_FAILURES failures, NO auto-disable
+    """If fewer than THRESHOLD_FAILURES permanent failures, NO auto-disable
     but still writes scraper_health_log row.
     """
     mock_sb = MagicMock()
@@ -68,16 +68,17 @@ def test_record_failure_writes_log_only_when_no_threshold(monkeypatch):
         logs_data
     )
 
-    result = scraper_health.record_failure("Test Scraper", reason="test error", attempted_by="manual:test")
+    result = scraper_health.record_failure(
+        "Test Scraper", reason="HTTP 404 Not Found — page moved", attempted_by="manual:test"
+    )
     assert result["recorded"] is True
     assert result["auto_disabled"] is False
-    assert result["error_class"] == "Other"
+    assert result["error_class"] == "LayoutChanged"
 
 
 def test_record_failure_triggers_disable_at_threshold(monkeypatch):
-    """3 consecutive failures → auto-disable."""
+    """3 consecutive permanent failures → auto-disable."""
     mock_sb = MagicMock()
-    fail_count = [3]
     mock_sb.table.return_value.select.return_value.order.return_value.limit.return_value.execute.return_value.data = [
         {"status": "failed"}
     ] * 3
@@ -102,9 +103,43 @@ def test_record_failure_triggers_disable_at_threshold(monkeypatch):
     mock_sb.table.side_effect = table_side_effect
     monkeypatch.setattr(scraper_health, "get_service_client", lambda: mock_sb)
 
-    result = scraper_health.record_failure("Failing Scraper", reason="LayoutChanged error", attempted_by="cron")
+    result = scraper_health.record_failure(
+        "Failing Scraper", reason="HTTP 404 Not Found — selector gone", attempted_by="cron"
+    )
     assert result["recorded"] is True
     assert result["auto_disabled"] is True
+
+
+def test_record_transient_failure_does_not_disable(monkeypatch):
+    """Erros transitórios (timeout/DNS/rate-limit) NUNCA disparam auto-disable."""
+    mock_sb = MagicMock()
+    mock_sb.table.return_value.select.return_value.order.return_value.limit.return_value.execute.return_value.data = [
+        {"status": "failed"}
+    ] * 3
+
+    def table_side_effect(name):
+        m = MagicMock()
+        if name == "scraping_logs":
+            m.select.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value.data = [
+                {"status": "failed"}
+            ] * 3
+        elif name == "scraper_health_log":
+            m.insert.return_value.execute.return_value = MagicMock()
+        return m
+
+    mock_sb.table.side_effect = table_side_effect
+    monkeypatch.setattr(scraper_health, "get_service_client", lambda: mock_sb)
+
+    for reason, expected_class in [
+        ("Connection timeout after 30s", "Timeout"),
+        ("getaddrinfo failed: No address associated with hostname", "DNSError"),
+        ("HTTP 429 Too Many Requests", "RateLimit"),
+        ("Resource temporarily unavailable (Errno 11)", "ResourceError"),
+    ]:
+        result = scraper_health.record_failure("Transient Scraper", reason=reason, attempted_by="cron")
+        assert result["transient"] is True
+        assert result["auto_disabled"] is False
+        assert result["error_class"] == expected_class
 
 
 # ─── 4. record_success contract ────────────────────────────────────────────

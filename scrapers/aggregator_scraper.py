@@ -161,6 +161,10 @@ class TiendeoScraper:
         self.base_url = store_config["base_url"].rstrip("/")
         self.regions = store_config.get("regions", [])
         self.sp_zones = store_config.get("sp_zones", [])
+        # store_slug permite apontar para a página DEDICADA da loja no Tiendeo
+        # (ex.: /Encartes-Catalogos/spani-atacadista), em vez de varrer todas as
+        # cidades. Usado quando uma loja tem cobertura própria e estável.
+        self.store_slug = store_config.get("store_slug")
         self.ua_pool = UA_POOL
         self.session = httpx.Client(
             timeout=30.0,
@@ -180,6 +184,14 @@ class TiendeoScraper:
         )
 
     def _build_city_urls(self) -> list[tuple[str, str]]:
+        # Loja com página dedicada no Tiendeo: usa store_slug em vez de varrer cidades.
+        if self.store_slug:
+            base = f"{self.base_url}/Encartes-Catalogos/{self.store_slug}"
+            if self.regions:
+                urls = [(f"{base}/{slug}", CITY_SLUGS.get(slug, slug.replace("-", " ").title())) for slug in self.regions]
+                if urls:
+                    return urls
+            return [(base, self.name)]
         urls = []
         for slug in self.regions:
             city_name = CITY_SLUGS.get(slug, slug.replace("-", " ").title())
@@ -238,6 +250,14 @@ class TiendeoScraper:
         return None
 
     def _build_city_urls(self) -> list[tuple[str, str]]:
+        # Loja com página dedicada no Tiendeo: usa store_slug em vez de varrer cidades.
+        if self.store_slug:
+            base = f"{self.base_url}/Encartes-Catalogos/{self.store_slug}"
+            if self.regions:
+                urls = [(f"{base}/{slug}", CITY_SLUGS.get(slug, slug.replace("-", " ").title())) for slug in self.regions]
+                if urls:
+                    return urls
+            return [(base, self.name)]
         urls = []
         for slug in self.regions:
             city_name = CITY_SLUGS.get(slug, slug.replace("-", " ").title())

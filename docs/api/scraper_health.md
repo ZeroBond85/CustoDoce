@@ -1,9 +1,9 @@
 # `scraper_health` — API
 
-> Última atualização: 2026-07-15 11:58 UTC
+> Última atualização: 2026-07-15 16:13 UTC
 > Gerado por AST parsing dos serviços em `services/scraper_health.py`.
 
-## Funções Públicas (7)
+## Funções Públicas (8)
 
 ### attempt_heal(scraper_name: str | None, dry_run: bool)
 
@@ -33,4 +33,8 @@ Record a failure and auto-disable the scraper if THRESHOLD_FAILURES hit.
 ### record_success(scraper_name: str, items_found: int, products_matched: int, flyer_count: int, attempted_by: str)
 
 Record a successful run; resets failure counter.
+
+### record_transient_failure(scraper_name: str, error_class: str, reason: str | None, items_found: int, products_matched: int, flyer_count: int, attempted_by: str)
+
+Registra falha TRANSITÓRIA (rede/timeout/rate-limit/recurso).
 

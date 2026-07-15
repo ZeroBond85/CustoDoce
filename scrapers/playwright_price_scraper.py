@@ -81,15 +81,33 @@ class PlaywrightPriceScraper(BaseWebScraper):
 
     async def _fetch_url(self, context, url: str, browse: bool = False) -> list[dict]:
         page = await context.new_page()
+        html = ""
         try:
-            # domcontentloaded resolves as soon as the SPA shell is parsed.
-            # networkidle is unsafe on JS-heavy sites: the network often never
-            # goes fully idle, causing every request to burn the full 30s timeout.
-            await page.goto(url, wait_until="domcontentloaded", timeout=15000)
+            # Tenta navegar até 3x: redes instáveis ou WAF podem derrubar a
+            # primeira navegação sem que a loja esteja efetivamente fora.
+            nav_ok = False
+            for attempt in range(3):
+                try:
+                    # domcontentloaded resolves as soon as the SPA shell is parsed.
+                    # networkidle is unsafe on JS-heavy sites: the network often never
+                    # goes fully idle, causing every request to burn the full timeout.
+                    await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                    nav_ok = True
+                    break
+                except Exception as e:
+                    logger.warning(
+                        "[%s] navegação tentativa %d/3 falhou para %s: %s",
+                        self.name, attempt + 1, url, e,
+                    )
+                    await page.wait_for_timeout(2000)
+            if not nav_ok:
+                logger.warning("[%s] navegação esgotou para %s", self.name, url)
+                return []
+
             # Wait for product cards to actually render (graceful if absent).
             first_card_sel = self.selectors["product_card"][0]
             with contextlib.suppress(Exception):
-                await page.wait_for_selector(first_card_sel, timeout=5000)
+                await page.wait_for_selector(first_card_sel, timeout=8000)
             if browse:
                 # Some themes paginate via a "ver mais" button instead of
                 # URL pagination. Click up to 3 times to expand the listing.
@@ -116,6 +134,8 @@ class PlaywrightPriceScraper(BaseWebScraper):
         finally:
             await page.close()
 
+        if not html:
+            return []
         return self._extract_products(html)
 
     def _extract_products(self, html: str) -> list[dict]:

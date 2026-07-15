@@ -8,31 +8,63 @@ from services.logger import logger
 
 
 def _retry_with_backoff(max_retries: int = 3, base_delay: float = 1.0, max_delay: float = 30.0):
-    """Decorator para retry com backoff exponencial. Retorna None se todas falharem."""
+    """Decorator para retry com backoff exponencial.
+
+    Trata httpx.TimeoutException / NetworkError / HTTPStatusError. Em 429/503
+    respeita o header ``Retry-After`` (quando presente) em vez do backoff fixo,
+    pois o servidor já informou quanto tempo esperar (erro contornável).
+    Retorna None se todas as tentativas falharem.
+    """
 
     def decorator(func):
         def wrapper(*args, **kwargs):
+            scraper_name = args[0].name if args else "scraper"
             for attempt in range(max_retries + 1):
                 try:
                     return func(*args, **kwargs)
-                except (httpx.TimeoutException, httpx.NetworkError, httpx.HTTPStatusError) as e:
+                except httpx.HTTPStatusError as e:
+                    status = getattr(getattr(e, "response", None), "status_code", None)
+                    retry_after = None
+                    resp = getattr(e, "response", None)
+                    if resp is not None:
+                        hdr = resp.headers.get("Retry-After")
+                        if hdr:
+                            try:
+                                retry_after = float(hdr)
+                            except (TypeError, ValueError):
+                                # HTTP-date format — conservadoramente ignora
+                                retry_after = None
+                    if attempt < max_retries:
+                        if retry_after and status in (429, 503):
+                            delay = min(retry_after, max_delay)
+                            logger.warning(
+                                "[%s] Tentativa %d/%d: HTTP %s (Retry-After=%ss). Aguardando %.1fs...",
+                                scraper_name, attempt + 1, max_retries + 1, status, retry_after, delay,
+                            )
+                        else:
+                            delay = min(base_delay * (2**attempt), max_delay)
+                            logger.warning(
+                                "[%s] Tentativa %d/%d falhou (HTTP %s): %s. Aguardando %.1fs...",
+                                scraper_name, attempt + 1, max_retries + 1, status, e, delay,
+                            )
+                        time.sleep(delay)
+                    else:
+                        logger.error(
+                            "[%s] Todas %d tentativas falharam (HTTP %s): %s. Retornando None.",
+                            scraper_name, max_retries + 1, status, e,
+                        )
+                except (httpx.TimeoutException, httpx.NetworkError) as e:
                     if attempt < max_retries:
                         delay = min(base_delay * (2**attempt), max_delay)
                         logger.warning(
                             "[%s] Tentativa %d/%d falhou: %s. Aguardando %.1fs...",
-                            args[0].name if args else "scraper",
-                            attempt + 1,
-                            max_retries + 1,
-                            e,
-                            delay,
+                            scraper_name, attempt + 1, max_retries + 1, e, delay,
                         )
                         time.sleep(delay)
                     else:
                         logger.error(
                             "[%s] Todas %d tentativas falharam: %s. Retornando None.",
-                            args[0].name if args else "scraper",
-                            max_retries + 1,
-                            e,
+                            scraper_name, max_retries + 1, e,
                         )
             return None
 
@@ -96,12 +128,29 @@ class BaseWebScraper(ABC):
 
         # Headers customizáveis por store
         custom_headers = store_config.get("headers", {})
-        headers = {
-            "User-Agent": (
+        # UA rotation para lojas com anti-bot: um pool estável por loja (hash do
+        # nome) evita o fingerprint fixo que WAFs/Cloudflare aprendem a bloquear.
+        anti_bot = store_config.get("anti_bot", False)
+        if anti_bot:
+            _UAS = [
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+            ]
+            chosen_ua = _UAS[hash(store_config.get("name", "")) % len(_UAS)]
+        else:
+            chosen_ua = (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/125.0.0.0 Safari/537.36"
-            ),
+            )
+        headers = {
+            "User-Agent": chosen_ua,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
             "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
             # NOTE: do NOT advertise "br" (brotli). The runtime (venv/CI/Streamlit)
@@ -119,12 +168,27 @@ class BaseWebScraper(ABC):
             "Cache-Control": "max-age=0",
         }
         headers.update(custom_headers)
+        # Lojas anti-bot: throttle mais agressivo para não disparar 429.
+        if anti_bot:
+            self.rate_limit = max(self.rate_limit, 5.0)
 
         # SSL verification (pode ser desabilitado para sites com certificado problemático)
         verify_ssl = store_config.get("verify_ssl", True)
 
+        # Timeout granular: separa connect (handshake DNS/TCP) de read (corpo da
+        # resposta). Sem isso, um servidor que "goteja" dados (keep-alive lento)
+        # pendura o httpx.get() até o timeout total, matando a loja no CI.
+        # Stores podem sobrepor via store_config["http_timeout"] = {connect, read, pool, write}.
+        to = store_config.get("http_timeout") or {}
+        self._http_timeout = httpx.Timeout(
+            connect=float(to.get("connect", 10.0)),
+            read=float(to.get("read", 30.0)),
+            pool=float(to.get("pool", 10.0)),
+            write=float(to.get("write", 10.0)),
+        )
+
         self._http = httpx.Client(
-            timeout=30.0,
+            timeout=self._http_timeout,
             follow_redirects=True,
             headers=headers,
             verify=verify_ssl,

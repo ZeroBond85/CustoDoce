@@ -44,6 +44,7 @@ from services.config_db import get_active_ingredients, get_active_stores
 from services.flyer_service import upsert_flyer
 from services.logger import logger
 from services.price_service import insert_review_item, log_scraper_run, upsert_price
+from services.scraper_health import TRANSIENT_ERROR_CLASSES, classify_error_for_alert
 from services.supabase_client import get_service_client, get_supabase
 from services.types import Ingredient, PriceEntry, Store
 
@@ -606,6 +607,25 @@ def _scrape_store(
         return store_name, entries
 
     except Exception as e:
+        error_class = classify_error_for_alert(str(e))
+        if error_class in TRANSIENT_ERROR_CLASSES:
+            # Falha contornável (rede/timeout/rate-limit/recurso): a loja permanece
+            # ativa e retenta na próxima janela. Não desativa, não alerta por email.
+            logger.warning(
+                "[%s] erro TRANSITÓRIO (%s): %s — loja mantida ativa, retenta próxima janela",
+                store_name, error_class, e,
+            )
+            log_scraper_run(store_name, "transient", 0, 0, str(e), started_at=started_at)
+            with suppress(Exception):
+                from services.scraper_health import record_transient_failure
+
+                record_transient_failure(
+                    store_name,
+                    error_class=error_class,
+                    reason=str(e),
+                    attempted_by="collector",
+                )
+            return store_name, []
         logger.error("[%s] %s: %s", label, store_name, e)
         log_scraper_run(store_name, "error", 0, 0, str(e), started_at=started_at)
         with suppress(Exception):
@@ -733,11 +753,29 @@ def _collect_flyers(
             logger.info("[%s] %d flyer entries, %d saved", store_name, len(entries), saved)
 
         except Exception as e:
-            logger.error("[%s] %s: %s", label, store_name, e)
-            from services.email_service import send_scraper_error
+            error_class = classify_error_for_alert(str(e))
+            if error_class in TRANSIENT_ERROR_CLASSES:
+                logger.warning(
+                    "[%s] erro TRANSITÓRIO (%s): %s — flyer mantido ativo, retenta próxima janela",
+                    store_name, error_class, e,
+                )
+                log_scraper_run(store_name, "transient", 0, 0, str(e))
+                with suppress(Exception):
+                    from services.scraper_health import record_transient_failure
 
-            with suppress(Exception):
-                send_scraper_error(store_name, str(e))
+                    record_transient_failure(
+                        store_name, error_class=error_class, reason=str(e), attempted_by="collector"
+                    )
+            else:
+                logger.error("[%s] %s: %s", label, store_name, e)
+                with suppress(Exception):
+                    from services.email_service import send_scraper_error
+
+                    send_scraper_error(store_name, str(e))
+                with suppress(Exception):
+                    from services.scraper_health import record_failure
+
+                    record_failure(store_name, reason=str(e), attempted_by="collector")
 
     return all_flyers
 
@@ -821,8 +859,10 @@ def collect_tier2_js(ingredients: list[Ingredient]) -> list[PriceEntry]:
             if store.get("scraper") == "playwright_price_scraper"
             else EcomplusScraper
         )
-        # Playwright stores need more time: browser launch + page rendering
-        store_timeout = 600 if store.get("scraper") == "playwright_price_scraper" else 300
+        # Playwright stores need more time: browser launch + page rendering.
+        # Cada loja pode sobrepor playwright_timeout (default 600 p/ Playwright, 300 ecomplus).
+        default_pw = 600 if store.get("scraper") == "playwright_price_scraper" else 300
+        store_timeout = int(store.get("playwright_timeout", default_pw))
         all_products += _collect_prices([store], scraper_cls, ingredients, "WebJS", store_timeout=store_timeout)
     return all_products
 
@@ -860,7 +900,12 @@ def collect_giga_flyer(ingredients: list[Ingredient]) -> list[PriceEntry]:
     stores = [
         s for s in load_stores() if s.get("scraper") == "giga_flyer_scraper" and s.get("type") == "aggregator_js"
     ]
-    return _collect_prices(stores, GigaFlyerScraper, ingredients, "GigaFlyer")
+    # Vision-LLM (OCR + LLM) é lento: cada loja pode sobrepor vision_timeout_seconds
+    # (default 300). O download do encarte em si é rápido; o gargalo é o LLM.
+    timeout = 300
+    if stores:
+        timeout = int(stores[0].get("vision_timeout_seconds", 300))
+    return _collect_prices(stores, GigaFlyerScraper, ingredients, "GigaFlyer", store_timeout=timeout)
 
 
 def collect_facebook_flyers(ingredients: list[Ingredient]) -> list[PriceEntry]:

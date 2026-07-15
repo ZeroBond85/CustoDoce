@@ -49,10 +49,11 @@ stores:
     priority: 2
 
   - name: "Spani Atacadista"
-    tier: 1
-    type: "pdf_flyer"
-    is_active: false
-    inactive_reason: "URL pattern {store-slug}-{hash}.pdf nunca foi resolvido — template quebrado desde criacao"
+    tier: 3
+    type: "aggregator"
+    # reactivation_note: url_pattern S3 {store-slug}-{hash}.pdf tinha placeholders
+    # literais (nunca resolvido). Fonte real do encarte = Tiendeo (store page
+    # dedicada). Reaproveita TiendeoScraper via store_slug.
     logistics: "pickup_local"
     cities: ["São Vicente", "Praia Grande", "Mongaguá"]
     units:
@@ -60,11 +61,15 @@ stores:
         address: "Av. Antônio Emmerich, 112 - Centro, São Vicente"
       - name: "Praia Grande"
         address: "Av. Pres. Kennedy, 7000 - Canto do Forte, Praia Grande"
-    url_pattern: "https://spani-tabloides-bucket.s3.us-east-1.amazonaws.com/tabloides/{store-slug}-{hash}.pdf"
-    url_type: "s3_bucket"
+    base_url: "https://www.tiendeo.com.br"
+    store_slug: "spani-atacadista"
+    regions:
+      - "santos"
+      - "sao-vicente"
+      - "praia-grande"
     publish_day: "wednesday"
     collection_method: "automated"
-    scraper: "flyer_scraper"
+    scraper: "aggregator_scraper"
     priority: 3
 
   - name: "Mercadão Atacadista"
@@ -161,8 +166,7 @@ stores:
   - name: "Max Atacadista SP"
     tier: 1
     type: "api_flyer"
-    is_active: false
-    inactive_reason: "DNS de institucional.supermuffato.com.br nao resolve (Errno -5) — verificar se site voltou"
+    # reactivation_note: DNS de institucional.supermuffato.com.br estava sem resolução — fallback de domínio implementado no scraper
     logistics: "pickup_sp"
     cities: ["São Paulo"]
     units:
@@ -178,9 +182,15 @@ stores:
     # NÃO usar store 75 (Paraná). Lista completa via sm-rds-NossasLojas.php?action=getStores.
     store_id: "120"
     api_base: "https://institucional.supermuffato.com.br/webtools/services/api"
+    api_base_fallbacks:
+      - "https://maxatacadista.com.br/webtools/services/api"
+      - "https://www.maxatacadista.com.br/webtools/services/api"
     api_endpoint: "sm-rds-ofertas.php"
     api_params: "action=getOffers&store={store_id}"
     image_host: "institucional.supermuffato.com.br"
+    image_host_fallbacks:
+      - "maxatacadista.com.br"
+      - "www.maxatacadista.com.br"
     max_flyer_pages: 10
     publish_day: "thursday"
     collection_method: "automated"
@@ -267,8 +277,7 @@ stores:
   - name: "Amendolate"
     tier: 2
     type: "website_js"
-    is_active: false
-    inactive_reason: "Timeout persistente mesmo com 600s — Playwright nao consegue lanca browser ou pagina nao carrega no CI"
+    # reactivation_note: Playwright timeout — pool reforçado (--single-process, /dev/shm, retry de launch) e timeout por loja
     logistics: "pickup_sp"
     base_url: "https://amendolate.lojaintegrada.com.br"
     search_url: "https://amendolate.lojaintegrada.com.br/buscar?q={query}"
@@ -305,8 +314,7 @@ stores:
   - name: "BarraDoce"
     tier: 2
     type: "website_js"
-    is_active: false
-    inactive_reason: "Timeout 300s mesmo com max_pages=5 — httpx.get() pendura no CI"
+    # reactivation_note: httpx.get() pendurava — timeout granular (connect/read) + retry por store no base_web_scraper
     logistics: "pickup_sp"
     base_url: "https://www.barradoce.com.br"
     search_url: "https://www.barradoce.com.br/busca?q={query}"
@@ -334,8 +342,7 @@ stores:
   - name: "Rede Krill"
     tier: 2
     type: "website_js"
-    is_active: false
-    inactive_reason: "Timeout persistente mesmo com 600s — Playwright nao consegue lanca browser ou pagina nao carrega no CI"
+    # reactivation_note: Playwright timeout — pool reforçado (--single-process, /dev/shm, retry de launch) e timeout por loja
     logistics: "pickup_local"
     base_url: "https://www.lojasredekrill.com.br"
     # A busca /busca?q= deste tema Lojas Integrada retorna 0 produtos (SPA
@@ -471,12 +478,12 @@ stores:
     priority: 18
 
   - name: "Giga Atacadista"
-    is_active: false
-    inactive_reason: "Timeout 300s — giga_flyer_scraper nunca completa"
+    # reactivation_note: Vision-LLM (OCR+LLM) excedia 300s — download do encarte separado do LLM, vision_timeout por loja
     tier: 2
     type: "aggregator_js"
     logistics: "pickup_sp"
     base_url: "https://www.giga.com.vc"
+    vision_timeout_seconds: 900
     encartes_url: "https://www.giga.com.vc/encartes"
     api_endpoint: "https://www.giga.com.vc/api/catalog_system/pub/products/search"
     units:
@@ -837,8 +844,7 @@ stores:
   - name: "Central do Confeiteiro"
     tier: 2
     type: "website_catalog"
-    is_active: false
-    inactive_reason: "Timeout persistente (300s) — browse URL /loja/ nao responde ou DNS falha"
+    # reactivation_note: browse /loja/ timeout/DNS — timeout granular + retry + fallback search_url no website_scraper
     logistics: "pickup_local"
     base_url: "https://www.centraldoconfeiteiro.com.br"
     search_url: "https://www.centraldoconfeiteiro.com.br/loja/busca.php?palavra_busca={query}"
@@ -877,10 +883,11 @@ stores:
   - name: "Chefon"
     tier: 2
     type: "website_catalog"
-    is_active: false
-    inactive_reason: "HTTP 429 Too Many Requests em todas as requisições (browse + search) — site bloqueia scraper"
+    # reactivation_note: HTTP 429 (Cloudflare) — cliente anti-bot (curl_cffi TLS fingerprint) + respeito a Retry-After
     logistics: "pickup_sp"
     base_url: "https://chefon.com.br"
+    anti_bot: true
+    cloudflare: true
     search_url: "https://chefon.com.br/search?q={query}&type=product"
     browse_urls:
       - "https://chefon.com.br/collections/all"

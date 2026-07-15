@@ -1,6 +1,6 @@
 # `rate_limiter` — API
 
-> Última atualização: 2026-07-15 11:58 UTC
+> Última atualização: 2026-07-15 16:13 UTC
 > Gerado por AST parsing dos serviços em `services/rate_limiter.py`.
 
 ## Funções Públicas (5)
