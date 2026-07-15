@@ -826,6 +826,9 @@ stores:
     logistics: "pickup_local"
     base_url: "https://www.centraldoconfeiteiro.com.br"
     search_url: "https://www.centraldoconfeiteiro.com.br/loja/busca.php?palavra_busca={query}"
+    browse_urls:
+      - "https://www.centraldoconfeiteiro.com.br/loja/"
+    browse_parallel: true
     selectors:
       product_card: [".product", "li.product", ".product-item", ".item"]
       product_name: [".woocommerce-loop-product__title", "h2 a", ".product-title"]
@@ -861,10 +864,15 @@ stores:
     logistics: "pickup_sp"
     base_url: "https://chefon.com.br"
     search_url: "https://chefon.com.br/search?q={query}&type=product"
+    browse_urls:
+      - "https://chefon.com.br/collections/all"
+      - "https://chefon.com.br/collections/chocolate"
+      - "https://chefon.com.br/collections/confeitaria"
+    browse_parallel: true
     selectors:
-      product_card: [".product-item", ".card", ".product-card", "li.grid__item"]
-      product_name: [".card__heading a", ".product-title a", "h3 a", ".full-unstyled-link"]
-      product_price: [".price .price__regular .price-item", ".price .price-item--sale", ".price"]
+      product_card: [".product-card", ".card", ".product-item", ".product"]
+      product_name: [".product-title a", "h3 a", ".card__heading a", ".full-unstyled-link"]
+      product_price: [".price", ".price .price__regular .price-item", ".price .price-item--sale"]
     address: "Rua Pamplona, 1755 - Jardim Paulista, SP"
     zone: "sul"
     coverage: "Mais de 10 mil produtos - chocolates profissionais, coberturas, recheios, confeitaria, sorveteria, cafeteria"

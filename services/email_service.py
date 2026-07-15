@@ -1,5 +1,4 @@
 import html as _html
-import logging
 import os
 import smtplib
 from datetime import date
@@ -9,7 +8,7 @@ from email.mime.application import MIMEApplication
 from email.mime.image import MIMEImage
 from pathlib import Path
 
-_LOG = logging.getLogger(__name__)
+from services.logger import logger as _LOG
 
 # ── Brand ( cores do logo CustoDoce ) ─────────────────────────────────
 _BRAND = {

@@ -41,11 +41,12 @@ def test_send_email_success(mock_smtp):
         mock_smtp.quit.assert_called()
 
 
-def test_send_email_no_creds(caplog):
+def test_send_email_no_creds(capsys):
     with patch.dict(os.environ, {}, clear=True):
         send_email("to@test.com", "Subject", "Body")
-        assert "email_skipped" in caplog.text
-        assert "SMTP credentials not configured" in caplog.text
+        captured = capsys.readouterr()
+        assert "email_skipped" in captured.out
+        assert "SMTP credentials not configured" in captured.out
 
 
 @pytest.mark.parametrize(
@@ -56,7 +57,7 @@ def test_send_email_no_creds(caplog):
         (None, True),
     ],
 )
-def test_send_email_to_validation(mock_smtp, caplog, to_email, expected_raise):
+def test_send_email_to_validation(mock_smtp, capsys, to_email, expected_raise):
     with patch.dict(
         os.environ,
         {
@@ -66,7 +67,8 @@ def test_send_email_to_validation(mock_smtp, caplog, to_email, expected_raise):
     ):
         if expected_raise:
             send_email(to_email, "Subject", "Body")
-            assert "email_skipped" in caplog.text
+            captured = capsys.readouterr()
+            assert "email_skipped" in captured.out
         else:
             send_email(to_email, "Subject", "Body")
 

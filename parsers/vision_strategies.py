@@ -78,11 +78,13 @@ class VisionStrategy(ABC):
     provider_name: str = "base"
     url: str = ""
     api_key: str = ""
+    min_interval: float = 0.0
 
     def __init__(self):
         self._failure_count = 0
         self._last_failure = 0.0
         self._circuit_open = False
+        self._last_request_time = 0.0
 
     def record_failure(self):
         self._failure_count += 1
@@ -95,7 +97,19 @@ class VisionStrategy(ABC):
         self._failure_count = 0
         self._circuit_open = False
 
+
+
+    def _throttle(self):
+        if self.min_interval <= 0 or self._last_request_time <= 0:
+            self._last_request_time = time.time()
+            return
+        elapsed = time.time() - self._last_request_time
+        if elapsed < self.min_interval:
+            time.sleep(self.min_interval - elapsed)
+
     def is_available(self) -> bool:
+        if not self.api_key:
+            return False
         if self._circuit_open:
             if time.time() - self._last_failure > CB_COOLDOWN:
                 logger.info("[%s_vision] Circuit breaker half-open (cooldown passed)", self.provider_name)
@@ -132,6 +146,7 @@ class VisionStrategy(ABC):
                 payload = self._get_payload(image_bytes)
                 headers = self._get_headers()
 
+                self._throttle()
                 resp = get_client().post(self.url, headers=headers, json=payload, timeout=DEFAULT_TIMEOUT)
 
                 if resp.status_code == 429:
@@ -221,6 +236,7 @@ def _safe_parse(content: str) -> VisionResult | None:
 
 class GroqVisionStrategy(VisionStrategy):
     provider_name = "groq"
+    min_interval = 3.0  # 20 req/min max (segurado)
 
     def __init__(self):
         super().__init__()
