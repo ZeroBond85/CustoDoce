@@ -63,6 +63,22 @@ def test_real_scrape_frequencies_join():
     assert enabled >= 20, f"Expected >=20 enabled frequencies, got {enabled}"
 
 
+def test_real_scrape_frequencies_no_duplicates():
+    """scrape_frequencies deve ter no maximo 1 linha por store_id.
+
+    Linhas duplicadas fazem load_stores() fazer last-write-wins e podem
+    excluir lojas ativas incorretamente, alem de quebrar o limite de 1000
+    linhas do PostgREST nos testes de join.
+    """
+    from services.supabase_client import get_service_client
+
+    client = get_service_client()
+    rows = client.table("scrape_frequencies").select("store_id").limit(10000).execute().data
+    ids = [r["store_id"] for r in rows]
+    dupes = len(ids) - len(set(ids))
+    assert dupes == 0, f"scrape_frequencies tem {dupes} linha(s) duplicada(s) por store_id"
+
+
 def test_real_load_ingredients_returns_canonical_name():
     """load_ingredients() should return dicts with canonical_name key."""
     from services.collector import load_ingredients

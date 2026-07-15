@@ -18,6 +18,10 @@ on:
         default: true
         type: boolean
 
+concurrency:
+  group: store-recovery-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   prepare:
     runs-on: ubuntu-latest
