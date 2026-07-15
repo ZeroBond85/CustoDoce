@@ -94,6 +94,7 @@ class MockQueryBuilder:
 
     def upsert(self, data, on_conflict=None, returning=None):
         self._captured_upsert = data
+        self._captured_on_conflict = on_conflict
         return self
 
 

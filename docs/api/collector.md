@@ -1,9 +1,9 @@
 # `collector` — API
 
-> Última atualização: 2026-07-15 18:24 UTC
+> Última atualização: 2026-07-15 22:35 UTC
 > Gerado por AST parsing dos serviços em `services/collector.py`.
 
-## Funções Públicas (18)
+## Funções Públicas (19)
 
 ### build_product_entry(store: Store, ingredient: Ingredient, raw_product: str, raw_price: float, raw_unit: str, confidence: float, validity_raw: str, brand: str)
 
@@ -32,6 +32,8 @@
 ### collect_tier2_vtex(ingredients: list[Ingredient])
 
 ### collect_tier3_websites(ingredients: list[Ingredient])
+
+### collect_vipcommerce(ingredients: list[Ingredient])
 
 ### load_ingredients()
 

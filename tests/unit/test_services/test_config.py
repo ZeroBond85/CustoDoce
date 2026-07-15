@@ -143,6 +143,21 @@ class TestConfigDb:
         mock_get_client.return_value = mock_client
         assert delete_store("s1") is True
 
+    @patch("services.config_db.get_service_client")
+    def test_upsert_scrape_frequency_uses_on_conflict_store_id(self, mock_get_client):
+        """Regressao: upsert SEM on_conflict duplicava linhas (494 vs 70 stores).
+
+        O plain upsert gera nova UUID a cada escrita -> 424 duplicatas. O
+        on_conflict=store_id garante 1 linha por loja mesmo sem unique index.
+        """
+        from services.config_db import upsert_scrape_frequency
+
+        qb = MockQueryBuilder([{"id": "f1", "store_id": "s1"}])
+        mock_client = MockSupabaseClient(qb)
+        mock_get_client.return_value = mock_client
+        upsert_scrape_frequency({"store_id": "s1", "tier": 1, "enabled": True})
+        assert qb._captured_on_conflict == "store_id"
+
     # ── SCHEDULES ──
 
     @patch("services.config_db.get_supabase")

@@ -677,6 +677,14 @@ CREATE INDEX IF NOT EXISTS idx_flyers_store_active ON flyers(store_name, is_acti
         gen.append("-- ============================================================")
         gen.append(store_registry_path.read_text(encoding="utf-8"))
 
+    # ─── PHASE 25: unique index on scrape_frequencies.store_id (010_scrape_frequencies_unique.sql) ──
+    scrape_freq_unique_path = REPO_ROOT / "supabase" / "010_scrape_frequencies_unique.sql"
+    if scrape_freq_unique_path.exists():
+        gen.append("\n-- ============================================================")
+        gen.append("-- PHASE 25: unique index on scrape_frequencies.store_id (010_scrape_frequencies_unique.sql)")
+        gen.append("-- ============================================================")
+        gen.append(scrape_freq_unique_path.read_text(encoding="utf-8"))
+
     return "\n".join(gen)
 
 

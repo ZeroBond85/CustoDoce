@@ -238,7 +238,9 @@ def upsert_scrape_frequency(data: dict) -> dict:
     client = get_service_client()
     data["updated_at"] = datetime.now(UTC).isoformat()
     try:
-        result = client.table("scrape_frequencies").upsert(data, returning="representation").execute()
+        result = client.table("scrape_frequencies").upsert(
+            data, on_conflict="store_id", returning="representation"
+        ).execute()
         return result.data[0] if result.data else {}
     except Exception:
         return {}

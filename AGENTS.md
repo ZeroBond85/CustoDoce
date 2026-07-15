@@ -336,7 +336,7 @@ Para WSL: `custodoce-314` (Conda, Python 3.14). Detalhes em `REGRAS.md`.
 
 ## Documentação Relacionada
 
-- `LESSONS.md` — 68 lições (CI, mocks, schema, scrapers, monitoração, segurança)
+- `LESSONS.md` — 70 lições (CI, mocks, schema, scrapers, monitoração, segurança)
 - `REGRAS.md` — Ambiente, hooks, comandos, arquitetura
 - `docs/skills.md` — Skills OpenCode (globais + overlays locais)
 - `docs/changelog.md` — Histórico por fase/sprint
