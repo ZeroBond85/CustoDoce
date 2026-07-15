@@ -4,6 +4,7 @@ Coordinates collection, cleaning, intelligence, and reporting.
 """
 
 import json
+import os
 from argparse import ArgumentParser, Namespace
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -23,6 +24,7 @@ def parse_args() -> Namespace:
     parser.add_argument("--mode", type=str, default="cron", help="Execution mode (cron/on_demand/heal)")
     parser.add_argument("--finalize", action="store_true", help="Finalize-only mode: enrich + report + cleanup from DB (no collection)")
     parser.add_argument("--no-finalize", action="store_true", help="Skip finalize step (collection only)")
+    parser.add_argument("--force", action="store_true", help="Force full scrape (skip freshness check)")
     return parser.parse_args()
 
 
@@ -218,6 +220,10 @@ def main(args: Namespace | None = None):
             logger.info("store_fields_synced", updated=n, frequencies=m)
         except Exception as e:
             logger.warning("sync_store_fields_error", error=str(e))
+
+        if args.force:
+            os.environ["CUSTODOCE_FORCE_SCRAPE"] = "1"
+            logger.info("force_mode_enabled", msg="Freshness check bypassed for all stores")
 
         # ── Collection dispatch (filtered by --tier) ──
         collect_mode = args.tier is not None

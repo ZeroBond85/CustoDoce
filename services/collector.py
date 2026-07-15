@@ -310,6 +310,8 @@ def _get_default_frequency_minutes(store: Store) -> int:
 
 def _should_skip_store(store: Store) -> tuple[bool, str]:
     """Check if this store was recently scraped. Returns (skip, reason)."""
+    if os.environ.get("CUSTODOCE_FORCE_SCRAPE") == "1":
+        return False, ""
     store_id = store.get("id") or store["name"].lower().replace(" ", "_")
     try:
         client = get_supabase()
