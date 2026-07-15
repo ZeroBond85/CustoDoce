@@ -471,6 +471,8 @@ stores:
     priority: 18
 
   - name: "Giga Atacadista"
+    is_active: false
+    inactive_reason: "Timeout 300s — giga_flyer_scraper nunca completa"
     tier: 2
     type: "aggregator_js"
     logistics: "pickup_sp"

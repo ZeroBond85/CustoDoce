@@ -24,6 +24,8 @@ def _detect_promotion(raw_product: str, raw_unit: str) -> bool:
 
 
 def upsert_price(price_entry: PriceEntry) -> dict[str, Any]:
+    import time as _time
+
     client = get_service_client()
     now = datetime.now(UTC)
     valid_until = price_entry.get("valid_until")
@@ -108,8 +110,18 @@ def upsert_price(price_entry: PriceEntry) -> dict[str, Any]:
                 result = client.table("prices").insert(data).execute()
             return result.data[0] if result.data else {}
         except Exception as e_fallback:
-            logger.error("upsert_price fallback failed: %s", e_fallback)
-            raise e_fallback
+            if "Resource temporarily unavailable" in str(e_fallback):
+                logger.warning("upsert_price fallback failed (resource exhaustion), retrying in 2s: %s", e_fallback)
+                _time.sleep(2)
+                try:
+                    result = client.table("prices").insert(data).execute()
+                    return result.data[0] if result.data else {}
+                except Exception as e_retry:
+                    logger.error("upsert_price retry also failed: %s", e_retry)
+                    raise e_retry
+            else:
+                logger.error("upsert_price fallback failed: %s", e_fallback)
+                raise e_fallback
 
 
 def search_prices(

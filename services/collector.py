@@ -164,7 +164,11 @@ def process_price_match(
             validity_raw=validity_raw,
             brand=brand,
         )
-        upsert_price(entry)
+        try:
+            upsert_price(entry)
+        except Exception as e_upsert:
+            logger.warning("[%s] upsert_price failed for product, skipping: %s", store.get("name", "?"), e_upsert)
+            return None
         return entry
 
     semantic_score = 0.0
@@ -193,7 +197,11 @@ def process_price_match(
                 validity_raw=validity_raw,
                 brand=brand,
             )
-            upsert_price(entry)
+            try:
+                upsert_price(entry)
+            except Exception as e_upsert:
+                logger.warning("[%s] upsert_price failed for product (combined>=0.80), skipping: %s", store.get("name", "?"), e_upsert)
+                return None
             return entry
 
         if 0.65 <= combined < 0.80 and os.environ.get("GROQ_API_KEY"):
@@ -214,7 +222,11 @@ def process_price_match(
                         validity_raw=validity_raw,
                         brand=brand,
                     )
-                    upsert_price(entry)
+                    try:
+                        upsert_price(entry)
+                    except Exception as e_upsert:
+                        logger.warning("[%s] upsert_price failed for product (llm), skipping: %s", store.get("name", "?"), e_upsert)
+                        return None
                     return entry
 
     from services.config import get_feature

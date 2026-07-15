@@ -1,6 +1,6 @@
 # `logger` — API
 
-> Última atualização: 2026-07-15 03:36 UTC
+> Última atualização: 2026-07-15 11:58 UTC
 > Gerado por AST parsing dos serviços em `services/logger.py`.
 
 ## Funções Públicas (1)
@@ -9,5 +9,6 @@
 
 Configures structlog for structured logging.
 - Local: Pretty colored console output.
+- CI: Console output without colors (ANSI-free for grep).
 - Prod/Staging: JSON output for log aggregators.
 
