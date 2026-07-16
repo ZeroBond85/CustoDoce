@@ -1,5 +1,5 @@
 # Guia de Deployment — CustoDoce
-> Última atualização: 2026-07-15 03:22 UTC
+> Última atualização: 2026-07-16 03:30 UTC
 
 Este guia fornece todas as instruções necessárias para configurar e implantar o ecossistema CustoDoce do zero.
 

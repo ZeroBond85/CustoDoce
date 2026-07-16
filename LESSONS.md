@@ -25,34 +25,6 @@ Toda nova lição extraída de falha no CI usa este template:
 
 ---
 
-### 1. CI integration tests skipados sem motivo (auto-skip exigia `SUPABASE_DB_PASSWORD`)
-
-- **Data + commit**: 2026-07-09
-- **Sintoma**: `integration` job em `ci.yml` reportava `112 skipped in 0.76s`. Auto-skip silencioso, zero indicação de razão.
-- **Causa raiz**: `tests/conftest.py:_has_real_db()` linha 33 exigia `SUPABASE_DB_PASSWORD` (legado psycopg2/porta 5432). Mas AGENTS.md regra #3 proibe `psycopg2` (CI bloqueia porta 5432) — somente `exec_sql_query` RPC porta 443 é usada. Os jobs CI passam `SUPABASE_URL`/`SUPABASE_ANON_KEY`/`SUPABASE_SERVICE_ROLE_KEY` mas **nunca** `SUPABASE_DB_PASSWORD`, então todos os 112 testes de integration eram pulados.
-- **Correção**: `_has_real_db()` em `tests/conftest.py:30` agora exige `SUPABASE_URL` + (`SUPABASE_SERVICE_ROLE_KEY` OU `SUPABASE_ANON_KEY`), não mais `SUPABASE_DB_PASSWORD`. Docstring cita a regra #3.
-- **Teste de regressão**: `tests/unit/test_conftest_missing_creds.py` (5 cenários: vazio, só service_role, só anon, só legacy db_password, URL inválida).
-
-
-
-### 2. Mocks — boundary layer, not internal functions
-
-```python
-# ❌ ERRADO: patcha onde a função é definida
-@patch("services.dashboard_queries.get_latest_prices_cached")
-def test_x(): ...
-
-# ✅ CERTO: patcha onde é usada
-@patch("dashboard.pages.relatorios.get_latest_prices_cached")
-def test_x(): ...
-```
-
-Ou marca como `@pytest.mark.integration` e deixa o conftest `db_conn` resolver via RPC.
-
-### 3. Tests que tocam Supabase real — marque `integration`
-
-Marque com `@pytest.mark.integration`. `pyproject.toml` tem `addopts = "-m 'not slow and not integration'"`.
-
 ### 4. `exec_sql_query` RPC (porta 443), NUNCA `psycopg2` (porta 5432)
 
 GitHub Actions bloqueia porta 5432. Use o fixture `db_conn` do `tests/conftest.py`.
