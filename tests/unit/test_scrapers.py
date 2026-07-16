@@ -119,3 +119,32 @@ class TestMaxImageNormalization:
         scraper = MaxApiScraper({"name": "Max Atacadista SP", "base_url": "https://x.com"})
         url = "https://institucional.supermuffato.com.br/files/a.jpeg"
         assert scraper._normalize_image(url) == url
+
+
+class TestPlaywrightCoroutineLowerBug:
+    """Regressão: `await self._get_page_html(page).lower()` aplicava o `.lower()`
+
+    no coroutine (sem await), causando ``'coroutine' object has no attribute 'lower'``
+    no Tier 3 (Promotons). Corrigido para ``(await self._get_page_html(page)).lower()``.
+    """
+
+    def test_wait_for_real_content_awaits_html_before_lower(self):
+        import asyncio
+
+        from scrapers.playwright_scraper import PlaywrightAggregatorScraper
+
+        scraper = PlaywrightAggregatorScraper(
+            {"name": "Promotons", "base_url": "https://www.promotons.com.br", "regions": ["santos"]}
+        )
+
+        class _FakePage:
+            def locator(self, sel):
+                raise RuntimeError("no browser in unit test")
+
+            async def content(self):
+                return "<html>carrefour oferta</html>"
+
+        # _get_page_html awaits page.content(); garantir que o await resolve a str
+        html = asyncio.run(scraper._get_page_html(_FakePage()))
+        assert isinstance(html, str)
+        assert "carrefour" in html.lower()

@@ -691,3 +691,10 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Sintoma/causa**: Tier 3 (force scrape) reportou `duplicate key violates unique constraint "prices_ingredient_id_store_id_collected_at_key"` (23505). Quando o RPC `upsert_price_rpc` falha com `Resource temporarily unavailable` ([Errno 11], pressão do Supabase em scrape paralelo), o fallback fazia `table.insert()` sem `ON CONFLICT` → duplicata no mesmo `collected_at` do dia.
 - **Correção**: fallback agora usa `table.upsert(data, on_conflict="ingredient_id,store_id,collected_at")` (espelha a constraint da RPC). Elimina 23505 mesmo sob pressão.
 - **Teste**: `test_upsert_price_fallback` atualizado para validar `.upsert()` no caminho de fallback.
+
+### 77. `await coroutine().lower()` quebra Promotons (Tier 3)
+
+- **Data + commit**: 2026-07-16
+- **Sintoma/causa**: Tier 3 (Scrape force) falhou com `[Promotons] Error scraping ...: 'coroutine' object has no attribute 'lower'`. Em `playwright_scraper.py:153` o código era `html_lower = await self._get_page_html(page).lower()` — o `await` aplicava-se ao resultado de `.lower()`, não à coroutine `self._get_page_html(page)` (que retorna coroutine porque é `async def`). Sem o `await` correto, `.lower()` era chamado no coroutine → AttributeError.
+- **Correção**: `html_lower = (await self._get_page_html(page)).lower()` (parênteses em volta do await). `Tiendeo 403 Forbidden` e `Resource temporarily unavailable` (Supabase sob pressão) continuam como warnings transitórios — não são bugs.
+- **Teste**: `TestPlaywrightCoroutineLowerBug::test_wait_for_real_content_awaits_html_before_lower` valida que `_get_page_html` resolve a str (não coroutine).

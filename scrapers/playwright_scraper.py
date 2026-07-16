@@ -150,7 +150,7 @@ class PlaywrightAggregatorScraper:
                     self.logger.debug("[%s] Error checking selector: %s", self.name, e)
 
             # Check for known store names in page
-            html_lower = await self._get_page_html(page).lower()
+            html_lower = (await self._get_page_html(page)).lower()
             known_stores = [
                 "carrefour", "assai", "extra", "dia", "pao", "pão", "giga",
                 "mambo", "makro", "mateus", "guanabara", "bom-preco", "pag-menos",
