@@ -179,21 +179,6 @@ def test_cleanup_imports():
 
 
 # ═══════════════════════════════════════════════════════════════
-print("=== 2. UI COMPONENTS ===\n")
-
-
-def test_status_badge_api():
-    for status in ["active", "pending", "error", "success", "warning", "info"]:
-        # não levanta exceção
-        pass
-
-
-def test_info_box_api():
-    for t in ["info", "success", "warning", "error"]:
-        pass
-
-
-# ═══════════════════════════════════════════════════════════════
 print("=== 3. LOGIN PAGE ===\n")
 
 
@@ -346,17 +331,6 @@ def test_sidebar_navigation():
     assert "relatorios" in page_ids
     assert "config" in page_ids
     assert "diagnostico" in page_ids
-
-
-# ═══════════════════════════════════════════════════════════════
-print("=== 8. AUTH GATE ===\n")
-
-
-def test_auth_gate_logic():
-    # Não podemos testar require_auth diretamente (precisa de st)
-    # mas podemos testar a lógica de session_state mockando
-    # Simula o fluxo manualmente
-    assert True  # placeholder - o fluxo real é testado via streamlit.testing
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -967,9 +941,6 @@ tests = [
     (test_rate_limiter, "rate_limiter: limite, persistência, clear"),
     (test_all_imports, "all_imports: todos os módulos carregam"),
     (test_cleanup_imports, "cleanup: imports e assinaturas corretas"),
-    # UI Components
-    (test_status_badge_api, "ui: status_badge existe"),
-    (test_info_box_api, "ui: info_box existe"),
     # Login
     (test_login_render_function, "login: render_login callable"),
     (test_setup_render_function, "login: render_setup_first_user callable"),
@@ -981,9 +952,6 @@ tests = [
     # App
     (test_app_module_loads, "app: módulo carrega, main() existe"),
     (test_env_auth_flow, "app: auth flow com env vars"),
-    # Design (movido para tests/unit/test_design_checks.py)
-    # Auth Gate
-    (test_auth_gate_logic, "auth_gate: lógica de autenticação"),
     # Phase 3 — Flyers & History
     (test_flyer_status_color, "flyer: _flyer_status_color() cores corretas"),
     (test_flyer_status_label, "flyer: _flyer_status_label() labels PT-BR"),
