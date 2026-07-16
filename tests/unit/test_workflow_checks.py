@@ -268,8 +268,27 @@ def test_all_workflows_have_concurrency():
             )
 
 
+def test_scrape_dispatch_exposes_force_input():
+    """Regressão: scrape.yml deve expor input 'force' e propagá-lo ao reusable.
+
+    Motivação: forçar coleta full sem zerar scrape_frequencies (que quebra a
+    integração — testes exigem >=20 enabled). O caminho seguro é --force
+    (CUSTODOCE_FORCE_SCRAPE=1), não mutação de dados.
+    """
+    workflow = _load_workflow("scrape.yml")
+    dispatch = (workflow.get(True, {}) or workflow.get("on", {}) or {}).get("workflow_dispatch", {})
+    inputs = (dispatch or {}).get("inputs", {}) or {}
+    assert "force" in inputs, "scrape.yml workflow_dispatch deve expor input 'force'"
+    assert inputs["force"].get("type") == "boolean", "input 'force' deve ser boolean"
+
+    scrape_job = (workflow.get("jobs", {}) or {}).get("scrape", {}) or {}
+    with_block = scrape_job.get("with", {}) or {}
+    assert "force" in with_block, "job scrape deve propagar 'force' ao reusable via with:"
+
+
 if __name__ == "__main__":
     test_all_scrape_callers_use_reusable()
+    test_scrape_dispatch_exposes_force_input()
     test_scrape_callers_have_no_steps_when_using_reusable()
     test_scrape_reusable_has_required_jobs()
     test_scrape_jobs_have_time_budget_check()

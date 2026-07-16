@@ -698,3 +698,10 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Data + commit**: 2026-07-15
 - **Sintoma/causa**: recovery com `stores="...,Chefon Atacadista,..."` falhou (`loja não encontrada`); o arg usa o `name` exato da coluna `stores.name` e a loja no DB chama-se `Chefon`.
 - **Correção**: passar sempre o `name` de `get_store_by_name`. Falha de entrada, não de scraper.
+
+### 74. Zerar scrape_frequencies para forçar scrape full quebra a integração
+
+- **Data + commit**: 2026-07-16
+- **Sintoma/causa**: para rodar um scrape full "do zero" a frequência foi zerada no DB (`scrape_frequencies` 70→0). CI `integration` ficou vermelho: `test_d2_4_scrape_frequencies_enabled` e `test_real_scrape_frequencies_join` exigem `>=20 enabled`. Estado do DB, não código.
+- **Correção**: NUNCA mutar dados para forçar coleta. Usar `--force` → `CUSTODOCE_FORCE_SCRAPE=1` (`main.py:225`), que faz `_should_skip_store` (`collector.py:351`) ignorar a freshness check sem tocar no DB. `scrape.yml` agora expõe input `force` (boolean) propagado ao reusable. DB repopulado via `scripts/sync_all_store_fields.py` (56 freqs, `on_conflict="store_id"`).
+- **Teste**: `test_scrape_dispatch_exposes_force_input` (workflow expõe/propaga `force`) + `test_should_skip_store_bypassed_by_force_env` (force env não toca no DB).

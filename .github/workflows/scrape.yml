@@ -9,6 +9,11 @@ on:
         description: 'Filtro de lojas para scraping (opcional)'
         required: false
         type: string
+      force:
+        description: 'Coleta full: ignora freshness check (não zera scrape_frequencies)'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   scrape:
@@ -19,6 +24,7 @@ jobs:
     with:
       mode: cron
       stores_filter: ${{ github.event.inputs.stores_filter }}
+      force: ${{ github.event.inputs.force == 'true' }}
     secrets:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
