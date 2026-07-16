@@ -17,13 +17,31 @@ set -euo pipefail
 
 STAGED=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null || true)
 
-# Detect Python interpeter (compartilhado entre layers 2, 2.5 e 5)
-if command -v python3 &>/dev/null; then
-  PY=python3
-elif command -v python &>/dev/null; then
-  PY=python
-else
-  PY=""
+# Detect Python interpreter (compartilhado entre layers 2, 2.5 e 5)
+# Valida que o python ENCONTRADO realmente funciona (evita python3.exe
+# corrompido que quebra o hook com DLL faltando). Prefere .venv314.
+_detect_python() {
+  for cand in "$@"; do
+    if command -v "$cand" &>/dev/null; then
+      if "$cand" -c "import sys; sys.exit(0)" &>/dev/null 2>&1; then
+        echo "$cand"
+        return 0
+      fi
+    fi
+  done
+  echo ""
+  return 1
+}
+
+PY=$(_detect_python ".venv314/Scripts/python.exe" ".venv314/Scripts/python" "python3" "python" "" 2>/dev/null || true)
+if [ -z "$PY" ]; then
+  if command -v python3 &>/dev/null; then
+    PY=python3
+  elif command -v python &>/dev/null; then
+    PY=python
+  else
+    PY=""
+  fi
 fi
 
 # ----------------------------------------------------------------
@@ -61,7 +79,9 @@ fi
 # 1.5. GITIGNORE IMPORTS GUARD - bloqueia se importa arquivo gitignored
 # ----------------------------------------------------------------
 if [ -n "${STAGED:-}" ]; then
-  if command -v python3 &>/dev/null; then
+  if [ -n "$PY" ]; then
+    PY_IMP=$PY
+  elif command -v python3 &>/dev/null; then
     PY_IMP=python3
   elif command -v python &>/dev/null; then
     PY_IMP=python
@@ -100,12 +120,15 @@ if [ -n "${STAGED:-}" ]; then
   if [ -n "$PY_STAGED" ]; then
     # Resolve venv Python (mesma logica do pre-push)
     RUFF_PY=""
-    for CAND in ".venv314/Scripts/python" ".venv314/bin/python"; do
+    for CAND in ".venv314/Scripts/python.exe" ".venv314/Scripts/python" ".venv314/bin/python"; do
       if [ -f "$CAND" ]; then
         RUFF_PY="$CAND"
         break
       fi
     done
+    if [ -z "$RUFF_PY" ] && [ -n "$PY" ]; then
+      RUFF_PY="$PY"
+    fi
     if [ -z "$RUFF_PY" ]; then
       command -v python3 &>/dev/null && RUFF_PY="python3" || RUFF_PY="python"
     fi

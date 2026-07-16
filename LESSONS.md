@@ -25,14 +25,6 @@ Toda nova lição extraída de falha no CI usa este template:
 
 ---
 
-### 6. `deploy_check.py` — required vs optional env
-
-Required: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`. Optional: `GMAIL_*`, `AUTH_SECRET_KEY`, `SUPABASE_ANON_KEY`, `TELEGRAM_*`. Opcionais viram WARN, não bloqueiam.
-
-### 7. Pre-commit hook SECRETS GUARD — bloqueia, não skipa
-
-Padrões: `sk-*`, `gsk_*`, `sk-or-*`, `sk-or-v1-*`, `sk-proj-*`, `hf_*`, `github_pat_*`, `nvapi-*`, `mOns*`, `AQ.*`.
-
 ### 8. `PIP_INDEX_URL` → `PIP_EXTRA_INDEX_URL`
 
 Para torch CPU em CI: use `PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu`. `PIP_INDEX_URL` SUBSTITUI PyPI e quebra `ruff`/`mypy`.
@@ -697,3 +689,10 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Sintoma/causa**: Tier 3 falhava mesmo após corrigir os bugs de código, porque o grep do `scrape-reusable.yml` considerava `Client error '403 Forbidden'` (Tiendeo bloqueando o scraper) como erro fatal de job. O scraper já trata esse fetch error como `warning` e pula a loja (self-healing) — não é erro de código.
 - **Correção**: removido `Client error|HTTP [45][0-9][0-9]` do padrão do grep. O job agora falha APENAS em erros de nível `[error]`/`falha no scraper` (bugs reais). 403 de agregador é warning esperado.
 - **Teste**: `test_scrape_reusable_does_not_fail_on_client_error` valida que o grep do scrape-reusable não inclui `Client error`.
+
+### 79. Pre-commit hook quebra se `python3` no PATH estiver corrompido
+
+- **Data + commit**: 2026-07-16
+- **Sintoma/causa**: commits sumiam silenciosamente (exit 1 sem mensagem). Causa: o `command -v python3` no hook resolvia `C:/Users/ericsf/bin/python3.exe` (corrompido — falta `api-ms-win-crt-heap-l1-1-0.dll`). O `set -euo pipefail` fazia o hook abortar ao rodar `agents_tool.py --check`, bloqueando o commit. Outra sessão usando esse python3 quebrava o mesmo hook.
+- **Correção**: `.githooks/pre-commit` agora usa `_detect_python()` que VALIDA se o interpreter sobe (`import sys`) antes de usá-lo, preferindo `.venv314/Scripts/python.exe`. `PY_IMP` e `RUFF_PY` também caem no `$PY` detectado. Evita python3 corrompido.
+- **Teste**: manual — commit com `python3` corrompido fora do PATH usa `.venv314` e passa.
