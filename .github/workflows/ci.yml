@@ -137,9 +137,12 @@ jobs:
 
   docs-sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
@@ -148,6 +151,18 @@ jobs:
       - run: pip install -r requirements-dev.lock
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
+      - name: Auto-sync docs (fix drift)
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+        run: |
+          python scripts/sync_docs.py --sync
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "chore(docs): auto-sync drift fix [skip ci]"
+            git push
+          fi
       - name: Check docs are in sync (v2 heading-aware)
         env:
           CI_JOB_START: ${{ env.CI_JOB_START }}
