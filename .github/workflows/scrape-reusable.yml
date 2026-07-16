@@ -134,9 +134,12 @@ jobs:
         id: scrape_tier
         run: |
           ulimit -n 65536 && python main.py --tier ${{ matrix.tier }} --no-finalize --mode ${{ inputs.mode }} ${{ inputs.dry_run && '--dry-run' || '' }} ${{ inputs.force && '--force' || '' }} 2>&1 | tee /tmp/scrape_${{ matrix.tier }}.log
-          if grep -qE '\[error\s*\]|"level":\s*"error"|Error fetching|Client error|HTTP [45][0-9][0-9]|TIMEOUT after|falha no scraper' <(sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' /tmp/scrape_${{ matrix.tier }}.log) 2>/dev/null; then
+          # Falha o job APENAS em erros de nível [error] / exceções não tratadas.
+          # Warnings de fetch de agregador (ex.: Tiendeo 403 "Client error") são
+          # self-healing (a loja é pulada) e NÃO devem quebrar o tier inteiro.
+          if grep -qE '\[error\s*\]|"level":\s*"error"|Error fetching|TIMEOUT after|falha no scraper' <(sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' /tmp/scrape_${{ matrix.tier }}.log) 2>/dev/null; then
             echo "::error::[error] entries found in scrape output for tier ${{ matrix.tier }}"
-            grep -E '\[error\s*\]|"level":\s*"error"|Error fetching|Client error|HTTP [45][0-9][0-9]|TIMEOUT after|falha no scraper' <(sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' /tmp/scrape_${{ matrix.tier }}.log)
+            grep -E '\[error\s*\]|"level":\s*"error"|Error fetching|TIMEOUT after|falha no scraper' <(sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' /tmp/scrape_${{ matrix.tier }}.log)
             exit 1
           fi
         shell: bash

@@ -1,10 +1,6 @@
 # `collector` — API
 
-<<<<<<< Updated upstream
-> Última atualização: 2026-07-16 04:33 UTC
-=======
-> Última atualização: 2026-07-16 03:05 UTC
->>>>>>> Stashed changes
+> Última atualização: 2026-07-16 04:55 UTC
 > Gerado por AST parsing dos serviços em `services/collector.py`.
 
 ## Funções Públicas (19)

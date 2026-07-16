@@ -1,11 +1,7 @@
 # Skills do CustoDoce
 
 > Gerado por `python scripts/sync_docs.py --sync`. **Não editar à mão.**
-<<<<<<< Updated upstream
-> Última atualização: 2026-07-16 04:33 UTC
-=======
-> Última atualização: 2026-07-16 03:05 UTC
->>>>>>> Stashed changes
+> Última atualização: 2026-07-16 04:55 UTC
 > Total: 34 skills instaladas
 
 | Categoria | Skill | Descrição |

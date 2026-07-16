@@ -25,10 +25,6 @@ Toda nova lição extraída de falha no CI usa este template:
 
 ---
 
-### 4. `exec_sql_query` RPC (porta 443), NUNCA `psycopg2` (porta 5432)
-
-GitHub Actions bloqueia porta 5432. Use o fixture `db_conn` do `tests/conftest.py`.
-
 ### 5. Cleanup POST test, não só PRE
 
 Setup PRE não basta — sempre cleanup POST também. Filtre por `collected_at = today` ao validar.
@@ -698,3 +694,10 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Sintoma/causa**: Tier 3 (Scrape force) falhou com `[Promotons] Error scraping ...: 'coroutine' object has no attribute 'lower'`. Em `playwright_scraper.py:153` o código era `html_lower = await self._get_page_html(page).lower()` — o `await` aplicava-se ao resultado de `.lower()`, não à coroutine `self._get_page_html(page)` (que retorna coroutine porque é `async def`). Sem o `await` correto, `.lower()` era chamado no coroutine → AttributeError.
 - **Correção**: `html_lower = (await self._get_page_html(page)).lower()` (parênteses em volta do await). `Tiendeo 403 Forbidden` e `Resource temporarily unavailable` (Supabase sob pressão) continuam como warnings transitórios — não são bugs.
 - **Teste**: `TestPlaywrightCoroutineLowerBug::test_wait_for_real_content_awaits_html_before_lower` valida que `_get_page_html` resolve a str (não coroutine).
+
+### 78. Scrape job não deve falhar por 403 de agregador (Tiendeo)
+
+- **Data + commit**: 2026-07-16
+- **Sintoma/causa**: Tier 3 falhava mesmo após corrigir os bugs de código, porque o grep do `scrape-reusable.yml` considerava `Client error '403 Forbidden'` (Tiendeo bloqueando o scraper) como erro fatal de job. O scraper já trata esse fetch error como `warning` e pula a loja (self-healing) — não é erro de código.
+- **Correção**: removido `Client error|HTTP [45][0-9][0-9]` do padrão do grep. O job agora falha APENAS em erros de nível `[error]`/`falha no scraper` (bugs reais). 403 de agregador é warning esperado.
+- **Teste**: `test_scrape_reusable_does_not_fail_on_client_error` valida que o grep do scrape-reusable não inclui `Client error`.

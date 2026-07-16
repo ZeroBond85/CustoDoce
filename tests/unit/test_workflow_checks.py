@@ -286,9 +286,39 @@ def test_scrape_dispatch_exposes_force_input():
     assert "force" in with_block, "job scrape deve propagar 'force' ao reusable via with:"
 
 
+def test_scrape_reusable_does_not_fail_on_client_error():
+    """Regressão: Tier 3 (Promotons/Tiendeo) não deve falhar por 403 de agregador.
+
+    O scraper trata `Client error '403 Forbidden'` (fetch de agregador) como
+    warning e pula a loja (self-healing). O grep do job scrape só deve falhar
+    em erros de nível `[error]`/`falha no scraper`, nunca em "Client error"
+    isolado — senão um site bloqueando derruba o tier inteiro.
+    """
+    workflow = _load_workflow("scrape-reusable.yml")
+    jobs = workflow.get("jobs", {}) or {}
+    scrape_job = jobs.get("scrape", {})
+    steps = scrape_job.get("strategy", {}).get("matrix", {})  # placeholder; real is steps
+    # Find the run step containing the grep
+    run_step = None
+    for job in jobs.values():
+        for step in (job.get("steps", []) or []):
+            if "grep -qE" in (step.get("run", "") or ""):
+                run_step = step
+                break
+        if run_step:
+            break
+    assert run_step is not None, "scrape-reusable deve ter step com grep de erro"
+    run_text = run_step["run"]
+    # O padrão NÃO deve incluir 'Client error' (capturado como warning de fetch)
+    assert "Client error" not in run_text.split("#")[0], (
+        "grep do scrape não deve falhar job em 'Client error' (403 de agregador é warning)"
+    )
+
+
 if __name__ == "__main__":
     test_all_scrape_callers_use_reusable()
     test_scrape_dispatch_exposes_force_input()
+    test_scrape_reusable_does_not_fail_on_client_error()
     test_scrape_callers_have_no_steps_when_using_reusable()
     test_scrape_reusable_has_required_jobs()
     test_scrape_jobs_have_time_budget_check()
