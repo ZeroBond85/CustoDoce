@@ -1,6 +1,6 @@
 # `review_queue_service` — API
 
-> Última atualização: 2026-07-16 03:30 UTC
+> Última atualização: 2026-07-16 03:50 UTC
 > Gerado por AST parsing dos serviços em `services/review_queue_service.py`.
 
 ## Funções Públicas (5)
