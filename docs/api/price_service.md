@@ -1,6 +1,6 @@
 # `price_service` — API
 
-> Última atualização: 2026-07-16 00:57 UTC
+> Última atualização: 2026-07-16 01:10 UTC
 > Gerado por AST parsing dos serviços em `services/price_service.py`.
 
 ## Funções Públicas (2)

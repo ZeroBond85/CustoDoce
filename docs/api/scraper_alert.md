@@ -1,6 +1,6 @@
 # `scraper_alert` — API
 
-> Última atualização: 2026-07-16 00:57 UTC
+> Última atualização: 2026-07-16 01:10 UTC
 > Gerado por AST parsing dos serviços em `services/scraper_alert.py`.
 
 ## Funções Públicas (3)
