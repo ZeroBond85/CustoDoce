@@ -248,6 +248,26 @@ if echo "${STAGED:-}" | grep -q 'AGENTS\.md$'; then
 fi
 
 # ----------------------------------------------------------------
+# 5.5 MD AUTO-COMPRESS - BLOQUEIA se MD staged tem seções candidatas a archive
+#     Sempre roda em dry-run. Auto-fix: python scripts/md_auto_compress.py compress --apply
+#     Bypass: git commit --no-verify
+# ----------------------------------------------------------------
+if echo "${STAGED:-}" | grep -qiE '(LESSONS|REGRAS)\.md$'; then
+  if [ -n "$PY" ] && [ -f "scripts/md_auto_compress.py" ] && [ -f "config/scoring_config.yaml" ]; then
+    MD_COMPRESS_OUT=$("$PY" scripts/md_auto_compress.py compress --dry-run 2>&1) || true
+    if echo "$MD_COMPRESS_OUT" | grep -qE "(archived|candidate|🗄️|archive)"; then
+      echo ""
+      echo "📦 [AVISO] MD Auto-Compress detectou secoes candidatas a archive:"
+      echo "$MD_COMPRESS_OUT" | grep -E "(archived|candidate|🗄️|archive|score=)" | head -10
+      echo ""
+      echo "Para auto-arquivar: python scripts/md_auto_compress.py compress --apply"
+      echo "Ou 'git commit --no-verify' para pular (NAO recomendado)"
+      echo ""
+    fi
+  fi
+fi
+
+# ----------------------------------------------------------------
 # 6. SKILL DRIFT - BLOQUEIA se .opencode/skills/ mudou sem sync_docs --check passar
 # ----------------------------------------------------------------
 if echo "${STAGED:-}" | grep -qE '^\.opencode/skills/'; then

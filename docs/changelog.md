@@ -4,6 +4,15 @@
 
 ### Added
 
+#### MD Auto-Compress — compressão inteligente de documentação (Sprint 14)
+- **`scripts/md_auto_compress.py`**: 677 linhas — parse de seções, scorer com 6 pesos, dedup semântico (rapidfuzz ≥0.85), archive de seções frias com rollback reversível, compress pipeline (dry-run/apply)
+- **`config/scoring_config.yaml`**: pesos calibrados: keep_marker=999, cross_doc_ref=10, test_ref=8, code_ref=6, workflow_ref=6, docs_ref=3, dated_anchor=5, age_months=-1, no_evidence_penalty=-3; threshold archive_candidate=-3
+- **`tests/unit/test_md_auto_compress.py`**: 19 testes (parse, scorer, dedup, archive, compress pipeline)
+- **`tests/calibration/test_scoring_calibration.py`**: regressão contra LESSONS.md real — valida que `<!-- keep -->` nunca é arquivado e distribuição de scores é sanável
+- **`docs/archive/lessons/` + `docs/archive/regras/`**: diretórios de archive com `.gitkeep`
+- **`.githooks/pre-commit`**: Camada 5.5 — MD Auto-Compress (dry-run em commit, aviso se detectar candidatos)
+- **Resultado**: 19/19 testes unitários verdes + 1/1 calibration verde. Dedup preserva mais antiga com merge markers invisíveis. Archive é reversível via `rollback`. Rollback testa com `tmp_path` seguro.
+
 #### Curadoria Constante — schema + validador + gate para AGENTS/LESSONS/REGRAS
 - **`config/lessons_schema.yaml`**: contrato machine-readable (max_lines, heading_pattern, no_duplicates, monotonic)
 - **`config/regras_schema.yaml`**: contrato machine-readable (pre_commit_layers, layer_names)
