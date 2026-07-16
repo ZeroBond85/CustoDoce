@@ -120,7 +120,8 @@ def sync_scrape_frequencies() -> int:
                 "timeout_seconds": 120,
                 "rate_limit_per_minute": 10,
                 "enabled": True,
-            }
+            },
+            on_conflict="store_id",
         ).execute()
         synced += 1
 
