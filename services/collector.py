@@ -563,8 +563,6 @@ def _scrape_store(
         # Scrapers com browser (Playwright) continuam isolados para não travar
         # o pipeline se o Chrome pendulum.
         if getattr(scraper_cls, "safe_in_parent", False):
-            from contextlib import suppress
-
             try:
                 scraper = scraper_cls(store)
                 raw_products = scraper.run(filtered_ingredients) if needs_ingredients_param else scraper.run()

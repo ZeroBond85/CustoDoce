@@ -71,10 +71,10 @@ def test_upsert_price_success(mock_supabase, price_entry, mock_response, expecte
 
 
 def test_upsert_price_fallback(mock_supabase):
-    # RPC fails, trigger fallback to table.insert
+    # RPC fails, trigger fallback to table.upsert (with on_conflict, no 23505)
     mock_supabase.rpc().execute.side_effect = Exception("RPC Error")
-    mock_supabase.table().select().eq().eq().eq().maybe_single().execute.return_value = MagicMock(data=[])
-    mock_supabase.table().insert().execute.return_value = MagicMock(data=[{"id": "fallback-id"}])
+    tbl = mock_supabase.table.return_value
+    tbl.upsert.return_value.execute.return_value = MagicMock(data=[{"id": "fallback-id"}])
 
     price_entry = {
         "ingredient_id": "ing1",
@@ -85,6 +85,7 @@ def test_upsert_price_fallback(mock_supabase):
     }
     result = upsert_price(price_entry)
     assert result.get("id") == "fallback-id"
+    assert tbl.upsert.call_args is not None
 
 
 @pytest.mark.parametrize(

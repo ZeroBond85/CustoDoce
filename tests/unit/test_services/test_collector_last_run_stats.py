@@ -95,3 +95,45 @@ def test_stats_zero_extracted_is_a_failure(monkeypatch):
 
     assert entries == []
     assert collector.LAST_RUN_STATS["DeadStore"] == {"extracted": 0, "matched": 0}
+
+
+def test_suppress_local_scope_bug_in_parent_process(monkeypatch):
+    """Regressão (Python 3.14 strict scoping): `with suppress` no except/finally
+
+    de `_collect_prices` falhava com 'cannot access local variable suppress'
+    quando o scraper usava o processo pai (`safe_in_parent` ativo) e o import
+    local `from contextlib import suppress` poluía o escopo da função. O erro
+    só ocorria no branch do `except` (transient/error), não no happy path.
+    """
+    from contextlib import suppress as real_suppress
+
+    monkeypatch.setattr(collector, "LAST_RUN_STATS", {})
+    monkeypatch.setattr(collector, "log_scraper_run", lambda *a, **k: None)
+    monkeypatch.setattr(collector, "_check_zero_products_alert", lambda *a, **k: None)
+    monkeypatch.setattr(
+        collector, "_run_scraper_isolated",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("transient net")),
+    )
+
+    class _IsolatedScraper:
+        safe_in_parent = False
+
+        def __init__(self, store):
+            self.store = store
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def run(self, ingredients=None):
+            return []
+
+    store = {"name": "NetFlaky", "_fake_products": [{"product": "Leite 1L", "price": 4.0}]}
+    # Should not raise 'cannot access local variable suppress'
+    with real_suppress(Exception):
+        name, entries = _scrape_store(store, _IsolatedScraper, [], "test", False, _match_none, 30)
+
+    assert name == "NetFlaky"
+    assert entries == []

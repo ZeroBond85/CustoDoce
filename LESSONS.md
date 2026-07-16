@@ -677,3 +677,17 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Sintoma/causa**: para rodar um scrape full "do zero" a frequência foi zerada no DB (`scrape_frequencies` 70→0). CI `integration` ficou vermelho: `test_d2_4_scrape_frequencies_enabled` e `test_real_scrape_frequencies_join` exigem `>=20 enabled`. Estado do DB, não código.
 - **Correção**: NUNCA mutar dados para forçar coleta. Usar `--force` → `CUSTODOCE_FORCE_SCRAPE=1` (`main.py:225`), que faz `_should_skip_store` (`collector.py:351`) ignorar a freshness check sem tocar no DB. `scrape.yml` agora expõe input `force` (boolean) propagado ao reusable. DB repopulado via `scripts/sync_all_store_fields.py` (56 freqs, `on_conflict="store_id"`).
 - **Teste**: `test_scrape_dispatch_exposes_force_input` (workflow expõe/propaga `force`) + `test_should_skip_store_bypassed_by_force_env` (force env não toca no DB).
+
+### 75. Python 3.14 strict scoping: import local de `suppress` quebra `_collect_prices`
+
+- **Data + commit**: 2026-07-16
+- **Sintoma/causa**: Scrape (Tier 1/2a/3) falhou com `cannot access local variable 'suppress' where it is not associated with a value` em `collect_extra_flyers`, `collect_tier2_vtex`, `collect_carrefour`, etc. Causa: `from contextlib import suppress` DENTRO do `if safe_in_parent:` (collector.py:566) marca `suppress` como **local para toda a função**; nos branches do `except`/`finally` que usam `with suppress(...)` fora do `if`, o Python 3.14 levanta o erro (binding local não atribuído). Só falhava no caminho de erro (subprocesso/isolated), não no happy path — por isso os testes antigos não pegaram.
+- **Correção**: removido o import local (já existe `from contextlib import suppress` no topo, linha 10). Sempre usar o import de módulo, nunca local dentro de branch que cria escopo.
+- **Teste**: `test_suppress_local_scope_bug_in_parent_process` (exercita `safe_in_parent=False` + except → garante que `suppress` resolve).
+
+### 76. Fallback de upsert_price usava `insert` → 23505 em force scrape
+
+- **Data + commit**: 2026-07-16
+- **Sintoma/causa**: Tier 3 (force scrape) reportou `duplicate key violates unique constraint "prices_ingredient_id_store_id_collected_at_key"` (23505). Quando o RPC `upsert_price_rpc` falha com `Resource temporarily unavailable` ([Errno 11], pressão do Supabase em scrape paralelo), o fallback fazia `table.insert()` sem `ON CONFLICT` → duplicata no mesmo `collected_at` do dia.
+- **Correção**: fallback agora usa `table.upsert(data, on_conflict="ingredient_id,store_id,collected_at")` (espelha a constraint da RPC). Elimina 23505 mesmo sob pressão.
+- **Teste**: `test_upsert_price_fallback` atualizado para validar `.upsert()` no caminho de fallback.

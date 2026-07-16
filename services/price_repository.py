@@ -95,26 +95,22 @@ def upsert_price(price_entry: PriceEntry) -> dict[str, Any]:
             "brand": price_entry.get("brand", "Desconhecido"),
         }
         try:
-            existing = (
+            result = (
                 client.table("prices")
-                .select("id")
-                .eq("ingredient_id", ingredient_id)
-                .eq("store_id", store_id)
-                .eq("collected_at", today)
-                .maybe_single()
+                .upsert(data, on_conflict="ingredient_id,store_id,collected_at")
                 .execute()
             )
-            if existing and existing.data:
-                result = client.table("prices").update(data).eq("id", existing.data["id"]).execute()
-            else:
-                result = client.table("prices").insert(data).execute()
             return result.data[0] if result.data else {}
         except Exception as e_fallback:
             if "Resource temporarily unavailable" in str(e_fallback):
                 logger.warning("upsert_price fallback failed (resource exhaustion), retrying in 2s: %s", e_fallback)
                 _time.sleep(2)
                 try:
-                    result = client.table("prices").insert(data).execute()
+                    result = (
+                        client.table("prices")
+                        .upsert(data, on_conflict="ingredient_id,store_id,collected_at")
+                        .execute()
+                    )
                     return result.data[0] if result.data else {}
                 except Exception as e_retry:
                     logger.error("upsert_price retry also failed: %s", e_retry)
