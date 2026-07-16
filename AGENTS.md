@@ -1,6 +1,6 @@
 # CustoDoce - Memória do Projeto
 
-> **~343 linhas vivo.** Lições → `LESSONS.md`. Regras infra → `REGRAS.md`.
+> **~340 linhas vivo.** Lições → `LESSONS.md`. Regras infra → `REGRAS.md`.
 
 ## Regras Mandatórias (Top 10)
 
@@ -97,8 +97,8 @@ CustoDoce/
 ├── requirements-test.lock  # Pinned (prod + dev + test)
 ├── requirements.lock       # = requirements-test.lock (backward compat)
 ├── requirements.txt        # = requirements-prod.in (pip-audit source)
-├── AGENTS.md          # ← este arquivo (vivo, ~370 linhas)
-├── LESSONS.md         # 71 lições aprendidas
+├── AGENTS.md          # ← este arquivo (vivo, ~340 linhas)
+├── LESSONS.md         # 76 lições aprendidas
 └── REGRAS.md          # Ambiente, hooks, comandos
 ```
 
@@ -171,69 +171,11 @@ price_per_un = raw_price / qty
 
 ## CI Watch (push + monitoramento automático)
 
-Para evitar "push → CI falha → ninguém vê", substitua `git push` por:
-
-```bash
-# Direto
-python scripts/git_push.py [args]
-
-# Via alias (recomendado)
-git config --local alias.pw '!python scripts/git_push.py'
-git pw [args]
-```
-
-**Comportamento:**
-1. Roda `git push` (pre-push hook executa normalmente com todos os checks)
-2. Após push bem-sucedido, detecta o run do CI no GitHub Actions
-3. Trava o terminal com `gh run watch --exit-status`
-4. Se CI falhar:
-   - **ruff**: auto-fix + amend commit + force-push + re-watch (1 tentativa)
-   - **timeout/flaky**: re-run do workflow (1 tentativa)
-   - **Erro diferente** do anterior: **PARA** (auto-fix pode ter introduzido regressão)
-   - **bandit/pip-audit/pytest**: **PARA** (não-fixável, humano assume)
-5. Se esgotar tentativas, mostra log de erro + sugestões
-
-**Variáveis de ambiente:**
-
-| Var | Default | Descrição |
-|-----|---------|-----------|
-| `CI_MAX_RETRIES` | 1 | Máximo de auto-retry |
-| `CI_WATCH_TIMEOUT` | 600 | Timeout do watch (segundos) |
-
-**Notas:**
-- O `git push` normal (sem watch) continua funcionando — pular o CI watch é intencional
-- `gh` precisa estar autenticado (`gh auth login`). Caso contrário, watch é pulado com aviso
-- Auto-fix usa `--force-with-lease` (seguro: só force-push se ninguém mais alterou o branch)
-- **Para Agentes**: Devido a timeouts de shell, substitua `gh run watch` por polling repetitivo de `gh run view --json conclusion` até a conclusão final.
+Para evitar "push → CI falha → ninguém vê", substitua `git push` por `python scripts/git_push.py [args]` (ou `git config --local alias.pw '!python scripts/git_push.py' && git pw`). O script roda o push, detecta o run do CI e faz polling de `gh run view --json conclusion` até a conclusão final (timeouts de shell proíbem `gh run watch`). Em falha: ruff→auto-fix+re-watch (1x); timeout/flaky→re-run (1x); erro diferente/bandit/pip-audit/pytest→**PARA** (humano assume). Auto-fix usa `--force-with-lease`. Detalhes em `REGRAS.md` e `scripts/git_push.py`.
 
 ## Teste Full Manual (disparo manual único)
 
-Workflow `Teste_Full_Manual` — execute quando quiser **testar TUDO** de uma vez:
-
-```bash
-# Via GitHub Actions
-# Actions → Teste_Full_Manual → Run workflow
-```
-
-**O que é testado:**
-| Fase | Jobs | Testes |
-|------|------|--------|
-| Lint + Typecheck | `lint`, `typecheck` | ruff, bandit, mypy, pip-audit, detect-secrets |
-| Docs + Schema | `docs-sync` | sync_docs, agents schema, timestamps |
-| Unit + Schema | `unit` | 727 testes (unit + schema) |
-| Integration | `integration` | 112 testes |
-| Deploy Check | `deploy-check` | valida DB, queries, SMTP |
-| Real | `real` | 6 testes reais |
-| E2E Completo | `e2e-full` | smoke + interactions + real e2e |
-| Visual | `visual` | regressão visual (10 testes em `test_e2e_dashboard.py`) |
-| Diagnostics | `diagnostics` | 4 testes lentos (`-m slow`): pip-audit, ruff, mypy, detect-secrets via subprocess |
-
-**Tempo total:** ~55 minutos
-
-**Auto-adaptação:**
-- Todas as listas de páginas vêm de `navigation_config.MENU_GROUPS`
-- Se adicionar página em `dashboard/pages/`, aparece automaticamente nos testes
-- Se remover, desaparece automaticamente
+Workflow `Teste_Full_Manual` (Actions → Run workflow) — testa TUDO de uma vez: lint, typecheck, docs-sync, unit+schema, integration, deploy-check, real, e2e-full, visual e diagnostics (~55min). Listas de páginas vêm de `navigation_config.MENU_GROUPS` (auto-adapta a `dashboard/pages/`).
 
 ## ⚠️ Regra Obrigatória: DB Sync
 
@@ -285,13 +227,13 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 
 | Métrica | Valor |
 |---------|-------|
-| pytest (unit + schema, no slow) | 1019 passing (+19 md_auto_compress, +1 calibration) |
+| pytest (unit + schema, no slow) | 1039 passing |
 | pytest (integration) | 112 passing |
 | pytest (diagnostics, slow) | 4 passing |
 | Schema manifest | 17 tabelas/views com types, not_null, defaults, constraints |
 | Mock validation tests | 97 parametrizados (colunas, tipos, not_null, FKs, CHECK, jsonb) |
-| AGENTS.md | ~362 linhas (Sprint 14 — md_auto_compress) |
-| LESSONS.md | 71 lições |
+| AGENTS.md | ~340 linhas (Sprint 14 — md_auto_compress) |
+| LESSONS.md | 76 lições |
 | REGRAS.md | Ambiente + hooks + comandos |
 | CI lint/type/test | ✅ Todos verdes (Python 3.14.6) |
 | E2E (cloud) | ⏳ Mensal (Playwright) |
@@ -344,7 +286,7 @@ Para WSL: `custodoce-314` (Conda, Python 3.14). Detalhes em `REGRAS.md`.
 
 ## Documentação Relacionada
 
-- `LESSONS.md` — 71 lições (CI, mocks, schema, scrapers, monitoração, segurança)
+- `LESSONS.md` — 76 lições (CI, mocks, schema, scrapers, monitoração, segurança)
 - `REGRAS.md` — Ambiente, hooks, comandos, arquitetura
 - `docs/skills.md` — Skills OpenCode (globais + overlays locais)
 - `docs/changelog.md` — Histórico por fase/sprint; `config/agents_schema.yaml` — Schema deste arquivo
