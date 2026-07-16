@@ -1,0 +1,18 @@
+# Scoring config for md_auto_compress.py
+# Editable without PR — but CI validates via calibration test.
+weights:
+  keep_marker: 999
+  cross_doc_ref: 10
+  test_ref: 8
+  code_ref: 6
+  workflow_ref: 6
+  docs_ref: 3
+  dated_anchor: 5
+  age_months: -1
+  no_evidence_penalty: -3
+
+thresholds:
+  archive_candidate: -3
+  preserve_absolute: 6
+  dedup_similarity: 0.85
+  buffer_lines: 10

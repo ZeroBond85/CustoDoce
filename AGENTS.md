@@ -64,12 +64,12 @@ CustoDoce/
 │   ├── skills-maintenance.yml                       # Cron mensal (dia 1, 9am UTC)
 │   └── dependency-audit.yml                         # Cron mensal (dia 1, 9am UTC) — pip-audit + deptry + licenses
 ├── .githooks/
-│   ├── pre-commit                                     # 11 camadas (SECRET GUARD, GITIGNORE IMPORTS, DETECT-SECRETS, RUFF LINT, DOC SYNC, SIZE GUARD, DOC WATCHDOG, AGENTS SCHEMA, SKILL DRIFT, RESIDUE GUARD, CRLF GUARD)
+│   ├── pre-commit                                     # 12 camadas (SECRET GUARD, GITIGNORE IMPORTS, DETECT-SECRETS, RUFF LINT, DOC SYNC, SIZE GUARD, DOC WATCHDOG, AGENTS SCHEMA, MD AUTO-COMPRESS, SKILL DRIFT, RESIDUE GUARD, CRLF GUARD)
 │   └── pre-push                                       # Python, 9 checks paralelos (block + auto-fix sync_docs)
 ├── config/
 │   ├── ingredients.yaml, stores.yaml, features.yaml
 │   ├── schema_manifest.json                          # Schema offline (gerado por scripts/generate_schema_manifest.py)
-│   ├── schema_prices.json, agents_schema.yaml
+│   ├── schema_prices.json, agents_schema.yaml, scoring_config.yaml
 ├── scrapers/          # base_flyer, vtex, playwright, flyer, parser, ocr, etc.
 ├── parsers/           # normalizer, matcher, brand_extractor, llm_cache, llm_strategies, llm_classifier
 ├── services/          # supabase_client, price_*, collector, email, telegram, alert, logger, otel, etc.
@@ -77,12 +77,15 @@ CustoDoce/
 ├── telegram_bot/      # handlers.py
 ├── admin/app.py       # 107 linhas — importa 19 pages
 ├── supabase/          # seed.sql, consolidated_migration.sql, migrations 002-006
-├── scripts/           # deploy, validate, sync, audit, seed, heal, sanity, send_report, skills_maintenance
-├── tests/             # unit (729), schema (94), integration, design, e2e, real
+├── scripts/           # deploy, validate, sync, audit, seed, heal, sanity, send_report, skills_maintenance, md_auto_compress
+├── tests/             # unit (729), schema (94), calibration (1), integration, design, e2e, real
 │   ├── unit/fixtures/                                # Mock data central (16 tabelas em mock_data.py)
 │   ├── unit/test_services/                           # 13 módulos decompostos (119 tests)
 │   │   ├── conftest.py                               # Mock helpers compartilhados
 │   │   ├── test_price.py, test_config.py, ...
+│   ├── calibration/                                  # Scoring calibration contra dados reais
+│   │   ├── __init__.py
+│   │   └── test_scoring_calibration.py               # 1 test (regressão scoring weights)
 │   └── diagnostics/                                  # Testes lentos (pip-audit, ruff, mypy, secrets)
 ├── data/prices_latest.json
 ├── pyproject.toml     # Ruff 120 chars, mypy 3.12, pytest config
@@ -271,18 +274,23 @@ python -m pytest tests/unit/test_validate_mocks_against_manifest.py -q
 
 # Testes lentos (diagnóstico)
 python -m pytest tests/diagnostics/ -q -m slow
+
+# MD Auto-Compress
+python scripts/md_auto_compress.py compress --dry-run
+python scripts/md_auto_compress.py compress --apply
+python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/<src>
 ```
 
 ## Status Atual
 
 | Métrica | Valor |
 |---------|-------|
-| pytest (unit + schema, no slow) | 999 passing |
+| pytest (unit + schema, no slow) | 1019 passing (+19 md_auto_compress, +1 calibration) |
 | pytest (integration) | 112 passing |
 | pytest (diagnostics, slow) | 4 passing |
 | Schema manifest | 17 tabelas/views com types, not_null, defaults, constraints |
 | Mock validation tests | 97 parametrizados (colunas, tipos, not_null, FKs, CHECK, jsonb) |
-| AGENTS.md | ~343 linhas (Sprint 12 workflow optimization) |
+| AGENTS.md | ~362 linhas (Sprint 14 — md_auto_compress) |
 | LESSONS.md | 71 lições |
 | REGRAS.md | Ambiente + hooks + comandos |
 | CI lint/type/test | ✅ Todos verdes (Python 3.14.6) |
@@ -339,5 +347,4 @@ Para WSL: `custodoce-314` (Conda, Python 3.14). Detalhes em `REGRAS.md`.
 - `LESSONS.md` — 71 lições (CI, mocks, schema, scrapers, monitoração, segurança)
 - `REGRAS.md` — Ambiente, hooks, comandos, arquitetura
 - `docs/skills.md` — Skills OpenCode (globais + overlays locais)
-- `docs/changelog.md` — Histórico por fase/sprint
-- `config/agents_schema.yaml` — Schema deste arquivo
+- `docs/changelog.md` — Histórico por fase/sprint; `config/agents_schema.yaml` — Schema deste arquivo
