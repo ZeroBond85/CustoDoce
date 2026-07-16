@@ -375,6 +375,7 @@ def archive(
     archive_md_parts = [
         f"# Licoes Arquivadas — {now.strftime('%Y-%m')}",
         "",
+        f"> Última atualização: {now.strftime('%Y-%m-%d %H:%M')} UTC",
         f"> Auto-archive via md_auto_compress.py em {now.isoformat()}",
         f"> Arquivo origem: {target}",
         f"> Reversivel com: --rollback --target {target}",
