@@ -3,7 +3,7 @@ parsers/vision_strategies.py
 
 Vision LLM Strategy Pattern — extração de produtos de imagens de flyer via LLMs multimodais.
 
-Fallback chain: GroqVisionStrategy → OpenRouterVisionStrategy → HFVisionStrategy
+Fallback chain: GroqVisionStrategy → OpenRouterVisionStrategy → NvidiaVisionStrategy
 Cada strategy herda circuit breaker + JSON mode do padrão existente.
 """
 
@@ -20,7 +20,7 @@ from PIL import Image
 from services.http_client import get_client
 from services.logger import logger
 
-DEFAULT_TIMEOUT = float(os.environ.get("LLM_TIMEOUT", "30"))
+DEFAULT_TIMEOUT = float(os.environ.get("LLM_TIMEOUT", "90"))
 CB_THRESHOLD = int(os.environ.get("LLM_CB_THRESHOLD", "3"))
 CB_COOLDOWN = int(os.environ.get("LLM_CB_COOLDOWN", "600"))
 # Encartes graficos vem em altissima resolucao (~2245x3389) e estouram o limite
@@ -236,6 +236,16 @@ def _strip_json_fence(content: str) -> str:
     return text.strip()
 
 
+# Prompt unico e estrito: modelos free (NVIDIA/OpenRouter/Groq) ignoram
+# response_format com frequencia e devolvem texto solto ou cercado em markdown.
+# Pedir "ONLY raw JSON, no markdown" aumenta muito a taxa de parse valido.
+_VISION_PROMPT = (
+    "List the grocery products in this flyer. Respond with ONLY raw JSON "
+    "(no markdown fences, no commentary): "
+    '{"products": [{"product": string, "price": number, "unit": string}], "raw_text": string}'
+)
+
+
 def _safe_parse(content: str) -> VisionResult | None:
     """Safely parse LLM JSON response into VisionResult."""
     if not content:
@@ -273,63 +283,15 @@ class GroqVisionStrategy(VisionStrategy):
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": "Extraia produtos deste flyer. Retorne JSON: {'products': [{'product': str, 'price': float, 'unit': str, 'validity': str}], 'raw_text': str}"},
+                        {"type": "text", "text": _VISION_PROMPT},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
                     ],
                 }
             ],
             "temperature": 0.1,
-            "max_tokens": 2000,
+            "max_tokens": 4000,
             "response_format": {"type": "json_object"},
         }
-
-    def _parse_response(self, content: str) -> VisionResult | None:
-        return _safe_parse(content)
-
-
-_VISION_PROMPT = (
-    "Extraia produtos deste flyer. Retorne SOMENTE JSON: "
-    '{"products": [{"product": str, "price": float, "unit": str, "validity": str}], "raw_text": str}'
-)
-
-
-class GeminiVisionStrategy(VisionStrategy):
-    """Google Gemini (generativelanguage API) — formato de payload/resposta proprio."""
-
-    provider_name = "gemini"
-
-    def __init__(self):
-        super().__init__()
-        self.api_key = os.environ.get("GOOGLE_API_KEY", "") or os.environ.get("GEMINI_API_KEY", "")
-        self.model = os.environ.get("GEMINI_VISION_MODEL", "gemini-2.5-flash")
-        self.url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
-
-    def _get_payload(self, image_bytes: bytes) -> dict:
-        b64 = self._encode_image(image_bytes)
-        return {
-            "contents": [
-                {
-                    "parts": [
-                        {"text": _VISION_PROMPT},
-                        {"inline_data": {"mime_type": "image/jpeg", "data": b64}},
-                    ]
-                }
-            ],
-            "generationConfig": {
-                "temperature": 0.1,
-                "maxOutputTokens": 8192,
-                "responseMimeType": "application/json",
-            },
-        }
-
-    def _get_headers(self) -> dict:
-        return {"x-goog-api-key": self.api_key, "Content-Type": "application/json"}
-
-    def _extract_content(self, data: dict) -> str:
-        try:
-            return data["candidates"][0]["content"]["parts"][0]["text"]
-        except (KeyError, IndexError, TypeError):
-            return ""
 
     def _parse_response(self, content: str) -> VisionResult | None:
         return _safe_parse(content)
@@ -342,7 +304,7 @@ class OpenRouterVisionStrategy(VisionStrategy):
         super().__init__()
         self.api_key = os.environ.get("OPENROUTER_API_KEY", "")
         self.url = "https://openrouter.ai/api/v1/chat/completions"
-        self.model = os.environ.get("OPENROUTER_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct:free")
+        self.model = os.environ.get("OPENROUTER_VISION_MODEL", "google/gemma-4-26b-a4b-it:free")
 
     def _get_payload(self, image_bytes: bytes) -> dict:
         b64 = self._encode_image(image_bytes)
@@ -352,13 +314,13 @@ class OpenRouterVisionStrategy(VisionStrategy):
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": "Extraia produtos deste flyer. Retorne JSON: {'products': [{'product': str, 'price': float, 'unit': str, 'validity': str}], 'raw_text': str}"},
+                        {"type": "text", "text": _VISION_PROMPT},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
                     ],
                 }
             ],
             "temperature": 0.1,
-            "max_tokens": 2000,
+            "max_tokens": 4000,
             "response_format": {"type": "json_object"},
         }
 
@@ -373,43 +335,46 @@ class OpenRouterVisionStrategy(VisionStrategy):
         return _safe_parse(content)
 
 
-class HFVisionStrategy(VisionStrategy):
-    provider_name = "hf"
+class NvidiaVisionStrategy(VisionStrategy):
+    """NVIDIA NIM — modelos VLM hospedados (ex.: llama-3.2-11b-vision).
+
+    Endpoint integrate.api.nvidia.com com model no payload (formato OpenAI).
+    """
+
+    provider_name = "nvidia"
 
     def __init__(self):
         super().__init__()
-        self.api_key = os.environ.get("HF_API_KEY", "") or os.environ.get("HUGGINGFACE_API_KEY", "")
-        self.url = os.environ.get("HF_VISION_URL", "https://api-inference.huggingface.co/models/llava-hf/llava-1.5-13b-hf")
+        self.api_key = os.environ.get("NVIDIA_API_KEY", "")
+        self.model = os.environ.get("NVIDIA_VISION_MODEL", "meta/llama-3.2-11b-vision-instruct")
+        self.url = "https://integrate.api.nvidia.com/v1/chat/completions"
 
     def _get_payload(self, image_bytes: bytes) -> dict:
         b64 = self._encode_image(image_bytes)
         return {
-            "inputs": {
-                "text": "Extraia produtos deste flyer. Retorne JSON: {'products': [{'product': str, 'price': float, 'unit': str, 'validity': str}], 'raw_text': str}",
-                "image": b64,
-            },
-            "parameters": {"max_new_tokens": 2000},
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": _VISION_PROMPT},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
+                    ],
+                }
+            ],
+            "temperature": 0.1,
+            "max_tokens": 4000,
+            "response_format": {"type": "json_object"},
         }
 
     def _get_headers(self) -> dict:
-        return {"Authorization": f"Bearer {self.api_key}"}
+        return {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
 
     def _parse_response(self, content: str) -> VisionResult | None:
-        if not content:
-            return None
-        try:
-            # HF may return raw text, try to extract JSON
-            data = json.loads(content)
-            # HF sometimes returns list with generated_text
-            if isinstance(data, list):
-                content = data[0].get("generated_text", "")
-            elif isinstance(data, dict):
-                content = data.get("generated_text", content)
-
-            return _safe_parse(content)
-        except json.JSONDecodeError:
-            logger.warning("[hf_vision] Invalid JSON response")
-            return None
+        return _safe_parse(content)
 
 
 # Factory to get the fallback chain
@@ -422,9 +387,8 @@ def get_vision_chain() -> list[VisionStrategy]:
     """
     chain = [
         GroqVisionStrategy(),
-        GeminiVisionStrategy(),
         OpenRouterVisionStrategy(),
-        HFVisionStrategy(),
+        NvidiaVisionStrategy(),
     ]
     for i, s in enumerate(chain):
         s._has_fallback = i < len(chain) - 1

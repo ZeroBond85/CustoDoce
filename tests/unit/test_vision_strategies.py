@@ -2,21 +2,19 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import pytest
 
 import io
-from unittest.mock import MagicMock
 
 from parsers.vision_strategies import (
     VisionResult,
     _downscale_image,
     _safe_parse,
-    GeminiVisionStrategy,
     GroqVisionStrategy,
     OpenRouterVisionStrategy,
-    HFVisionStrategy,
+    NvidiaVisionStrategy,
     get_vision_chain,
     _get_cached_chain,
     reset_vision_chain,
@@ -74,27 +72,33 @@ class TestOpenRouterVisionStrategy:
             vision = OpenRouterVisionStrategy()
             assert vision.api_key == "test-key"
 
+    def test_default_model_is_gemma_free(self):
+        with patch.dict("os.environ", {"OPENROUTER_API_KEY": "o"}):
+            vision = OpenRouterVisionStrategy()
+            assert vision.model == "google/gemma-4-26b-a4b-it:free"
 
-class TestHFVisionStrategy:
+
+class TestNvidiaVisionStrategy:
     def test_init_sets_api_key(self):
         with patch.dict("os.environ", {}, clear=True):
-            vision = HFVisionStrategy()
+            vision = NvidiaVisionStrategy()
             assert vision.api_key == ""
 
     def test_init_sets_api_key_from_env(self):
-        with patch.dict("os.environ", {"HF_API_KEY": "test-key"}):
-            vision = HFVisionStrategy()
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "test-key"}):
+            vision = NvidiaVisionStrategy()
             assert vision.api_key == "test-key"
 
-    def test_init_falls_back_to_huggingface_api_key(self):
-        with patch.dict("os.environ", {"HUGGINGFACE_API_KEY": "hf-alt"}, clear=True):
-            vision = HFVisionStrategy()
-            assert vision.api_key == "hf-alt"
+    def test_default_model_is_llama_vision(self):
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "k"}):
+            vision = NvidiaVisionStrategy()
+            assert vision.model == "meta/llama-3.2-11b-vision-instruct"
+            assert "integrate.api.nvidia.com" in vision.url
 
-    def test_hf_api_key_takes_precedence(self):
-        with patch.dict("os.environ", {"HF_API_KEY": "primary", "HUGGINGFACE_API_KEY": "alt"}):
-            vision = HFVisionStrategy()
-            assert vision.api_key == "primary"
+    def test_headers_use_bearer(self):
+        with patch.dict("os.environ", {"NVIDIA_API_KEY": "k"}):
+            vision = NvidiaVisionStrategy()
+            assert vision._get_headers()["Authorization"] == "Bearer k"
 
 
 class TestSafeParseFence:
@@ -116,51 +120,15 @@ class TestSafeParseFence:
         assert result.products == []
 
 
-class TestGeminiVisionStrategy:
-    def test_init_from_google_api_key(self):
-        with patch.dict("os.environ", {"GOOGLE_API_KEY": "g-key"}, clear=True):
-            v = GeminiVisionStrategy()
-            assert v.api_key == "g-key"
-            assert v.model == "gemini-2.5-flash"
-            assert v.model in v.url
-
-    def test_init_falls_back_to_gemini_api_key(self):
-        with patch.dict("os.environ", {"GEMINI_API_KEY": "gem"}, clear=True):
-            v = GeminiVisionStrategy()
-            assert v.api_key == "gem"
-
-    def test_headers_use_goog_api_key(self):
-        with patch.dict("os.environ", {"GOOGLE_API_KEY": "g-key"}):
-            v = GeminiVisionStrategy()
-            assert v._get_headers()["x-goog-api-key"] == "g-key"
-
-    def test_extract_content_parses_gemini_format(self):
-        v = GeminiVisionStrategy()
-        data = {"candidates": [{"content": {"parts": [{"text": '{"products": []}'}]}}]}
-        assert v._extract_content(data) == '{"products": []}'
-
-    def test_extract_content_handles_malformed(self):
-        v = GeminiVisionStrategy()
-        assert v._extract_content({}) == ""
-
-    def test_payload_uses_inline_data(self):
-        v = GeminiVisionStrategy()
-        payload = v._get_payload(b"img")
-        parts = payload["contents"][0]["parts"]
-        assert any("inline_data" in p for p in parts)
-        assert payload["generationConfig"]["responseMimeType"] == "application/json"
-
-
 class TestVisionChain:
     def test_get_vision_chain_returns_list(self):
         chain = get_vision_chain()
         assert isinstance(chain, list)
-        assert len(chain) >= 1
+        assert len(chain) == 3
 
-    def test_chain_includes_gemini_after_groq(self):
+    def test_chain_order_groq_openrouter_nvidia(self):
         names = [s.provider_name for s in get_vision_chain()]
-        assert "gemini" in names
-        assert names.index("groq") < names.index("gemini")
+        assert names == ["groq", "openrouter", "nvidia"]
 
     def test_chain_marks_has_fallback_except_last(self):
         chain = get_vision_chain()
@@ -176,12 +144,7 @@ class TestVisionChain:
         assert [id(s) for s in c1] == [id(s) for s in c2]
 
     def test_cached_chain_breaker_persists_across_images(self, monkeypatch):
-        """Regressao: 429 numa imagem abre o breaker e pula o provider nas proximas.
-
-        Antes, get_vision_chain() criava instancias novas por imagem -> o breaker
-        resetava e Groq era re-tentado (60s de Retry-After) em CADA imagem,
-        estourando o timeout do scrape (caso Max Atacadista).
-        """
+        """Regressao: 429 numa imagem abre o breaker e pula o provider nas proximas."""
         reset_vision_chain()
         monkeypatch.setenv("GROQ_API_KEY", "k")
         monkeypatch.setenv("VISION_FAIL_FAST_ON_429", "1")
@@ -191,12 +154,10 @@ class TestVisionChain:
         client = MagicMock()
         client.post.return_value = _resp429()
         monkeypatch.setattr("parsers.vision_strategies.get_client", lambda: client)
-        # mesma imagem repetida: 1a chamada abre breaker, 2a deve ser skipada
         r1 = groq.extract(b"img")
         assert r1 is None
         r2 = groq.extract(b"img")
         assert r2 is None
-        # breaker aberto -> 2a chamada nem tocou a rede
         assert client.post.call_count == 1
         assert groq._circuit_open is True
 
@@ -209,40 +170,37 @@ class TestExtractProductsViaVision:
 
     def test_groq_429_opens_breaker_so_next_provider_is_tried(self, monkeypatch):
         """Em 429 com fallback, Groq abre o breaker (fail-fast) e a cadeia
-        cede ao provider seguinte em vez de obedecer ao Retry-After de 30s."""
+        cede ao provider seguinte em vez de obedecer ao Retry-After."""
         reset_vision_chain()
         monkeypatch.setenv("GROQ_API_KEY", "k")
-        monkeypatch.setenv("GOOGLE_API_KEY", "g")
+        monkeypatch.setenv("OPENROUTER_API_KEY", "o")
         monkeypatch.setenv("VISION_FAIL_FAST_ON_429", "1")
         monkeypatch.setattr("parsers.vision_strategies.time.sleep", lambda *_: None)
 
         chain = _get_cached_chain()
         groq = next(s for s in chain if s.provider_name == "groq")
-        gemini = next(s for s in chain if s.provider_name == "gemini")
+        openrouter = next(s for s in chain if s.provider_name == "openrouter")
 
         groq_client = MagicMock()
         groq_client.post.return_value = _resp429()
-        gemini_client = MagicMock()
-        gemini_client.post.return_value = _resp(
+        openrouter_client = MagicMock()
+        openrouter_client.post.return_value = _resp(
             200,
-            json_body={"candidates": [{"content": {"parts": [{"text": '{"products": [{"product": "Leite", "price": 4.0}]}'}]}}]},
+            json_body={"choices": [{"message": {"content": '{"products": [{"product": "Leite", "price": 4.0}]}'}}]},
         )
 
         def _get_client():
-            # Groq 429 na 1a chamada; apos abrir breaker, a cadeia chama Gemini
             if not groq._circuit_open:
                 return groq_client
-            return gemini_client
+            return openrouter_client
 
         monkeypatch.setattr("parsers.vision_strategies.get_client", _get_client)
 
         result = extract_products_via_vision(b"img")
         assert result is not None
         assert result[0]["product"] == "Leite"
-        # Groq foi chamado uma vez (429) e NAO esperou Retry-After
         assert groq_client.post.call_count == 1
-        # Gemini (fallback) foi efetivamente usado
-        assert gemini_client.post.call_count == 1
+        assert openrouter_client.post.call_count == 1
 
 
 def _make_png(width: int, height: int) -> bytes:
@@ -273,24 +231,6 @@ class TestRetryOn429:
     def _resp(self, status, headers=None, json_body=None):
         return _resp(status, headers, json_body)
 
-
-def _resp429(headers=None):
-    r = MagicMock()
-    r.status_code = 429
-    r.headers = headers or {"Retry-After": "30"}
-    r.json.return_value = {}
-    r.raise_for_status.return_value = None
-    return r
-
-
-def _resp(status, headers=None, json_body=None):
-    r = MagicMock()
-    r.status_code = status
-    r.headers = headers or {}
-    r.json.return_value = json_body or {}
-    r.raise_for_status.return_value = None
-    return r
-
     def test_retries_then_succeeds(self, monkeypatch):
         monkeypatch.setenv("GROQ_API_KEY", "k")
         monkeypatch.setattr("parsers.vision_strategies.VISION_MAX_RETRIES", 2)
@@ -319,6 +259,24 @@ def _resp(status, headers=None, json_body=None):
         result = strat.extract(b"img")
         assert result is None
         assert client.post.call_count == 2
+
+
+def _resp429(headers=None):
+    r = MagicMock()
+    r.status_code = 429
+    r.headers = headers or {"Retry-After": "30"}
+    r.json.return_value = {}
+    r.raise_for_status.return_value = None
+    return r
+
+
+def _resp(status, headers=None, json_body=None):
+    r = MagicMock()
+    r.status_code = status
+    r.headers = headers or {}
+    r.json.return_value = json_body or {}
+    r.raise_for_status.return_value = None
+    return r
 
 
 if __name__ == "__main__":
