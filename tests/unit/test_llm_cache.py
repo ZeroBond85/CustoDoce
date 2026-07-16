@@ -128,7 +128,6 @@ def test_init_schema_idempotent(isolated_cache):
     lc._init_schema()
     lc._init_schema()
     # If we got here, it's idempotent
-    assert True
 
 
 def test_cache_stats(isolated_cache):

@@ -59,21 +59,7 @@ def secret():
     return "JBSWY3DPEHPK3PXP"
 
 
-@pytest.mark.parametrize(
-    "code, expected",
-    [
-        ("123456", False),
-        ("abc", False),
-        (None, False),
-    ],
-)
-def test_totp_invalid_inputs(secret, code, expected):  # noqa: S107
-    # This is a dummy test to fill cases. Actual secret needed for real verification.
-    # Since we are testing the input handler:
-    pass
 
-
-# Overriding the parametrize for the above with actual values
 @pytest.mark.parametrize(
     "code, expected",
     [

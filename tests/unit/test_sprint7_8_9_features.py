@@ -93,13 +93,6 @@ def test_promocoes_is_promotion_false_when_not_flag():
     assert _is_promotion({"is_promotion": False}) is False
 
 
-def test_promocoes_is_promotion_false_for_normal_item():
-    """_is_promotion retorna False para item comum."""
-    from dashboard.pages.promocoes import _is_promotion
-
-    assert _is_promotion({"is_promotion": False}) is False
-    assert _is_promotion({"is_promotion": False}) is False
-
 
 def test_promocoes_safe_ppk_flat():
     """_safe_ppk lê row['price_per_kg'] flat."""
