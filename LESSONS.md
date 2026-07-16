@@ -25,10 +25,6 @@ Toda nova lição extraída de falha no CI usa este template:
 
 ---
 
-### 5. Cleanup POST test, não só PRE
-
-Setup PRE não basta — sempre cleanup POST também. Filtre por `collected_at = today` ao validar.
-
 ### 6. `deploy_check.py` — required vs optional env
 
 Required: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`. Optional: `GMAIL_*`, `AUTH_SECRET_KEY`, `SUPABASE_ANON_KEY`, `TELEGRAM_*`. Opcionais viram WARN, não bloqueiam.
