@@ -34,8 +34,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 MAX_RETRIES = int(os.environ.get("CI_MAX_RETRIES", "1"))
 TIMEOUT = int(os.environ.get("CI_WATCH_TIMEOUT", "600"))
 
-# Locais onde gh/git podem estar no Windows (Git bash PATH nem sempre vem
-# herdado quando o script roda direto do cmd.exe / PowerShell).
+# Locais onde gh/git/python podem estar no Windows (Git bash PATH nem sempre
+# vem herdado quando o script roda direto do cmd.exe / PowerShell).
 _CANDIDATE_BINS = [
     r"C:\Program Files\Git\bin",
     r"C:\Program Files\Git\usr\bin",
@@ -46,18 +46,29 @@ _CANDIDATE_BINS = [
 
 
 def _ensure_bin_path() -> None:
-    """Garante que gh/git estejam no PATH do processo.
+    """Garante que gh/git/python estejam no PATH do processo.
 
-    O pre-push hook (via git push) e este script chamam `gh`/`git` por
-    subprocess. Se o shell que invocou o Python não trouxe o PATH do Git
+    O pre-push hook (via git push) e este script chamam `gh`/`git`/`python`
+    por subprocess. Se o shell que invocou o Python não trouxe o PATH do Git
     Bash, `gh` não é encontrado (FileNotFoundError) e o push falha de forma
-    FALSA. Injetar os caminhos conhecidos no os.environ["PATH"] corrige a
-    RAIZ (não esconde a falha).
+    FALSA. Injetar os caminhos conhecidos + o dir do próprio Python em execução
+    no os.environ["PATH"] corrige a RAIZ (não esconde a falha).
     """
     env_path = os.environ.get("PATH", "")
     paths = env_path.split(os.pathsep) if env_path else []
     existing = {p.lower() for p in paths}
     added = False
+
+    # DIR do próprio Python em execução (sys.executable) + seu Scripts/
+    # garante que `python`, `ruff`, `pytest` etc. resolvam sem depender do
+    # shell que invocou este script.
+    py_dir = os.path.dirname(os.path.abspath(sys.executable))
+    for extra in (py_dir, os.path.join(py_dir, "Scripts")):
+        if extra and extra.lower() not in existing:
+            paths.append(extra)
+            existing.add(extra.lower())
+            added = True
+
     for cand in _CANDIDATE_BINS:
         if os.path.isdir(cand) and cand.lower() not in existing:
             paths.append(cand)
