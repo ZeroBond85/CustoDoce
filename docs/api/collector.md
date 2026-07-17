@@ -1,6 +1,6 @@
 # `collector` — API
 
-> Última atualização: 2026-07-17 12:14 UTC
+> Última atualização: 2026-07-17 13:50 UTC
 > Gerado por AST parsing dos serviços em `services/collector.py`.
 
 ## Funções Públicas (19)
@@ -24,6 +24,8 @@
 ### collect_roldao_flyer(ingredients: list[Ingredient])
 
 ### collect_tier1_api_flyers(ingredients: list[dict])
+
+Coleta lojas api_flyer (Max/Roldão/Tenda) pelo pipeline de PREÇOS.
 
 ### collect_tier1_pdfs(ingredients: list[Ingredient])
 
