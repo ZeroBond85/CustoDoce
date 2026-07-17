@@ -1,6 +1,6 @@
 # `config` — API
 
-> Última atualização: 2026-07-17 15:23 UTC
+> Última atualização: 2026-07-17 15:45 UTC
 > Gerado por AST parsing dos serviços em `services/config.py`.
 
 ## Funções Públicas (3)
