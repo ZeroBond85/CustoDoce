@@ -50,7 +50,70 @@ def test_circuit_resets_after_cooldown(mock_env):
     g = GroqStrategy()
     g.failure_count = 3  # threshold (LLM_CB_THRESHOLD=3 via mock_env)
     g.last_failure_ts = 0  # way in the past → cooldown expired
+    # Cooldown expirado permite UMA tentativa (half-open); o breaker só fecha de
+    # fato em record_success(). Não zera cegamente o contador.
     assert g.is_circuit_open() is False
+
+
+def test_open_circuit_immediately_on_429(mock_env, monkeypatch):
+    """Groq 429 deve abrir o breaker IMEDIATAMENTE e ceder ao próximo provider."""
+    from parsers.llm_strategies import GroqStrategy
+
+    g = GroqStrategy()
+    assert g.is_circuit_open() is False
+    g.open_circuit()
+    assert g.is_circuit_open() is True
+
+
+def test_open_circuit_applies_aggressive_backoff(mock_env, monkeypatch):
+    """Cada reabertura consecutiva dobra o cooldown (capado em LLM_CB_COOLDOWN_MAX)."""
+    import parsers.llm_strategies as mod
+
+    monkeypatch.setattr(mod, "_get_cooldown_seconds", lambda: 10)
+    monkeypatch.setattr(mod, "_get_cooldown_max", lambda: 100)
+    monkeypatch.setattr(mod, "_get_cooldown_growth", lambda: 2.0)
+    from parsers.llm_strategies import GroqStrategy
+
+    g = GroqStrategy()
+    g.open_circuit()  # 1ª abertura → 10 * 2^1 = 20
+    assert g._cooldown_seconds == 20
+    g.open_circuit()  # 2ª → 10 * 2^2 = 40
+    assert g._cooldown_seconds == 40
+    g.open_circuit()  # 3ª → 10 * 2^3 = 80
+    assert g._cooldown_seconds == 80
+    g.open_circuit()  # 4ª → 10 * 2^4 = 160, capado em 100
+    assert g._cooldown_seconds == 100
+
+
+def test_open_circuit_resets_on_success(mock_env, monkeypatch):
+    """Um sucesso real zera o backoff e o contador de aberturas."""
+    import parsers.llm_strategies as mod
+
+    monkeypatch.setattr(mod, "_get_cooldown_seconds", lambda: 10)
+    from parsers.llm_strategies import GroqStrategy
+
+    g = GroqStrategy()
+    g.open_circuit()
+    assert g._consecutive_openings == 1
+    g.record_success()
+    assert g._consecutive_openings == 0
+    assert g._cooldown_seconds == 10
+    assert g.is_circuit_open() is False
+
+
+def test_groq_429_opens_circuit(mock_env):
+    """Classify com 429 deve abrir o breaker (não só incrementar contador)."""
+    from parsers.llm_strategies import GroqStrategy
+
+    g = GroqStrategy()
+    mock_response = MagicMock()
+    mock_response.status_code = 429
+    mock_response.raise_for_status = MagicMock()
+    with patch("httpx.Client.post", return_value=mock_response):
+        result = g.classify("anything", [{"canonical_name": "x"}])
+    assert result is None
+    assert g.is_circuit_open() is True
+    assert g._consecutive_openings >= 1
 
 
 def test_record_success_resets_counter(mock_env):

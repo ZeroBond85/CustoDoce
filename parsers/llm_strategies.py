@@ -21,12 +21,25 @@ from services.logger import logger
 
 CIRCUIT_FAILURE_THRESHOLD = int(os.environ.get("LLM_CB_THRESHOLD", "3"))
 CIRCUIT_COOLDOWN_SECONDS = int(os.environ.get("LLM_CB_COOLDOWN", "600"))  # 10 min
+# Backoff agressivo: a cada reabertura do breaker (provider ainda limitado),
+# o cooldown DOBRA até o teto — evita martelar um provider free-tier esgotado
+# (ex.: Groq 429) e desperdiçar a janela de scrape em retries inúteis.
+CIRCUIT_COOLDOWN_MAX = int(os.environ.get("LLM_CB_COOLDOWN_MAX", "3600"))  # 1h
+CIRCUIT_COOLDOWN_GROWTH = float(os.environ.get("LLM_CB_COOLDOWN_GROWTH", "2.0"))
 DEFAULT_TIMEOUT = float(os.environ.get("LLM_TIMEOUT", "15"))
 
 
 def _get_cooldown_seconds() -> int:
     """Read cooldown dynamically so tests using monkeypatch.setenv work correctly."""
     return int(os.environ.get("LLM_CB_COOLDOWN", str(CIRCUIT_COOLDOWN_SECONDS)))
+
+
+def _get_cooldown_max() -> int:
+    return int(os.environ.get("LLM_CB_COOLDOWN_MAX", str(CIRCUIT_COOLDOWN_MAX)))
+
+
+def _get_cooldown_growth() -> float:
+    return float(os.environ.get("LLM_CB_COOLDOWN_GROWTH", str(CIRCUIT_COOLDOWN_GROWTH)))
 
 
 def _get_failure_threshold() -> int:
@@ -62,6 +75,10 @@ class LLMStrategy(ABC):
     def __init__(self):
         self.failure_count = 0
         self.last_failure_ts: float = 0.0
+        # Cooldown efetivo atual (cresce com backoff agressivo a cada reabertura).
+        self._cooldown_seconds = _get_cooldown_seconds()
+        # Quantas vezes o breaker já reabriu por exaustão (para o backoff).
+        self._consecutive_openings = 0
 
     @abstractmethod
     def classify(self, product_text: str, candidates: list) -> LLMResult | None: ...
@@ -73,16 +90,22 @@ class LLMStrategy(ABC):
         return True
 
     def is_circuit_open(self) -> bool:
-        """Returns True if the circuit breaker should be treated as open."""
+        """Returns True if the circuit breaker should be treated as open.
+
+        Ao expirar o cooldown, NÃO zera o contador cegamente: tenta UMA vez e,
+        se o provider ainda estiver limitado, aplica backoff agressivo (cooldown
+        crescente) em vez de reiniciar o ciclo de 3 falhas rápidas. Isso evita
+        os centenas de warnings de 429 que ocorriam quando o free-tier do Groq
+        fica esgotado por horas.
+        """
         threshold = _get_failure_threshold()
         if self.failure_count < threshold:
             return False
         elapsed = time.time() - self.last_failure_ts
-        if elapsed < _get_cooldown_seconds():
-            return True
-        # Cooldown expired — reset so we try once
-        self.failure_count = 0
-        return False
+        # Cooldown não expirou → aberto. Ao expirar, permitimos UMA tentativa
+        # (half-open); o contador só zera de fato em record_success(). Se falhar
+        # de novo (429), open_circuit reabre com cooldown maior (backoff).
+        return elapsed < self._cooldown_seconds
 
     def record_failure(self) -> None:
         self.failure_count += 1
@@ -90,6 +113,30 @@ class LLMStrategy(ABC):
 
     def record_success(self) -> None:
         self.failure_count = 0
+        self._consecutive_openings = 0
+        self._cooldown_seconds = _get_cooldown_seconds()
+
+    def open_circuit(self) -> None:
+        """Abre o breaker IMEDIATAMENTE (usado em 429/rate-limit).
+
+        Aplica backoff agressivo: a cada reabertura consecutiva, o cooldown dobra
+        (capado em LLM_CB_COOLDOWN_MAX). Assim um provider free-tier esgotado é
+        pulado por períodos cada vez maiores, cedendo aos providers seguintes da
+        cadeia em vez de queimar a janela de scrape em retries 429.
+        """
+        self.failure_count = _get_failure_threshold()
+        self.last_failure_ts = time.time()
+        self._consecutive_openings += 1
+        growth = _get_cooldown_growth()
+        base = _get_cooldown_seconds()
+        new_cooldown = min(base * (growth**self._consecutive_openings), _get_cooldown_max())
+        # Arredonda para int e garante ao menos o cooldown base.
+        self._cooldown_seconds = int(max(base, new_cooldown))
+        logger.warning(
+            "[%s] Circuit breaker OPEN (rate-limited, ceding to next provider) cooldown=%ds",
+            self.provider_name,
+            self._cooldown_seconds,
+        )
 
     def _safe_parse(self, content: str) -> dict | None:
         """Parses JSON content robustly, handling markdown fences and malformed responses."""
@@ -161,7 +208,9 @@ class GroqStrategy(LLMStrategy):
 
             if resp.status_code == 429:
                 logger.warning("groq_rate_limited", status=429)
-                self.record_failure()
+                # Provider free-tier esgotado: abre o breaker e cede ao próximo
+                # da cadeia (OpenRouter/HF) em vez de gastar a janela em retries.
+                self.open_circuit()
                 return None
             if resp.status_code >= 500:
                 logger.warning("groq_server_error", status=resp.status_code)
@@ -237,7 +286,9 @@ class OpenRouterStrategy(LLMStrategy):
             resp = get_client().post(self.url, headers=headers, json=payload, timeout=DEFAULT_TIMEOUT)
             if resp.status_code == 429 or resp.status_code >= 500:
                 logger.warning("openrouter_retryable_error", status=resp.status_code)
-                self.record_failure()
+                # 429 = provider globalmente limitado agora: abre o breaker e cede
+                # ao próximo da cadeia (backoff agressivo evita martelar o limite).
+                self.open_circuit()
                 return None
             resp.raise_for_status()
             data = resp.json()
@@ -301,7 +352,9 @@ class HuggingFaceStrategy(LLMStrategy):
             resp = get_client().post(url, headers=headers, json=payload, timeout=DEFAULT_TIMEOUT)
             if resp.status_code == 429 or resp.status_code >= 500:
                 logger.warning("huggingface_retryable_error", status=resp.status_code)
-                self.record_failure()
+                # 429 = provider globalmente limitado agora: abre o breaker e cede
+                # ao próximo da cadeia (backoff agressivo evita martelar o limite).
+                self.open_circuit()
                 return None
             if resp.status_code == 401:
                 # 401 not retryable

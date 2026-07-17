@@ -115,6 +115,24 @@ class LLMClassifier:
 
         return cleanup_ttl()
 
+    def reset_circuits(self):
+        """Reseta o estado dos circuit breakers de todos os providers.
+
+        Usado no início de um novo scrape para que um provider que recuperou
+        (ex.: Groq free-tier) seja tentado novamente do zero. Os strategies são
+        instâncias efêmeras por padrão, mas o singleton _default_classifier as
+        mantém; este método zera o contador/cooldown de cada um.
+        """
+        for s in self.strategies:
+            if hasattr(s, "failure_count"):
+                s.failure_count = 0
+            if hasattr(s, "_consecutive_openings"):
+                s._consecutive_openings = 0
+            if hasattr(s, "_cooldown_seconds"):
+                from parsers.llm_strategies import _get_cooldown_seconds
+
+                s._cooldown_seconds = _get_cooldown_seconds()
+
 
 # ====================================================================
 # Backwards compatibility — singleton-style API for legacy callers
@@ -125,3 +143,8 @@ _default_classifier = LLMClassifier()
 def classify(product_text: str, candidates: list) -> dict | None:
     """Module-level convenience wrapper, mirrors old API."""
     return _default_classifier.classify_sync(product_text, candidates)
+
+
+def reset_circuits() -> None:
+    """Reseta os circuit breakers do classifier singleton (novo scrape)."""
+    _default_classifier.reset_circuits()

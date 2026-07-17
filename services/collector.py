@@ -231,10 +231,14 @@ def process_price_match(
             return entry
 
         if 0.65 <= combined < 0.80 and os.environ.get("GROQ_API_KEY"):
-            from parsers.llm_classifier import LLMClassifier
+            from parsers.llm_classifier import classify as _llm_classify
 
             candidates = rank_ingredients(product_text, ingredients, top_n=3)
-            llm_result = LLMClassifier().classify_sync(product_text, [c[0] for c in candidates])
+            # Usa a instância singleton do classifier para que o circuit breaker
+            # do LLM persista entre produtos: após o Groq abrir (429), ele é
+            # pulado de fato e a cadeia cede ao OpenRouter/HF (backoff agressivo
+            # evita martelar o free-tier esgotado a cada produto).
+            llm_result = _llm_classify(product_text, [c[0] for c in candidates])
             if llm_result and llm_result.get("confidence", 0) >= 0.85:
                 chosen = next((c for c in candidates if c[0]["canonical_name"] == llm_result["ingredient"]), None)
                 if chosen:
