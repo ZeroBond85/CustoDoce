@@ -864,11 +864,26 @@ def _strict_audit() -> list[dict]:
         ("README.md", "512 unit+schema + 102 integration + 10 design + 6 real = 630 total passing"),
         ("README.md", "630 total"),
         ("README.md", "709 total"),
+        # docs/changelog.md e' historico: cita contadores de versoes ANTIGAS
+        # (17 pages, 418/383 testes) que sao intencionais e nao stale.
+        # Chaves com forward slash (Linux/WSL) E backslash (Windows) p/ paridade.
+        ("docs/changelog.md", "17?18 pages"),
+        ("docs\\changelog.md", "17?18 pages"),
+        ("docs/changelog.md", "17?18 aba"),
+        ("docs\\changelog.md", "17?18 aba"),
+        ("docs/changelog.md", "17?18 módulos"),
+        ("docs\\changelog.md", "17?18 módulos"),
+        ("docs/changelog.md", "17 (nova página"),
         ("docs\\changelog.md", "17 (nova página"),
+        ("docs/changelog.md", "17→18 pages"),
         ("docs\\changelog.md", "17→18 pages"),
+        ("docs/changelog.md", "17→18 aba"),
         ("docs\\changelog.md", "17→18 aba"),
+        ("docs/changelog.md", "17→18 módulos"),
         ("docs\\changelog.md", "17→18 módulos"),
+        ("docs/changelog.md", "418"),
         ("docs\\changelog.md", "418"),
+        ("docs/changelog.md", "383"),
         ("docs\\changelog.md", "383"),
     }
 
@@ -889,6 +904,12 @@ def _strict_audit() -> list[dict]:
             try:
                 text = fpath.read_text(encoding="utf-8")
             except Exception:
+                continue
+            # docs/changelog.md e' historico: cita contadores de versoes ANTIGAS
+            # (17 pages, 418/383 testes) que sao intencionais. Pula o arquivo
+            # inteiro no strict audit para nao gerar falso-positivo no WSL/Linux.
+            _rel_norm = str(rel).replace("\\", "/")
+            if _rel_norm == "docs/changelog.md":
                 continue
             for pat, msg, sev in patterns:
                 for m in re.finditer(pat, text, re.IGNORECASE):
