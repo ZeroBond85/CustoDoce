@@ -39,6 +39,18 @@ on:
         required: false
       HF_API_KEY:
         required: false
+      SMTP_HOST:
+        required: false
+      SMTP_PORT:
+        required: false
+      SMTP_USER:
+        required: false
+      SMTP_PASSWORD:
+        required: false
+      SMTP_FROM:
+        required: false
+      ALERT_EMAIL_TO:
+        required: false
   workflow_dispatch:
     inputs:
       mode:
@@ -142,6 +154,26 @@ jobs:
             grep -E '\[error\s*\]|"level":\s*"error"|Error fetching|TIMEOUT after|falha no scraper' <(sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' /tmp/scrape_${{ matrix.tier }}.log)
             exit 1
           fi
+          # ── Guarda de cobertura mínima por tier ──
+          # Falha o job se um tier com lojas habilitadas coletou ZERO ou quase
+          # nada. Isto evita falsos negativos: lojas fora / tier zerado passam
+          # despercebidos se forem apenas [warning]. Tier 2b é manual (esperado 0).
+          # Pisos conservadores para NÃO dar falso positivo em dias lentos.
+          if [ "${{ matrix.tier }}" != "2b" ]; then
+            TOTAL=$(sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' /tmp/scrape_${{ matrix.tier }}.log | grep -oE 'collection_done[^]]*total=[0-9]+' | grep -oE 'total=[0-9]+' | grep -oE '[0-9]+' | tail -1)
+            TOTAL=${TOTAL:-0}
+            case "${{ matrix.tier }}" in
+              1)   MIN=50;;   # PDFs atacadistas (~600 esperado)
+              2a)  MIN=50;;   # VTEX e-commerce SP
+              3)   MIN=50;;   # agregadores (Tiendeo/Guiato)
+              *)   MIN=1;;
+            esac
+            if [ "$TOTAL" -lt "$MIN" ]; then
+              echo "::error::Cobertura insuficiente no tier ${{ matrix.tier }}: coletados ${TOTAL} preços (< piso ${MIN}). Lojas podem estar fora ou scrape quebrado."
+              exit 1
+            fi
+            echo "coverage_ok tier=${{ matrix.tier }} total=${TOTAL} piso=${MIN}"
+          fi
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -186,6 +218,12 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
           CI_JOB_START: ${{ env.CI_JOB_START }}
       - name: Check time budget for finalize
         run: python scripts/check_time_budget.py --timeout-minutes 20 --label "finalize"

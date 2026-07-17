@@ -568,3 +568,80 @@ class TestPriceService:
 
         assert result is not None
         assert "30/06" in result["validity_raw"]
+
+
+class TestUpsertPriceResilience:
+    """Regression: [Errno 11] Resource temporarily unavailable must NOT lose a
+    collected price — upsert_price retries transient network errors."""
+
+    @patch("services.price_repository.get_service_client")
+    def test_rpc_transient_errno11_is_retried(self, mock_get_client):
+        """RPC levanta [Errno 11] duas vezes e depois sucede: deve retornar ok."""
+        from services.price_repository import upsert_price
+        from tests.unit.test_services.conftest import MockQueryBuilder, MockQueryResult, MockSupabaseClient
+
+        rpc_calls = {"n": 0}
+
+        class _RpcQb(MockQueryBuilder):
+            def execute(self):
+                rpc_calls["n"] += 1
+                if rpc_calls["n"] <= 2:
+                    raise RuntimeError("[Errno 11] Resource temporarily unavailable")
+                return MockQueryResult([{"ok": True}])
+
+        qb = _RpcQb([])
+        mock_client = MockSupabaseClient(qb)
+        mock_get_client.return_value = mock_client
+
+        entry = {
+            "ingredient_id": "Leite Condensado Integral",
+            "store_id": "test_store",
+            "store_name": "Test Store",
+            "raw_product": "Leite Moca",
+            "raw_price": 42.90,
+            "raw_unit": "cx 12x395g",
+        }
+        result = upsert_price(entry)
+        assert rpc_calls["n"] == 3, "deve retryar ate o sucesso"
+        assert result is not None
+
+    @patch("services.price_repository.get_service_client")
+    def test_rpc_transient_then_fallback_succeeds(self, mock_get_client):
+        """RPC sempre [Errno 11] -> cai no table.upsert que também falha 2x e sucede."""
+        from services.price_repository import upsert_price
+        from tests.unit.test_services.conftest import MockQueryBuilder, MockQueryResult, MockSupabaseClient, MockTable
+
+        rpc_calls = {"n": 0}
+        tbl_calls = {"n": 0}
+
+        class _RpcQb(MockQueryBuilder):
+            def execute(self):
+                rpc_calls["n"] += 1
+                raise RuntimeError("[Errno 11] Resource temporarily unavailable")
+
+        class _TblQb(MockQueryBuilder):
+            def execute(self):
+                tbl_calls["n"] += 1
+                if tbl_calls["n"] <= 2:
+                    raise RuntimeError("[Errno 11] Resource temporarily unavailable")
+                return MockQueryResult([{"ok": True}])
+
+        rpc_qb = _RpcQb([])
+        tbl_qb = _TblQb([])
+        mock_client = MockSupabaseClient(rpc_qb)
+        mock_client.table = lambda name: MockTable(tbl_qb)
+        mock_get_client.return_value = mock_client
+
+        entry = {
+            "ingredient_id": "Leite Condensado Integral",
+            "store_id": "test_store",
+            "store_name": "Test Store",
+            "raw_product": "Leite Moca",
+            "raw_price": 42.90,
+            "raw_unit": "cx 12x395g",
+        }
+        result = upsert_price(entry)
+        # RPC tentou 3x, fallback table tentou 3x (2 falhas + 1 sucesso)
+        assert rpc_calls["n"] == 3
+        assert tbl_calls["n"] == 3
+        assert result is not None

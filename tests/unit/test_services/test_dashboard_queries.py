@@ -56,3 +56,52 @@ def test_get_active_stores_by_tier():
         tier1 = dashboard_queries.get_active_stores_by_tier(tier=1)
     assert all(s["tier"] == 1 for s in tier1)
     assert len(tier1) >= 1
+
+
+def test_get_store_coverage_health_flags_stale_and_fresh():
+    """Loja com preço recente = fresca; loja sem preço = stale (visão no dia a dia)."""
+    from datetime import UTC, datetime, timedelta
+
+    now = datetime.now(UTC)
+    recent = (now - timedelta(days=1)).isoformat()
+    old = (now - timedelta(days=10)).isoformat()
+
+    stores = [
+        {"id": "s1", "name": "Fresca", "tier": 1},
+        {"id": "s2", "name": "Velha", "tier": 1},
+        {"id": "s3", "name": "Nunca", "tier": 2},
+    ]
+    prices = [
+        {"store_id": "s1", "ingredient_id": "Leite", "valid_from": recent, "collected_at": recent},
+        {"store_id": "s2", "ingredient_id": "Leite", "valid_from": old, "collected_at": old},
+    ]
+    with patch.object(dashboard_queries, "cached_get_all_stores", return_value=stores), patch.object(
+        dashboard_queries, "get_latest_prices_cached", return_value=prices
+    ):
+        cov = dashboard_queries.get_store_coverage_health(stale_days=3)
+    by_name = {c["store_name"]: c for c in cov}
+    assert by_name["Fresca"]["is_stale"] is False
+    assert by_name["Fresca"]["days_since_price"] == 1
+    assert by_name["Velha"]["is_stale"] is True
+    assert by_name["Nunca"]["is_stale"] is True
+    assert by_name["Nunca"]["days_since_price"] is None
+
+
+def test_get_coverage_summary_pct():
+    from datetime import UTC, datetime, timedelta
+
+    now = datetime.now(UTC)
+    recent = (now - timedelta(days=1)).isoformat()
+    stores = [
+        {"id": "s1", "name": "Fresca", "tier": 1},
+        {"id": "s2", "name": "Nunca", "tier": 2},
+    ]
+    prices = [{"store_id": "s1", "ingredient_id": "Leite", "valid_from": recent, "collected_at": recent}]
+    with patch.object(dashboard_queries, "cached_get_all_stores", return_value=stores), patch.object(
+        dashboard_queries, "get_latest_prices_cached", return_value=prices
+    ):
+        summary = dashboard_queries.get_coverage_summary(stale_days=3)
+    assert summary["total_stores"] == 2
+    assert summary["fresh"] == 1
+    assert summary["stale"] == 1
+    assert summary["coverage_pct"] == 50.0

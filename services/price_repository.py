@@ -4,6 +4,7 @@ Price Repository - Raw DB access for prices and price history.
 
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
+import time
 
 from services.logger import logger
 from services.supabase_client import get_service_client, get_supabase
@@ -24,8 +25,6 @@ def _detect_promotion(raw_product: str, raw_unit: str) -> bool:
 
 
 def upsert_price(price_entry: PriceEntry) -> dict[str, Any]:
-    import time as _time
-
     client = get_service_client()
     now = datetime.now(UTC)
     valid_until = price_entry.get("valid_until")
@@ -61,7 +60,7 @@ def upsert_price(price_entry: PriceEntry) -> dict[str, Any]:
         "p_brand": price_entry.get("brand", "Desconhecido"),
     }
     try:
-        result = client.rpc("upsert_price_rpc", params).execute()
+        result = _upsert_price_rpc_with_retry(client, params)
         data = result.data
         if isinstance(data, dict):
             return data
@@ -94,30 +93,71 @@ def upsert_price(price_entry: PriceEntry) -> dict[str, Any]:
             "logistics": price_entry.get("logistics"),
             "brand": price_entry.get("brand", "Desconhecido"),
         }
+        # [Errno 11] Resource temporarily unavailable = exaustão transitória de
+        # recurso do PostgREST sob pressão do scrape. Retry com backoff antes de
+        # desistir — evita perder preços coletados por ruído de rede.
         try:
-            result = (
+            result = _upsert_price_table_with_retry(client, data)
+            return result.data[0] if result.data else {}
+        except Exception as e_fallback:
+            logger.error("upsert_price fallback failed: %s", e_fallback)
+            raise e_fallback
+
+
+def _is_transient_net_err(exc: Exception) -> bool:
+    """True se o erro é de rede/recurso transitório (não merece falha dura)."""
+    s = str(exc)
+    return (
+        "Resource temporarily unavailable" in s
+        or "Errno 11" in s
+        or "timeout" in s.lower()
+        or "Connection" in s
+        or "reset by peer" in s
+    )
+
+
+def _upsert_price_rpc_with_retry(client, params, max_retries: int = 3) -> Any:
+    """Chama upsert_price_rpc com retry em erros de rede/recurso transitórios."""
+    last_exc: Exception | None = None
+    for attempt in range(max_retries):
+        try:
+            return client.rpc("upsert_price_rpc", params).execute()
+        except Exception as exc:  # noqa: BLE001 - erro de rede precisa de retry
+            last_exc = exc
+            if _is_transient_net_err(exc) and attempt < max_retries - 1:
+                logger.warning(
+                    "upsert_price RPC transient error (attempt %d/%d), retrying: %s",
+                    attempt + 1, max_retries, exc,
+                )
+                time.sleep(1.0 * (attempt + 1))
+                continue
+            raise
+    assert last_exc is not None  # nosec
+    raise last_exc
+
+
+def _upsert_price_table_with_retry(client, data, max_retries: int = 3) -> Any:
+    """Fallback via table.upsert com retry em erros de rede/recurso transitórios."""
+    last_exc: Exception | None = None
+    for attempt in range(max_retries):
+        try:
+            return (
                 client.table("prices")
                 .upsert(data, on_conflict="ingredient_id,store_id,collected_at")
                 .execute()
             )
-            return result.data[0] if result.data else {}
-        except Exception as e_fallback:
-            if "Resource temporarily unavailable" in str(e_fallback):
-                logger.warning("upsert_price fallback failed (resource exhaustion), retrying in 2s: %s", e_fallback)
-                _time.sleep(2)
-                try:
-                    result = (
-                        client.table("prices")
-                        .upsert(data, on_conflict="ingredient_id,store_id,collected_at")
-                        .execute()
-                    )
-                    return result.data[0] if result.data else {}
-                except Exception as e_retry:
-                    logger.error("upsert_price retry also failed: %s", e_retry)
-                    raise e_retry
-            else:
-                logger.error("upsert_price fallback failed: %s", e_fallback)
-                raise e_fallback
+        except Exception as exc:  # noqa: BLE001 - erro de rede precisa de retry
+            last_exc = exc
+            if _is_transient_net_err(exc) and attempt < max_retries - 1:
+                logger.warning(
+                    "upsert_price fallback transient error (attempt %d/%d), retrying: %s",
+                    attempt + 1, max_retries, exc,
+                )
+                time.sleep(1.0 * (attempt + 1))
+                continue
+            raise
+    assert last_exc is not None  # nosec
+    raise last_exc
 
 
 def search_prices(

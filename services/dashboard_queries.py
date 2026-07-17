@@ -357,6 +357,83 @@ def get_store_health():
     return sorted(result, key=lambda x: x["last_run"] or "", reverse=True)
 
 
+def get_store_coverage_health(stale_days: int = 3):
+    """Visão de cobertura de PREÇOS por loja (não só sucesso do scraper).
+
+    Cruza lojas ativas com os preços válidos mais recentes. Retorna, por loja:
+    - last_price_date: data do preço mais recente coletado
+    - days_since_price: há quantos dias (None se nunca coletou)
+    - ingredients_covered: nº de ingredientes distintos com preço válido
+    - is_stale: True se dias_since_price > stale_days (loja "sumiu" da coleta)
+    - total_prices: nº de preços válidos atuais
+
+    Isto dá visão no dia a dia de lojas que estão fora sem alarde
+    (ex.: Tier 1 zerado por bug de flyer).
+    """
+    from datetime import UTC, datetime
+
+    stores = cached_get_all_stores(include_inactive=False)
+    prices = get_latest_prices_cached(valid_only=True, limit=5000)
+
+    by_store: dict[str, dict] = {}
+    for p in prices:
+        sid = p.get("store_id", "")
+        rec = by_store.setdefault(
+            sid, {"last_price_date": None, "ingredients": set(), "total_prices": 0}
+        )
+        rec["total_prices"] += 1
+        rec["ingredients"].add(p.get("ingredient_id", ""))
+        pdate = p.get("valid_from") or p.get("collected_at")
+        if pdate:
+            try:
+                dt = datetime.fromisoformat(str(pdate).replace("Z", "+00:00"))
+                if rec["last_price_date"] is None or dt > rec["last_price_date"]:
+                    rec["last_price_date"] = dt
+            except (ValueError, TypeError):
+                pass
+
+    now = datetime.now(UTC)
+    result = []
+    for s in stores:
+        sid = s.get("id")
+        sname = s.get("name", "")
+        rec = by_store.get(sid, {})
+        days_since = None
+        last_dt = rec.get("last_price_date")
+        if last_dt:
+            days_since = (now - last_dt).days
+        result.append(
+            {
+                "store_id": sid,
+                "store_name": sname,
+                "tier": s.get("tier"),
+                "last_price_date": last_dt.isoformat() if last_dt else None,
+                "days_since_price": days_since,
+                "ingredients_covered": len(rec.get("ingredients", set())),
+                "total_prices": rec.get("total_prices", 0),
+                "is_stale": (days_since is not None and days_since > stale_days) or (days_since is None),
+            }
+        )
+
+    return sorted(result, key=lambda x: (x["is_stale"], x["days_since_price"] is None, -(x["days_since_price"] or 0)))
+
+
+def get_coverage_summary(stale_days: int = 3):
+    """Resumo de cobertura para banner de alerta no dashboard."""
+    data = get_store_coverage_health(stale_days=stale_days)
+    total = len(data)
+    stale = sum(1 for d in data if d["is_stale"])
+    no_price = sum(1 for d in data if d["total_prices"] == 0)
+    fresh = sum(1 for d in data if not d["is_stale"])
+    return {
+        "total_stores": total,
+        "fresh": fresh,
+        "stale": stale,
+        "no_price": no_price,
+        "coverage_pct": round(100.0 * fresh / total, 1) if total else 0.0,
+    }
+
+
 def get_scraper_health_dashboard():
     """Get dashboard-ready scraper health with color-coded status."""
     data = get_store_health()

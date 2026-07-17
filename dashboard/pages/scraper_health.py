@@ -10,8 +10,10 @@ import streamlit as st
 
 from dashboard.components.ui import inject_css
 from services.dashboard_queries import (
+    get_coverage_summary,
     get_recent_scraper_logs,
     get_scraper_health_dashboard,
+    get_store_coverage_health,
 )
 
 
@@ -38,9 +40,23 @@ def render_scraper_health():
     with col_summary[3]:
         st.metric("🔴 Critical", critical)
 
+    # ── Banner de cobertura de preços (visão no dia a dia) ──
+    cov = get_coverage_summary(stale_days=3)
+    if cov["stale"] > 0:
+        st.error(
+            f"⚠️ **{cov['stale']}/{cov['total_stores']} lojas SEM preço recente** "
+            f"(cobertura {cov['coverage_pct']}%). {cov['no_price']} loja(s) sem nenhum preço. "
+            "Verifique o scrape do dia."
+        )
+    else:
+        st.success(
+            f"✅ Cobertura de preços saudável: {cov['fresh']}/{cov['total_stores']} "
+            f"lojas com preço recente ({cov['coverage_pct']}%)."
+        )
+
     st.divider()
 
-    tabs = st.tabs(["📊 Health Overview", "📈 Latency", "📋 Raw Logs"])
+    tabs = st.tabs(["📊 Health Overview", "🩺 Cobertura de Lojas", "📈 Latency", "📋 Raw Logs"])
 
     with tabs[0]:
         if health_data:
@@ -66,6 +82,40 @@ def render_scraper_health():
             st.info("Nenhum dado de health disponível.")
 
     with tabs[1]:
+        cov_data = get_store_coverage_health(stale_days=3)
+        if cov_data:
+            df = pd.DataFrame(cov_data)
+            df["status"] = df["is_stale"].apply(
+                lambda s: "🔴 Stale / Sem preço" if s else "🟢 Fresco"
+            )
+            df["days_since_price"] = df["days_since_price"].apply(
+                lambda d: "nunca" if d is None else f"{d}d"
+            )
+            df["last_price_date"] = df["last_price_date"].apply(
+                lambda d: d[:10] if d else "—"
+            )
+            show = df[
+                [
+                    "store_name",
+                    "tier",
+                    "status",
+                    "last_price_date",
+                    "days_since_price",
+                    "ingredients_covered",
+                    "total_prices",
+                ]
+            ]
+            st.dataframe(show, use_container_width=True, hide_index=True)
+            stale_df = df[df["is_stale"]]
+            if not stale_df.empty:
+                st.warning(
+                    f"{len(stale_df)} loja(s) sem preço recente: "
+                    + ", ".join(stale_df["store_name"].tolist())
+                )
+        else:
+            st.info("Nenhum dado de cobertura disponível.")
+
+    with tabs[3]:
         if health_data:
             df = pd.DataFrame(health_data)
             df_plot = df[df["latency_p95_ms"] > 0].sort_values("latency_p95_ms", ascending=False)
@@ -93,7 +143,7 @@ def render_scraper_health():
         else:
             st.info("Nenhum dado de latência disponível.")
 
-    with tabs[2]:
+    with tabs[4]:
         if logs_data:
             df = pd.DataFrame(logs_data)
             # 'errors' vem como JSONB (lista em algumas linhas, nulo/scalar
