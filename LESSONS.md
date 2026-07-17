@@ -363,28 +363,9 @@ A segunda causa: `check_for_errors` (`test_e2e_real.py`) usava substrings soltas
 - `monkeypatch.delenv` sozinho **não basta** se o módulo re-injeta valores durante import via `load_dotenv`.
 - Alternativa: usar `load_dotenv(..., override=True)` no conftest para permitir que CI (env vars) sobreponha `.env` local — mas isso muda semântica do conftest em produção. Preferível patchar no teste.
 
-### 49. sync_docs.py #sync# so rodava SÓ v2 #CURRENT blocks# — README/REGRAS/API/timestamps ficavam desatualizados
+### 49. sync_docs.py --sync so rodava v2 (CURRENT blocks) — README/REGRAS/API/timestamps ficavam desatualizados
+- **Sintoma/causa/correcao**: `sync_docs.py` chamava so os updaters v2 (CURRENT blocks); os v1 (README/REGRAS/AGENTS/API/timestamps) nao rodavam no `--sync`, gerando drift no CI. Tambem: contagem de testes usava regex `tests? collected` mas pytest imprime `items collected`. Fix: `--sync` roda v1 depois v2; regex ajustado p/ `items`; tolerancia +-5 na contagem.
 
-**Causa raiz:** Em , o branch  chamava apenas  (CURRENT blocks em docs arbitrários). Os updateers v1 , , ,  (timestamps) so eram chamados pela funcao , que era invocada apenas sem . Resultado: o CI rodava  (v2 só) e depois  falhava por drift no README/REGRAS/timestamps.
-
-Além disso,  comparava  (regex "(\d+)\s+tests?\s+collected") com a contagem por regex de sync+async test classes. Como pytest moderno imprime "722 items collected" (nao "tests"), o regex capturava lixo ("6 tests collected" espalhado) e gerava drift falso.
-
-E um terceiro bug menor:  suprime o markup /, entao o regex de contagem nao achava nada.
-
-**Solucao:**
-- :  agora chama primeiro  para v1 (README/REGRAS/AGENTS/API/timestamps), e só depois  para v2 (CURRENT blocks).
-- : regex atualizado para  (alinhado com a saida real do pytest).
--  e : trocar  por  (preserva o markup ).
-- : tolerância de ±5 entre  e  (pytest pode contar testes parametrizados indiretamente).
-
-**Replicacao:** Rodar === v1 sync (README/REGRAS/AGENTS/API/timestamps) === localmente e validar com  # esperado "All docs in sync". Se drift em e2e/unit/scan persistir, este modelo se aplica.
-
-**Regras permanentes:**
-- Ao adicionar um novo flag ao , cobrir AMBAS as arvores v1 (updateers específicos por arquivo) e v2 (CURRENT blocks). Nunca passar so por uma.
-- Drift threshold deve ter tolerância # parametrizacao ou duplicates counted pela runtime do pytest nao sao ausencia de testes.
-- Regex precisa casar a saida literal do pytest # se mudou  para , atualizar.
-
----
 ### 50. Auditoria profunda de testes (Fases 0-9) — 2026-07-11
 
 **Sintoma:** Testes mortos, mocks subutilizados, gaps de cobertura, violações Regra #3, workflows inconsistentes.
@@ -696,5 +677,8 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 ### 80. Push no Windows quebra (gh FileNotFound + sync_docs suja tree); RAIZ = WSL
 - **Sintoma/causa**: `git_push.py` quebrava no pre-push com `FileNotFoundError: gh` (Python sem PATH do Git Bash). O pre-push também roda `sync_docs --sync`, re-gera `docs/api/*.md`+`docs/skills.md` e suja a tree → Git barra o push. E commits com `[skip ci]` faziam o GitHub pular o `ci.yml` inteiro (falso verde).
 - **Correção (RAIZ)**: `git_push.py` injeta `_ensure_bin_path()` (Git Bash + GitHub CLI + dir do Python) antes de qualquer subprocesso; `_run()` retorna exit 127 em `FileNotFoundError`. Push completo é **obrigatório em WSL**; Windows `--no-verify` é emergência + `gh workflow run 'CI - Testes e Qualidade' --ref master` p/ disparar CI manualmente. **NUNCA `[skip ci]`** em código. Ver `REGRAS.md` §Pre-push.
-### 82. Scrape full expôs bugs reais (guard funcionou): api_flyer perdia produtos + OpenRouter 404 loop
-- **Sintoma/causa/correção**: scrape `force=true` (run 29582782313) falhou Tier 1 — Roldão extraiu 120 mas `collection_done total=1`; OpenRouter `404` repetido; Giga 78→1 matched (guard PEGOU, não falso positivo). RAIZ (1): `collect_tier1_api_flyers` roteava produtos vision (name+price sem `image_url`) pelo pipeline flyer-IMAGE (`_collect_flyers`) que descarta sem `image_url` → 120 viravam 0; fix: rotear por `_collect_prices` (match+upsert). RAIZ (2): modelo OpenRouter `mixtral-8x7b-instruct` descontinuado → 404 por produto sem abrir breaker; fix: default `openrouter/free` + abrir breaker em 4xx persistente (text+vision). Testes: `test_collector_helpers`, `test_llm_strategies`, `test_vision_strategies`.
+### 82. Scrape full expos bugs reais (guard PEGOU): api_flyer perdia produtos + OpenRouter 404 loop
+- **Sintoma/causa/correcao**: scrape `force=true` (run 29582782313) falhou Tier1 — Roldao extraiu 120 mas `collection_done total=1`; OpenRouter `404` repetido (guard PEGOU). RAIZ (1): `collect_tier1_api_flyers` roteava produtos vision (sem `image_url`) pelo pipeline flyer-IMAGE que descarta -> 0; fix: rotear por `_collect_prices`. RAIZ (2): modelo `mixtral-8x7b-instruct` descontinuado -> 404 por produto; fix: default `openrouter/free` + abrir breaker em 4xx. Testes: `test_collector_helpers`, `test_llm_strategies`, `test_vision_strategies`.
+
+### 83. Chefon HTTP 429 (Cloudflare) — RAIZ via Shopify Storefront JSON API
+- **Sintoma/causa/correcao**: Tier3 (run 29586242082) falhou `[error] Chefon HTTP 429`; `chefon.com.br` e Shopify atras de Cloudflare — HTML `/collections/*` retorna 429 mesmo c/ Retry-After (servidor pedia 60s, `max_delay=10` cortava). RAIZ (1) `_retry_with_backoff` cortava Retry-After; RAIZ (2) rota errada (HTML protegido). Shopify expoe Storefront API `/collections/<col>/products.json?limit=&page=` sem challenge (testada: 250/req, 7.031 SKUs em `/all`); `curl_cffi` NAO e necessario (httpx padrao funciona). Fix: (a) `_retry_with_backoff` respeita Retry-After integral (teto 300s); (b) `website_scraper.py` modo `shopify_json` (`_run_shopify_json`+`_fetch_shopify_page`+`_parse_shopify_product`); (c) `stores.yaml` Chefon `shopify_json:true`. Teste: `tests/unit/test_website_scraper.py` (4).

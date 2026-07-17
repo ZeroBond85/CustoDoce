@@ -36,7 +36,12 @@ def _retry_with_backoff(max_retries: int = 3, base_delay: float = 1.0, max_delay
                                 retry_after = None
                     if attempt < max_retries:
                         if retry_after and status in (429, 503):
-                            delay = min(retry_after, max_delay)
+                            # Respeita o tempo que o SERVIDOR pediu. O max_delay
+                            # nao pode cortar um Retry-After valido: se o servidor
+                            # exige 60s e so esperamos 10s, o 429 reaparece
+                            # imediatamente (era o caso do Chefon/Cloudflare).
+                            # Teto de seguranca alto (300s) evita hang infinito.
+                            delay = min(retry_after, 300.0)
                             logger.warning(
                                 "[%s] Tentativa %d/%d: HTTP %s (Retry-After=%ss). Aguardando %.1fs...",
                                 scraper_name, attempt + 1, max_retries + 1, status, retry_after, delay,

@@ -904,11 +904,21 @@ stores:
   - name: "Chefon"
     tier: 2
     type: "website_catalog"
-    # reactivation_note: HTTP 429 (Cloudflare) — cliente anti-bot (curl_cffi TLS fingerprint) + respeito a Retry-After
+    # SOLUCAO RAIZ (2026-07-17): as paginas HTML /collections/* sao protegidas
+    # por Cloudflare e retornam HTTP 429 (mesmo respeitando Retry-After). A rota
+    # publica da Shopify Storefront API /collections/<col>/products.json?limit=&page=
+    # NAO dispara challenge e retorna JSON estruturado (title/variants/price/vendor).
+    # Colecionar via JSON elimina o 429 e coleta 100% do catalogo (~7.031 SKUs).
+    # curl_cffi NAO e necessario: o httpx padrao funciona na JSON API.
     logistics: "pickup_sp"
     base_url: "https://chefon.com.br"
     anti_bot: true
     cloudflare: true
+    shopify_json: true
+    shopify_collections:
+      - "all"
+    shopify_page_limit: 250
+    shopify_max_pages: 40
     search_url: "https://chefon.com.br/search?q={query}&type=product"
     browse_urls:
       - "https://chefon.com.br/collections/all"

@@ -23,6 +23,14 @@ class WebsiteScraper(BaseWebScraper):
         # Teto de parede por URL de browse: evita que UMA url lenta/travada
         # (Cloudflare, WAF) segure o loop paralelo inteiro. Default 30s.
         self.browse_url_timeout = float(store_config.get("browse_url_timeout", 30))
+        # Modo Shopify Storefront JSON API: algumas lojas (ex.: Chefon)
+        # protegem as paginas HTML com Cloudflare (HTTP 429), mas expoem a
+        # rota publica /collections/<x>/products.json paginada, sem challenge.
+        # Colecionar via JSON e muito mais robusto e leve que scraping de HTML.
+        self.shopify_json = bool(store_config.get("shopify_json", False))
+        self.shopify_collections = store_config.get("shopify_collections") or ["all"]
+        self.shopify_page_limit = int(store_config.get("shopify_page_limit", 250))
+        self.shopify_max_pages = int(store_config.get("shopify_max_pages", 40))
 
     def fetch_search(self, query: str) -> str | None:
         url = self.search_url.format(query=quote(query))
@@ -58,13 +66,13 @@ class WebsiteScraper(BaseWebScraper):
         return self._fetch_browse_raw(url)
 
     def run(self, ingredients: list[dict]) -> list[dict]:
-        """Coleta via browse_urls (departamentos) quando configurado.
-
-        Para lojas SPA cuja busca nao renderiza (ex.: Lojas Integrada),
-        as paginas de departamento sao server-rendered e muito mais rapidas
-        que N buscas por ingrediente. Sem browse_urls, cai no padrao
-        (1 busca por ingrediente).
+        """Coleta via Shopify JSON API quando ``shopify_json`` esta ativo,
+        via browse_urls (departamentos) quando configurado, ou 1 busca por
+        ingrediente (padrao).
         """
+        if self.shopify_json:
+            return self._run_shopify_json()
+
         browse_urls = self.store.get("browse_urls") or []
         if not browse_urls:
             return super().run(ingredients)
@@ -98,6 +106,90 @@ class WebsiteScraper(BaseWebScraper):
                 all_entries.extend(found)
         logger.info("[%s] browse total: %d produtos em %.1fs", self.name, len(all_entries), _time.time() - start_ts)
         return all_entries
+
+    def _run_shopify_json(self) -> list[dict]:
+        """Coleta TODOS os produtos via Shopify Storefront JSON API.
+
+        Endpoint publico ``/collections/<col>/products.json?limit=250&page=N``
+        paginado. Nao dispara Cloudflare challenge (diferente das paginas
+        HTML), entao e a rota raiz para lojas como Chefon. Respeita
+        Retry-After (ver _retry_with_backoff) e throttle anti-rate-limit.
+        """
+        import time as _time
+
+        start_ts = _time.time()
+        all_entries: list[dict] = []
+        for collection in self.shopify_collections:
+            page = 1
+            while page <= self.shopify_max_pages:
+                url = f"{self.base_url}/collections/{collection}/products.json"
+                try:
+                    resp = self._fetch_shopify_page(url, page)
+                except Exception as e:  # noqa: BLE001 - falha de rede vira coleta parcial
+                    logger.error("[%s] Erro Shopify collection=%s page=%d: %s", self.name, collection, page, e)
+                    break
+                if resp is None:
+                    break
+                prods = resp.get("products", [])
+                if not prods:
+                    break
+                for p in prods:
+                    entry = self._parse_shopify_product(p)
+                    if entry:
+                        all_entries.append(entry)
+                logger.info(
+                    "[%s] Shopify %s page %d: %d produtos (accum %d, %.1fs)",
+                    self.name, collection, page, len(prods), len(all_entries), _time.time() - start_ts,
+                )
+                if len(prods) < self.shopify_page_limit:
+                    break
+                page += 1
+                self._throttle()
+        logger.info(
+            "[%s] Shopify coleta total: %d produtos em %.1fs", self.name, len(all_entries), _time.time() - start_ts
+        )
+        return all_entries
+
+    @_retry_with_backoff(max_retries=3, base_delay=2.0, max_delay=30.0)
+    def _fetch_shopify_page(self, url: str, page: int) -> dict | None:
+        """Busca 1 pagina da API Shopify. Respeita Retry-After em 429/503."""
+        resp = self._http.get(url, params={"limit": self.shopify_page_limit, "page": page})
+        resp.raise_for_status()
+        return resp.json()
+
+    def _parse_shopify_product(self, p: dict) -> dict | None:
+        """Converte 1 produto Shopify no contrato padrao (product/price/unit/brand)."""
+        title = (p.get("title") or "").strip()
+        variants = p.get("variants") or []
+        if not title or not variants:
+            return None
+        # Usa a primeira variante disponivel (com estoque) ou a primeira qualquer.
+        chosen = None
+        for v in variants:
+            if v.get("available", True):
+                chosen = v
+                break
+        if chosen is None:
+            chosen = variants[0]
+        price = chosen.get("price")
+        if price is None:
+            return None
+        try:
+            price = float(price)
+        except (TypeError, ValueError):
+            return None
+        if price <= 0:
+            return None
+        # Shopify nao expoe validade; unit vem do nome.
+        unit = extract_unit(title)
+        vendor = (p.get("vendor") or "").strip()
+        return {
+            "product": title,
+            "price": price,
+            "unit": unit,
+            "validity_raw": "",
+            "brand": vendor,
+        }
 
     def parse_products(self, html: str) -> list[dict]:
         products = self._parse_jsonld(html)
