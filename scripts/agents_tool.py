@@ -5,7 +5,7 @@ Uso:
     python scripts/agents_tool.py --check         # Valida schema
     python scripts/agents_tool.py --full          # Validação completa (CI mode)
     python scripts/agents_tool.py --status        # Estado atual
-    python scripts/agents_tool.py --add-rule      # Adicionar regra no top 10
+    python scripts/agents_tool.py --add-rule      # Adicionar regra mandatória
     python scripts/agents_tool.py --add-lesson    # Adicionar lição no LESSONS.md
 """
 
@@ -311,7 +311,7 @@ def show_status() -> str:
 
 
 def add_rule(title: str, body: str) -> str:
-    """Add a rule to the top 10 in AGENTS.md."""
+    """Add a rule to the mandatory rules (Top) in AGENTS.md."""
     if not AGENTS.exists():
         return "AGENTS.md nao encontrado"
     content = AGENTS.read_text(encoding="utf-8")
@@ -340,7 +340,7 @@ def add_rule(title: str, body: str) -> str:
             new_rule = f"\n{new_num}. **{title}**: {body}"
             content = content[:insert_pos] + new_rule + content[insert_pos:]
             AGENTS.write_text(content, encoding="utf-8")
-            return f"Regra '{title}' adicionada como #{new_num} no top 10"
+            return f"Regra '{title}' adicionada como #{new_num} nas regras mandatórias"
         return "Nao foi possivel localizar secao de regras"
 
 
@@ -524,7 +524,7 @@ def main():
     parser.add_argument("--check", action="store_true", help="Validar schema do AGENTS.md")
     parser.add_argument("--full", action="store_true", help="Validacao completa da documentacao")
     parser.add_argument("--status", action="store_true", help="Estado atual")
-    parser.add_argument("--add-rule", nargs=2, metavar=("TITULO", "CORPO"), help="Adicionar regra no top 10")
+    parser.add_argument("--add-rule", nargs=2, metavar=("TITULO", "CORPO"), help="Adicionar regra mandatória")
     parser.add_argument("--add-lesson", nargs=2, metavar=("TITULO", "CORPO"), help="Adicionar licao no LESSONS.md")
     args = parser.parse_args()
 
