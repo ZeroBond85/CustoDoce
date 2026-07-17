@@ -80,8 +80,6 @@ class VisionStrategy(ABC):
     """Base class for vision LLM strategies with circuit breaker."""
 
     provider_name: str = "base"
-    url: str = ""
-    api_key: str = ""
     min_interval: float = 0.0
 
     def __init__(self):
@@ -92,6 +90,14 @@ class VisionStrategy(ABC):
         # True se ha outro provider depois deste na cadeia (habilita fail-fast
         # em 429). Definido por get_vision_chain()/_get_cached_chain().
         self._has_fallback = False
+
+    @property
+    @abstractmethod
+    def url(self) -> str: ...
+
+    @property
+    @abstractmethod
+    def api_key(self) -> str: ...
 
     def record_failure(self):
         self._failure_count += 1
@@ -277,9 +283,17 @@ class GroqVisionStrategy(VisionStrategy):
 
     def __init__(self):
         super().__init__()
-        self.api_key = os.environ.get("GROQ_API_KEY", "")
-        self.url = "https://api.groq.com/openai/v1/chat/completions"
+        self._api_key = os.environ.get("GROQ_API_KEY", "")
+        self._url = "https://api.groq.com/openai/v1/chat/completions"
         self.model = os.environ.get("GROQ_VISION_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
+
+    @property
+    def api_key(self) -> str:
+        return self._api_key
+
+    @property
+    def url(self) -> str:
+        return self._url
 
     def _get_payload(self, image_bytes: bytes) -> dict:
         b64 = self._encode_image(image_bytes)
@@ -308,9 +322,17 @@ class OpenRouterVisionStrategy(VisionStrategy):
 
     def __init__(self):
         super().__init__()
-        self.api_key = os.environ.get("OPENROUTER_API_KEY", "")
-        self.url = "https://openrouter.ai/api/v1/chat/completions"
+        self._api_key = os.environ.get("OPENROUTER_API_KEY", "")
+        self._url = "https://openrouter.ai/api/v1/chat/completions"
         self.model = os.environ.get("OPENROUTER_VISION_MODEL", "google/gemma-4-26b-a4b-it:free")
+
+    @property
+    def api_key(self) -> str:
+        return self._api_key
+
+    @property
+    def url(self) -> str:
+        return self._url
 
     def _get_payload(self, image_bytes: bytes) -> dict:
         b64 = self._encode_image(image_bytes)
@@ -351,9 +373,17 @@ class NvidiaVisionStrategy(VisionStrategy):
 
     def __init__(self):
         super().__init__()
-        self.api_key = os.environ.get("NVIDIA_API_KEY", "")
+        self._api_key = os.environ.get("NVIDIA_API_KEY", "")
+        self._url = "https://integrate.api.nvidia.com/v1/chat/completions"
         self.model = os.environ.get("NVIDIA_VISION_MODEL", "meta/llama-3.2-11b-vision-instruct")
-        self.url = "https://integrate.api.nvidia.com/v1/chat/completions"
+
+    @property
+    def api_key(self) -> str:
+        return self._api_key
+
+    @property
+    def url(self) -> str:
+        return self._url
 
     def _get_payload(self, image_bytes: bytes) -> dict:
         b64 = self._encode_image(image_bytes)
