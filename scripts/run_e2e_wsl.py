@@ -6,7 +6,7 @@ Usage:
 
 Requirements:
     - WSL with Debian/Ubuntu distro
-    - Python environment at $HOME/custodoce-314/
+    - Python 3.14.6 NATIVO at /usr/local/bin/python3.14 (miniconda removido)
     - .env file at project root with ADMIN_PASSWORD
     - Playwright installed (playwright install chromium)
 """
@@ -15,7 +15,7 @@ import sys
 import time
 
 PROJECT = "/mnt/c/Zerobond/Code/CustoDoce"
-PYTHON = "/home/ericsf/custodoce-314/bin/python"
+PYTHON = "/usr/local/bin/python3.14"
 STREAMLIT_PORT = 8501
 
 

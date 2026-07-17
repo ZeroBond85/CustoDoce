@@ -242,7 +242,7 @@ def _check_no_windows_only_packages() -> list[str]:
         if found:
             errors.append(
                 f"{lf.name} contem pacotes Windows-only: {', '.join(found)}. "
-                f"Lock files DEVEM ser gerados em WSL/Linux (custodoce-314), "
+                f"Lock files DEVEM ser gerados em WSL/Linux (Python 3.14.6 nativo), "
                 f"NUNCA no Windows. Ver LESSONS.md #52, REGRAS.md regra 5."
             )
     return errors

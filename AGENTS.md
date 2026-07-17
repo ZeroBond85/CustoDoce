@@ -16,7 +16,7 @@
 10. **Paridade Total de Ambiente (expandida)**: Python, deps (requirements.lock), runtime, OS, versões de ferramentas e **todos os componentes** devem ser IDÊNTICOS entre local (Windows/WSL), CI (GitHub Actions) e Cloud (Streamlit). Isso inclui obrigatoriamente:
     - **Python**: `.venv314`/`custodoce-314` (3.14.6) = CI (3.14.6) = `runtime.txt` (3.14.6) = devcontainer (3.14).
     - **Lock files**: `requirements-*.lock` são a **única fonte de verdade** (`requirements.txt`, `requirements.lock` são cópias). `check_environment_parity.py` valida sincronia entre todos.
-    - **Lock file generation**: `pip-compile` DEVE rodar **SEMPRE em WSL/Linux** (`custodoce-314` ou CI Ubuntu) — NUNCA no Windows. Windows resolve `colorama`/`tzdata` (condicionais de plataforma) que não existem no Linux → drift silencioso. (Ver `LESSONS.md` #52, `REGRAS.md` regra 5.)
+    - **Lock file generation**: `pip-compile` DEVE rodar **SEMPRE em WSL/Linux** (Python 3.14.6 nativo ou CI Ubuntu) — NUNCA no Windows. Windows resolve `colorama`/`tzdata` (condicionais de plataforma) que não existem no Linux → drift silencioso. (Ver `LESSONS.md` #52, `REGRAS.md` regra 5.)
     - **pip install em workflows**: PROIBIDO sem pin de versão explícito (`package==X.Y.Z`). Todo `pip install` fora do lock file DEVE ter `==` para evitar drift silencioso.
     - **Actions @tags**: Devem ser consistentes em TODOS os workflows: `checkout@v7`, `setup-python@v6`, `cache@v6`, `upload-artifact@v7`. Qualquer outlier bloqueia merge.
     - **System deps (tesseract/poppler/playwright)**: Instalados com mesmo comando em CI, devcontainer e WSL. `packages.txt` é a lista canônica; toda alteração deve ser refletida em AMBOS os locais.
@@ -27,7 +27,8 @@
 12. **Monitoração Total do CI**: O acompanhamento do push deve ir até o status FINAL (success/failure). Em shells com timeout, o uso de polling (consultas repetidas ao `gh run view`) é a estratégia mandatória para evitar interrupções prematuras.
 13. **Sessões isoladas em branches dedicadas**: Cada sessão de trabalho (feature/fix/chore) roda em sua própria branch a partir de `master` limpo. Nunca misturar state de múltiplas sessões no mesmo working tree. Antes de começar: `git checkout master && git pull && git checkout -b feature/<escopo>`. Working tree sujo = stashear para branch `wip/<contexto>` ou commitar antes. CI verde em master é contrato. Para PR: rebase + squash merge. Detalhes em `REGRAS.md` §Branches.
 14. **Line endings — Windows `autocrlf=true`, WSL `false/input`**: `core.autocrlf=true` no Windows é OBRIGATÓRIO (Git converte CRLF→LF no staging silenciosamente). No WSL/Linux, `false` ou `input`. `.gitattributes` com `eol=lf` por tipo de arquivo é a fonte da verdade. O script `scripts/check_line_endings_config.py` valida a configuração correta por plataforma e roda no pre-push. CRLF auto-fix em hooks é PROIBIDO — a correção raiz é configurar o Git, não tratar sintoma. (Ver `LESSONS.md` #49)
-15. **Push real OBRIGATÓRIO em WSL (não no Windows)**: O pre-push hook roda `sync_docs --sync` que importa todo o projeto e re-gera docstrings (`docs/api/*.md`), sujando a working tree no Windows e barrando o push de forma falsa. **O push com validação completa (pre-commit + pre-push) deve ser feito em WSL (`custodoce-314`)** — ambiente canônico. No Windows, `--no-verify` é apenas emergência (CI assume a validação). Se o hook sujar a tree no Windows, commitar as mudanças de `docs/` geradas separadamente. O `scripts/git_push.py` injeta `gh`/`git` no PATH (`_ensure_bin_path()`) para evitar `FileNotFoundError` falso — mas isso não substitui o fluxo WSL. (Ver `LESSONS.md` #80, #81 e `REGRAS.md` §Pre-push)
+15. **Push real OBRIGATÓRIO em WSL (não no Windows)**: O pre-push hook roda `sync_docs --sync` que importa todo o projeto e re-gera docstrings (`docs/api/*.md`), sujando a working tree no Windows e barrando o push de forma falsa. **O push com validação completa (pre-commit + pre-push) deve ser feito em WSL com Python 3.14.6 NATIVO** (`/usr/local/bin/python3.14`, instalado via tarball oficial; miniconda removido) — ambiente canônico. No Windows, `--no-verify` é apenas emergência (CI assume a validação). Se o hook sujar a tree no Windows, commitar as mudanças de `docs/` geradas separadamente. O `scripts/git_push.py` injeta `gh`/`git` no PATH (`_ensure_bin_path()`) para evitar `FileNotFoundError` falso — mas isso não substitui o fluxo WSL. (Ver `LESSONS.md` #80, #81 e `REGRAS.md` §Pre-push)
+16. **Ambiente WSL: Python 3.14.6 NATIVO (sem miniconda)**: O WSL roda Python 3.14.6 compilado de tarball oficial em `/usr/local/bin/python3.14` (não o 3.13 do `/usr/bin` que é do apt/dpkg). `python`/`python3` do usuário apontam via `~/bin` symlinks para 3.14.6. **Miniconda removido** (`~/miniconda3` apagado, bloco conda do `.bashrc` limpo). Hooks: `pre-commit` usa `PY=/usr/local/bin/python3.14` + `GIT=/usr/bin/git` e **falha com `exit 1` fora do WSL**; `pre-push` tem shebang `#!/usr/bin/env python3.14` e `_resolve_python()` prioriza `/usr/local/bin/python3.14` (fallback: `.venv314`). Credenciais: `gh` nativo autenticado, token em `~/.config/gh/hosts.yml` (perm 600, **nunca** `/tmp`); `gh auth setup-git` configura credential helper nativo. Todos os hooks em **LF** (`sed -i 's/\r//g'`; `s/\r$//` NÃO funciona no sed Debian WSL). `sync_docs.py _strict_audit()` pula `docs/changelog.md` (contadores históricos são intencionais). (Ver `REGRAS.md` §Pre-push, §Ambiente)
 
 ## Sobre
 
@@ -240,7 +241,7 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 | E2E (cloud) | ⏳ Mensal (Playwright) |
 | Python local (Windows) | 3.14.6 (`.venv314`) |
 | Python CI (GitHub Actions) | 3.14.6 (`PYTHON_VERSION=3.14.6`) |
-| Python WSL | 3.14.6 (`custodoce-314`) |
+| Python WSL | 3.14.6 (nativo `/usr/local/bin/python3.14`, sem conda) |
 | Python Cloud (Streamlit) | 3.14.6 |
 | requirements-prod.lock | ~100 packages (só prod) |
 | requirements-dev.lock | ~115 packages (prod + lint) |
@@ -283,7 +284,7 @@ python scripts/sync_docs.py --sync                # Regenera docs/skills.md
 
 O **`pre-push`** detecta `.venv314` automaticamente via `_resolve_python()` (ver `REGRAS.md` §Pre-push). Independente de como o git foi invocado, todo subprocesso do hook usa o Python do venv → **paridade total com CI/Cloud**. Fallback `sys.executable` é apenas aviso, não erro.
 
-Para WSL: `custodoce-314` (Conda, Python 3.14). Detalhes em `REGRAS.md`.
+Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarball; miniconda removido). Detalhes em `REGRAS.md` §Pre-push, §Ambiente.
 
 ## Documentação Relacionada
 

@@ -12,11 +12,11 @@
 | Dashboard (Streamlit) | **Windows** | Renderização e rede local nativa | `.venv314` |
 | Scripts de deploy, DB, SQL | **Windows** | Python direto via RPC/HTTPS | `.venv314` |
 | Shell scripts (.sh), Git complexo | **WSL (Debian)** | PowerShell quebra escapes/heredocs | Bash |
-| `git push` com pre-push completo | **WSL (Debian)** | pre-push roda `sync_docs`, `ci_local`, `schema_mocks` — todas as deps instaladas no `custodoce-314` | `custodoce-314` (Conda) |
-| Simular CI Linux, Scrapers Reais | **WSL (Debian)** | Idêntico ao GitHub Actions (Ubuntu) | `custodoce-314` (Conda) |
-| Playwright, OCR (Tesseract) | **WSL (Debian)** | Browser automation e dependências SO | `custodoce-314` (Conda) |
-| Testes E2E / Visual | **WSL (Debian)** | Estabilidade do Chromium Headless | `custodoce-314` (Conda) |
-| **Gerar lock files (`pip-compile`)** | **WSL (Debian)** | CI roda em Ubuntu Linux; Windows inclui `colorama`/`tzdata` que não existem no Linux → drift | `custodoce-314` + `PIP_EXTRA_INDEX_URL` |
+| `git push` com pre-push completo | **WSL (Debian)** | pre-push roda `sync_docs`, `ci_local`, `schema_mocks` — todas as deps no Python 3.14.6 nativo (`/usr/local/bin/python3.14`) | Python 3.14.6 NATIVO (sem conda) |
+| Simular CI Linux, Scrapers Reais | **WSL (Debian)** | Idêntico ao GitHub Actions (Ubuntu) | Python 3.14.6 NATIVO |
+| Playwright, OCR (Tesseract) | **WSL (Debian)** | Browser automation e dependências SO | Python 3.14.6 NATIVO |
+| Testtes E2E / Visual | **WSL (Debian)** | Estabilidade do Chromium Headless | Python 3.14.6 NATIVO |
+| **Gerar lock files (`pip-compile`)** | **WSL (Debian)** | CI roda em Ubuntu Linux; Windows inclui `colorama`/`tzdata` que não existem no Linux → drift | Python 3.14.6 NATIVO + `PIP_EXTRA_INDEX_URL` |
 
 ### ⚠️ CRLF vs LF: Toda Geração de Docs Roda no WSL
 
@@ -44,7 +44,7 @@ git add docs/ && git commit              # pre-commit feliz
    - Nunca passe caminhos de Windows para o Bash sem converter para o formato `/mnt/c/`.
 3. **Default Python**:
    - Windows: `.venv314` (PowerShell)
-   - WSL: `custodoce-314` (Conda/Bash)
+    - WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, Bash)
 4. **Paridade de Versões (Obrigatório — expandida)**:
    - **Python local (Windows/WSL) DEVE ser igual ao CI (GitHub Actions) e Cloud (Streamlit)**.
    - **Versões obrigatórias**: `pyproject.toml` (target-version), `runtime.txt`, `.devcontainer/devcontainer.json`, workflows (`PYTHON_VERSION`), e `pyproject.toml` (mypy `python_version`) — todos Python **3.14.x**.
@@ -54,8 +54,8 @@ git add docs/ && git commit              # pre-commit feliz
    - **.devcontainer**: Deve espelhar o Python target do projeto e instalar via lock files (`requirements-prod.lock`), não `requirements.txt`.
    - **Verificação**: `python scripts/check_environment_parity.py` (roda no CI job `lint`, falha HARD em divergência).
    - **Qualquer discrepância bloqueia merge** — CI valida no alvo real.
-     - **Drift de WSL**: Checar periodicamente: `wsl bash -c 'python --version && ~/custodoce-314/bin/pip --version'`
-5. **WSL = Linux Canônico (Anti-Drift de Plataforma)**: Toda tarefa que depende de **resolver dependências em ambiente Linux** deve rodar no WSL (`custodoce-314`) — NUNCA no Windows. O CI (GitHub Actions) roda em Ubuntu; o WSL é nosso Ubuntu local. Isso previne drift silencioso de pacotes condicionais de plataforma (`colorama`, `tzdata`, etc.) que existem no Windows mas não no Linux. Tarefas obrigatórias em WSL:
+      - **Drift de WSL**: Checar periodicamente: `wsl bash -c 'python --version && /usr/local/bin/python3.14 -m pip --version'`
+5. **WSL = Linux Canônico (Anti-Drift de Plataforma)**: Toda tarefa que depende de **resolver dependências em ambiente Linux** deve rodar no WSL com Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`) — NUNCA no Windows. O CI (GitHub Actions) roda em Ubuntu; o WSL é nosso Ubuntu local. Isso previne drift silencioso de pacotes condicionais de plataforma (`colorama`, `tzdata`, etc.) que existem no Windows mas não no Linux. Tarefas obrigatórias em WSL:
    - **`pip-compile`** (geração de lock files): `PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu pip-compile --allow-unsafe --output-file=requirements-prod.lock requirements-prod.in`
    - **`pip install -r requirements-test.lock`** (quando testar integração/CI locally)
    - **Playwright, OCR, scrapers** (browser automation)
@@ -119,9 +119,9 @@ Checks (rodam em paralelo via ThreadPoolExecutor, exceto os sequenciais 1 e 2):
 
 **Nota**: `sync_docs` roda **apenas** no pre-push (versão rigorosa `--check --strict` + auto-fix). O `ci_local.py` **não** roda mais docs-sync (evita duplicação de "2 docs sync"). Para checar manualmente: `python scripts/sync_docs.py --check --strict`.
 
-**🚫 Windows — push NUNCA deve ser rotina aqui**: O pre-push **não funciona completamente** no Windows porque `sync_docs.py` importa todo o projeto (exige todas as deps instaladas) e deixa a working tree dirty (auto-fix de docstrings), barrando o push de forma falsa. **O push com validação completa (pre-commit + pre-push) é OBRIGATÓRIO em WSL (`custodoce-314`)** — este é o ambiente canônico e a ÚNICA via correta para push de verdade.
+**🚫 Windows — push NUNCA deve ser rotina aqui**: O pre-push **não funciona completamente** no Windows porque `sync_docs.py` importa todo o projeto (exige todas as deps instaladas) e deixa a working tree dirty (auto-fix de docstrings), barrando o push de forma falsa. **O push com validação completa (pre-commit + pre-push) é OBRIGATÓRIO em WSL com Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`)** — este é o ambiente canônico e a ÚNICA via correta para push de verdade.
 
-- **Regra mandatória**: Para qualquer push real, usar **WSL** (`custodoce-314`): `git add . && git commit` (hooks passam) e `python scripts/git_push.py` (PATH de `gh`/`git` já vem do bash do WSL). Nunca tratar o Windows como ambiente de push.
+- **Regra mandatória**: Para qualquer push real, usar **WSL** (Python 3.14.6 nativo): `git add . && git commit` (hooks passam) e `python scripts/git_push.py` (PATH de `gh`/`git` já vem do bash do WSL). Nunca tratar o Windows como ambiente de push.
 - **Exceção (apenas emergência, nunca rotina)**: Se for estritamente necessário pushar do Windows, usar `git push --no-verify` (a regra documentada) — mas o pre-commit/pre-push NÃO rodou, então a validação fica a cargo do CI. Isso NÃO substitui o fluxo WSL.
 - **`sync_docs` auto-fix no Windows**: se o hook modificar `docs/api/*` e sujar a tree, commitar essas mudanças geradas separadamente (não são do código) — elas são docstrings auto-geradas, não contorno.
 
@@ -131,13 +131,14 @@ Checks (rodam em paralelo via ThreadPoolExecutor, exceto os sequenciais 1 e 2):
 
 ### Resolução Automática de Python
 
-O hook `pre-push` resolve o Python na seguinte ordem:
+O hook `pre-push` resolve o Python na seguinte ordem (Python NATIVO 3.14.6 do WSL é a fonte canônica; miniconda foi removido):
 
-1. **Env var `CUSTODOCE_PYTHON`** — override explícito (ex: `export CUSTODOCE_PYTHON=~/custodoce-314/bin/python`).
-2. **`~/custodoce-314/bin/python`** — venv WSL/Linux nativo (fora do repo).
-3. **`.venv314/Scripts/python.exe`** — venv Windows nativo (dentro do repo).
-4. **`.venv314/bin/python`** — venv Linux/WSL nativo (dentro do repo).
-5. **`sys.executable`** — fallback (com AVISO se nenhum venv existe).
+1. **Env var `CUSTODOCE_PYTHON`** — override explícito (ex: `export CUSTODOCE_PYTHON=/usr/local/bin/python3.14`).
+2. **`/usr/local/bin/python3.14`** — Python NATIVO 3.14.6 (compilado de tarball oficial, fora do repo).
+3. **`~/bin/python3.14`** — symlink do usuário → 3.14.6 nativo.
+4. **`.venv314/Scripts/python.exe`** — venv Windows nativo (fallback, dentro do repo).
+5. **`.venv314/bin/python`** — venv Linux/WSL nativo (fallback, dentro do repo).
+6. **`sys.executable`** — fallback (com AVISO se nenhum Python com deps existe).
 
 ```python
 # .githooks/pre-push
@@ -145,8 +146,9 @@ def _resolve_python() -> str:
     explicit = os.environ.get("CUSTODOCE_PYTHON")
     if explicit and Path(explicit).exists() and os.access(explicit, os.X_OK):
         return explicit
-    home_venvs = [Path.home() / "custodoce-314" / "bin" / "python"]
-    candidates = home_venvs + [
+    candidates = [
+        Path("/usr/local/bin/python3.14"),
+        Path.home() / "bin" / "python3.14",
         REPO_ROOT / ".venv314" / "Scripts" / "python.exe",
         REPO_ROOT / ".venv314" / "bin" / "python",
     ]
@@ -156,25 +158,20 @@ def _resolve_python() -> str:
     return sys.executable  # fallback (AVISO)
 ```
 
-**Por quê?** `sys.executable` no hook resolves o Python que invocou o git → pode ser Python 3.11 global se você rodar git fora do venv. O `_resolve_python()` força o uso do venv apropriado à plataforma → **paridade total** com CI/Cloud.
+**Por quê?** O WSL roda Python 3.14.6 compilado de tarball oficial em `/usr/local/bin/python3.14` (não o 3.13 do `/usr/bin` que é do apt/dpkg). `python`/`python3` do usuário apontam via `~/bin` symlinks para 3.14.6. O `_resolve_python()` força o uso do 3.14.6 nativo → **paridade total** com CI/Cloud.
 
 **Output do hook** mostra qual Python foi resolvido na 1ª linha:
 ```
-  [python] usando venv: C:\Zerobond\Code\CustoDoce\.venv314\Scripts\python.exe
-=== pre-push: validando...
-```
-ou
-```
-  [python] usando venv: /home/ericsf/custodoce-314/bin/python
+  [python] usando: /usr/local/bin/python3.14
 === pre-push: validando...
 ```
 
-**Cross-platform**: mesmo hook funciona em Windows PowerShell, WSL bash, e macOS zsh. Cada plataforma tem seu venv canônico:
+**Cross-platform**: mesmo hook funciona em Windows PowerShell, WSL bash, e macOS zsh. Cada plataforma tem seu fallback canônico:
 - **Windows**: `.venv314/Scripts/python.exe` (Python 3.14.6)
-- **WSL**: `~/custodoce-314/bin/python` (Python 3.14.6 via uv)
-- **macOS**: `~/custodoce-314/bin/python` (similar)
+- **WSL**: `/usr/local/bin/python3.14` (Python 3.14.6 NATIVO — sem conda)
+- **macOS**: `/usr/local/bin/python3.14` (similar)
 
-Fallback `sys.executable` só ocorre se nenhum venv existir — nesse caso o hook emite AVISO. **Recomendado**: criar `.venv314/Scripts/python.exe` (Windows) ou `~/custodoce-314/bin/python` (Linux/WSL) antes do push. CI: 9 workflows Python 3.14 (single source of truth).
+Fallback `sys.executable` só ocorre se nenhum Python com deps existir — nesse caso o hook emite AVISO. CI: 9 workflows Python 3.14 (single source of truth).
 
 Opt-in Unit Tests: `set CI_LOCAL_UNIT=1` (cmd) ou `$env:CI_LOCAL_UNIT="1"` (ps).
 
