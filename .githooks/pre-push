@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/local/bin/python3.14
 """
 pre-push hook (CustoDoce)
 Executa ANTES do push — se falhar, o push NAO acontece.
@@ -35,29 +35,32 @@ REPO_ROOT = Path(__file__).parent.parent.resolve()
 def _resolve_python() -> str:
     """Resolve Python do projeto.
 
-    Ordem de procura:
+    Ordem de procura (Python NATIVO 3.14.6 do WSL e' a fonte canonica,
+    padrao do projeto — miniconda removido, sem versoes velhas):
     1. Env var CUSTODOCE_PYTHON (override explicito).
-    2. <VENV> env var ou ~/custodoce-314/bin/python (WSL/Linux nativo).
-    3. .venv314/Scripts/python.exe  (Windows nativo no repo).
-    4. .venv314/bin/python          (Linux/WSL nativo no repo).
-    5. sys.executable               (fallback final com aviso).
+    2. /usr/local/bin/python3.14  (Python NATIVO 3.14.6 — preferencial).
+    3. ~/bin/python3.14           (symlink usuario -> 3.14.6 nativo).
+    4. .venv314/Scripts/python.exe  (Windows nativo no repo, fallback).
+    5. .venv314/bin/python          (Linux/WSL nativo no repo, fallback).
+    6. sys.executable               (fallback final com aviso).
     """
     explicit = os.environ.get("CUSTODOCE_PYTHON")
     if explicit and Path(explicit).exists() and os.access(explicit, os.X_OK):
         print(f"  [python] usando CUSTODOCE_PYTHON: {explicit}", file=sys.stderr)
         return explicit
 
-    home_venvs = [Path.home() / "custodoce-314" / "bin" / "python"]
-    candidates = home_venvs + [
+    candidates = [
+        Path("/usr/local/bin/python3.14"),
+        Path.home() / "bin" / "python3.14",
         REPO_ROOT / ".venv314" / "Scripts" / "python.exe",
         REPO_ROOT / ".venv314" / "bin" / "python",
     ]
     for candidate in candidates:
         if candidate.exists() and os.access(candidate, os.X_OK):
-            print(f"  [python] usando venv: {candidate}", file=sys.stderr)
+            print(f"  [python] usando: {candidate}", file=sys.stderr)
             return str(candidate)
 
-    print("  [python] AVISO: nenhum venv encontrado (.venv314 ou ~/custodoce-314); fallback para sys.executable", file=sys.stderr)
+    print("  [python] AVISO: nenhum Python com deps encontrado; fallback para sys.executable", file=sys.stderr)
     return sys.executable
 
 
