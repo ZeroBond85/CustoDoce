@@ -1,6 +1,6 @@
 # `auth` — API
 
-> Última atualização: 2026-07-17 11:44 UTC
+> Última atualização: 2026-07-17 12:02 UTC
 > Gerado por AST parsing dos serviços em `services/auth.py`.
 
 ## Funções Públicas (9)

@@ -18,7 +18,7 @@ truth_at:
   python_version: 3.14.6
 ---
 # 🍬 CUSTO DOCE RAIO-X
-> Última revisão: 2026-07-17 11:44 UTC
+> Última revisão: 2026-07-17 12:02 UTC
 ## Análise Completa do Projeto
 
 ## 📊 1. VEREDITO EXECUTIVO
