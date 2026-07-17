@@ -690,34 +690,11 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Correção**: removido `Client error|HTTP [45][0-9][0-9]` do padrão do grep. O job agora falha APENAS em erros de nível `[error]`/`falha no scraper` (bugs reais). 403 de agregador é warning esperado.
 - **Teste**: `test_scrape_reusable_does_not_fail_on_client_error` valida que o grep do scrape-reusable não inclui `Client error`.
 
-### 79. Pre-commit hook quebra se `python3` no PATH estiver corrompido
+### 79. Pre-commit quebra se `python3` no PATH estiver corrompido
 
-- **Data + commit**: 2026-07-16
-- **Sintoma/causa**: commits sumiam silenciosamente (exit 1 sem mensagem). Causa: o `command -v python3` no hook resolvia `C:/Users/ericsf/bin/python3.exe` (corrompido — falta `api-ms-win-crt-heap-l1-1-0.dll`). O `set -euo pipefail` fazia o hook abortar ao rodar `agents_tool.py --check`, bloqueando o commit. Outra sessão usando esse python3 quebrava o mesmo hook.
-- **Correção**: `.githooks/pre-commit` agora usa `_detect_python()` que VALIDA se o interpreter sobe (`import sys`) antes de usá-lo, preferindo `.venv314/Scripts/python.exe`. `PY_IMP` e `RUFF_PY` também caem no `$PY` detectado. Evita python3 corrompido.
-- **Teste**: manual — commit com `python3` corrompido fora do PATH usa `.venv314` e passa.
+- **Sintoma/causa**: commits sumiam (exit 1 sem msg) porque o hook resolvia `C:/Users/ericsf/bin/python3.exe` corrompido; `set -euo pipefail` abortava ao rodar `agents_tool.py --check`.
+- **Correção**: `.githooks/pre-commit` usa `_detect_python()` que valida o interpreter (`import sys`) antes de usá-lo, preferindo `.venv314/Scripts/python.exe`.
+### 80. Push no Windows quebra (gh FileNotFound + sync_docs suja tree); RAIZ = WSL
 
-### 80. `git_push.py` falha com FileNotFoundError em `gh` (PATH do Git Bash não herdado)
-
-- **Data + commit**: 2026-07-17
-- **Sintoma/causa**: `python scripts/git_push.py` quebrava no pre-push hook (via `git push`) com `FileNotFoundError: [WinError 2] ... gh`. O Python herdava o PATH do cmd.exe/PowerShell, que NÃO traz os binários do Git Bash (`C:\Program Files\Git\bin`, `C:\Program Files\GitHub CLI`). O hook chama `gh` e não o encontrava → push abortava com falha FALSA (não era erro de código nem do CI).
-- **Correção (RAIZ, não esconde)**: `scripts/git_push.py` agora injeta `_ensure_bin_path()` no `main()` — adiciona os caminhos conhecidos de `git`/`gh` ao `os.environ["PATH"]` ANTES de disparar qualquer subprocesso. O pre-push hook (filho do `git push`) herda o env corrigido. `_run()` também captura `FileNotFoundError` e retorna exit 127 com mensagem explícita (nunca silencia ferramenta ausente).
-- **Regra**: SEMPRE rodar `git_push.py` (ou qualquer script que dispare `git push`/`gh`) com PATH incluindo `C:\Program Files\GitHub CLI` e `C:\Program Files\Git\bin`. Se `gh` der FileNotFound, é problema de ambiente — corrigir o PATH, NÃO usar `--no-verify` nem `git push` direto para contornar.
-- **Teste**: manual — `git_push.py` encontra `gh` mesmo com PATH mínimo do cmd.exe.
-- **Correção complementar (RAIZ)**: o push real com validação completa (pre-commit + pre-push) é **obrigatório em WSL** (`custodoce-314`), não no Windows. No Windows o pre-push deixa a tree dirty (auto-fix de docstrings) e barra o push de forma falsa. Ver `REGRAS.md` §Pre-push.
-
-### 81. Push no Windows suja a working tree (sync_docs auto-fix) e barra o push
-
-- **Data + commit**: 2026-07-17
-- **Sintoma/causa**: ao rodar `git push` (via `git_push.py`) no Windows, o pre-push hook executa `sync_docs --sync`, re-gera docstrings em `docs/api/*.md` + `docs/skills.md` e deixa a working tree dirty. O Git então barra o push ("Commit ou descarte antes de fazer push"). O `git_push.py` não commita essas mudanças geradas → loop: push sempre falha no Windows.
-- **Correção (RAIZ)**: o push com validação completa é **obrigatório em WSL** (`custodoce-314`), onde o pre-push roda limpo e commita/valida corretamente. No Windows, `--no-verify` é apenas emergência (CI assume a validação). Se o hook sujar a tree no Windows, commitar as mudanças de `docs/` geradas separadamente (são docstrings auto-geradas, não código). Nunca tratar o Windows como ambiente de push de rotina.
-- **Regra**: `REGRAS.md` §Pre-push agora é mandatória: push real = WSL. Windows = `--no-verify` emergencial apenas.
-- **Teste**: manual — push em WSL passa pre-push sem sujar tree; push Windows com `--no-verify` requer commit posterior dos `docs/` gerados.
-
-### 82. `[skip ci]` na mensagem de commit SILENCIA o CI (falso verde)
-
-- **Data + commit**: 2026-07-17
-- **Sintoma/causa**: vários commits de correção foram pushados com `[skip ci]` na mensagem. O GitHub Actions **pula o workflow inteiro** quando o commit contém `[skip ci]`/`[ci skip]` — então o `ci.yml` NÃO disparou em nenhum dos pushes (5e7acdc, c46b84a, 6c12977, d77fccb), mesmo mexendo em `services/`, `scripts/`, `.github/workflows/`. O CI parecia "verde" mas na verdade não rodou = falso verde perigoso.
-- **Correção (RAIZ)**: **NUNCA usar `[skip ci]`** em commits de código que precisem de validação. `[skip ci]` só é aceitável em commits puramente documentais que não alteram comportamento (e mesmo assim, prefira deixar o CI rodar). Para forçar o CI a validar código já no remote, basta um novo push cuja mensagem NÃO contenha `[skip ci]`.
-- **Regra**: commits de código/lógica/infra DEVEM rodar CI. Se o CI estiver vermelho, corrigir a causa — não silenciar com `[skip ci]`.
-- **Teste**: manual — push sem `[skip ci]` em `d77fccb` (após remover a tag) dispara o `ci.yml` e valida o código.
+- **Sintoma/causa**: `git_push.py` quebrava no pre-push com `FileNotFoundError: gh` (Python sem PATH do Git Bash). O pre-push também roda `sync_docs --sync`, re-gera `docs/api/*.md`+`docs/skills.md` e suja a tree → Git barra o push. E commits com `[skip ci]` faziam o GitHub pular o `ci.yml` inteiro (falso verde).
+- **Correção (RAIZ)**: `git_push.py` injeta `_ensure_bin_path()` (Git Bash + GitHub CLI + dir do Python) antes de qualquer subprocesso; `_run()` retorna exit 127 em `FileNotFoundError`. Push completo é **obrigatório em WSL**; Windows `--no-verify` é emergência. **NUNCA `[skip ci]`** em código — corrigir CI vermelho, não silenciar. Ver `REGRAS.md` §Pre-push.

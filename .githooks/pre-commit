@@ -33,15 +33,40 @@ _detect_python() {
   return 1
 }
 
-PY=$(_detect_python ".venv314/Scripts/python.exe" ".venv314/Scripts/python" "python3" "python" "" 2>/dev/null || true)
-if [ -z "$PY" ]; then
-  if command -v python3 &>/dev/null; then
-    PY=python3
-  elif command -v python &>/dev/null; then
-    PY=python
-  else
-    PY=""
+# ----------------------------------------------------------------
+# DETECÇÃO DE AMBIENTE (WSL vs Windows nativo)
+# Objetivo: usar SEMPRE o Python/git NATIVO do WSL quando no WSL,
+# de forma que o hook continue funcionando mesmo se o ambiente
+# conda/.venv314 "morrer" ou o projeto for movido. O Python nativo
+# do WSL (/usr/bin/python3) é o do próprio sistema e não depende
+# de instalação de projeto.
+# ----------------------------------------------------------------
+_IS_WSL=0
+if [ -f /proc/sys/kernel/osrelease ] && grep -qi "microsoft\|wsl" /proc/sys/kernel/osrelease 2>/dev/null; then
+  _IS_WSL=1
+fi
+
+if [ "$_IS_WSL" -eq "1" ]; then
+  # WSL: força Python/git NATIVO do sistema (robustez máxima).
+  # Não depende de conda, .venv314, nem do PATH do Windows.
+  PY="/usr/bin/python3"
+  GIT="/usr/bin/git"
+  PY_IMP="$PY"
+else
+  # Windows nativo ou outro POSIX: mantém lógica original.
+  PY=$(_detect_python ".venv314/Scripts/python.exe" ".venv314/Scripts/python" "python3" "python" "" 2>/dev/null || true)
+  if [ -z "$PY" ]; then
+    if command -v python3 &>/dev/null; then
+      PY=python3
+    elif command -v python &>/dev/null; then
+      PY=python
+    else
+      PY=""
+    fi
   fi
+  # GIT para Windows também usa o do PATH (git instalado no Windows).
+  GIT="$(command -v git 2>/dev/null || echo "git")"
+  PY_IMP="$PY"
 fi
 
 # ----------------------------------------------------------------
