@@ -121,6 +121,8 @@ Checks (rodam em paralelo via ThreadPoolExecutor, exceto os sequenciais 1 e 2):
 
 **⚠️ Windows**: O pre-push **não funciona completamente** no Windows porque `sync_docs.py` importa todo o projeto (exige todas as deps instaladas). No Windows, use `git push --no-verify` ou `git pw` (que aceita falha do pre-push e continua). O ambiente canônico para push com validação completa é **WSL** (`custodoce-314`).
 
+**⚠️ PATH de `gh`/`git` no Windows**: O `pre-push` chama `gh run list`. Se o processo Python que disparou o `git push` (ex.: `python scripts/git_push.py` rodado do cmd.exe) não trouxer `C:\Program Files\GitHub CLI` e `C:\Program Files\Git\bin` no PATH, o hook falha com `FileNotFoundError` e o push aborta **FALSAMENTE**. `scripts/git_push.py` injeta esses caminhos via `_ensure_bin_path()` ANTES do `git push`. Se `gh` der `FileNotFound`, é problema de **AMBIENTE** (corrigir PATH), nunca contornar com `--no-verify`. (Ver `LESSONS.md` #80)
+
 **Otimização (Fase 1)**: checks independentes rodam em paralelo; wall-time ≈ max(ci_local, demais) em vez de soma. `audit_secrets` escopado a commits outgoing. Rede (`gh`, `pip-audit`) tem timeout.
 
 ### Resolução Automática de Python

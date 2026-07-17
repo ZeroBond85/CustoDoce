@@ -34,6 +34,38 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 MAX_RETRIES = int(os.environ.get("CI_MAX_RETRIES", "1"))
 TIMEOUT = int(os.environ.get("CI_WATCH_TIMEOUT", "600"))
 
+# Locais onde gh/git podem estar no Windows (Git bash PATH nem sempre vem
+# herdado quando o script roda direto do cmd.exe / PowerShell).
+_CANDIDATE_BINS = [
+    r"C:\Program Files\Git\bin",
+    r"C:\Program Files\Git\usr\bin",
+    r"C:\Program Files\Git\cmd",
+    r"C:\Program Files\GitHub CLI",
+    r"C:\Program Files (x86)\GitHub CLI",
+]
+
+
+def _ensure_bin_path() -> None:
+    """Garante que gh/git estejam no PATH do processo.
+
+    O pre-push hook (via git push) e este script chamam `gh`/`git` por
+    subprocess. Se o shell que invocou o Python não trouxe o PATH do Git
+    Bash, `gh` não é encontrado (FileNotFoundError) e o push falha de forma
+    FALSA. Injetar os caminhos conhecidos no os.environ["PATH"] corrige a
+    RAIZ (não esconde a falha).
+    """
+    env_path = os.environ.get("PATH", "")
+    paths = env_path.split(os.pathsep) if env_path else []
+    existing = {p.lower() for p in paths}
+    added = False
+    for cand in _CANDIDATE_BINS:
+        if os.path.isdir(cand) and cand.lower() not in existing:
+            paths.append(cand)
+            existing.add(cand.lower())
+            added = True
+    if added:
+        os.environ["PATH"] = os.pathsep.join(paths)
+
 
 # ── helpers ──────────────────────────────────────────────────────────────
 
@@ -49,6 +81,12 @@ def _run(cmd, capture=True, timeout=None):
         )
     except subprocess.TimeoutExpired:
         return subprocess.CompletedProcess(cmd, 124, "", "")
+    except FileNotFoundError as e:
+        # Ferramenta ausente no PATH (ex.: gh). Falha de forma EXPLÍCITA em
+        # vez de silenciar — nunca esconder erro de ambiente.
+        msg = f"[git_push] comando não encontrado no PATH: {cmd[0]} ({e})"
+        sys.stderr.write(msg + "\n")
+        return subprocess.CompletedProcess(cmd, 127, "", msg)
 
 
 def _get_branch() -> str:
@@ -205,6 +243,7 @@ def _amend_and_force_push() -> bool:
 
 
 def main() -> int:
+    _ensure_bin_path()
     push_args = sys.argv[1:]
     start_time = time.time()
 

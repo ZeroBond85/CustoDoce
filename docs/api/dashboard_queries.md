@@ -1,9 +1,9 @@
 # `dashboard_queries` — API
 
-> Última atualização: 2026-07-17 04:31 UTC
+> Última atualização: 2026-07-17 11:16 UTC
 > Gerado por AST parsing dos serviços em `services/dashboard_queries.py`.
 
-## Funções Públicas (37)
+## Funções Públicas (39)
 
 ### approve_review_item_cached(item_id: str, ingredient_id: str, brand_override: str)
 
@@ -53,6 +53,10 @@ Get active stores, optionally filtered by tier.
 
 Get coverage statistics per ingredient.
 
+### get_coverage_summary(stale_days: int)
+
+Resumo de cobertura para banner de alerta no dashboard.
+
 ### get_cross_ingredient_ranking_cached(days: int)
 
 ### get_dashboard_kpis()
@@ -92,6 +96,10 @@ Get review queue using service client for write operations if needed.
 ### get_scraper_health_dashboard()
 
 Get dashboard-ready scraper health with color-coded status.
+
+### get_store_coverage_health(stale_days: int)
+
+Visão de cobertura de PREÇOS por loja (não só sucesso do scraper).
 
 ### get_store_health()
 

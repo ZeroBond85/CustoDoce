@@ -696,3 +696,11 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Sintoma/causa**: commits sumiam silenciosamente (exit 1 sem mensagem). Causa: o `command -v python3` no hook resolvia `C:/Users/ericsf/bin/python3.exe` (corrompido — falta `api-ms-win-crt-heap-l1-1-0.dll`). O `set -euo pipefail` fazia o hook abortar ao rodar `agents_tool.py --check`, bloqueando o commit. Outra sessão usando esse python3 quebrava o mesmo hook.
 - **Correção**: `.githooks/pre-commit` agora usa `_detect_python()` que VALIDA se o interpreter sobe (`import sys`) antes de usá-lo, preferindo `.venv314/Scripts/python.exe`. `PY_IMP` e `RUFF_PY` também caem no `$PY` detectado. Evita python3 corrompido.
 - **Teste**: manual — commit com `python3` corrompido fora do PATH usa `.venv314` e passa.
+
+### 80. `git_push.py` falha com FileNotFoundError em `gh` (PATH do Git Bash não herdado)
+
+- **Data + commit**: 2026-07-17
+- **Sintoma/causa**: `python scripts/git_push.py` quebrava no pre-push hook (via `git push`) com `FileNotFoundError: [WinError 2] ... gh`. O Python herdava o PATH do cmd.exe/PowerShell, que NÃO traz os binários do Git Bash (`C:\Program Files\Git\bin`, `C:\Program Files\GitHub CLI`). O hook chama `gh` e não o encontrava → push abortava com falha FALSA (não era erro de código nem do CI).
+- **Correção (RAIZ, não esconde)**: `scripts/git_push.py` agora injeta `_ensure_bin_path()` no `main()` — adiciona os caminhos conhecidos de `git`/`gh` ao `os.environ["PATH"]` ANTES de disparar qualquer subprocesso. O pre-push hook (filho do `git push`) herda o env corrigido. `_run()` também captura `FileNotFoundError` e retorna exit 127 com mensagem explícita (nunca silencia ferramenta ausente).
+- **Regra**: SEMPRE rodar `git_push.py` (ou qualquer script que dispare `git push`/`gh`) com PATH incluindo `C:\Program Files\GitHub CLI` e `C:\Program Files\Git\bin`. Se `gh` der FileNotFound, é problema de ambiente — corrigir o PATH, NÃO usar `--no-verify` nem `git push` direto para contornar.
+- **Teste**: manual — `git_push.py` encontra `gh` mesmo com PATH mínimo do cmd.exe.
