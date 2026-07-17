@@ -21,6 +21,9 @@ on:
       - 'config/**'
       - 'supabase/**'
       - '.githooks/**'
+      - 'scripts/**'
+      - 'dashboard/**'
+      - '.github/workflows/**'
       - '!docs/**'
   pull_request:
     branches: [master]
@@ -42,6 +45,9 @@ on:
       - 'config/**'
       - 'supabase/**'
       - '.githooks/**'
+      - 'scripts/**'
+      - 'dashboard/**'
+      - '.github/workflows/**'
       - '!docs/**'
   workflow_dispatch:
 
