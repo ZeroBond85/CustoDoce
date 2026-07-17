@@ -223,6 +223,8 @@ def validate_hooks_syntax() -> tuple[bool, str]:
                 "#!/usr/bin/env python",
                 "#!/usr/bin/python3",
                 "#!/usr/bin/python",
+                "#!/usr/bin/env python3.14",
+                "#!/usr/local/bin/python3.14",
             }
             if not any(first_line.startswith(s) for s in valid_shebangs):
                 errors.append(f"{hook.name}: shebang inválido '{first_line}'")
