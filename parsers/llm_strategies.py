@@ -256,7 +256,10 @@ class OpenRouterStrategy(LLMStrategy):
         super().__init__()
         self.api_key = os.environ.get("OPENROUTER_API_KEY", "")
         self.url = "https://openrouter.ai/api/v1/chat/completions"
-        self.model = os.environ.get("OPENROUTER_MODEL", "mistralai/mixtral-8x7b-instruct")
+        # `openrouter/free` roteia automaticamente para um modelo free disponivel
+        # (filtra por structured outputs). Slugs fixos (ex.: mixtral-8x7b) sao
+        # descontinuados e passam a retornar 404 silenciosamente.
+        self.model = os.environ.get("OPENROUTER_MODEL", "openrouter/free")
 
     def is_configured(self) -> bool:
         return bool(self.api_key)
@@ -291,6 +294,13 @@ class OpenRouterStrategy(LLMStrategy):
                 logger.warning("openrouter_retryable_error", status=resp.status_code)
                 # 429 = provider globalmente limitado agora: abre o breaker e cede
                 # ao próximo da cadeia (backoff agressivo evita martelar o limite).
+                self.open_circuit()
+                return None
+            if resp.status_code >= 400:
+                # 4xx persistente (ex.: 404 modelo inexistente/config quebrada):
+                # abre o breaker para NAO martelar o endpoint a cada produto —
+                # o erro nao se resolve em retry, so corrigindo a config.
+                logger.warning("openrouter_client_error", status=resp.status_code)
                 self.open_circuit()
                 return None
             resp.raise_for_status()

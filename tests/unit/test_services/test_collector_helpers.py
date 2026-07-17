@@ -74,3 +74,40 @@ def test_should_skip_store_bypassed_by_force_env():
     assert skip is False
     assert reason == ""
     mock_db.assert_not_called()
+
+
+def test_collect_tier1_api_flyers_routes_products_as_prices():
+    """Regressão scrape 29582782313: produtos extraídos por vision (name+price,
+    SEM image_url) das lojas api_flyer (Max/Roldão) eram roteados pelo pipeline de
+    flyer-IMAGE e descartados silenciosamente (0 coletados apesar de 120 extraídos).
+
+    Agora collect_tier1_api_flyers usa o pipeline de PREÇOS: os produtos passam por
+    process_price_match e viram preços — nenhum é descartado por falta de image_url.
+    """
+    class _FakeApiScraper:
+        def __init__(self, store):
+            self.store = store
+
+    api_store = {
+        "name": "Roldão Atacadista",
+        "tier": 1,
+        "type": "api_flyer",
+        "scraper": "roldao_api_scraper",
+        "vision_timeout_seconds": 300,
+    }
+    # Produtos extraídos por vision: têm product/price, NÃO têm image_url.
+    vision_products = [
+        {"product": "Leite Condensado Moça 395g", "price": 4.99, "unit": "395g"},
+        {"product": "Creme de Leite Nestlé 200g", "price": 3.49, "unit": "200g"},
+    ]
+    matched: list[dict] = []
+    with patch.object(collector, "load_stores", return_value=[api_store]), \
+         patch.dict(collector.API_SCRAPER_MAP, {"roldao_api_scraper": _FakeApiScraper}), \
+         patch.object(collector, "_should_skip_store", return_value=(False, "")), \
+         patch.object(collector, "_run_scraper_isolated", return_value=(vision_products, None)), \
+         patch.object(collector, "process_price_match",
+                      side_effect=lambda *a, **k: matched.append(a) or {"ingredient_id": "x", "raw_price": a[2]}):
+        result = collector.collect_tier1_api_flyers(MOCK_INGREDIENTS)
+
+    assert len(matched) == 2, "todos os produtos extraídos devem passar por process_price_match"
+    assert len(result) == 2, "produtos sem image_url NÃO devem ser descartados — viram preços"

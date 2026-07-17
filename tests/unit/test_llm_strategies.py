@@ -295,6 +295,32 @@ def test_openrouter_rate_limit(mock_env):
     assert o.failure_count >= 1
 
 
+def test_openrouter_default_model_is_free_router(mock_env):
+    """Slug fixo (mixtral-8x7b) foi descontinuado e retorna 404; o default deve
+    ser o roteador `openrouter/free` (auto-seleciona modelo free disponivel)."""
+    from parsers.llm_strategies import OpenRouterStrategy
+
+    o = OpenRouterStrategy()
+    assert o.model == "openrouter/free"
+
+
+def test_openrouter_404_opens_circuit(mock_env):
+    """4xx persistente (ex.: 404 modelo inexistente) deve ABRIR o breaker para
+    nao martelar o endpoint a cada produto — o erro so se resolve corrigindo a
+    config, nao em retry. Regressao do scrape 29582782313 (OpenRouter 404 loop)."""
+    from parsers.llm_strategies import OpenRouterStrategy
+
+    o = OpenRouterStrategy()
+    mock = MagicMock()
+    mock.status_code = 404
+    mock.raise_for_status = MagicMock()
+    with patch("httpx.Client.post", return_value=mock):
+        result = o.classify("x", [{"canonical_name": "y"}])
+    assert result is None
+    # Breaker aberto → proxima chamada nem faz request (economiza a janela).
+    assert o.is_circuit_open()
+
+
 # ====================================================================
 # HuggingFaceStrategy
 # ====================================================================

@@ -77,6 +77,20 @@ class TestOpenRouterVisionStrategy:
             vision = OpenRouterVisionStrategy()
             assert vision.model == "google/gemma-4-26b-a4b-it:free"
 
+    def test_404_opens_circuit(self):
+        """4xx persistente (ex.: 404 modelo inexistente) deve ABRIR o breaker
+        para nao martelar o endpoint a cada imagem. Regressao scrape 29582782313."""
+        with patch.dict("os.environ", {"OPENROUTER_API_KEY": "o"}):
+            vision = OpenRouterVisionStrategy()
+        resp = MagicMock()
+        resp.status_code = 404
+        resp.raise_for_status = MagicMock()
+        with patch("parsers.vision_strategies.get_client") as gc:
+            gc.return_value.post.return_value = resp
+            result = vision.extract(b"\xff\xd8\xff\xe0fakejpeg")
+        assert result is None
+        assert not vision.is_available()
+
 
 class TestNvidiaVisionStrategy:
     def test_init_sets_api_key(self):

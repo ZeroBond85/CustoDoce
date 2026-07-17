@@ -186,6 +186,12 @@ class VisionStrategy(ABC):
                     logger.warning("[%s_vision] Server error: %d", self.provider_name, resp.status_code)
                     self.record_failure()
                     return None
+                if resp.status_code >= 400:
+                    # 4xx persistente (ex.: 404 modelo inexistente): abre o breaker
+                    # para nao martelar o endpoint a cada imagem — so config resolve.
+                    logger.warning("[%s_vision] Client error: %d — abrindo breaker", self.provider_name, resp.status_code)
+                    self.open_circuit()
+                    return None
                 resp.raise_for_status()
 
                 data = resp.json()

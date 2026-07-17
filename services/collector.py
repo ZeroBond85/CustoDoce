@@ -852,31 +852,34 @@ def collect_pao_flyers(ingredients: list[Ingredient]) -> list[PriceEntry]:
 
 
 def collect_tier1_api_flyers(ingredients: list[dict]) -> list[dict]:
+    """Coleta lojas api_flyer (Max/Roldão/Tenda) pelo pipeline de PREÇOS.
+
+    Estes scrapers extraem produtos (name+price) via vision-LLM a partir dos
+    encartes da API. Antes iam pelo pipeline de flyer-IMAGE (_collect_flyers),
+    que descarta silenciosamente qualquer entry sem ``image_url`` — perdendo
+    todos os produtos extraídos (ver regressão scrape 29582782313: Roldão
+    extraiu 120 produtos → 0 coletados). Agora cada loja roda via _collect_prices
+    (match + upsert), como Giga/Roldão flyer, garantindo que os produtos virem
+    preços persistidos.
+    """
     stores = [s for s in load_stores() if s.get("tier") == 1 and s.get("type") == "api_flyer"]
-    return _collect_flyers(stores, None, "API-Flyer", run_fn=_run_api_flyer_scraper)
-
-
-def _run_api_flyer_scraper(store: Store) -> list[dict]:
-    scraper_name = (store.get("scraper") or "").strip().lower()
-    if not scraper_name:
-        logger.warning("[%s] No scraper configured", store.get("name", "unknown"))
+    if not stores:
         return []
-    cls = API_SCRAPER_MAP.get(scraper_name)
-    if cls is None:
-        logger.warning("[%s] No API scraper class found for '%s'", store.get("name", "unknown"), scraper_name)
-        return []
-    store_name = store.get("name", "unknown")
-    region = store.get("city", store.get("zone", ""))
-    with cls(store) as scraper:
-        entries = scraper.run([])
-    for entry in entries:
-        if "store_name" not in entry:
-            entry["store_name"] = store_name
-        if "region" not in entry:
-            entry["region"] = region
-        if "source" not in entry:
-            entry["source"] = f"api_{scraper_name}"
-    return entries
+    # Agrupa por classe de scraper resolvida (cada loja pode usar Max/Roldão/Tenda).
+    by_cls: dict[type, list[Store]] = {}
+    for s in stores:
+        scraper_name = (s.get("scraper") or "").strip().lower()
+        cls = API_SCRAPER_MAP.get(scraper_name)
+        if cls is None:
+            logger.warning("[%s] No API scraper class found for '%s'", s.get("name", "unknown"), scraper_name)
+            continue
+        by_cls.setdefault(cls, []).append(s)
+
+    all_products: list[dict] = []
+    for cls, cls_stores in by_cls.items():
+        timeout = int(cls_stores[0].get("vision_timeout_seconds", 300))
+        all_products.extend(_collect_prices(cls_stores, cls, ingredients, "API-Flyer", store_timeout=timeout))
+    return all_products
 
 
 def collect_tier2_vtex(ingredients: list[Ingredient]) -> list[PriceEntry]:

@@ -692,9 +692,9 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 
 ### 79. Pre-commit quebra se `python3` no PATH estiver corrompido
 
-- **Sintoma/causa**: commits sumiam (exit 1 sem msg) porque o hook resolvia `C:/Users/ericsf/bin/python3.exe` corrompido; `set -euo pipefail` abortava ao rodar `agents_tool.py --check`.
-- **Correção**: `.githooks/pre-commit` usa `_detect_python()` que valida o interpreter (`import sys`) antes de usá-lo, preferindo `.venv314/Scripts/python.exe`.
+- **Sintoma/causa/correção**: commits sumiam (exit 1 sem msg) porque o hook resolvia `python3.exe` corrompido e `set -euo pipefail` abortava em `agents_tool.py --check`. Fix: `.githooks/pre-commit` usa `_detect_python()` que valida o interpreter (`import sys`) e prefere `.venv314/Scripts/python.exe`.
 ### 80. Push no Windows quebra (gh FileNotFound + sync_docs suja tree); RAIZ = WSL
-
 - **Sintoma/causa**: `git_push.py` quebrava no pre-push com `FileNotFoundError: gh` (Python sem PATH do Git Bash). O pre-push também roda `sync_docs --sync`, re-gera `docs/api/*.md`+`docs/skills.md` e suja a tree → Git barra o push. E commits com `[skip ci]` faziam o GitHub pular o `ci.yml` inteiro (falso verde).
 - **Correção (RAIZ)**: `git_push.py` injeta `_ensure_bin_path()` (Git Bash + GitHub CLI + dir do Python) antes de qualquer subprocesso; `_run()` retorna exit 127 em `FileNotFoundError`. Push completo é **obrigatório em WSL**; Windows `--no-verify` é emergência + `gh workflow run 'CI - Testes e Qualidade' --ref master` p/ disparar CI manualmente. **NUNCA `[skip ci]`** em código. Ver `REGRAS.md` §Pre-push.
+### 82. Scrape full expôs bugs reais (guard funcionou): api_flyer perdia produtos + OpenRouter 404 loop
+- **Sintoma/causa/correção**: scrape `force=true` (run 29582782313) falhou Tier 1 — Roldão extraiu 120 mas `collection_done total=1`; OpenRouter `404` repetido; Giga 78→1 matched (guard PEGOU, não falso positivo). RAIZ (1): `collect_tier1_api_flyers` roteava produtos vision (name+price sem `image_url`) pelo pipeline flyer-IMAGE (`_collect_flyers`) que descarta sem `image_url` → 120 viravam 0; fix: rotear por `_collect_prices` (match+upsert). RAIZ (2): modelo OpenRouter `mixtral-8x7b-instruct` descontinuado → 404 por produto sem abrir breaker; fix: default `openrouter/free` + abrir breaker em 4xx persistente (text+vision). Testes: `test_collector_helpers`, `test_llm_strategies`, `test_vision_strategies`.
