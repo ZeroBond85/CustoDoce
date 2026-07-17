@@ -713,3 +713,11 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Correção (RAIZ)**: o push com validação completa é **obrigatório em WSL** (`custodoce-314`), onde o pre-push roda limpo e commita/valida corretamente. No Windows, `--no-verify` é apenas emergência (CI assume a validação). Se o hook sujar a tree no Windows, commitar as mudanças de `docs/` geradas separadamente (são docstrings auto-geradas, não código). Nunca tratar o Windows como ambiente de push de rotina.
 - **Regra**: `REGRAS.md` §Pre-push agora é mandatória: push real = WSL. Windows = `--no-verify` emergencial apenas.
 - **Teste**: manual — push em WSL passa pre-push sem sujar tree; push Windows com `--no-verify` requer commit posterior dos `docs/` gerados.
+
+### 82. `[skip ci]` na mensagem de commit SILENCIA o CI (falso verde)
+
+- **Data + commit**: 2026-07-17
+- **Sintoma/causa**: vários commits de correção foram pushados com `[skip ci]` na mensagem. O GitHub Actions **pula o workflow inteiro** quando o commit contém `[skip ci]`/`[ci skip]` — então o `ci.yml` NÃO disparou em nenhum dos pushes (5e7acdc, c46b84a, 6c12977, d77fccb), mesmo mexendo em `services/`, `scripts/`, `.github/workflows/`. O CI parecia "verde" mas na verdade não rodou = falso verde perigoso.
+- **Correção (RAIZ)**: **NUNCA usar `[skip ci]`** em commits de código que precisem de validação. `[skip ci]` só é aceitável em commits puramente documentais que não alteram comportamento (e mesmo assim, prefira deixar o CI rodar). Para forçar o CI a validar código já no remote, basta um novo push cuja mensagem NÃO contenha `[skip ci]`.
+- **Regra**: commits de código/lógica/infra DEVEM rodar CI. Se o CI estiver vermelho, corrigir a causa — não silenciar com `[skip ci]`.
+- **Teste**: manual — push sem `[skip ci]` em `d77fccb` (após remover a tag) dispara o `ci.yml` e valida o código.
