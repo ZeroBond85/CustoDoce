@@ -213,9 +213,9 @@ jobs:
       - name: Evaluate matcher against golden dataset
         env:
           CI_JOB_START: ${{ env.CI_JOB_START }}
-          EVAL_PRECISION_MIN: '0.90'
-          EVAL_RECALL_MIN: '0.84'
-          EVAL_F1_MIN: '0.87'
+          EVAL_PRECISION_MIN: '0.95'
+          EVAL_RECALL_MIN: '0.95'
+          EVAL_F1_MIN: '0.95'
         run: python scripts/evaluate_matcher.py --check
       - name: Check time budget for matcher-eval
         run: python scripts/check_time_budget.py --timeout-minutes 5 --label "matcher-eval"

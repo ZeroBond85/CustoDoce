@@ -128,3 +128,43 @@ def test_extract_all_keywords_empty():
     from parsers.matcher import extract_all_keywords
 
     assert extract_all_keywords([]) == set()
+
+
+# ====================================================================
+# Regressão: FPs de variante corrigidos via dados (ingredients.yaml)
+# ====================================================================
+
+
+@pytest.fixture(scope="module")
+def real_ingredients():
+    from scripts.evaluate_matcher import load_ingredients
+
+    return load_ingredients()
+
+
+def test_granulado_colorido_nao_casa_ao_leite(real_ingredients):
+    """'Granulado Colorido' não pode casar 'Granulado Ao Leite'.
+
+    Antes, o search_term genérico 'granulado' em 'Ao Leite' capturava qualquer
+    granulado via match exato. Corrigido especializando para 'granulado ao leite'.
+    """
+    result, _score, _mt = match_ingredient("Granulado Colorido", real_ingredients)
+    assert result is not None
+    assert result["canonical_name"] == "Granulado Colorido"
+
+
+def test_creme_de_leite_nestle_casa_variante_correta(real_ingredients):
+    """'Creme de Leite Nestlé' casa 'Creme de Leite 20% Gordura' (Nestlé é marca dele)."""
+    result, _score, _mt = match_ingredient("Creme de Leite Nestlé", real_ingredients)
+    assert result is not None
+    assert result["canonical_name"] == "Creme de Leite 20% Gordura"
+
+
+def test_chocolate_cremoso_rejeitado_por_exclude_terms(real_ingredients):
+    """'Chocolate Leite Cremoso' (barra) não é chocolate em pó → deve ser rejeitado.
+
+    Regressão do exclude_terms aplicado em match_ingredient: 'cremoso' está na
+    exclude_terms de 'Chocolate em Pó 50% Cacau'.
+    """
+    result, _score, _mt = match_ingredient("Chocolate Leite Cremoso 500g", real_ingredients)
+    assert result is None

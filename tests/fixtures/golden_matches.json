@@ -226,6 +226,7 @@
   },
   {
     "canonical_name": "Creme de Leite Nestl\u00e9",
+    "expected_ingredient": "Creme de Leite 20% Gordura",
     "expected_match_type": "exato",
     "expected_brand": "Nestl\u00e9"
   }

@@ -48,11 +48,16 @@ def test_first_five_golden_cases(case_idx, ingredients):
 
 
 def test_baseline_metrics_meet_thresholds(ingredients):
-    """Verify the current matcher meets minimum thresholds on the golden set."""
+    """Verify the current matcher meets minimum thresholds on the golden set.
+
+    O matcher offline (rapidfuzz + exact + exclude_terms) atinge P/R/F1 = 100%
+    no golden atual. Os pisos abaixo travam a qualidade com margem de segurança
+    para não quebrar em ajustes menores de dados, mas detectam regressões reais.
+    """
     from scripts.evaluate_matcher import evaluate
 
     report = evaluate(check=False, json_output=False)
-    assert report["precision"] >= 0.85
-    assert report["recall"] >= 0.80
-    assert report["f1"] >= 0.82
-    assert report["accuracy"] >= 0.84
+    assert report["precision"] >= 0.95
+    assert report["recall"] >= 0.95
+    assert report["f1"] >= 0.95
+    assert report["accuracy"] >= 0.95

@@ -10,9 +10,9 @@ Usage:
     python scripts/evaluate_matcher.py --json             # JSON output (for CI)
 
 Thresholds (override via env):
-    EVAL_PRECISION_MIN=0.90
-    EVAL_RECALL_MIN=0.84
-    EVAL_F1_MIN=0.87
+    EVAL_PRECISION_MIN=0.95
+    EVAL_RECALL_MIN=0.95
+    EVAL_F1_MIN=0.95
 """
 
 from __future__ import annotations
@@ -61,7 +61,11 @@ def evaluate(check: bool = False, json_output: bool = False) -> dict:
 
     for case in golden:
         product = case["canonical_name"]
-        expected = case.get("expected_ingredient") or case.get("canonical_name")
+        # Um caso é NEGATIVO (não deve casar) quando a chave 'expected_ingredient'
+        # está presente e é None. Caso contrário, o alvo é 'expected_ingredient'
+        # (se preenchido) ou o próprio 'canonical_name'. Usar `or` aqui trataria
+        # negativos explícitos como positivos, inflando os FN artificialmente.
+        expected = case["expected_ingredient"] if "expected_ingredient" in case else case.get("canonical_name")
         expected_type = case.get("expected_match_type")
 
         result, score, match_type = match_ingredient(product, ingredients)
@@ -96,7 +100,7 @@ def evaluate(check: bool = False, json_output: bool = False) -> dict:
             "type_correct": type_correct,
         })
 
-    pos = sum(1 for c in golden if c.get("expected_ingredient") or c.get("canonical_name"))
+    pos = sum(1 for c in golden if not ("expected_ingredient" in c and c["expected_ingredient"] is None))
     neg = total - pos
 
     precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
@@ -157,9 +161,9 @@ def _print_report(report: dict):
 
 
 def _check_thresholds(report: dict):
-    p_min = float(os.environ.get("EVAL_PRECISION_MIN", "0.90"))
-    r_min = float(os.environ.get("EVAL_RECALL_MIN", "0.84"))
-    f1_min = float(os.environ.get("EVAL_F1_MIN", "0.87"))
+    p_min = float(os.environ.get("EVAL_PRECISION_MIN", "0.95"))
+    r_min = float(os.environ.get("EVAL_RECALL_MIN", "0.95"))
+    f1_min = float(os.environ.get("EVAL_F1_MIN", "0.95"))
 
     errors = []
     if report["precision"] < p_min:

@@ -32,7 +32,7 @@ ingredients:
       - "Chocolate em Pó 1kg"
       - "Cacau em Pó 50% 1kg"
       - "CHOCOLATE PO 50%"
-    exclude_terms: ["achocolatado", "bebida", "preparado"]
+    exclude_terms: ["achocolatado", "bebida", "preparado", "cremoso", "barra"]
 
   - canonical: "Leite em Pó Integral"
     category: "lacteos"
@@ -49,7 +49,7 @@ ingredients:
   - canonical: "Granulado Ao Leite"
     category: "confeitos"
     brands: ["Melken"]
-    search_terms: ["granulado", "granulado leite"]
+    search_terms: ["granulado ao leite", "granulado leite"]
     aliases:
       - "Granulado Ao Leite Melken"
       - "Granulado Leite 500g"

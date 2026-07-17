@@ -116,6 +116,26 @@ def test_groq_429_opens_circuit(mock_env):
     assert g._consecutive_openings >= 1
 
 
+def test_groq_open_circuit_skips_http_call(mock_env):
+    """Regressão: com o breaker ABERTO, classify deve pular a chamada HTTP.
+
+    Antes, o check `is_circuit_open()` estava em dead code (após um return no
+    bloco de api_key), então o breaker aberto era ignorado e o Groq batia na
+    API tomando 429 repetidos. Este teste garante que a chamada é pulada.
+    """
+    from parsers.llm_strategies import GroqStrategy
+
+    g = GroqStrategy()
+    g.open_circuit()  # força breaker aberto
+    assert g.is_circuit_open() is True
+
+    with patch("httpx.Client.post") as mock_post:
+        result = g.classify("anything", [{"canonical_name": "x"}])
+
+    assert result is None
+    mock_post.assert_not_called()
+
+
 def test_record_success_resets_counter(mock_env):
     from parsers.llm_strategies import GroqStrategy
 

@@ -174,12 +174,12 @@ class GroqStrategy(LLMStrategy):
         if not self.api_key:
             logger.debug("groq_skipped_no_api_key")
             return None
-            if self.is_circuit_open():
-                # Breaker aberto (provider limitado/indisponível): pulamos e cedemos
-                # ao próximo da cadeia. É comportamento normal de degradação
-                # graceful, não erro — logado em debug para não poluir o scrape.
-                logger.debug("groq_circuit_open")
-                return None
+        if self.is_circuit_open():
+            # Breaker aberto (provider limitado/indisponível): pulamos e cedemos
+            # ao próximo da cadeia. É comportamento normal de degradação
+            # graceful, não erro — logado em debug para não poluir o scrape.
+            logger.debug("groq_circuit_open")
+            return None
 
         candidates_str = "\n".join(
             f"- {c.get('canonical_name', '?')} (aliases: {', '.join(c.get('aliases', []))})" for c in candidates

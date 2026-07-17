@@ -94,6 +94,12 @@ def match_ingredient(
     match_type = "none"
 
     for ing in ingredients:
+        # Respeita exclude_terms: se o produto contém um termo excluído deste
+        # ingrediente, ele não pode casar (alinha o matcher com o comportamento
+        # do collector, evitando FPs como "Chocolate Cremoso" -> "Chocolate em Pó").
+        if has_excluded_terms(product_text, ing):
+            continue
+
         # exact match first
         if match_exact(product_text, ing):
             return ing, 100.0, "exato"
