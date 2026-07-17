@@ -704,3 +704,12 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Correção (RAIZ, não esconde)**: `scripts/git_push.py` agora injeta `_ensure_bin_path()` no `main()` — adiciona os caminhos conhecidos de `git`/`gh` ao `os.environ["PATH"]` ANTES de disparar qualquer subprocesso. O pre-push hook (filho do `git push`) herda o env corrigido. `_run()` também captura `FileNotFoundError` e retorna exit 127 com mensagem explícita (nunca silencia ferramenta ausente).
 - **Regra**: SEMPRE rodar `git_push.py` (ou qualquer script que dispare `git push`/`gh`) com PATH incluindo `C:\Program Files\GitHub CLI` e `C:\Program Files\Git\bin`. Se `gh` der FileNotFound, é problema de ambiente — corrigir o PATH, NÃO usar `--no-verify` nem `git push` direto para contornar.
 - **Teste**: manual — `git_push.py` encontra `gh` mesmo com PATH mínimo do cmd.exe.
+- **Correção complementar (RAIZ)**: o push real com validação completa (pre-commit + pre-push) é **obrigatório em WSL** (`custodoce-314`), não no Windows. No Windows o pre-push deixa a tree dirty (auto-fix de docstrings) e barra o push de forma falsa. Ver `REGRAS.md` §Pre-push.
+
+### 81. Push no Windows suja a working tree (sync_docs auto-fix) e barra o push
+
+- **Data + commit**: 2026-07-17
+- **Sintoma/causa**: ao rodar `git push` (via `git_push.py`) no Windows, o pre-push hook executa `sync_docs --sync`, re-gera docstrings em `docs/api/*.md` + `docs/skills.md` e deixa a working tree dirty. O Git então barra o push ("Commit ou descarte antes de fazer push"). O `git_push.py` não commita essas mudanças geradas → loop: push sempre falha no Windows.
+- **Correção (RAIZ)**: o push com validação completa é **obrigatório em WSL** (`custodoce-314`), onde o pre-push roda limpo e commita/valida corretamente. No Windows, `--no-verify` é apenas emergência (CI assume a validação). Se o hook sujar a tree no Windows, commitar as mudanças de `docs/` geradas separadamente (são docstrings auto-geradas, não código). Nunca tratar o Windows como ambiente de push de rotina.
+- **Regra**: `REGRAS.md` §Pre-push agora é mandatória: push real = WSL. Windows = `--no-verify` emergencial apenas.
+- **Teste**: manual — push em WSL passa pre-push sem sujar tree; push Windows com `--no-verify` requer commit posterior dos `docs/` gerados.

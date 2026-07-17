@@ -2,7 +2,7 @@
 
 > **~340 linhas vivo.** Lições → `LESSONS.md`. Regras infra → `REGRAS.md`.
 
-## Regras Mandatórias (Top 10)
+## Regras Mandatórias (Top)
 
 1. **Schema contracts**: `config/agents_schema.yaml` define o que entra aqui. CI valida.
 2. **Mocks derivam do schema manifest**: `config/schema_manifest.json` (gerado offline do SQL) é a fonte única. Mocks em `tests/unit/fixtures/mock_data.py` devem passar 97 checks (nomes, types, not_null, defaults, FKs, enums, jsonb). CI valida em todo PR no job `lint`.
@@ -27,7 +27,7 @@
 12. **Monitoração Total do CI**: O acompanhamento do push deve ir até o status FINAL (success/failure). Em shells com timeout, o uso de polling (consultas repetidas ao `gh run view`) é a estratégia mandatória para evitar interrupções prematuras.
 13. **Sessões isoladas em branches dedicadas**: Cada sessão de trabalho (feature/fix/chore) roda em sua própria branch a partir de `master` limpo. Nunca misturar state de múltiplas sessões no mesmo working tree. Antes de começar: `git checkout master && git pull && git checkout -b feature/<escopo>`. Working tree sujo = stashear para branch `wip/<contexto>` ou commitar antes. CI verde em master é contrato. Para PR: rebase + squash merge. Detalhes em `REGRAS.md` §Branches.
 14. **Line endings — Windows `autocrlf=true`, WSL `false/input`**: `core.autocrlf=true` no Windows é OBRIGATÓRIO (Git converte CRLF→LF no staging silenciosamente). No WSL/Linux, `false` ou `input`. `.gitattributes` com `eol=lf` por tipo de arquivo é a fonte da verdade. O script `scripts/check_line_endings_config.py` valida a configuração correta por plataforma e roda no pre-push. CRLF auto-fix em hooks é PROIBIDO — a correção raiz é configurar o Git, não tratar sintoma. (Ver `LESSONS.md` #49)
-15. **`git_push.py` exige `gh`/`git` no PATH (correção de RAIZ)**: O `git push` dispara o pre-push hook que chama `gh` — se o PATH do processo Python (herdado do cmd.exe/PowerShell) não trouxer `C:\Program Files\GitHub CLI` e `C:\Program Files\Git\bin`, o hook falha com `FileNotFoundError` (push aborta FALSAMENTE). O `scripts/git_push.py` injeta esses caminhos via `_ensure_bin_path()` antes de qualquer subprocesso. Se `gh` der `FileNotFound`, é problema de AMBIENTE — corrigir o PATH, **NUNCA** usar `--no-verify` ou `git push` direto para contornar. (Ver `LESSONS.md` #80)
+15. **Push real OBRIGATÓRIO em WSL (não no Windows)**: O pre-push hook roda `sync_docs --sync` que importa todo o projeto e re-gera docstrings (`docs/api/*.md`), sujando a working tree no Windows e barrando o push de forma falsa. **O push com validação completa (pre-commit + pre-push) deve ser feito em WSL (`custodoce-314`)** — ambiente canônico. No Windows, `--no-verify` é apenas emergência (CI assume a validação). Se o hook sujar a tree no Windows, commitar as mudanças de `docs/` geradas separadamente. O `scripts/git_push.py` injeta `gh`/`git` no PATH (`_ensure_bin_path()`) para evitar `FileNotFoundError` falso — mas isso não substitui o fluxo WSL. (Ver `LESSONS.md` #80, #81 e `REGRAS.md` §Pre-push)
 
 ## Sobre
 
@@ -197,7 +197,7 @@ ruff check . && python -m mypy . && python -m pytest tests/unit/ tests/schema/ -
 python scripts/agents_tool.py --check      # Valida schema
 python scripts/agents_tool.py --full       # Validação completa
 python scripts/agents_tool.py --status     # Estado atual
-python scripts/agents_tool.py --add-rule   # Adicionar regra top 10
+python scripts/agents_tool.py --add-rule   # Adicionar regra mandatória
 python scripts/agents_tool.py --add-lesson # Adicionar lição
 
 # Push + CI Watch (recomendado, substitui git push)

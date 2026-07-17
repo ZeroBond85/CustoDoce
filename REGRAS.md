@@ -119,9 +119,13 @@ Checks (rodam em paralelo via ThreadPoolExecutor, exceto os sequenciais 1 e 2):
 
 **Nota**: `sync_docs` roda **apenas** no pre-push (versão rigorosa `--check --strict` + auto-fix). O `ci_local.py` **não** roda mais docs-sync (evita duplicação de "2 docs sync"). Para checar manualmente: `python scripts/sync_docs.py --check --strict`.
 
-**⚠️ Windows**: O pre-push **não funciona completamente** no Windows porque `sync_docs.py` importa todo o projeto (exige todas as deps instaladas). No Windows, use `git push --no-verify` ou `git pw` (que aceita falha do pre-push e continua). O ambiente canônico para push com validação completa é **WSL** (`custodoce-314`).
+**🚫 Windows — push NUNCA deve ser rotina aqui**: O pre-push **não funciona completamente** no Windows porque `sync_docs.py` importa todo o projeto (exige todas as deps instaladas) e deixa a working tree dirty (auto-fix de docstrings), barrando o push de forma falsa. **O push com validação completa (pre-commit + pre-push) é OBRIGATÓRIO em WSL (`custodoce-314`)** — este é o ambiente canônico e a ÚNICA via correta para push de verdade.
 
-**⚠️ PATH de `gh`/`git` no Windows**: O `pre-push` chama `gh run list`. Se o processo Python que disparou o `git push` (ex.: `python scripts/git_push.py` rodado do cmd.exe) não trouxer `C:\Program Files\GitHub CLI` e `C:\Program Files\Git\bin` no PATH, o hook falha com `FileNotFoundError` e o push aborta **FALSAMENTE**. `scripts/git_push.py` injeta esses caminhos via `_ensure_bin_path()` ANTES do `git push`. Se `gh` der `FileNotFound`, é problema de **AMBIENTE** (corrigir PATH), nunca contornar com `--no-verify`. (Ver `LESSONS.md` #80)
+- **Regra mandatória**: Para qualquer push real, usar **WSL** (`custodoce-314`): `git add . && git commit` (hooks passam) e `python scripts/git_push.py` (PATH de `gh`/`git` já vem do bash do WSL). Nunca tratar o Windows como ambiente de push.
+- **Exceção (apenas emergência, nunca rotina)**: Se for estritamente necessário pushar do Windows, usar `git push --no-verify` (a regra documentada) — mas o pre-commit/pre-push NÃO rodou, então a validação fica a cargo do CI. Isso NÃO substitui o fluxo WSL.
+- **`sync_docs` auto-fix no Windows**: se o hook modificar `docs/api/*` e sujar a tree, commitar essas mudanças geradas separadamente (não são do código) — elas são docstrings auto-geradas, não contorno.
+
+**⚠️ PATH de `gh`/`git` no WSL**: Em WSL o PATH do bash já traz `gh`/`git`. No Windows (apenas emergência), `scripts/git_push.py` injeta `C:\Program Files\GitHub CLI` + `C:\Program Files\Git\bin` via `_ensure_bin_path()` ANTES do `git push` para evitar `FileNotFoundError` falso. Se `gh` der `FileNotFound`, é problema de **AMBIENTE** (corrigir PATH), nunca contornar com `--no-verify` para esconder erro. (Ver `LESSONS.md` #80)
 
 **Otimização (Fase 1)**: checks independentes rodam em paralelo; wall-time ≈ max(ci_local, demais) em vez de soma. `audit_secrets` escopado a commits outgoing. Rede (`gh`, `pip-audit`) tem timeout.
 
