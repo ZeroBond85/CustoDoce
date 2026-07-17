@@ -15,59 +15,41 @@
 
 set -euo pipefail
 
-STAGED=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null || true)
+# Python/git NATIVO do WSL (definidos cedo; usados em todo o hook).
+# Robustez máxima: não dependem de conda, .venv314 nem PATH do Windows.
+PY="/usr/bin/python3"
+GIT="/usr/bin/git"
 
-# Detect Python interpreter (compartilhado entre layers 2, 2.5 e 5)
-# Valida que o python ENCONTRADO realmente funciona (evita python3.exe
-# corrompido que quebra o hook com DLL faltando). Prefere .venv314.
-_detect_python() {
-  for cand in "$@"; do
-    if command -v "$cand" &>/dev/null; then
-      if "$cand" -c "import sys; sys.exit(0)" &>/dev/null 2>&1; then
-        echo "$cand"
-        return 0
-      fi
-    fi
-  done
-  echo ""
-  return 1
-}
+STAGED=$("$GIT" diff --cached --name-only --diff-filter=ACM 2>/dev/null || true)
 
 # ----------------------------------------------------------------
-# DETECÇÃO DE AMBIENTE (WSL vs Windows nativo)
-# Objetivo: usar SEMPRE o Python/git NATIVO do WSL quando no WSL,
-# de forma que o hook continue funcionando mesmo se o ambiente
-# conda/.venv314 "morrer" ou o projeto for movido. O Python nativo
-# do WSL (/usr/bin/python3) é o do próprio sistema e não depende
-# de instalação de projeto.
+# AMBIENTE OBRIGATÓRIO: WSL com Python/git NATIVO do sistema.
+# O projeto exige que o commit/push rode no WSL (regra 15 do AGENTS.md).
+# Se não for WSL, o hook FAILA claramente — não tenta Windows Python
+# (evita o erro WinError 2 e garante paridade total de ambiente).
+# O Python nativo do WSL (/usr/bin/python3) é do próprio sistema e
+# continua funcionando mesmo se o conda/.venv314 "morrer".
 # ----------------------------------------------------------------
 _IS_WSL=0
 if [ -f /proc/sys/kernel/osrelease ] && grep -qi "microsoft\|wsl" /proc/sys/kernel/osrelease 2>/dev/null; then
   _IS_WSL=1
 fi
 
-if [ "$_IS_WSL" -eq "1" ]; then
-  # WSL: força Python/git NATIVO do sistema (robustez máxima).
-  # Não depende de conda, .venv314, nem do PATH do Windows.
-  PY="/usr/bin/python3"
-  GIT="/usr/bin/git"
-  PY_IMP="$PY"
-else
-  # Windows nativo ou outro POSIX: mantém lógica original.
-  PY=$(_detect_python ".venv314/Scripts/python.exe" ".venv314/Scripts/python" "python3" "python" "" 2>/dev/null || true)
-  if [ -z "$PY" ]; then
-    if command -v python3 &>/dev/null; then
-      PY=python3
-    elif command -v python &>/dev/null; then
-      PY=python
-    else
-      PY=""
-    fi
-  fi
-  # GIT para Windows também usa o do PATH (git instalado no Windows).
-  GIT="$(command -v git 2>/dev/null || echo "git")"
-  PY_IMP="$PY"
+if [ "$_IS_WSL" -ne "1" ]; then
+  echo ""
+  echo "🚫 COMMIT BLOQUEADO: este hook deve rodar APENAS no WSL (Linux)."
+  echo ""
+  echo "O projeto exige paridade total de ambiente (AGENTS.md regra 15)."
+  echo "No Windows use WSL para commitar/pushar:"
+  echo "  wsl.exe -e bash -c 'cd /mnt/c/Zerobond/Code/CustoDoce && git ...'"
+  echo ""
+  echo "Se voce esta no WSL mas isto aparece, verifique /proc/sys/kernel/osrelease."
+  echo ""
+  exit 1
 fi
+
+# WSL confirmado: usa Python/git nativo definido no topo do hook.
+PY_IMP="$PY"
 
 # ----------------------------------------------------------------
 # 1. SECRET GUARD - bloqueante (chave em staged => catastrofe publica)
@@ -75,7 +57,7 @@ fi
 if [ -n "${STAGED:-}" ]; then
   PATTERN='sk-(proj-)?[A-Za-z0-9_-]{20,}|sk-ant-[A-Za-z0-9_-]{20,}|gsk_[A-Za-z0-9]{20,}|sk-or-v1-[A-Za-f0-9]{40,}|hf_[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{35,}|gh[pousr]_[A-Za-z0-9]{36,}|xox[abpr]-[0-9A-Za-z-]{10,}|sk_(live|test)_[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|"type": *"service_account"|nvapi-[A-Za-z0-9_-]{20,}'
 
-  HITS=$(git diff --cached -U0 -S "$PATTERN" --pickaxe-regex 2>/dev/null \
+  HITS=$("$GIT" diff --cached -U0 -S "$PATTERN" --pickaxe-regex 2>/dev/null \
     | grep -E '^\+[^+]' \
     | grep -E "$PATTERN" \
     | grep -vE '^\+\+\+' \
@@ -104,15 +86,7 @@ fi
 # 1.5. GITIGNORE IMPORTS GUARD - bloqueia se importa arquivo gitignored
 # ----------------------------------------------------------------
 if [ -n "${STAGED:-}" ]; then
-  if [ -n "$PY" ]; then
-    PY_IMP=$PY
-  elif command -v python3 &>/dev/null; then
-    PY_IMP=python3
-  elif command -v python &>/dev/null; then
-    PY_IMP=python
-  else
-    PY_IMP=""
-  fi
+  # PY_IMP ja aponta para o Python nativo do WSL (definido no topo).
   if [ -n "$PY_IMP" ] && [ -f "scripts/check_gitignore_imports.py" ]; then
     if ! "$PY_IMP" scripts/check_gitignore_imports.py; then
       exit 1
