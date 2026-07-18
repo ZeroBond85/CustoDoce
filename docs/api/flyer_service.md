@@ -1,6 +1,6 @@
 # `flyer_service` — API
 
-> Última atualização: 2026-07-18 18:52 UTC
+> Última atualização: 2026-07-18 19:50 UTC
 > Gerado por AST parsing dos serviços em `services/flyer_service.py`.
 
 ## Funções Públicas (9)
