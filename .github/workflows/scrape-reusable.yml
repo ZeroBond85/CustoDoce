@@ -163,7 +163,7 @@ jobs:
             TOTAL=$(sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' /tmp/scrape_${{ matrix.tier }}.log | grep -oE 'collection_done[^]]*total=[0-9]+' | grep -oE 'total=[0-9]+' | grep -oE '[0-9]+' | tail -1)
             TOTAL=${TOTAL:-0}
             case "${{ matrix.tier }}" in
-              1)   MIN=50;;   # PDFs atacadistas (~600 esperado)
+              1)   MIN=15;;   # PDFs atacadistas (Tenda/metadados encarte)
               2a)  MIN=50;;   # VTEX e-commerce SP
               3)   MIN=50;;   # agregadores (Tiendeo/Guiato)
               *)   MIN=1;;

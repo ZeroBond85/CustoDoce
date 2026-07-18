@@ -49,8 +49,7 @@ class TestSearchPerformance:
             pytest.skip("Tabela prices vazia")
 
         test_ing_id = res.data[0]["ingredient_id"]
-        # search_prices expects the ingredient_id (it filters prices.ingredient_id);
-        # passing the canonical name would hit PostgREST with an invalid uuid.
+        # prices.ingredient_id is text (canonical name), not uuid — OK to pass directly
         start = time.perf_counter()
         results = price_service.search_prices(test_ing_id, sort_by="price_per_kg", limit=50)
         elapsed_ms = (time.perf_counter() - start) * 1000
