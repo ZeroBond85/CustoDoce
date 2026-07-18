@@ -943,32 +943,11 @@ $$;
 -- ============================================================
 -- PHASE 17: RPC functions for REST API (port 443) deployment
 -- ============================================================
-
--- 1. exec_sql — executes DDL/any SQL (returns void)
-CREATE OR REPLACE FUNCTION exec_sql(sql text)
-RETURNS void
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-    EXECUTE sql;
-END;
-$$;
-
--- 2. exec_sql_query — executes SELECT and returns JSON array
--- Used by tests/conftest.py _SchemaCursor via REST API (porta 443)
-CREATE OR REPLACE FUNCTION exec_sql_query(sql text)
-RETURNS JSON
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-    result JSON;
-BEGIN
-    EXECUTE format('SELECT COALESCE(json_agg(row_to_json(d)), ''[]''::json) FROM (%s) d', sql) INTO result;
-    RETURN result;
-END;
-$$;
+-- NOTE: exec_sql / exec_sql_query / upsert_price_rpc are intentionally
+-- NOT defined here in their insecure form. They are created securely in
+-- PHASE 23 (with SET search_path + REVOKE PUBLIC/anon/authenticated) to
+-- avoid a window where an un-hardened SECURITY DEFINER exec function exists
+-- if the migration is applied only up to this phase. [security audit F-04]
 
 -- 3. cleanup_old_logs — TTL for scraping_logs
 CREATE OR REPLACE FUNCTION cleanup_old_logs(retention_days int DEFAULT 30)

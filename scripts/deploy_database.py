@@ -685,6 +685,14 @@ CREATE INDEX IF NOT EXISTS idx_flyers_store_active ON flyers(store_name, is_acti
         gen.append("-- ============================================================")
         gen.append(scrape_freq_unique_path.read_text(encoding="utf-8"))
 
+    # ─── PHASE 26: RLS on scrape_requests (011_scrape_requests_rls.sql) ──
+    scrape_rls_path = REPO_ROOT / "supabase" / "011_scrape_requests_rls.sql"
+    if scrape_rls_path.exists():
+        gen.append("\n-- ============================================================")
+        gen.append("-- PHASE 26: RLS on scrape_requests (011_scrape_requests_rls.sql) [security audit F-01]")
+        gen.append("-- ============================================================")
+        gen.append(scrape_rls_path.read_text(encoding="utf-8"))
+
     return "\n".join(gen)
 
 
@@ -758,6 +766,12 @@ def main():
     parser.add_argument("--execute", action="store_true", help="Execute SQL on Supabase")
     parser.add_argument("--dry-run", action="store_true", help="Print SQL plan without executing")
     parser.add_argument("--output", type=str, help="Write consolidated SQL to file")
+    parser.add_argument(
+        "--allow-psycopg2",
+        action="store_true",
+        help="Legacy: allow direct psycopg2 connect on port 5432/6543. "
+        "Disabled by default (AGENTS.md rule #4 prefers RPC port 443).",
+    )
     args = parser.parse_args()
 
     sql = generate_consolidated()
@@ -786,32 +800,39 @@ def main():
 
     if args.execute:
         print("Executing migrations on Supabase...")
-        import psycopg2
-
+        # AGENTS.md rule #4: NUNCA psycopg2 (porta 5432/6543 bloqueada no CI).
+        # Primary path is the REST API via exec_sql RPC (port 443). The psycopg2
+        # direct-connect path is legacy and MUST be explicitly opted-in.
         url = os.environ.get("SUPABASE_URL", "")
         if not url:
             print("ERROR: SUPABASE_URL not set")
             sys.exit(1)
-        proj = url.split("//")[1].split(".")[0]
-        pwd = os.environ.get("SUPABASE_DB_PASSWORD", "")
-        if not pwd:
-            print("ERROR: SUPABASE_DB_PASSWORD not set (use .env)")
-            sys.exit(1)
 
+        used_rpc = False
         conn = None
-        for host, port, user in [
-            (f"db.{proj}.supabase.co", 5432, "postgres"),
-            ("aws-0-us-west-1.pooler.supabase.com", 6543, f"postgres.{proj}"),
-        ]:
-            try:
-                conn = psycopg2.connect(
-                    host=host, dbname="postgres", user=user, password=pwd, port=port, connect_timeout=10
-                )
-                print(f"  Connected to {host}:{port}")
-                break
-            except Exception as e:
-                print(f"  Tried {host}:{port} — {e}")
-                continue
+        if args.allow_psycopg2:
+            print("WARNING: --allow-psycopg2 enabled (direct port 5432/6543). "
+                  "Prefer RPC port 443 per AGENTS.md rule #4.")
+            import psycopg2
+
+            proj = url.split("//")[1].split(".")[0]
+            pwd = os.environ.get("SUPABASE_DB_PASSWORD", "")
+            if not pwd:
+                print("ERROR: SUPABASE_DB_PASSWORD not set (use .env)")
+                sys.exit(1)
+            for host, port, user in [
+                (f"db.{proj}.supabase.co", 5432, "postgres"),
+                ("aws-0-us-west-1.pooler.supabase.co", 6543, f"postgres.{proj}"),
+            ]:
+                try:
+                    conn = psycopg2.connect(
+                        host=host, dbname="postgres", user=user, password=pwd, port=port, connect_timeout=10
+                    )
+                    print(f"  Connected to {host}:{port}")
+                    break
+                except Exception as e:
+                    print(f"  Tried {host}:{port} — {e}")
+                    continue
         used_rpc = False
         if conn is None:
             print("  Trying Supabase REST API via exec_sql RPC (port 443)...")

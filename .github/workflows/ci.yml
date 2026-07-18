@@ -62,6 +62,9 @@ env:
   PIP_NO_WARN_YANKED: 1
   STREAMLIT_DISABLE_CACHING_WARNING: 1
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -84,14 +87,12 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: python scripts/db_security_lint.py --quick
-        continue-on-error: true
       - name: detect-secrets scan
         env:
           CI_JOB_START: ${{ env.CI_JOB_START }}
         run: |
           python -m detect_secrets scan --baseline .secrets.baseline \
             admin/ dashboard/ services/ scrapers/ parsers/ scripts/ telegram_bot/ config/ .github/workflows/
-        continue-on-error: true
       - run: bandit -r admin/ dashboard/ services/ -x tests/
       - name: Audit dependencies
         id: audit

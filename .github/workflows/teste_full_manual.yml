@@ -3,6 +3,9 @@ name: Teste_Full_Manual
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: full-manual-${{ github.ref }}
   cancel-in-progress: true

@@ -10,6 +10,9 @@ env:
   PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
   PIP_NO_WARN_YANKED: 1
 
+permissions:
+  contents: read
+
 concurrency:
   group: db-restore-test
   cancel-in-progress: true

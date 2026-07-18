@@ -48,6 +48,7 @@ from services.price_service import insert_review_item, log_scraper_run, upsert_p
 from services.scraper_health import TRANSIENT_ERROR_CLASSES, classify_error_for_alert
 from services.supabase_client import get_service_client, get_supabase
 from services.types import Ingredient, PriceEntry, Store
+from services.url_guard import guard_url
 
 API_SCRAPER_MAP = {
     "tenda_api_scraper": TendaApiScraper,
@@ -994,7 +995,12 @@ def process_ocr_queue() -> int:
             img_url = flyer["image_url"]
             if img_url and not img_url.startswith(("http://", "https://")):
                 img_url = "https://" + img_url
-            resp = httpx.get(img_url, timeout=30)
+            safe_url = guard_url(img_url)
+            if not safe_url:
+                logger.warning("[collector] skipping disallowed flyer URL: %s", img_url)
+                mark_failed(flyer["id"])
+                continue
+            resp = httpx.get(safe_url, timeout=30)
             if resp.status_code != 200:
                 mark_failed(flyer["id"])
                 continue

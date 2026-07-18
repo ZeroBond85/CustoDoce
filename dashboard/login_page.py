@@ -13,6 +13,34 @@ from services.rate_limiter import RateLimiter
 
 _limiter = RateLimiter()
 
+
+def _client_key() -> str:
+    """Best-effort client identifier for rate limiting (per-IP, not global).
+
+    Uses the forwarded client IP when behind a proxy (Streamlit Cloud / reverse
+    proxy), falling back to a constant only when no IP is observable. This keeps
+    brute-force throttling per-attacker instead of a shared global bucket.
+    [security audit ST-06]
+    """
+    import contextlib
+
+    with contextlib.suppress(Exception):
+        from streamlit.web.server.websocket_headers import _get_websocket_headers
+
+        headers = _get_websocket_headers() or {}
+        fwd = headers.get("X-Forwarded-For")
+        if fwd:
+            return "ip:" + fwd.split(",")[0].strip()
+        real = headers.get("X-Real-IP")
+        if real:
+            return "ip:" + real.strip()
+    with contextlib.suppress(Exception):
+        ctx = getattr(st, "context", None)
+        remote = getattr(ctx, "remote_ip", None) if ctx else None
+        if remote:
+            return "ip:" + str(remote)
+    return "login"
+
 _LOGIN_CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
@@ -107,7 +135,7 @@ def render_login():
 
         config = load_config()
 
-        ip = "login"
+        ip = _client_key()
         if _limiter.is_limited(ip):
             wait = _limiter.retry_after(ip)
             st.markdown(

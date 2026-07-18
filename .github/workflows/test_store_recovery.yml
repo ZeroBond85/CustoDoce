@@ -18,6 +18,9 @@ on:
         default: true
         type: boolean
 
+permissions:
+  contents: read
+
 concurrency:
   group: store-recovery-${{ github.ref }}
   cancel-in-progress: false
@@ -62,7 +65,8 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python scripts/toggle_store_pause.py disable "${{ github.event.inputs.stores }}"
+          STORES_INPUT: ${{ github.event.inputs.stores }}
+        run: python scripts/toggle_store_pause.py disable "$STORES_INPUT"
 
   test-store:
     needs: [prepare, setup]
@@ -123,4 +127,5 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python scripts/toggle_store_pause.py enable "${{ github.event.inputs.stores }}"
+          STORES_INPUT: ${{ github.event.inputs.stores }}
+        run: python scripts/toggle_store_pause.py enable "$STORES_INPUT"

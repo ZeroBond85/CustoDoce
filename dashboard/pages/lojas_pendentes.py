@@ -83,8 +83,8 @@ def _render_pending_tab(pending: list):
 
 def _render_status_tab(status_filter: str, label: str):
     try:
-        from services.supabase_client import get_service_client
-        client = get_service_client()
+        from services.supabase_client import require_service_client
+        client = require_service_client()
     except Exception as exc:
         st.error(f"Sem cliente DB: {exc}")
         return
