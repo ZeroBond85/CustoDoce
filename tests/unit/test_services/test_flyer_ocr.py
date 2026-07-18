@@ -9,8 +9,16 @@ para validar apenas a logica de orquestracao/normalizacao.
 """
 from __future__ import annotations
 
+import pytest
+
 import scrapers.flyer_ocr as flyer_ocr
 from scrapers.flyer_ocr import extract_flyer_products
+
+
+@pytest.fixture(autouse=True)
+def _allow_test_urls(monkeypatch):
+    """SSRF guard blocks fictional test hosts (https://x/...); bypass for unit tests."""
+    monkeypatch.setattr(flyer_ocr, "guard_url", lambda url, **kw: url)
 
 
 class _FakeResp:
