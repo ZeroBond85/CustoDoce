@@ -693,6 +693,19 @@ CREATE INDEX IF NOT EXISTS idx_flyers_store_active ON flyers(store_name, is_acti
         gen.append("-- ============================================================")
         gen.append(scrape_rls_path.read_text(encoding="utf-8"))
 
+    # ─── PHASE 27: flyer_url column for flyers table (Tiendeo catalog links) ──
+    gen.append("""
+-- ============================================================
+-- PHASE 27: add flyer_url column to flyers table
+-- ============================================================
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='flyers' AND column_name='flyer_url') THEN
+        ALTER TABLE flyers ADD COLUMN flyer_url TEXT NOT NULL DEFAULT '';
+    END IF;
+END $$;
+""")
+
     return "\n".join(gen)
 
 

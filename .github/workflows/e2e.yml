@@ -77,7 +77,6 @@ jobs:
 
       - name: Flyer Images Health Check (external URLs)
         if: always()
-        continue-on-error: true
         run: python -m pytest tests/e2e/test_e2e_real.py::TestFlyerImages -v --tb=short
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -141,7 +140,6 @@ jobs:
         run: python -m playwright install chromium --with-deps
 
       - name: Warmup Streamlit Cloud (Playwright)
-        continue-on-error: true
         run: python scripts/warmup_streamlit.py https://custodoce.streamlit.app '' 4
         env:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}

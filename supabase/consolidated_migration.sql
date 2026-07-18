@@ -154,6 +154,7 @@ CREATE TABLE IF NOT EXISTS flyers (
     flyer_date_start DATE,
     flyer_date_end DATE,
     image_url TEXT NOT NULL,
+    flyer_url TEXT NOT NULL DEFAULT '',
     image_hash TEXT DEFAULT '',
     image_type TEXT DEFAULT 'webp',
     image_width INT DEFAULT 0,

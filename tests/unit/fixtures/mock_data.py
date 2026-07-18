@@ -421,6 +421,7 @@ MOCK_FLYERS: list[dict[str, Any]] = [
         "flyer_date_start": "2026-06-28",
         "flyer_date_end": "2026-07-05",
         "image_url": "https://example.com/flyers/assi/jun28.jpg",
+        "flyer_url": "https://www.tiendeo.com.br/Catalogos/123456?utm_medium=c",
         "image_hash": "abc123def456",
         "image_type": "webp",
         "image_width": 1200,

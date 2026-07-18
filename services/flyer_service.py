@@ -67,6 +67,7 @@ def upsert_flyer(flyer: dict) -> dict:
         "flyer_date_start": flyer.get("flyer_date_start"),
         "flyer_date_end": flyer.get("flyer_date_end"),
         "image_url": flyer["image_url"],
+        "flyer_url": flyer.get("flyer_url", ""),
         "image_hash": flyer.get("image_hash", ""),
         "image_type": flyer.get("image_type", "webp"),
         "image_width": flyer.get("image_width", 0),

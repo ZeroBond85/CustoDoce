@@ -4,6 +4,7 @@ import asyncio
 import random
 import re
 import time
+from contextlib import suppress
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -225,9 +226,10 @@ class TiendeoScraper:
                 html = resp.text
 
                 # Verify we got real content (not blocked/empty)
-                if len(html) < 10000 or "data-testid=\"flyer_list_item\"" not in html:
-                    logger.warning("[%s] Suspicious response for %s (len=%d, flyers=%d) - attempt %d/%d",
-                                   self.name, url, len(html), html.count("data-testid=\"flyer_list_item\""), attempt + 1, max_retries + 1)
+                catalogos_count = html.count("/Catalogos/")
+                if len(html) < 10000 or catalogos_count == 0:
+                    logger.warning("[%s] Suspicious response for %s (len=%d, catalogos=%d) - attempt %d/%d",
+                                   self.name, url, len(html), catalogos_count, attempt + 1, max_retries + 1)
                     if attempt < max_retries:
                         delay = min(base_delay * (2 ** attempt) + random.uniform(0, 1), max_delay)  # noqa: S311
                         logger.info("[%s] Retrying in %.1fs...", self.name, delay)
@@ -249,30 +251,10 @@ class TiendeoScraper:
         logger.error("[%s] All retries exhausted for %s", self.name, url)
         return None
 
-    def _build_city_urls(self) -> list[tuple[str, str]]:
-        # Loja com página dedicada no Tiendeo: usa store_slug em vez de varrer cidades.
-        if self.store_slug:
-            base = f"{self.base_url}/Encartes-Catalogos/{self.store_slug}"
-            if self.regions:
-                urls = [(f"{base}/{slug}", CITY_SLUGS.get(slug, slug.replace("-", " ").title())) for slug in self.regions]
-                if urls:
-                    return urls
-            return [(base, self.name)]
-        urls = []
-        for slug in self.regions:
-            city_name = CITY_SLUGS.get(slug, slug.replace("-", " ").title())
-            if slug == "sao-paulo":
-                urls.append((f"{self.base_url}/sao-paulo", "São Paulo"))
-                for zone in self.sp_zones:
-                    zone_slug = zone.lower().replace(" ", "-")
-                    urls.append((f"{self.base_url}/sao-paulo/{zone_slug}", f"São Paulo - {zone}"))
-            else:
-                urls.append((f"{self.base_url}/{slug}", city_name))
-        return urls
-
     def parse_flyers(self, html: str, region: str) -> list[dict]:
         tree = HTMLParser(html)
-        flyers = []
+        seen: set[str] = set()
+        flyers: list[dict] = []
 
         not_found = tree.css_first('.error-page, [class*="error"], h1')
         if not_found and "não encontramos" in not_found.text(strip=True).lower():
@@ -282,40 +264,55 @@ class TiendeoScraper:
         items = tree.css('[data-testid="flyer_list_item"], .js-flyer, li[data-type="flyer"]')
         for item in items:
             try:
-                store_name = item.css_first('[data-testid="flyer_item_retailer_name"]')
+                store_el = item.css_first('[data-testid="flyer_item_retailer_name"]')
                 title_el = item.css_first('[data-testid="flyer_item_title"]')
                 date_el = item.css_first('[data-testid="flyer_item_expiration"]')
-                img_small = item.css_first('img[data-testid="blurred-background"]')
-                img_big = item.css_first('img[class*="object-contain"]')
-                flyer_id = item.attributes.get("data-id", "")
+                link_el = item.css_first('a[data-testid="flyer_item_link"]')
 
-                if not store_name or not title_el:
+                if not store_el or not title_el:
                     continue
 
-                store_name_text = store_name.text().strip()
+                store_name_text = store_el.text(strip=True)
                 if not _is_food_store(store_name_text):
                     logger.debug("Skipping non-food store: %s", store_name_text)
                     continue
 
-                flyer = {
+                href = (link_el.attributes.get("href") or "") if link_el else ""
+                flyer_url = f"{self.base_url}{href}" if href.startswith("/") else href
+
+                flyer_id = ""
+                if "/Catalogos/" in href:
+                    flyer_id = "catalog_" + href.split("/Catalogos/")[-1].split("?")[0]
+
+                image_hash = f"tiendeo_{flyer_id}"
+                if image_hash in seen:
+                    continue
+                seen.add(image_hash)
+
+                flyer_title = title_el.text(strip=True)
+
+                img_big = item.css_first('img[class*="object-contain"]')
+                img_small = item.css_first('[data-testid="blurred-background"]')
+                image_url = ""
+                if img_big:
+                    src = img_big.attributes.get("src") or ""
+                    image_url = _fix_image_url(src)
+                elif img_small:
+                    src = img_small.attributes.get("src") or ""
+                    image_url = _fix_image_url(src)
+
+                date_text = date_el.text(strip=True) if date_el else ""
+
+                flyers.append({
                     "store_name": store_name_text,
                     "region": region,
-                    "flyer_title": title_el.text().strip(),
-                    "image_url": "",
-                    "image_hash": f"tiendeo_{flyer_id}",
+                    "flyer_title": flyer_title,
+                    "flyer_url": flyer_url,
+                    "image_url": image_url,
+                    "image_hash": image_hash,
+                    "flyer_date_end": self._parse_date(date_text),
                     "source": "tiendeo",
-                }
-
-                if img_big:
-                    flyer["image_url"] = _fix_image_url(img_big.attributes.get("src", ""))
-                elif img_small:
-                    flyer["image_url"] = _fix_image_url(img_small.attributes.get("src", ""))
-
-                date_text = date_el.text().strip() if date_el else ""
-                flyer["flyer_date_end"] = self._parse_date(date_text)
-
-                if flyer["image_url"]:
-                    flyers.append(flyer)
+                })
 
             except Exception as e:
                 logger.error("Error parsing flyer: %s", e)
@@ -342,7 +339,7 @@ class TiendeoScraper:
                 resp = await client.get(url, timeout=30.0)
                 resp.raise_for_status()
                 html = resp.text
-                if len(html) < 10000 or "data-testid=\"flyer_list_item\"" not in html:
+                if len(html) < 10000 or "/Catalogos/" not in html:
                     logger.warning("[%s] Suspicious async response for %s (len=%d)", self.name, url, len(html))
                     if attempt < 2:
                         await asyncio.sleep(2 ** attempt)
@@ -376,7 +373,12 @@ class TiendeoScraper:
         return all_flyers
 
     def run(self) -> list[dict]:
-        return asyncio.run(self.run_async())
+        flyers = asyncio.run(self.run_async())
+        if flyers:
+            with suppress(Exception):
+                from services.scraper_health import record_success
+                record_success(self.name, items_found=len(flyers), flyer_count=len(flyers), attempted_by="aggregator_scraper")
+        return flyers
 
 
 # Fallback Playwright-based scraper for when HTTP requests fail/block.
@@ -412,7 +414,7 @@ class TiendeoPlaywrightScraper:
         return PlaywrightTiendeoScraper(config)
 
     def run(self) -> list[dict]:
-        """Run with retry logic and UA rotation for CI resilience."""
+        """SSR scraper primary, Playwright fallback if HTTP fails or returns 0."""
         http_scraper = TiendeoScraper(self.store)
         flyers = http_scraper.run()
 
@@ -420,10 +422,14 @@ class TiendeoPlaywrightScraper:
             logger.info("[%s] HTTP scraper succeeded: %d flyers", self.name, len(flyers))
             return flyers
 
-        logger.warning("[%s] HTTP returned 0 flyers after retries; no Playwright fallback available", self.name)
-        return []
-
-
-# Backward compatibility - TiendeoScraper uses aggregator_scraper.py
-# This class is for Kimbino, Portafolhetos, Roldão, Promotons (JS portals)
+        logger.warning("[%s] HTTP returned 0 flyers — trying Playwright fallback", self.name)
+        try:
+            pw_scraper = self._build_playwright_scraper()
+            flyers = pw_scraper.run()
+            if flyers:
+                logger.info("[%s] Playwright fallback succeeded: %d flyers", self.name, len(flyers))
+            return flyers
+        except Exception as e:
+            logger.error("[%s] Playwright fallback failed: %s", self.name, e)
+            return []
 

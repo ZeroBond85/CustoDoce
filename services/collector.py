@@ -14,6 +14,7 @@ from inspect import signature
 
 import httpx
 
+from services.http_client import get_client
 from parsers.brand_extractor import extract_brand
 from parsers.matcher import (
     clean_text,
@@ -794,7 +795,7 @@ def _collect_flyers(
                         entry["store_name"] = store_name
                     if "region" not in entry:
                         entry["region"] = store.get("city", store.get("zone", ""))
-                    if "image_url" not in entry or not entry.get("image_url"):
+                    if not entry.get("image_url") and not entry.get("flyer_url"):
                         continue
                     upsert_flyer(entry)
                     saved += 1
@@ -980,57 +981,77 @@ def collect_facebook_flyers(ingredients: list[Ingredient]) -> list[PriceEntry]:
     return _collect_prices(stores, FacebookFlyerScraper, ingredients, "FacebookFlyer")
 
 
+def _resolve_flyer_image(http: httpx.Client, flyer: dict) -> dict:
+    """Resolve flyer_url → real image_url by downloading the catalog page (SSR)."""
+    flyer_url = flyer.get("flyer_url", "")
+    if not flyer_url or flyer.get("image_url", ""):
+        return flyer
+    safe_url = guard_url(flyer_url)
+    if not safe_url:
+        logger.warning("[resolver] skipping disallowed flyer_url: %s", flyer_url)
+        return flyer
+    try:
+        from selectolax.parser import HTMLParser
+        resp = http.get(safe_url, timeout=30.0, follow_redirects=True)
+        resp.raise_for_status()
+        tree = HTMLParser(resp.text)
+        img = tree.css_first('img[class*="object-contain"]:not([class*="blur"])')
+        if img:
+            src = img.attributes.get("src", "")
+            if src:
+                if src.startswith("//"):
+                    src = "https:" + src
+                safe_img = guard_url(src)
+                if safe_img:
+                    flyer["image_url"] = safe_img
+                else:
+                    logger.warning("[resolver] disallowed image src: %s", src)
+    except Exception as e:
+        logger.warning("[resolver] Failed to resolve %s: %s", flyer_url, e)
+    return flyer
+
+
 def process_ocr_queue() -> int:
-    from scrapers.flyer_parser import extract_lines_from_text, parse_flyer_lines
     from services.flyer_service import get_pending_flyers, mark_failed, mark_processed
+    from scrapers.flyer_ocr import extract_flyer_products
 
     pending = get_pending_flyers(limit=10)
     if not pending:
         return 0
 
+    http = get_client()
     ingredients = load_ingredients()
     processed = 0
     for flyer in pending:
         try:
-            img_url = flyer["image_url"]
-            if img_url and not img_url.startswith(("http://", "https://")):
-                img_url = "https://" + img_url
-            safe_url = guard_url(img_url)
-            if not safe_url:
-                logger.warning("[collector] skipping disallowed flyer URL: %s", img_url)
-                mark_failed(flyer["id"])
-                continue
-            resp = httpx.get(safe_url, timeout=30)
-            if resp.status_code != 200:
+            flyer = _resolve_flyer_image(http, flyer)
+            if not flyer.get("image_url"):
+                logger.warning("[OCR] No image_url for flyer %s, marking failed", flyer.get("id"))
                 mark_failed(flyer["id"])
                 continue
 
-            img_bytes = resp.content
-            if len(img_bytes) < 1000:
+            store_name = flyer.get("store_name", "")
+            image_entries = [flyer]
+            products = extract_flyer_products(
+                http, image_entries, store_name, source=flyer.get("source", "tiendeo"),
+            )
+
+            if not products:
+                logger.warning("[OCR] No products extracted from %s", flyer.get("id"))
                 mark_failed(flyer["id"])
                 continue
-
-            from scrapers.ocr import ocr_image_bytes
-
-            text = ocr_image_bytes(img_bytes)
-            if not text:
-                mark_failed(flyer["id"])
-                continue
-
-            lines = extract_lines_from_text(text)
-            products = parse_flyer_lines(lines)
 
             matched = 0
             for prod in products:
                 entry = process_price_match(
-                    store={"name": flyer["store_name"], "type": flyer.get("source", "aggregator"), "tier": 3},
+                    store={"name": store_name, "type": "aggregator", "tier": 3},
                     product_text=prod.get("product", ""),
                     raw_price=prod.get("price", 0),
                     raw_unit=prod.get("unit", ""),
                     ingredients=ingredients,
                     validity_raw=prod.get("validity_raw", ""),
                     image_url=flyer.get("image_url", ""),
-                    source_url=prod.get("source_url", flyer.get("source_url", "")),
+                    source_url=flyer.get("flyer_url", ""),
                 )
                 if entry:
                     matched += 1
@@ -1040,8 +1061,6 @@ def process_ocr_queue() -> int:
 
         except Exception as e:
             logger.warning("[OCR] Error processing flyer %s: %s — marking as failed", flyer.get("id"), e)
-            with suppress(Exception):
-                mark_failed(flyer["id"])
             with suppress(Exception):
                 mark_failed(flyer["id"])
 
