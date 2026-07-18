@@ -50,8 +50,9 @@ class TestSearchPerformance:
 
         test_ing_id = res.data[0]["ingredient_id"]
         # prices.ingredient_id is text (canonical name), not uuid — OK to pass directly
+        # Usa valid_only=False porque LIMIT 1 sem ORDER BY pode pegar linha expirada
         start = time.perf_counter()
-        results = price_service.search_prices(test_ing_id, sort_by="price_per_kg", limit=50)
+        results = price_service.search_prices(test_ing_id, sort_by="price_per_kg", limit=50, valid_only=False)
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         # Com generated column + index, espera-se < 500ms em LAN local.

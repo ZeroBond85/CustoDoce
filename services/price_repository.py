@@ -160,31 +160,6 @@ def _upsert_price_table_with_retry(client, data, max_retries: int = 3) -> Any:
     raise last_exc
 
 
-def _resolve_ingredient_id(client, ingredient_ref: str) -> str:
-    """Resolve an ingredient reference (canonical name OR uuid) to its id.
-
-    Callers legitimately pass the canonical name (dashboard, alert rules,
-    tests). The prices/price_history tables are keyed by uuid, so we
-    must resolve the name to an id before filtering. A raw uuid is
-    returned as-is. [CI fix: test_search_prices_server_side_sort]
-    """
-    import re
-
-    # Already a uuid-like reference: pass through.
-    if re.fullmatch(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", ingredient_ref or ""):
-        return ingredient_ref
-    res = (
-        client.table("ingredients")
-        .select("id")
-        .eq("canonical_name", ingredient_ref)
-        .limit(1)
-        .execute()
-    )
-    if res.data:
-        return res.data[0]["id"]
-    return ingredient_ref
-
-
 def search_prices(
     ingredient_canonical: str,
     sort_by: str = "price_per_kg",
@@ -196,9 +171,8 @@ def search_prices(
     valid_only: bool = True,
 ) -> list[dict[str, Any]]:
     client = get_supabase()
-    ingredient_id = _resolve_ingredient_id(client, ingredient_canonical)
     query = client.table("prices").select("*")
-    query = query.eq("ingredient_id", ingredient_id)
+    query = query.eq("ingredient_id", ingredient_canonical)
     if valid_only:
         today = date.today().isoformat()
         query = query.lte("valid_from", today)
@@ -231,8 +205,7 @@ def get_latest_prices(valid_only: bool = True, limit: int = 2000) -> list[dict[s
 
 def get_price_history(ingredient_canonical: str, days: int = 30, valid_only: bool = False) -> list[dict[str, Any]]:
     client = get_supabase()
-    ingredient_id = _resolve_ingredient_id(client, ingredient_canonical)
-    query = client.table("price_history").select("*").eq("ingredient_id", ingredient_id)
+    query = client.table("price_history").select("*").eq("ingredient_id", ingredient_canonical)
     if valid_only:
         today = date.today().isoformat()
         query = query.lte("valid_from", today).gte("valid_until", today)
