@@ -1,5 +1,5 @@
 # Troubleshooting
-> Última atualização: 2026-07-17 04:28 UTC
+> Última atualização: 2026-07-18 04:39 UTC
 
 Guia de problemas comuns e soluções.
 

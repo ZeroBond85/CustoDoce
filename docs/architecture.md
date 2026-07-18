@@ -1,5 +1,5 @@
 # Arquitetura Técnica — CustoDoce
-> Última atualização: 2026-07-17 04:28 UTC
+> Última atualização: 2026-07-18 04:39 UTC
 
 Este documento descreve a arquitetura de software, o fluxo de dados e as decisões de design do sistema CustoDoce.
 
