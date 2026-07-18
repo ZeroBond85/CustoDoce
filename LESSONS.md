@@ -669,3 +669,22 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 
 ### 83. Chefon HTTP 429 (Cloudflare) — RAIZ via Shopify Storefront JSON API
 - **Sintoma/causa/correcao**: Tier3 (run 29586242082) falhou `[error] Chefon HTTP 429`; `chefon.com.br` e Shopify atras de Cloudflare — HTML `/collections/*` retorna 429 mesmo c/ Retry-After (servidor pedia 60s, `max_delay=10` cortava). RAIZ (1) `_retry_with_backoff` cortava Retry-After; RAIZ (2) rota errada (HTML protegido). Shopify expoe Storefront API `/collections/<col>/products.json?limit=&page=` sem challenge (testada: 250/req, 7.031 SKUs em `/all`); `curl_cffi` NAO e necessario (httpx padrao funciona). Fix: (a) `_retry_with_backoff` respeita Retry-After integral (teto 300s); (b) `website_scraper.py` modo `shopify_json` (`_run_shopify_json`+`_fetch_shopify_page`+`_parse_shopify_product`); (c) `stores.yaml` Chefon `shopify_json:true`. Teste: `tests/unit/test_website_scraper.py` (4).
+
+### 84. Security audit: scrape_requests sem RLS (F-01)
+- **Sintoma/causa**: `scrape_requests` (criada em `migrations/006`) não tinha `ENABLE ROW LEVEL SECURITY` — qualquer `anon` (chave pública) podia ler/escrever/apagar. **Correção**: `supabase/011_scrape_requests_rls.sql` (PHASE 26 em `deploy_database.generate_consolidated`) habilita RLS + policies anon_insert/anon_read + service_role_all. **Teste**: `tests/unit/test_security_lints.py::test_scrape_requests_rls_migration_exists`, `::test_consolidated_includes_rls_migration`.
+
+### 85. Security audit: shell injection em workflow (F-02)
+- **Sintoma/causa**: `test_store_recovery.yml` interpolava `${{ github.event.inputs.stores }}` direto em `run:` (RCE no runner). **Correção**: passar via `env: STORES_INPUT` + referenciar `"$STORES_INPUT"`. **Teste**: `::test_test_store_recovery_no_direct_input_interpolation`.
+
+### 86. Security audit: exec_sql inseguro no consolidated (F-04)
+- **Sintoma/causa**: `consolidated_migration.sql` PHASE 17 definia `exec_sql`/`exec_sql_query` como SECURITY DEFINER sem `SET search_path`/REVOKE (duplicata da PHASE 23 segura). **Correção**: remover as definições inseguras da PHASE 17 (só comentário + cleanup). **Teste**: `::test_no_insecure_exec_sql_definition`.
+
+### 87. Security audit: SSRF em flyer download (A-03)
+- **Sintoma/causa**: `collector.py`/`flyer_ocr.py` faziam `httpx.get(image_url)` de URLs da tabela `flyers` sem allowlist + `follow_redirects=True`; `discover_urls.py` usava `verify=False` (MITM). **Correção**: `services/url_guard.py` (`is_safe_url`/`guard_url`) bloqueia IPs privados/loopback/metadata e domínios fora da allowlist; aplicado em `collector.py` e `flyer_ocr.py`; `discover_urls.py` sem `verify=False`. **Teste**: `::test_verify_false_removed_from_discover_urls`.
+
+### 88. Security audit: CI gates mascarados (F-08) + rate limiter global (ST-06)
+- **Sintoma/causa**: `ci.yml` tinha `continue-on-error: true` em `db_security_lint`/`detect-secrets` (viola regra #11); `login_page.py` usava chave fixa `"login"` no rate limiter (não throttleia atacante individual). **Correção**: (a) teste de regressão offline `tests/unit/test_security_lints.py` substitui o masking; removido `continue-on-error`. (b) `_client_key()` deriva IP de `X-Forwarded-For`/`X-Real-IP`/`st.context.remote_ip` com fallback `"login"`.
+
+### 89. Security audit: service-role client exposto + AUTH_SECRET_KEY aleatório (S-04/S-07)
+- **Sintoma/causa**: `get_service_client()` (bypass RLS total) era chamado de páginas de dashboard sem checagem de sessão; `auth.load_config()` gerava chave aleatória por processo se `AUTH_SECRET_KEY` vazio (footgun se JWT for usado). **Correção**: `require_service_client()` exige `st.session_state.authenticated`; `lojas_pendentes.py`/`lojas.py` migraram para ele; `load_config()` faz `raise` se vazio em produção (`APP_ENV=production`/`STREAMLIT_SERVER`).
+

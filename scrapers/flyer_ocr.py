@@ -19,12 +19,17 @@ import httpx
 from parsers.vision_extract import extract_products_via_vision
 from scrapers.extractor import extract_products
 from services.logger import logger
+from services.url_guard import guard_url
 
 
 def _download_image(http: httpx.Client, url: str) -> bytes | None:
+    safe_url = guard_url(url)
+    if not safe_url:
+        logger.warning("[flyer_ocr] skipping disallowed image URL: %s", url)
+        return None
     for attempt in range(3):
         try:
-            resp = http.get(url, follow_redirects=True, timeout=40.0)
+            resp = http.get(safe_url, follow_redirects=True, timeout=40.0)
             resp.raise_for_status()
             return resp.content
         except Exception as exc:

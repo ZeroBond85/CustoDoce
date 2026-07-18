@@ -87,7 +87,27 @@ def main():
         print("Skip push: GITHUB_REPOSITORY não definido e remote 'origin' ausente.")
         print("Nada a fazer para push.")
         return
-    remote = f"https://x-access-token:{token}@github.com/{repo}.git" if token else "origin"
+    # Prefer the gh CLI credential helper over embedding the token in the URL
+    # (avoids leaking it via `git remote -v` / push error stderr). [security audit]
+    if token:
+        try:
+            import shutil
+
+            if shutil.which("gh"):
+                _git(["config", "credential.https://github.com.helper", ""])
+                _git(["config", "url.https://github.com/.insteadOf", "https://github.com/"])
+                os.environ["GH_TOKEN"] = token
+                r = _git(["push", "https://github.com/" + repo + ".git", ref], capture=False)
+                if r.returncode != 0:
+                    print("Erro push via gh auth.")
+                    sys.exit(1)
+                print("Push OK.")
+                return
+        except Exception:
+            pass
+        remote = f"https://x-access-token:{token}@github.com/{repo}.git"
+    else:
+        remote = "origin"
     r = _git(["push", remote, ref])
     if r.returncode != 0:
         print(f"Erro push: {r.stderr or r.stdout}")

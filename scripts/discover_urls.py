@@ -39,7 +39,7 @@ patterns = {
     ],
 }
 
-with httpx.Client(timeout=15, follow_redirects=True, verify=False) as client:
+with httpx.Client(timeout=15, follow_redirects=True) as client:
     for store, urls in patterns.items():
         print(f"\n=== {store} ===")
         for url in urls:

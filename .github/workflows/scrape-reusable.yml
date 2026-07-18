@@ -81,6 +81,9 @@ env:
   STREAMLIT_DISABLE_CACHING_WARNING: 1
   APP_ENV: ci
 
+permissions:
+  contents: read
+
 jobs:
   setup:
     runs-on: ubuntu-latest

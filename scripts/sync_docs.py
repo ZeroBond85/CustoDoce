@@ -537,21 +537,40 @@ def _fix_tree_test_count(content: str, unit_count: int) -> str:
 
 
 def _fix_page_import_count(content: str, pages_count: int) -> str:
-    """Update AGENTS.md page import line: 'importa 17 pages' → 'importa 18 pages'."""
-    return re.sub(
+    """Update AGENTS.md page import line: 'importa 19 pages' → 'importa 20 pages'.
+
+    Suporta os formatos com e sem sidebar (evita drift entre branches).
+    """
+    # Formato 1: 'importa N pages + sidebar + login'
+    content = re.sub(
         r"(importa )(\d+)( pages \+ sidebar \+ login)",
         rf"\g<1>{pages_count}\g<3>",
         content,
     )
+    # Formato 2: 'importa N pages' (linha da árvore, sem sidebar)
+    content = re.sub(
+        r"(importa )(\d+)( pages\n)",
+        rf"\g<1>{pages_count}\g<3>",
+        content,
+    )
+    return content
 
 
 def _fix_streamlit_skill_row(content: str, pages_count: int) -> str:
-    """Update AGENTS.md streamlit skill row: '| 17 pages' → '| 18 pages'."""
-    return re.sub(
+    """Update AGENTS.md streamlit skill row e Dashboard pages count."""
+    # Skill table row: '| streamlit | N pages, login gate'
+    content = re.sub(
         r"(\| `?streamlit`? \| )(\d+)( pages, login gate)",
         rf"\g<1>{pages_count}\g<3>",
         content,
     )
+    # Status Atual table row: '| Dashboard pages | N módulos'
+    content = re.sub(
+        r"(\| Dashboard pages \| )(\d+)( módulos)",
+        rf"\g<1>{pages_count}\g<3>",
+        content,
+    )
+    return content
 
 
 def _fix_agents_tree(content: str, state: dict) -> str:

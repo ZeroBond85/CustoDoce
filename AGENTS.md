@@ -77,7 +77,7 @@ CustoDoce/
 ├── services/          # supabase_client, price_*, collector, email, telegram, alert, logger, otel, etc.
 ├── dashboard/         # login_page, components/ (ui, layout), pages/ (18 módulos)
 ├── telegram_bot/      # handlers.py
-├── admin/app.py       # 107 linhas — importa 19 pages
+├── admin/app.py       # 107 linhas — importa 20 pages
 ├── supabase/          # seed.sql, consolidated_migration.sql, migrations 002-006
 ├── scripts/           # deploy, validate, sync, audit, seed, heal, sanity, send_report, skills_maintenance, md_auto_compress
 ├── tests/             # unit (729), schema (94), calibration (1), integration, design, e2e, real
@@ -247,7 +247,7 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 | requirements-dev.lock | ~115 packages (prod + lint) |
 | requirements-test.lock | 130+ packages (prod + dev + test) |
 | OpenCode Skills | 33 installed (todas no projeto) |
-| Dashboard pages | 19 módulos (inclui CI Telemetria) |
+| Dashboard pages | 20 módulos (inclui CI Telemetria) |
 | Workflows GitHub Actions | 8 otimizados, validados, com check_time_budget |
 
 ## OpenCode Skills

@@ -27,6 +27,9 @@ concurrency:
 env:
   PIP_NO_WARN_YANKED: 1
 
+permissions:
+  contents: read
+
 jobs:
   maintenance:
     runs-on: ubuntu-latest

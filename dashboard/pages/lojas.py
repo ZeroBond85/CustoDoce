@@ -209,8 +209,8 @@ def _render_pending_tab():
             with col2:
                 if st.button("✅ Aprovar (Sem Mesclar)", key=f"approve_nomerge_{entry.id}"):
                     try:
-                        from services.supabase_client import get_service_client
-                        client = get_service_client()
+                        from services.supabase_client import require_service_client
+                        client = require_service_client()
                         client.table("store_registry").update({"status": "approved"}).eq("id", entry.id).execute()
                         st.success("Aprovado!")
                         st.rerun()

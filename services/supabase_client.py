@@ -51,3 +51,22 @@ def get_service_client() -> Client:
 
     _service_client = create_client(url, key)
     return _service_client
+
+
+def require_service_client() -> Client:
+    """Service-role client gated on an authenticated admin Streamlit session.
+
+    The service-role key bypasses ALL RLS. It must never be reachable from
+    anonymous or unauthenticated dashboard paths. Call this instead of
+    `get_service_client()` from dashboard pages. [security audit S-04]
+    """
+    try:
+        import streamlit as st
+
+        if not getattr(st, "session_state", None) or not st.session_state.get("authenticated"):
+            raise PermissionError(
+                "require_service_client() called outside an authenticated admin session"
+            )
+    except ImportError:
+        pass
+    return get_service_client()

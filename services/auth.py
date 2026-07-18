@@ -98,7 +98,16 @@ def load_config() -> AuthConfig:
     import os as _os
 
     sk = _os.environ.get("AUTH_SECRET_KEY", "")
+    app_env = _os.environ.get("APP_ENV", "").lower()
     if not sk:
+        # In production a stable AUTH_SECRET_KEY is mandatory: without it every
+        # process restart invalidates all issued tokens and any signed value is
+        # forgeable by a local attacker. [security audit S-07]
+        if app_env in ("production", "prod") or _os.environ.get("STREAMLIT_SERVER"):
+            raise RuntimeError(
+                "AUTH_SECRET_KEY must be set in production. Refusing to start with a "
+                "per-process random key (would invalidate all sessions and weaken token integrity)."
+            )
         sk = base64.urlsafe_b64encode(os.urandom(32)).decode("utf-8")
     pw_env = _os.environ.get("ADMIN_PASSWORD_HASH", "")
     pw_plain = _os.environ.get("ADMIN_PASSWORD") or _os.environ.get("ADMIN_PASSWORD_HASH", "") or ""
