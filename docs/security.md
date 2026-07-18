@@ -1,5 +1,5 @@
 # Security Policy
-> Última atualização: 2026-07-18 04:39 UTC
+> Última atualização: 2026-07-18 04:46 UTC
 
 ## Secrets Management
 
