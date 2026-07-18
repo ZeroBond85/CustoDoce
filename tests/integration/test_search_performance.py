@@ -49,15 +49,10 @@ class TestSearchPerformance:
             pytest.skip("Tabela prices vazia")
 
         test_ing_id = res.data[0]["ingredient_id"]
-        # Get the canonical name for this ID
-        ing_res = client.table("ingredients").select("canonical_name").eq("id", test_ing_id).single().execute()
-        if not ing_res.data:
-            pytest.skip("Não foi possível encontrar o ingrediente para o preço")
-
-        search_term = ing_res.data["canonical_name"]
-
+        # search_prices expects the ingredient_id (it filters prices.ingredient_id);
+        # passing the canonical name would hit PostgREST with an invalid uuid.
         start = time.perf_counter()
-        results = price_service.search_prices(search_term, sort_by="price_per_kg", limit=50)
+        results = price_service.search_prices(test_ing_id, sort_by="price_per_kg", limit=50)
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         # Com generated column + index, espera-se < 500ms em LAN local.
@@ -65,7 +60,7 @@ class TestSearchPerformance:
         # Limite 1500ms cobre flutuação sem esconder regressao: client-side sort
         # leva segundos, nao milissegundos.
         assert elapsed_ms < 1500, f"search_prices levou {elapsed_ms:.0f}ms — provável client-side sort (limite: 1500ms)"
-        assert len(results) > 0, f"Nenhum resultado retornado para {search_term}"
+        assert len(results) > 0, f"Nenhum resultado retornado para {test_ing_id}"
 
         # Verifica que veio ordenado
         prices = [
