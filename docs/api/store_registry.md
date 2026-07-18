@@ -1,6 +1,6 @@
 # `store_registry` — API
 
-> Última atualização: 2026-07-18 04:46 UTC
+> Última atualização: 2026-07-18 04:58 UTC
 > Gerado por AST parsing dos serviços em `services/store_registry.py`.
 
 ## Funções Públicas (8)
