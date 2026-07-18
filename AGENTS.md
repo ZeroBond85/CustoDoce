@@ -77,7 +77,7 @@ CustoDoce/
 ├── services/          # supabase_client, price_*, collector, email, telegram, alert, logger, otel, etc.
 ├── dashboard/         # login_page, components/ (ui, layout), pages/ (18 módulos)
 ├── telegram_bot/      # handlers.py
-├── admin/app.py       # 107 linhas — importa 20 pages
+├── admin/app.py       # 107 linhas — importa 21 pages
 ├── supabase/          # seed.sql, consolidated_migration.sql, migrations 002-006
 ├── scripts/           # deploy, validate, sync, audit, seed, heal, sanity, send_report, skills_maintenance, md_auto_compress
 ├── tests/             # unit (729), schema (94), calibration (1), integration, design, e2e, real
@@ -100,7 +100,7 @@ CustoDoce/
 ├── requirements.lock       # = requirements-test.lock (backward compat)
 ├── requirements.txt        # = requirements-prod.in (pip-audit source)
 ├── AGENTS.md          # ← este arquivo (vivo, ~340 linhas)
-├── LESSONS.md         # 75 lições aprendidas
+├── LESSONS.md         # 81 lições aprendidas
 └── REGRAS.md          # Ambiente, hooks, comandos
 ```
 
@@ -235,7 +235,7 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 | Schema manifest | 17 tabelas/views com types, not_null, defaults, constraints |
 | Mock validation tests | 97 parametrizados (colunas, tipos, not_null, FKs, CHECK, jsonb) |
 | AGENTS.md | ~340 linhas (Sprint 14 — md_auto_compress) |
-| LESSONS.md | 75 lições |
+| LESSONS.md | 81 lições |
 | REGRAS.md | Ambiente + hooks + comandos |
 | CI lint/type/test | ✅ Todos verdes (Python 3.14.6) |
 | E2E (cloud) | ⏳ Mensal (Playwright) |
@@ -247,7 +247,7 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 | requirements-dev.lock | ~115 packages (prod + lint) |
 | requirements-test.lock | 130+ packages (prod + dev + test) |
 | OpenCode Skills | 33 installed (todas no projeto) |
-| Dashboard pages | 20 módulos (inclui CI Telemetria) |
+| Dashboard pages | 21 módulos (inclui CI Telemetria) |
 | Workflows GitHub Actions | 8 otimizados, validados, com check_time_budget |
 
 ## OpenCode Skills
@@ -288,7 +288,7 @@ Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarbal
 
 ## Documentação Relacionada
 
-- `LESSONS.md` — 75 lições (CI, mocks, schema, scrapers, monitoração, segurança)
+- `LESSONS.md` — 81 lições (CI, mocks, schema, scrapers, monitoração, segurança)
 - `REGRAS.md` — Ambiente, hooks, comandos, arquitetura
 - `docs/skills.md` — Skills OpenCode (globais + overlays locais)
 - `docs/changelog.md` — Histórico por fase/sprint; `config/agents_schema.yaml` — Schema deste arquivo
