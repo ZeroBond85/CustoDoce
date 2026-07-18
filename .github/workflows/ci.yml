@@ -195,7 +195,6 @@ jobs:
           CI_JOB_START: ${{ env.CI_JOB_START }}
       - name: MD v2 Health Pulse (Read-only check)
         run: python scripts/sync_md_v2.py --pulse
-        continue-on-error: true
 
   matcher-eval:
     needs: [lint, typecheck]

@@ -105,7 +105,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -117,7 +116,6 @@ jobs:
       - name: Install pip-audit
         run: pip install "pip-audit==2.10.1"
       - name: Audit dev deps (informational)
-        continue-on-error: true
         env:
           CI_JOB_START: ${{ env.CI_JOB_START }}
         run: pip-audit --strict -s osv -r requirements-dev.in || true
@@ -126,7 +124,6 @@ jobs:
         env:
           CI_JOB_START: ${{ env.CI_JOB_START }}
       - name: Audit test deps (informational)
-        continue-on-error: true
         run: pip-audit --strict -s osv -r requirements-test.in || echo "Known dev/test CVEs accepted — see docs/security.md"
 
   full-scan:
@@ -134,7 +131,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -146,7 +142,6 @@ jobs:
       - name: Install full toolchain
         run: pip install "deptry==0.25.1" "pip-licenses==5.5.5"
       - name: Scan for unused/transitive deps
-        continue-on-error: true
         env:
           CI_JOB_START: ${{ env.CI_JOB_START }}
         run: deptry . || true

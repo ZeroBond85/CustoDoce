@@ -108,7 +108,6 @@ jobs:
       - name: Registro
         if: always()
         run: echo "Teste de ${{ matrix.store }} concluído"
-        continue-on-error: true
 
   restore:
     needs: [prepare, test-store]

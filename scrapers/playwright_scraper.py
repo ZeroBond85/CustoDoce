@@ -329,12 +329,12 @@ class PlaywrightAggregatorScraper:
         finally:
             pass  # Pool handles cleanup
 
-        all_flyers = []
+        all_flyers: list[dict] = []
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 self.logger.error("[%s] City %s failed: %s", self.name, city_urls[i], result)
                 continue
-            all_flyers.extend(result)
+            all_flyers.extend(result)  # type: ignore[arg-type]
 
         self.logger.info(f"[{self.name}] Total flyers collected: {len(all_flyers)}")
         return all_flyers
@@ -378,35 +378,79 @@ class PlaywrightTiendeoScraper:
         finally:
             await page.close()
 
-    async def _parse_flyers(self, page: Page, source: str) -> list[dict]:
-        cards = await page.query_selector_all(
-            '[data-testid="flyer_list_item"], .js-flyer, li[data-type="flyer"]'
-        )
+    async def _scrape_city(self, browser: Browser, url: str, region: str) -> list[dict]:
+        page = await browser.new_page()
+        try:
+            await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            await page.wait_for_timeout(2000)
+            return await self._parse_flyers(page, region)
+        except Exception as e:
+            logger.warning("[%s] Playwright error for %s: %s", self.name, url, e)
+            return []
+        finally:
+            await page.close()
 
+    async def _parse_flyers(self, page: Page, source: str) -> list[dict]:
+        flyers = []
+        cards = await page.query_selector_all('a[href*="/Catalogos/"][href*="utm_medium"]')
         for card in cards:
             try:
-                store_name_el = await card.query_selector('[data-testid="flyer_item_retailer_name"]')
-                title_el = await card.query_selector('[data-testid="flyer_item_title"]')
-                await card.get_attribute("data-id")  # consume but don't store
+                href = await card.get_attribute("href") or ""
+                flyer_url = f"{self.base_url}{href}" if href.startswith("/") else href
 
-                if not store_name_el or not title_el:
+                img_el = await card.query_selector("img")
+                store_name = ""
+                if img_el:
+                    store_name = (await img_el.get_attribute("alt") or "").strip()
+                if not store_name:
+                    store_name = await card.inner_text() or ""
+                    store_name = store_name.split("\n")[0].strip()
+                if not store_name:
                     continue
 
-                # Placeholder for flyer extraction - would be implemented here
-                _ = {
-                    "store_name": (await store_name_el.inner_text()).strip(),
-                    "flyer_title": (await title_el.inner_text()).strip(),
-                    "image_url": "",
+                img_big = await card.query_selector('img[class*="object-contain"]:not([class*="blur"])')
+                img_small = await card.query_selector("img")
+                image_url = ""
+                if img_big:
+                    image_url = await img_big.get_attribute("src") or ""
+                elif img_small:
+                    src = (await img_small.get_attribute("src") or "")
+                    if "blur" not in src.lower():
+                        image_url = src
+                if image_url and image_url.startswith("//"):
+                    image_url = "https:" + image_url
+
+                flyer_id = ""
+                if "/Catalogos/" in href:
+                    flyer_id = "catalog_" + href.split("/Catalogos/")[-1].split("?")[0]
+
+                flyer_title = ""
+                if img_el:
+                    flyer_title = (await img_el.get_attribute("alt") or "").strip()
+
+                flyers.append({
+                    "store_name": store_name,
+                    "region": source,
+                    "flyer_title": flyer_title,
+                    "flyer_url": flyer_url,
+                    "image_url": image_url,
+                    "image_hash": f"tiendeo_{flyer_id}",
                     "source": "tiendeo",
-                }
-                # ... rest of extraction logic
+                })
             except Exception as e:
-                logger.warning("Falha ao extrair flyer: %s", e)
-        return []
+                logger.warning("[%s] Falha ao extrair flyer: %s", self.name, e)
+        return flyers
+
+    async def _run_async(self) -> list[dict]:
+        from scrapers.playwright_pool import get_browser_pool
+        city_urls = self._build_city_urls()
+        pool = await get_browser_pool()
+        browser = await pool.get_browser()
+        all_flyers: list[dict] = []
+        for url, region in city_urls:
+            flyers = await self._scrape_city(browser, url, region)
+            all_flyers.extend(flyers)
+        return all_flyers
 
     def run(self) -> list[dict]:
         return asyncio.run(self._run_async())
-
-
-# Backward compatibility - TiendeoScraper uses aggregator_scraper.py
-# This class is for Kimbino, Portafolhetos, Roldão, Promotons (JS portals)

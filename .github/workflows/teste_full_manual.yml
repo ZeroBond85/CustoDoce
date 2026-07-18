@@ -33,12 +33,10 @@ jobs:
       - run: ruff check . --output-format=github
       - name: Security lint (Supabase RLS + RPC)
         run: python scripts/db_security_lint.py --quick
-        continue-on-error: true
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       - run: python -m detect_secrets scan --baseline .secrets.baseline admin/ dashboard/ services/ scrapers/ parsers/ scripts/ telegram_bot/ config/ .github/workflows/
-        continue-on-error: true
       - run: |
           python scripts/generate_schema_manifest.py
           python -m pytest tests/unit/test_validate_mocks_against_manifest.py -q --no-header
@@ -77,7 +75,6 @@ jobs:
       - run: python scripts/validate_md_timestamps.py --max-age-days 14
         timeout-minutes: 2
       - run: python scripts/sync_md_v2.py --pulse
-        continue-on-error: true
 
   unit:
     runs-on: ubuntu-latest
