@@ -265,8 +265,6 @@ Toda mitigação foi reativa. Com monitoração, teriam sido descobertas proativ
 **Validação:** Run https://github.com/ZeroBond85/CustoDoce/actions/runs/28803210736 (on_demand_scrape.yml, scheduled) rodou verde com checkout sem token. Novo teste unitário `tests/unit/test_scrape_workflow.py` garantindo que `.github/workflows/scrape.yml` NÃO contém `token: ${{ secrets.GH_PAT` no step de checkout.
 **Data:** 2026-07-06
 
-
-
 ### 41. GH Actions Step Validation
 
 Steps sem 'run:' ou 'uses:' geram 'failure' com 0 jobs. yaml.safe_load nao detecta. Validar com test_all_steps_have_run_or_uses() antes de push.
@@ -327,7 +325,6 @@ A mesma regra vale para `send_email()` em `email_service.py` — levantava `Valu
 - Se o pre-push avisa "CI vermelho", NÃO é desculpa para ignorar — investigar e corrigir
 - Falha de CI pré-existente continua sendo GAP de teste se não for tratada antes do merge
 - Sempre reproduzir localmente + corrigir + LESSONS.md (mesmo que o bug não venha das nossas mudanças)
-
 
 ### 47. E2E real/interactions: login exige usuario E senha; sidebar usa <a> (st.navigation)
 
@@ -460,7 +457,6 @@ mock_get.return_value = mock_resp  # ✅
 - Novo script `scripts/check_line_endings_config.py` que valida `core.autocrlf` de acordo com a plataforma (Windows=`true`, WSL=`false`/`input`), rodando no pre-push hook.
 - Qualquer tentativa de auto-fix de CRLF no pre-commit é PROIBIDA — a correção raiz é configurar o Git corretamente, não tratar sintoma.
 
-
 ### 57. st.navigation dessincroniza apos render pesado (Revisao) - clique vira no-op
 
 **Sintoma:** No CI, `test_all_pages_crawl` (smoke e2e) falhava em Capacidade: URL
@@ -479,7 +475,6 @@ o link real da sidebar e POLLA a URL (ate 8 tentativas x 2.5s) re-clicando, igua
 `test_e2e_real.py` que usa `expect(page).to_have_url(timeout=10000)`. Mantem a sessao
 SPA (sem reload) para preservar o login em `st.session_state`. Fallback via `page.goto`
 NAO serve: reload completo destroi `st.session_state.authenticated` e volta para o login.
-
 
 ### 58. st.dataframe quebra (pyarrow ArrowInvalid) com coluna JSONB lista mista
 
@@ -501,7 +496,6 @@ usam `get_store_health()` (errors como int) nao tem o problema.
 **Regra preventiva:** Nunca passar DataFrame com coluna object contendo listas/dicts mistos
 a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 
-
 ### 59. Lock files gerados no Windows causam drift no CI (colorama/tzdata)
 
 - **Data + commit**: 2026-07-12 (07e6466)
@@ -512,7 +506,6 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 
 **Regra preventiva**: Lock files (`.lock`) devem ser gerados **SEMPRE em Linux** (WSL `custodoce-314` ou Docker `python:3.14-slim`) — NUNCA no Windows. Pacotes condicionais de plataforma (`colorama`, `tzdata`, `win32api`, etc.) entram apenas no OS que os precisa, causing drift silencioso entre Windows/CI-Linux.
 
-
 ### 60. `load_stores()` dropava silenciosamente lojas sem `scrape_frequencies`
 
 - **Data + commit**: 2026-07-13
@@ -520,7 +513,6 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Causa raiz**: `services/collector.py:63-65` — `load_stores()` fazia `.select("store_id").eq("enabled", True)` e usava interseção (`in enabled_ids`). Lojas **sem nenhuma linha** em `scrape_frequencies` eram excluídas silenciosamente. A maioria das lojas reativadas não tinha freq row.
 - **Correção**: `services/collector.py:58-71` — agora carrega TODAS as linhas de scrape_frequencies (incluindo `enabled=False`). Lojas sem freq row passam pelo filtro; apenas lojas com `enabled=False` explícito são excluídas (kill-switch).
 - **Teste de regressão**: `test_validate_mocks_against_manifest` (indireto — validar que o mapper cobre todas). Teste direto ainda não escrito.
-
 
 ### 61. Type-drift: FKs `INTEGER`/`UUID` para `stores(id)` quando `stores.id` é `TEXT`
 
@@ -534,7 +526,6 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
   - `supabase/migrations/008_store_registry.sql`: deletado (duplicata de 009)
 - **Teste de regressão**: `validate_db_schema.py` deve ganhar um check de `REFERENCES stores(id)` com tipo `TEXT` — pendente.
 
-
 ### 62. Agregador Promotons roteado para scraper errado (`TiendeoScraper` em vez de `PlaywrightAggregatorScraper`)
 
 - **Data + commit**: 2026-07-13 (f524ce6)
@@ -542,7 +533,6 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Causa raiz**: Promotons estava classificado como `type: aggregator` + `scraper: aggregator_scraper` no YAML. Isso o roteava para `collect_aggregators_ssr()` → `_run_ssr_scraper()` → `TiendeoScraper(store)` (linhas 705-712). `TiendeoScraper` usa `data-testid="flyer_list_item"` — seletor do Tiendeo, que não existe no DOM do Promotons. O scraper correto já existia: `PlaywrightAggregatorScraper` com `PORTAL_CONFIG["promotons"]` em `playwright_scraper.py:58`.
 - **Correção**: `config/stores.yaml:636,649`: mudou `type: aggregator` → `aggregator_js` e `scraper: aggregator_scraper` → `playwright_scraper`. Agora roteia para `collect_aggregators_js()` → `PlaywrightAggregatorScraper` que usa `get_portal_config("promotons")`.
 - **Teste de regressão**: `validate_scrapers.py --validate` (rodar no WSL) deve mostrar items do Promotons.
-
 
 ### 63. F541 lint (f-string sem placeholder) escapou para o CI — validação local incompleta
 
@@ -552,7 +542,6 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Correção**: `scripts/validate_scrapers.py:41,53,54,55,148,193,197` — substituído `f"..."` por `"..."` (sem placeholder). Commit 49278da.
 - **Teste de regressão**: `ruff check scripts/validate_scrapers.py` deve passar.
 
-
 ### 64. Lint F541 escapou porque pre-commit não incluía ruff — gap de processo
 
 - **Data + commit**: 2026-07-13 (49278da)
@@ -560,7 +549,6 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Causa raiz**: `.githooks/pre-commit` tinha 11 layers (secret, detect-secrets, doc sync, size, etc.) mas **não rodava ruff**. Nenhuma barreira local impedia commitar código com lint errado. A docs-sync também não tinha bloqueio no pre-commit para o caso geral (só para `.opencode/skills/` alterados).
 - **Correção**: `.githooks/pre-commit` — adicionada **Layer 1.8: RUFF LINT** que roda `ruff check --quiet` em todos os `.py` staged e BLOQUEIA se houver erros. Agora o pre-commit tem 12 camadas de proteção.
 - **Teste de regressão**: O próprio pre-commit é o teste — qualquer commit com `.py` que tenha lint error será bloqueado automaticamente.
-
 
 ### 65. Encartes vision-LLM (Max/Roldão/Giga): keys precisam estar no workflow de produção
 
@@ -570,7 +558,6 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Correção**: (1) `scrape-reusable.yml` — `GROQ_API_KEY`/`GOOGLE_API_KEY` em `workflow_call.secrets` (optional) + `env:` do step `main.py --tier`. (2) `scrape.yml` e `on_demand_scrape.yml` — repassam ambos secrets. (3) `gh secret set` para os 2 valores validados.
 - **Detalhes vision**: Groq (`llama-4-scout-17b`) é 3–8x mais rápido que Gemini (`gemini-2.5-flash-lite`) e igualmente preciso → **Groq primário, Gemini fallback** (chain Groq→Gemini→OpenRouter→HF). Gemini truncava JSON em `maxOutputTokens`; imagens grandes davam 413 → `_downscale_image` (PIL ≤1600px, JPEG ≤900KB). Giga: cards `img[class*=encartesSection__image]` já são páginas full-size — não precisa abrir modal.
 - **Teste de regressão**: `tests/unit/test_services/test_flyer_ocr.py` (12) + `tests/unit/test_vision_strategies.py` (downscale/retry/gemini/fence). YAML dos workflows validado com `yaml.safe_load`.
-
 
 ### 66. Indentação de bloco malformada em stores.yaml passa despercebida até `yaml.safe_load`
 
