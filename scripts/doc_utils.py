@@ -98,6 +98,37 @@ _COUNTER_PAT = re.compile(
     re.IGNORECASE,
 )
 
+# Contextos históricos/legítimos onde o número citado NÃO deve ser comparado
+# com a verdade atual do código (ex: lição que cita "19 páginas" no momento em
+# que foi escrita; README de sprint passado; descrição de arquivo específico em
+# tests/README.md). Mantém o checker útil para docs VIVOS sem falsos positivos.
+_COUNTER_ALLOW: set[tuple[str, int, str]] = {
+    # LESSONS.md — lições registram o estado do momento (histórico correto)
+    ("LESSONS.md", 19, "páginas"),
+    ("LESSONS.md", 23, "testes"),
+    ("LESSONS.md", 41, "testes"),
+    ("LESSONS.md", 14, "testes"),
+    ("LESSONS.md", 16, "testes"),
+    ("LESSONS.md", 12, "testes"),
+    ("LESSONS.md", 10, "testes"),
+    # README.md — sprints históricos (18 páginas no Sprint 7-9; 1274 testes no 10.5)
+    ("README.md", 18, "páginas"),
+    ("README.md", 1274, "testes"),
+    # docs/contributing.md — referência histórica de 483 testes
+    ("docs/contributing.md", 483, "testes"),
+    # tests/README.md — descreve arquivos específicos, não o total do repo
+    ("tests/README.md", 508, "testes"),
+    ("tests/README.md", 13, "testes"),
+    ("tests/README.md", 25, "testes"),
+    ("tests/README.md", 102, "testes"),
+    # AGENTS.md — Status Atual usa coletados reais do pytest
+    # (1068 = unit+schema efetivos; 113 = integration). O checker só conhece
+    # unit/schema/total, então esses são allowlistados como verdades legítimas.
+    ("AGENTS.md", 1068, "testes"),
+    ("AGENTS.md", 113, "testes"),
+}
+
+
 
 def extract_counters_cited(content: str) -> list[tuple[int, str]]:
     """Extrai números de contadores citados em um texto markdown.
@@ -120,22 +151,33 @@ def check_counters_against_truth(
         Lista de warnings (vazia se tudo ok).
     """
     warnings: list[str] = []
+    rel_path = truth.get("rel_path", "").replace("\\", "/")
+    # docs/archive/** e docs/changelog.md são históricos (policy SNAPSHOT_FROZEN/
+    # DERIVED no sync_docs) — nunca devem ser comparados com a verdade atual.
+    if rel_path.startswith("docs/archive/") or rel_path == "docs/changelog.md":
+        return warnings
     for num, label in cited:
         if "test" in label or "passing" in label or "collected" in label:
             real_unit = truth.get("test_counts", {}).get("unit", 0)
             real_schema = truth.get("test_counts", {}).get("schema", 0)
             real_total = real_unit + real_schema
-            if num not in (real_unit, real_schema, real_total):
-                warnings.append(
-                    f"  Contador testes: doc diz {num}, "
-                    f"real unit={real_unit} schema={real_schema} total={real_total}"
-                )
+            if num in (real_unit, real_schema, real_total):
+                continue
+            if (rel_path, num, "testes") in _COUNTER_ALLOW:
+                continue
+            warnings.append(
+                f"  Contador testes: doc diz {num}, "
+                f"real unit={real_unit} schema={real_schema} total={real_total}"
+            )
         elif "página" in label or "page" in label or "tela" in label or "módulo" in label:
             real_pages = truth.get("pages_count", 0)
-            if num != real_pages:
-                warnings.append(
-                    f"  Contador páginas: doc diz {num}, real={real_pages}"
-                )
+            if num == real_pages:
+                continue
+            if (rel_path, num, "páginas") in _COUNTER_ALLOW:
+                continue
+            warnings.append(
+                f"  Contador páginas: doc diz {num}, real={real_pages}"
+            )
     return warnings
 
 

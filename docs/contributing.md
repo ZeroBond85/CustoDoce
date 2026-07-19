@@ -263,4 +263,4 @@ skill({ name: "scraping-resilience" }) # Fallback chain, anti-bot
 skill({ name: "telegram-bot" })      # Handlers, ConversationHandler, dedup
 ```
 
-As skills locais injetam contexto específico (comandos `/preco`, schema `prices`, 18 pages do dashboard, 7 GHA workflows) sem duplicar o conteúdo global.
+As skills locais injetam contexto específico (comandos `/preco`, schema `prices`, 21 pages do dashboard, 8 GHA workflows) sem duplicar o conteúdo global.

@@ -675,7 +675,8 @@ def _update_archive_md(state: dict, dry_run: bool = False) -> list[str]:
 
         content = md_file.read_text(encoding="utf-8")
         cited = extract_counters_cited(content)
-        warnings = check_counters_against_truth(cited, state)
+        truth_with_rel = {**state, "rel_path": str(rel)}
+        warnings = check_counters_against_truth(cited, truth_with_rel)
         new_content = inject_timestamp(content, label="revisão")
         if new_content == content and not warnings:
             continue

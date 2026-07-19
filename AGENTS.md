@@ -76,14 +76,14 @@ CustoDoce/
 ├── scrapers/          # base_flyer, vtex, playwright, flyer, parser, ocr, etc.
 ├── parsers/           # normalizer, matcher, brand_extractor, llm_cache, llm_strategies, llm_classifier
 ├── services/          # supabase_client, price_*, collector, email, telegram, alert, logger, otel, etc.
-├── dashboard/         # login_page, components/ (ui, layout), pages/ (18 módulos)
+├── dashboard/         # login_page, components/ (ui, layout), pages/ (21 módulos)
 ├── telegram_bot/      # handlers.py
 ├── admin/app.py       # 107 linhas — importa 21 pages
 ├── supabase/          # seed.sql, consolidated_migration.sql, migrations 002-006
 ├── scripts/           # deploy, validate, sync, audit, seed, heal, sanity, send_report, skills_maintenance, md_auto_compress
-├── tests/             # unit (729), schema (94), calibration (1), integration, design, e2e, real
+├── tests/             # unit (974), schema (94), calibration (1), integration (113), diagnostics (4), design, e2e, real
 │   ├── unit/fixtures/                                # Mock data central (16 tabelas em mock_data.py)
-│   ├── unit/test_services/                           # 13 módulos decompostos (119 tests)
+│   ├── unit/test_services/                           # 21 módulos decompostos (119 tests)
 │   │   ├── conftest.py                               # Mock helpers compartilhados
 │   │   ├── test_price.py, test_config.py, ...
 │   ├── calibration/                                  # Scoring calibration contra dados reais
@@ -230,13 +230,13 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 
 | Métrica | Valor |
 |---------|-------|
-| pytest (unit + schema, no slow) | 1039 passing |
-| pytest (integration) | 112 passing |
+| pytest (unit + schema, no slow) | 1068 passing |
+| pytest (integration) | 113 passing |
 | pytest (diagnostics, slow) | 4 passing |
 | Schema manifest | 17 tabelas/views com types, not_null, defaults, constraints |
 | Mock validation tests | 97 parametrizados (colunas, tipos, not_null, FKs, CHECK, jsonb) |
 | AGENTS.md | ~340 linhas (Sprint 14 — md_auto_compress) |
-| LESSONS.md | 82 lições |
+| LESSONS.md | 90 lições |
 | REGRAS.md | Ambiente + hooks + comandos |
 | CI lint/type/test | ✅ Todos verdes (Python 3.14.6) |
 | E2E (cloud) | ⏳ Mensal (Playwright) |
