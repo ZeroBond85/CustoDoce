@@ -80,6 +80,8 @@ jobs:
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - run: python scripts/check_environment_parity.py
+      - name: Check .gitattributes forces LF on hooks (regra #17)
+        run: python scripts/check_gitattributes_hooks.py
       - run: ruff check . --output-format=github
       - name: Security lint (Supabase RLS + RPC)
         env:
