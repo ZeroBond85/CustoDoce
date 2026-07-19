@@ -50,6 +50,7 @@ sys.path.insert(0, str(_ROOT))
 
 from scripts.doc_utils import (  # noqa: E402
     check_counters_against_truth,
+    count_tests_cached,
     extract_counters_cited,
     generate_api_md,
     inject_timestamp,
@@ -76,52 +77,51 @@ _FAIL = "FAIL"
 
 
 def _count_tests() -> dict:
-    """Count tests by category using pytest --collect-only (no import needed).
+    """Count tests by category using pytest --collect-only (com cache)."""
 
-    Counts both <Function test_> (sync tests) AND <Coroutine test_> (async tests).
-    Earlier versions only counted synchronous tests, missing 7 async helpers in
-    test_telegram_handlers.py (411 vs real 418).
-    """
-    import subprocess
+    def _run():
+        import subprocess
 
-    result = {}
-    sync_pat = re.compile(r"<Function\s+test_")
-    async_pat = re.compile(r"<Coroutine\s+test_")
+        result = {}
+        sync_pat = re.compile(r"<Function\s+test_")
+        async_pat = re.compile(r"<Coroutine\s+test_")
 
-    for test_path, label in [
-        ("tests/unit", "unit"),
-        ("tests/schema", "schema"),
-        ("tests/integration", "integration"),
-        ("tests/e2e", "e2e"),
-        ("tests/real", "real"),
-    ]:
-        full_path = _ROOT / test_path
-        if not full_path.exists():
-            continue
-        try:
-            proc = subprocess.run(
-                [
-                    sys.executable,
-                    "-m",
-                    "pytest",
-                    str(full_path),
-                    "--collect-only",
-                    "--co",  # print <Function>/<Coroutine> markup for regex
-                    "--no-header",
-                ],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=60,
-                cwd=str(_ROOT),
-            )
-            sync_count = len(sync_pat.findall(proc.stdout))
-            async_count = len(async_pat.findall(proc.stdout))
-            result[label] = sync_count + async_count
-        except Exception:
-            result[label] = 0
-    return result
+        for test_path, label in [
+            ("tests/unit", "unit"),
+            ("tests/schema", "schema"),
+            ("tests/integration", "integration"),
+            ("tests/e2e", "e2e"),
+            ("tests/real", "real"),
+        ]:
+            full_path = _ROOT / test_path
+            if not full_path.exists():
+                continue
+            try:
+                proc = subprocess.run(
+                    [
+                        sys.executable,
+                        "-m",
+                        "pytest",
+                        str(full_path),
+                        "--collect-only",
+                        "--co",
+                        "--no-header",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=60,
+                    cwd=str(_ROOT),
+                )
+                sync_count = len(sync_pat.findall(proc.stdout))
+                async_count = len(async_pat.findall(proc.stdout))
+                result[label] = sync_count + async_count
+            except Exception:
+                result[label] = 0
+        return result
+
+    return count_tests_cached(_ROOT, _run)
 
 
 def _extract_actual_test_count(test_path: str) -> tuple[int, int]:

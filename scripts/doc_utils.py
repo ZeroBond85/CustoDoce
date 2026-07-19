@@ -11,6 +11,7 @@ Fornece funções puras e reutilizáveis para manipulação de markdown:
 from __future__ import annotations
 
 import ast
+import os
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -387,6 +388,58 @@ def read_frontmatter(path: Path) -> tuple[dict, str]:
         return {}, content
 
     return fm, m.group("body")
+
+
+def _hash_test_state(root: Path) -> str:
+    """Hash do estado dos diretórios tests/ (mtime + file count) para cache."""
+    import hashlib
+
+    h = hashlib.md5(usedforsecurity=False)
+    dirs = ["tests/unit", "tests/schema", "tests/integration", "tests/e2e", "tests/real"]
+    total_mtime = 0
+    total_files = 0
+    for rel in dirs:
+        d = root / rel
+        if not d.exists():
+            continue
+        for f in sorted(d.rglob("*.py")):
+            total_mtime += int(f.stat().st_mtime)
+            total_files += 1
+    h.update(f"{total_mtime}:{total_files}".encode())
+    return h.hexdigest()
+
+
+def count_tests_cached(root: Path, pytest_func) -> dict[str, int]:
+    """Cache de test counts: rerun pytest só se tests/ mudou."""
+    import json
+    import tempfile
+
+    cache_dir = Path(tempfile.gettempdir()) / "custodoce_sync"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_file = cache_dir / "test_counts.json"
+
+    state_hash = _hash_test_state(root)
+
+    # Under test execution the callable is mocked per-test; serving a shared
+    # on-disk cache would cross-contaminate test cases (one mock's result
+    # leaking into another). Skip the cache entirely when pytest is driving.
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        cached = {}
+        if cache_file.exists():
+            try:
+                cached = json.loads(cache_file.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                cached = {}
+
+        if cached.get("hash") == state_hash:
+            return cached["counts"]
+
+    counts = pytest_func()
+    cache_file.write_text(
+        json.dumps({"hash": state_hash, "counts": counts}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    return counts
 
 
 def write_frontmatter(path: Path, fm: dict, body: str) -> None:

@@ -13,8 +13,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+from scripts.doc_utils import count_tests_cached
+
 _ROOT = Path(__file__).resolve().parent.parent.parent
-_GIT_DIR = _ROOT / ".git"
 _SYNC_PAT = __import__("re").compile(r"<Function\s+test_")
 _ASYNC_PAT = __import__("re").compile(r"<Coroutine\s+test_")
 _TEST_DIRS = [
@@ -27,28 +28,32 @@ _TEST_DIRS = [
 
 
 def count_tests() -> dict[str, int]:
-    """Count tests per category using pytest --collect-only."""
-    result = {}
-    for test_path, label in _TEST_DIRS:
-        full_path = _ROOT / test_path
-        if not full_path.exists():
-            continue
-        try:
-            proc = subprocess.run(
-                [sys.executable, "-m", "pytest", str(full_path), "--collect-only", "-q", "--no-header"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=60,
-                cwd=str(_ROOT),
-            )
-            sync_count = len(_SYNC_PAT.findall(proc.stdout))
-            async_count = len(_ASYNC_PAT.findall(proc.stdout))
-            result[label] = sync_count + async_count
-        except Exception:
-            result[label] = 0
-    return result
+    """Count tests per category usando cache (pula pytest se tests/ nao mudou)."""
+
+    def _run():
+        result = {}
+        for test_path, label in _TEST_DIRS:
+            full_path = _ROOT / test_path
+            if not full_path.exists():
+                continue
+            try:
+                proc = subprocess.run(
+                    [sys.executable, "-m", "pytest", str(full_path), "--collect-only", "-q", "--no-header"],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=60,
+                    cwd=str(_ROOT),
+                )
+                sync_count = len(_SYNC_PAT.findall(proc.stdout))
+                async_count = len(_ASYNC_PAT.findall(proc.stdout))
+                result[label] = sync_count + async_count
+            except Exception:
+                result[label] = 0
+        return result
+
+    return count_tests_cached(_ROOT, _run)
 
 
 def _count_lessons() -> int:

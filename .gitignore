@@ -18,6 +18,7 @@ env/
 tests/e2e/e2e_screenshots/
 .ruff_cache/
 .coverage
+.coverage.*
 htmlcov/
 bandit_output.json
 report.json
@@ -149,9 +150,7 @@ CustoDoce.7z
 skills-lock.json
 data/audit/
 data/skills_backup/
-
-# Override: skills são versionadas (commit forçado)
-!.opencode/skills/**
+audit_logs/
 
 # Sanitize snapshots (rotacionados pelo script)
 .archive/
