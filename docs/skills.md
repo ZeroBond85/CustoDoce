@@ -1,8 +1,8 @@
 # Skills do CustoDoce
 
 > Gerado por `python scripts/sync_docs.py --sync`. **Não editar à mão.**
-> Última atualização: 2026-07-19 16:38 UTC
-> Total: 34 skills instaladas
+> Última atualização: 2026-07-19 17:00 UTC
+> Total: 35 skills instaladas
 
 | Categoria | Skill | Descrição |
 |---|---|---|
@@ -15,6 +15,7 @@
 | Externas (não adotadas) | theme-factory | Provides 10 pre-built color and font themes for styling artifacts. Pick or generate custom themes. |
 | Ops | skills-maintenance | Script para manter skills atualizadas: check, update, backup, e validação |
 | Overlay Global | api-design | extends global api-design with CustoDoce Supabase REST + RPC conventions. |
+| Overlay Global | doc-sync | Run `python scripts/sync_docs.py` to keep AGENTS.md, README, API docs, page counters, and CI workflow lists in sync with actual code. Handles v1 (full regen) + v2 (heading-aware CURRENT blocks) sync. Dry-run safe. |
 | Overlay Global | docs-writer | extends global docs-writer with CustoDoce documentation conventions. |
 | Overlay Global | github-actions | extends global github-actions with the 7 CustoDoce workflows + free-tier budget. |
 | Overlay Global | project-doc-sync | extends docs/sync_docs behavior for CustoDoce doc set conventions. |
