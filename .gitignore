@@ -66,6 +66,7 @@ data/prices_latest.json
 data/cleanup_track.json
 data/llm_cache.db
 data/test_runs/
+*.log
 
 # ML/model artifacts (rebuilt by `scripts/export_onnx.py`)
 data/embedding_cache/

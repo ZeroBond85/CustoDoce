@@ -29,6 +29,7 @@ def test_all_page_modules_import():
         ingredientes,
         insights,
         lojas,
+        lojas_pendentes,
         precos,
         promocoes,
         ranking,
@@ -48,6 +49,7 @@ def test_all_page_modules_import():
     assert ranking
     assert insights
     assert lojas
+    assert lojas_pendentes
     assert ingredientes
     assert alertas
     assert scrapers
@@ -175,7 +177,7 @@ def test_promocoes_registered_in_page_functions():
 
 
 def test_menu_groups_structure():
-    """MENU_GROUPS contém 5 grupos cobrindo todas as 19 páginas."""
+    """MENU_GROUPS contém 5 grupos cobrindo todas as 20 páginas."""
     from admin.app import MENU_GROUPS, PAGE_FUNCTIONS
 
     expected_groups = {"📊 Painel", "📈 Análises", "📦 Cadastros", "🤖 Operações", "🔧 Ferramentas"}
