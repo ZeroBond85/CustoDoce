@@ -236,7 +236,7 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 | Schema manifest | 17 tabelas/views com types, not_null, defaults, constraints |
 | Mock validation tests | 97 parametrizados (colunas, tipos, not_null, FKs, CHECK, jsonb) |
 | AGENTS.md | ~340 linhas (Sprint 14 — md_auto_compress) |
-| LESSONS.md | 90 lições |
+| LESSONS.md | 82 lições |
 | REGRAS.md | Ambiente + hooks + comandos |
 | CI lint/type/test | ✅ Todos verdes (Python 3.14.6) |
 | E2E (cloud) | ⏳ Mensal (Playwright) |
