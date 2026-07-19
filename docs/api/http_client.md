@@ -1,6 +1,6 @@
 # `http_client` — API
 
-> Última atualização: 2026-07-19 13:59 UTC
+> Última atualização: 2026-07-19 16:38 UTC
 > Gerado por AST parsing dos serviços em `services/http_client.py`.
 
 ## Funções Públicas (4)
