@@ -22,7 +22,8 @@ def test_build_truth_keys_and_types():
             with patch("scripts.sync_docs_v2.truth._extract_services_api", return_value={"svc": ["fn"]}):
                 with patch("scripts.sync_docs_v2.truth._extract_workflows", return_value=["wf1"]):
                     with patch("scripts.sync_docs_v2.truth._count_dashboard_pages", return_value=1):
-                        t = truth.build_truth()
+                        with patch("scripts.sync_docs_v2.truth._count_lessons", return_value=42):
+                            t = truth.build_truth()
 
     assert set(t) == {
         "updated_at",
@@ -34,11 +35,13 @@ def test_build_truth_keys_and_types():
         "workflows",
         "workflows_count",
         "api_services",
+        "lessons_count",
     }
     assert isinstance(t["updated_at"], str)
     assert t["total_tests"] == 15
     assert t["pages_count"] == 1
     assert t["api_services"] == ["svc"]
+    assert t["lessons_count"] == 42
 
 
 def test_count_tests_handles_missing_dir():

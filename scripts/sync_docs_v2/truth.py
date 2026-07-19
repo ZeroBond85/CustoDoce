@@ -51,6 +51,17 @@ def count_tests() -> dict[str, int]:
     return result
 
 
+def _count_lessons() -> int:
+    path = _ROOT / "LESSONS.md"
+    if not path.exists():
+        return 0
+    count = 0
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip().startswith("## ") or line.strip().startswith("# "):
+            count += 1
+    return count
+
+
 def _extract_pages() -> list[tuple[str, str, str]]:
     """Extract PAGES from dashboard/components/layout.py."""
     layout_path = _ROOT / "dashboard" / "components" / "layout.py"
@@ -128,4 +139,5 @@ def build_truth() -> dict:
         "workflows": workflows,
         "workflows_count": len(workflows),
         "api_services": sorted(services_api.keys()),
+        "lessons_count": _count_lessons(),
     }

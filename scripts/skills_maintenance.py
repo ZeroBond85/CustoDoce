@@ -53,6 +53,8 @@ APPROVED_SKILLS = [
     "theme-factory",
     "accessibility",
     "design-md",
+    # Doc sync
+    "doc-sync",
     # Maintenance
     "skills-maintenance",
     # Security
@@ -77,6 +79,7 @@ SKILL_CATEGORIES: dict[str, list[str]] = {
     "Overlay Global": [
         "api-design", "docs-writer", "github-actions",
         "project-doc-sync", "sql-optimizer", "telegram-bot", "test-total-runner",
+        "doc-sync",
     ],
     "Externas (não adotadas)": [
         "frontend-design", "theme-factory",
