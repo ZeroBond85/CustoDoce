@@ -26,6 +26,7 @@ from dashboard.pages.historico import render_historico
 from dashboard.pages.ingredientes import render_ingredientes
 from dashboard.pages.insights import render_insights
 from dashboard.pages.lojas import render_lojas
+from dashboard.pages.lojas_pendentes import render_lojas_pendentes
 from dashboard.pages.precos import render_precos
 from dashboard.pages.promocoes import render_promocoes
 from dashboard.pages.ranking import render_ranking
@@ -47,6 +48,7 @@ PAGE_FUNCTIONS: dict[str, Callable] = {
     "ranking": render_ranking,
     "insights": render_insights,
     "lojas": render_lojas,
+    "lojas_pendentes": render_lojas_pendentes,
     "ingredientes": render_ingredientes,
     "alertas": render_alertas,
     "scrapers": render_scrapers,
@@ -78,6 +80,7 @@ MENU_GROUPS: dict[str, list[tuple[str, str, str]]] = {
     ],
     "📦 Cadastros": [
         ("Lojas", "🏪", "lojas"),
+        ("Lojas Pendentes", "🕵️", "lojas_pendentes"),
         ("Ingredientes", "🛒", "ingredientes"),
     ],
     "🤖 Operações": [
