@@ -118,8 +118,9 @@ tmp/
 skills-lock.json
 
 # OpenCode skills — cache ignorado, skills versionadas por override
-.opencode/skills/
-!.opencode/skills/**
+.opencode/skills/*
+!.opencode/skills/**/
+!.opencode/skills/**/*
 .github/workflows/skills-maintenance.yml
 
 # Audit cache (regenerated locally — não versionar)
