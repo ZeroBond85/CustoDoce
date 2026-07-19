@@ -14,6 +14,10 @@
 *.cfg    eol=lf
 *.txt    eol=lf
 
+# Git hooks (no extension) — must be LF on disk (WSL reads C: mount raw)
+.githooks/*  eol=lf
+.git/hooks/* eol=lf
+
 # Binary files (no normalization)
 *.png  binary
 *.jpg  binary
