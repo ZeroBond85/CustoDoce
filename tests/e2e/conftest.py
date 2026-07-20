@@ -51,10 +51,16 @@ def logged_in_app_and_page_local(browser):
     Streamlit local nao usa iframes como no cloud, entao retornamos (page, page).
     Em testes que necessitam de frame, ambos apontam para a mesma page.
     """
+    # Reuse the battle-tested login helper from test_e2e_real (single source of
+    # truth). It polls up to 45s for the login form / sidebar and has a second
+    # gate retry, which the previous inline _login_local() lacked — that gap made
+    # every sidebar-nav test fail whenever the form was not instantly ready.
+    from tests.e2e.test_e2e_real import login_to_app
+
     page = browser.new_page(viewport={"width": 1280, "height": 800})
     page.goto(LOCAL_BASE_URL, timeout=120000)
     page.wait_for_load_state("networkidle", timeout=60000)
-    _login_local(page, LOCAL_ADMIN_PASSWORD)
+    login_to_app(page)
     yield page, page
     page.close()
 

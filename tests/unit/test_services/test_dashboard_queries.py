@@ -87,6 +87,30 @@ def test_get_store_coverage_health_flags_stale_and_fresh():
     assert by_name["Nunca"]["days_since_price"] is None
 
 
+def test_get_store_coverage_health_handles_naive_timestamps():
+    """Regressão: collected_at sem timezone (naive) não pode quebrar o subtract.
+
+    Timestamps do DB podem vir sem offset ("2026-07-20 18:00:00"). Antes, o parse
+    produzia datetime naive e ``(datetime.now(UTC) - last_dt)`` lançava
+    ``TypeError: can't subtract offset-naive and offset-aware datetimes``,
+    derrubando a página Scraper Health.
+    """
+    from datetime import datetime, timedelta
+
+    naive_now = datetime.now()  # noqa: DTZ005 - intencional: simula timestamp naive do DB
+    recent_naive = (naive_now - timedelta(days=2)).isoformat()  # sem offset
+
+    stores = [{"id": "s1", "name": "Naive", "tier": 1}]
+    prices = [{"store_id": "s1", "ingredient_id": "Leite", "collected_at": recent_naive}]
+    with patch.object(dashboard_queries, "cached_get_all_stores", return_value=stores), patch.object(
+        dashboard_queries, "get_latest_prices_cached", return_value=prices
+    ):
+        cov = dashboard_queries.get_store_coverage_health(stale_days=3)
+    naive = next(c for c in cov if c["store_name"] == "Naive")
+    assert naive["days_since_price"] in (1, 2)  # tolera fuso; não deve lançar
+    assert naive["is_stale"] is False
+
+
 def test_get_coverage_summary_pct():
     from datetime import UTC, datetime, timedelta
 

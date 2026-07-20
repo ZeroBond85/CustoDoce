@@ -387,6 +387,11 @@ def get_store_coverage_health(stale_days: int = 3):
         if pdate:
             try:
                 dt = datetime.fromisoformat(str(pdate).replace("Z", "+00:00"))
+                # Normaliza para aware (assume UTC) — timestamps sem offset
+                # (ex.: collected_at naive) causariam TypeError ao subtrair de
+                # datetime.now(UTC) mais abaixo.
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=UTC)
                 if rec["last_price_date"] is None or dt > rec["last_price_date"]:
                     rec["last_price_date"] = dt
             except (ValueError, TypeError):

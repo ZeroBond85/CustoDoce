@@ -89,10 +89,10 @@ def render_scraper_health():
                 lambda s: "🔴 Stale / Sem preço" if s else "🟢 Fresco"
             )
             df["days_since_price"] = df["days_since_price"].apply(
-                lambda d: "nunca" if d is None else f"{d}d"
+                lambda d: "nunca" if d is None or pd.isna(d) else f"{int(d)}d"
             )
             df["last_price_date"] = df["last_price_date"].apply(
-                lambda d: d[:10] if d else "—"
+                lambda d: d[:10] if isinstance(d, str) else "—"
             )
             show = df[
                 [
@@ -115,7 +115,7 @@ def render_scraper_health():
         else:
             st.info("Nenhum dado de cobertura disponível.")
 
-    with tabs[3]:
+    with tabs[2]:
         if health_data:
             df = pd.DataFrame(health_data)
             df_plot = df[df["latency_p95_ms"] > 0].sort_values("latency_p95_ms", ascending=False)
@@ -143,7 +143,7 @@ def render_scraper_health():
         else:
             st.info("Nenhum dado de latência disponível.")
 
-    with tabs[4]:
+    with tabs[3]:
         if logs_data:
             df = pd.DataFrame(logs_data)
             # 'errors' vem como JSONB (lista em algumas linhas, nulo/scalar
