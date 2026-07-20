@@ -1,5 +1,5 @@
 # Lições Aprendidas
-> Última atualização: 2026-07-19 04:56 UTC
+> Última atualização: 2026-07-20 05:57 UTC
 
 > Extraídas de AGENTS.md. Numeração original preservada.
 > Regras de execução/ambiente → `REGRAS.md`.
