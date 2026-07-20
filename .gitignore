@@ -166,3 +166,6 @@ scripts/_*.py
 data/_*.jsonl
 data/_coverage_result.jsonl
 scripts/_local_test_barradoce.py
+
+# Runtime caches
+data/if_cache/

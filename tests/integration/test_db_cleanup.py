@@ -71,17 +71,26 @@ class TestDbCleanup:
             }
         ).execute()
 
-        # Logs
+        # Logs — sempre com status + finished_at para não deixar órfãos
+        # (status='started' sem finished_at polui os dashboards de capacity/health).
+        now_iso = datetime.now(UTC).isoformat()
+        old_iso = (datetime.now(UTC) - timedelta(days=100)).isoformat()
         client.table("scraping_logs").insert(
             {
                 "store_name": store_name,
-                "started_at": datetime.now(UTC).isoformat(),
+                "status": "completed",
+                "started_at": now_iso,
+                "finished_at": now_iso,
+                "items_found": 1,
             }
         ).execute()
         client.table("scraping_logs").insert(
             {
                 "store_name": store_name,
-                "started_at": (datetime.now(UTC) - timedelta(days=100)).isoformat(),
+                "status": "completed",
+                "started_at": old_iso,
+                "finished_at": old_iso,
+                "items_found": 1,
             }
         ).execute()
 

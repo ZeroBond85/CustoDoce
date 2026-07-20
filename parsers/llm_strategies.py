@@ -305,6 +305,11 @@ class OpenRouterStrategy(LLMStrategy):
                 return None
             resp.raise_for_status()
             data = resp.json()
+            # API error envelope (ex.: {"error": {...}}) — config/quota, nao parse pontual.
+            if isinstance(data, dict) and "error" in data and "choices" not in data:
+                logger.warning("openrouter_api_error", error=str(data["error"]))
+                self.open_circuit()
+                return None
             content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
             parsed = self._safe_parse(content)
             if not parsed:
@@ -376,6 +381,11 @@ class HuggingFaceStrategy(LLMStrategy):
                 return None
             resp.raise_for_status()
             data = resp.json()
+            # API error envelope — config/quota, cede imediatamente.
+            if isinstance(data, dict) and "error" in data and "choices" not in data:
+                logger.warning("huggingface_api_error", error=str(data["error"]))
+                self.open_circuit()
+                return None
             # HF chat-completions format mirrors OpenAI
             content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
             if not content:
@@ -394,6 +404,13 @@ class HuggingFaceStrategy(LLMStrategy):
                 reason=str(parsed.get("reason", "")),
                 provider="huggingface",
             )
+        except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
+            # DNS/resolucao/rede quebrada (ex.: getaddrinfo failed): host inalcançável
+            # agora — abre o breaker e cede ao próximo da cadeia em vez de martelar
+            # um host morto por 3 falhas lentas.
+            logger.warning("huggingface_network_error", error=str(e))
+            self.open_circuit()
+            return None
         except Exception as e:
             logger.warning("huggingface_error", error=str(e))
             self.record_failure()

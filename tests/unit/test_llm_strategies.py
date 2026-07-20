@@ -389,3 +389,80 @@ def test_huggingface_401_unauthorized(mock_env):
         r = h.classify("x", [{"canonical_name": "y"}])
     assert r is None
     assert h.failure_count >= 1  # still records failure for opacity
+
+
+def test_openrouter_api_error_envelope_opens_circuit(mock_env):
+    """Resposta {"error": ...} (quota/config) deve ABRIR o breaker e ceder,
+    nao apenas contar como falha de parse pontual."""
+    from parsers.llm_strategies import OpenRouterStrategy
+
+    o = OpenRouterStrategy()
+    mock = MagicMock()
+    mock.status_code = 200
+    mock.json.return_value = {"error": {"message": "quota exceeded", "type": "insufficient_quota"}}
+    mock.raise_for_status = MagicMock()
+    with patch("httpx.Client.post", return_value=mock):
+        r = o.classify("x", [{"canonical_name": "y"}])
+    assert r is None
+    assert o.is_circuit_open(), "envelope de erro deve abrir o circuit breaker"
+
+
+def test_openrouter_200_but_no_choices_still_parsed(mock_env):
+    """200 com payload inesperado mas sem 'error' nem 'choices' -> parse falha
+    (record_failure), nao abre breaker."""
+    from parsers.llm_strategies import OpenRouterStrategy
+
+    o = OpenRouterStrategy()
+    mock = MagicMock()
+    mock.status_code = 200
+    mock.json.return_value = {"unexpected": "shape"}
+    mock.raise_for_status = MagicMock()
+    with patch("httpx.Client.post", return_value=mock):
+        r = o.classify("x", [{"canonical_name": "y"}])
+    assert r is None
+    assert not o.is_circuit_open()
+    assert o.failure_count >= 1
+
+
+def test_huggingface_network_error_opens_circuit(mock_env):
+    """DNS/rede quebrada (ConnectError) deve ABRIR o breaker imediatamente e ceder
+    ao proximo provider, em vez de martelar um host inalcançavel por 3 falhas."""
+    import httpx
+    from parsers.llm_strategies import HuggingFaceStrategy
+
+    h = HuggingFaceStrategy()
+    with patch("httpx.Client.post", side_effect=httpx.ConnectError("getaddrinfo failed")):
+        r = h.classify("x", [{"canonical_name": "y"}])
+    assert r is None
+    assert h.is_circuit_open(), "erro de rede deve abrir o circuit breaker"
+    assert h._consecutive_openings >= 1
+
+
+def test_huggingface_timeout_opens_circuit(mock_env):
+    import httpx
+    from parsers.llm_strategies import HuggingFaceStrategy
+
+    h = HuggingFaceStrategy()
+    with patch("httpx.Client.post", side_effect=httpx.TimeoutException("timed out")):
+        r = h.classify("x", [{"canonical_name": "y"}])
+    assert r is None
+    assert h.is_circuit_open()
+
+
+def test_classifier_falls_back_when_all_providers_fail(mock_env):
+    """Quando todos os providers estao configurados mas falham (circuit open),
+    o LLMClassifier deve retornar um fallback seguro (match=False) e NUNCA crashar."""
+    import parsers.llm_strategies as mod
+    from parsers.llm_classifier import LLMClassifier
+
+    # Forca todos os providers com breaker aberto (simulando 429 global).
+    strategies = []
+    for s in [mod.GroqStrategy(), mod.OpenRouterStrategy(), mod.HuggingFaceStrategy()]:
+        s.open_circuit()
+        strategies.append(s)
+
+    clf = LLMClassifier(strategies=strategies)
+    result = clf.classify_sync("Leite Condensado", [{"canonical_name": "leite condensado"}])
+    assert result is not None
+    assert result["match"] is False
+    assert result["provider"] == "fallback"
