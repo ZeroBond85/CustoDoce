@@ -123,7 +123,7 @@ def log_scraper_run(
 def cleanup_test_data() -> dict[str, int]:
     client = get_service_client()
     removed = {"prices": 0, "review_queue": 0, "scraping_logs": 0}
-    _TEST_PREFIXES = ("test ", "e2e ", "_test_")
+    _TEST_PREFIXES = ("test ", "e2e ", "_test_", "Cleanup Store ")
     for prefix in _TEST_PREFIXES:
         prefix_norm = prefix.strip()
         for table in ("prices", "review_queue", "scraping_logs"):

@@ -7,6 +7,7 @@ from pathlib import Path
 import httpx
 
 from services.logger import logger
+from services.url_guard import make_safe_client
 
 
 class BaseFlyerScraper(ABC):
@@ -19,7 +20,8 @@ class BaseFlyerScraper(ABC):
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         # Timeout granular: connect (handshake/DNS) separado de read (download do PDF),
         # para não pendurar em DNS lento nem em PDF grande.
-        self._http = httpx.Client(
+        # make_safe_client() re-valida cada hop de redirect (SSRF defense-in-depth).
+        self._http = make_safe_client(
             timeout=httpx.Timeout(connect=10.0, read=60.0, pool=10.0, write=10.0),
             follow_redirects=True,
             headers={

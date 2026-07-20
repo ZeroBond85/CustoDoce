@@ -23,7 +23,10 @@ from services.url_guard import guard_url
 
 
 def _download_image(http: httpx.Client, url: str) -> bytes | None:
-    safe_url = guard_url(url)
+    # allow_http=True: flyer images are served over http for allowlisted hosts
+    # (roldao.com.br etc.). The guard still blocks non-allowlisted hosts and
+    # private/metadata IPs (see services.url_guard).
+    safe_url = guard_url(url, allow_http=True)
     if not safe_url:
         logger.warning("[flyer_ocr] skipping disallowed image URL: %s", url)
         return None

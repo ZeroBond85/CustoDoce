@@ -198,6 +198,18 @@ class PlaywrightAggregatorScraper:
         cards = await page.query_selector_all(portal_config["card_selector"])
         self.logger.info(f"[{self.name}] Found {len(cards)} candidate cards with '{portal_config['card_selector']}'")
 
+        # Fallback de resiliência: agregadores JS mudam a estrutura de classe
+        # frequentemente. Se nenhum card casar, varremos TODOS os <a> da pagina
+        # cujo href contenha um padrao de folheto — assim o scraper nao quebra
+        # so porque a classe CSS do card mudou (ex.: Promotons).
+        fallback_mode = False
+        if not cards:
+            self.logger.info(f"[{self.name}] No cards matched; falling back to all <a> links with flyer patterns")
+            cards = await page.query_selector_all("a[href]")
+            fallback_mode = True
+
+        flyer_patterns = portal_config["flyer_link_patterns"]
+
         for card in cards:
             try:
                 # Get full card HTML for robust parsing
@@ -213,19 +225,33 @@ class PlaywrightAggregatorScraper:
 
                 # Extract flyer URL
                 flyer_url = ""
-                card_html = await card.inner_html()
-                for pattern in portal_config["flyer_link_patterns"]:
-                    match = re.search(rf'href="([^"]*{pattern}[^"]*)"', card_html, re.I)
-                    if match:
-                        flyer_url = match.group(1)
-                        break
+
+                def _href_has_flyer_pattern(href: str) -> bool:
+                    h = (href or "").lower()
+                    return any(p.strip("/") in h for p in flyer_patterns)
+
+                # Se o proprio card ja eh um <a> (fallback de pagina inteira),
+                # pega o href direto antes de procurar dentro do HTML.
+                try:
+                    own_href = await card.get_attribute("href")
+                except Exception:
+                    own_href = None
+                if own_href and _href_has_flyer_pattern(own_href):
+                    flyer_url = own_href
+                if not flyer_url:
+                    card_html = await card.inner_html()
+                    for pattern in flyer_patterns:
+                        match = re.search(rf'href="([^"]*{pattern}[^"]*)"', card_html, re.I)
+                        if match:
+                            flyer_url = match.group(1)
+                            break
 
                 # Also try to get link from card's <a> tags
                 if not flyer_url:
                     links = await card.query_selector_all("a")
                     for link in links:
                         href = await link.get_attribute("href")
-                        if href and any(p in href.lower() for p in ["brochure", "encarte", "oferta", "catalogo", "flyer", "oferta"]):
+                        if href and _href_has_flyer_pattern(href):
                             flyer_url = href
                             break
 
@@ -234,6 +260,13 @@ class PlaywrightAggregatorScraper:
                 img = await card.query_selector("img")
                 if img:
                     img_src = await img.get_attribute("src") or await img.get_attribute("data-src") or ""
+
+                # No fallback de pagina inteira, descarta links de navegacao que
+                # nao casam com nenhum padrao de folheto e nao tem imagem (evita
+                # poluir o OCR queue com menu/rodape). No modo card normal,
+                # mantem o comportamento original.
+                if fallback_mode and not flyer_url and not img_src:
+                    continue
 
                 # Get title/description
                 title = ""
