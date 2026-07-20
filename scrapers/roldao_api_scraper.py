@@ -15,8 +15,8 @@ class RoldaoApiScraper(BaseWebScraper):
         self.api_base = store_config.get("api_base", "https://blog.roldao.com.br/wp-json/wp/v2")
         self.endpoints = store_config.get("api_endpoints", {})
 
-    def get_posts(self, per_page: int = 10) -> list[dict]:
-        url = f"{self.api_base}{self.endpoints.get('posts', '/posts?per_page=10&categories=10')}"
+    def get_posts(self, per_page: int = 5) -> list[dict]:
+        url = f"{self.api_base}{self.endpoints.get('posts', '/posts?per_page=5&categories=10')}"
         data = self.fetch_json(url)
         return data if isinstance(data, list) else []
 

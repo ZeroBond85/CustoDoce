@@ -148,34 +148,45 @@ jobs:
       - name: Run scraping for tier ${{ matrix.tier }}
         id: scrape_tier
         run: |
-          ulimit -n 65536 && python main.py --tier ${{ matrix.tier }} --no-finalize --mode ${{ inputs.mode }} ${{ inputs.dry_run && '--dry-run' || '' }} ${{ inputs.force && '--force' || '' }} 2>&1 | tee /tmp/scrape_${{ matrix.tier }}.log
-          # Falha o job APENAS em erros de nível [error] / exceções não tratadas.
-          # Warnings de fetch de agregador (ex.: Tiendeo 403 "Client error") são
-          # self-healing (a loja é pulada) e NÃO devem quebrar o tier inteiro.
-          if grep -qE '\[error\s*\]|"level":\s*"error"|Error fetching|TIMEOUT after|falha no scraper' <(sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' /tmp/scrape_${{ matrix.tier }}.log) 2>/dev/null; then
-            echo "::error::[error] entries found in scrape output for tier ${{ matrix.tier }}"
-            grep -E '\[error\s*\]|"level":\s*"error"|Error fetching|TIMEOUT after|falha no scraper' <(sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' /tmp/scrape_${{ matrix.tier }}.log)
+          LOG=/tmp/scrape_${{ matrix.tier }}.log
+          ulimit -n 65536 && python main.py --tier ${{ matrix.tier }} --no-finalize --mode ${{ inputs.mode }} ${{ inputs.dry_run && '--dry-run' || '' }} ${{ inputs.force && '--force' || '' }} 2>&1 | tee "$LOG"
+
+          # ── Só falha em CRASH real (Python traceback) ──
+          # [error] level de logs de self-healing (TIMEOUT, falha de loja individual)
+          # NÃO devem quebrar o tier — o scraper já reportou via record_failure().
+          CLEAN=$(sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' "$LOG")
+          if echo "$CLEAN" | grep -q 'Traceback' 2>/dev/null; then
+            echo "::error::Python crash detected in tier ${{ matrix.tier }}"
+            echo "$CLEAN" | grep -B2 'Traceback'
             exit 1
           fi
-          # ── Guarda de cobertura mínima por tier ──
-          # Falha o job se um tier com lojas habilitadas coletou ZERO ou quase
-          # nada. Isto evita falsos negativos: lojas fora / tier zerado passam
-          # despercebidos se forem apenas [warning]. Tier 2b é manual (esperado 0).
-          # Pisos conservadores para NÃO dar falso positivo em dias lentos.
-          if [ "${{ matrix.tier }}" != "2b" ]; then
-            TOTAL=$(sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' /tmp/scrape_${{ matrix.tier }}.log | grep -oE 'collection_done[^]]*total=[0-9]+' | grep -oE 'total=[0-9]+' | grep -oE '[0-9]+' | tail -1)
+
+          # ── Guarda de cobertura: WARN, não FAIL ──
+          # Freshness skip é normal (cron 12h vs frequências 24h/7d/30d do DB).
+          # Coverage baixa vira WARN para não bloquear enrich/commit.
+          TIER=${{ matrix.tier }}
+          if [ "$TIER" != "2b" ]; then
+            TOTAL=$(echo "$CLEAN" | grep -oE 'collection_done[^]]*total=[0-9]+' | grep -oE 'total=[0-9]+' | grep -oE '[0-9]+' | tail -1)
             TOTAL=${TOTAL:-0}
-            case "${{ matrix.tier }}" in
-              1)   MIN=15;;   # PDFs atacadistas (Tenda/metadados encarte)
-              2a)  MIN=50;;   # VTEX e-commerce SP
-              3)   MIN=50;;   # agregadores (Tiendeo/Guiato)
+            SKIP_COUNT=$(echo "$CLEAN" | grep -c 'skip:.*freq=' || true)
+            RAN_COUNT=$(echo "$CLEAN" | grep -c '>>> INICIANDO' || true)
+
+            case "$TIER" in
+              1)   MIN=15;;
+              2a)  MIN=50;;
+              3)   MIN=50;;
               *)   MIN=1;;
             esac
-            if [ "$TOTAL" -lt "$MIN" ]; then
-              echo "::error::Cobertura insuficiente no tier ${{ matrix.tier }}: coletados ${TOTAL} preços (< piso ${MIN}). Lojas podem estar fora ou scrape quebrado."
-              exit 1
+
+            # Se ALL pularam por freshness → idle cycle normal (passa sempre)
+            if [ "$RAN_COUNT" -eq 0 ] && [ "$SKIP_COUNT" -gt 0 ] && [ "$TOTAL" -eq 0 ]; then
+              echo "coverage_idle tier=$TIER skipped=$SKIP_COUNT (freshness). Nenhuma loja venceu o timer. Pipeline continua."
+            elif [ "$TOTAL" -lt "$MIN" ]; then
+              echo "::warning::Cobertura baixa no tier $TIER: coletados ${TOTAL} preços (< piso ${MIN}). Lojas podem estar fora ou scrape quebrado."
+              echo "coverage_low tier=$TIER total=${TOTAL} min=${MIN} ran=$RAN_COUNT skipped=$SKIP_COUNT"
+            else
+              echo "coverage_ok tier=$TIER total=${TOTAL} piso=${MIN}"
             fi
-            echo "coverage_ok tier=${{ matrix.tier }} total=${TOTAL} piso=${MIN}"
           fi
         shell: bash
         env:

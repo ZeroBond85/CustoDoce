@@ -131,9 +131,10 @@ stores:
         address: "Praia Grande"
     api_base: "https://blog.roldao.com.br/wp-json/wp/v2"
     api_endpoints:
-      posts: "/posts?per_page=10&categories=10"
+      posts: "/posts?per_page=5&categories=10"
       media: "/media/{media_id}"
     image_host: "blog.roldao.com.br"
+    vision_timeout_seconds: 600
     publish_day: "wednesday"
     collection_method: "automated"
     scraper: "roldao_api_scraper"
@@ -197,7 +198,8 @@ stores:
     api_endpoint: "sm-rds-ofertas.php"
     api_params: "action=getOffers&store={store_id}"
     image_host: "institucional.supermuffato.com.br"
-    max_flyer_pages: 10
+    max_flyer_pages: 5
+    vision_timeout_seconds: 600
     publish_day: "thursday"
     collection_method: "automated"
     scraper: "max_api_scraper"

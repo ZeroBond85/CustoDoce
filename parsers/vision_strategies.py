@@ -111,7 +111,7 @@ class VisionStrategy(ABC):
         self._failure_count = CB_THRESHOLD
         self._circuit_open = True
         self._last_failure = time.time()
-        logger.warning("[%s_vision] Circuit breaker OPEN (rate-limited, ceding to next provider)", self.provider_name)
+        logger.info("[%s_vision] Circuit breaker OPEN (rate-limited, ceding to next provider)", self.provider_name)
 
     def record_success(self):
         self._failure_count = 0
@@ -273,7 +273,7 @@ def _safe_parse(content: str) -> VisionResult | None:
                 raw_text=data.get("raw_text", ""),
                 provider="",
             )
-    logger.warning("[vision] Invalid JSON response")
+    logger.info("[vision] Invalid JSON response (retrying with next provider)")
     return None
 
 

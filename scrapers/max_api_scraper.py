@@ -15,7 +15,7 @@ class MaxApiScraper(BaseWebScraper):
         self.api_params = store_config.get("api_params", "action=getOffers&store={store_id}")
         # store_id 120 = Max Atacadista Butanta (Sao Paulo capital). store 75 = Parana (nao usar).
         self.store_id = store_config.get("store_id", "120")
-        self.max_flyer_pages = int(store_config.get("max_flyer_pages", 0)) or 20
+        self.max_flyer_pages = int(store_config.get("max_flyer_pages", 0)) or 5
         self.image_host = store_config.get("image_host", "institucional.supermuffato.com.br")
         self.image_host_fallbacks = store_config.get("image_host_fallbacks", [])
 
