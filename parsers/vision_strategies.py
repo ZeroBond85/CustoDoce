@@ -1,9 +1,10 @@
 """
 parsers/vision_strategies.py
 
-Vision LLM Strategy Pattern — extração de produtos de imagens de flyer via LLMs multimodais.
+Vision Strategy Pattern — extração de produtos de imagens de flyer.
 
-Fallback chain: GroqVisionStrategy → OpenRouterVisionStrategy → NvidiaVisionStrategy
+Fallback chain: OpenRouterVisionStrategy → NvidiaVisionStrategy → fallback OCR local (Tesseract).
+Groq removido: nenhum modelo de visão disponível na API Groq.
 Cada strategy herda circuit breaker + JSON mode do padrão existente.
 """
 
@@ -11,10 +12,12 @@ import base64
 import io
 import json
 import os
+import re
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+import httpx
 from PIL import Image
 
 from services.http_client import get_client
@@ -81,6 +84,7 @@ class VisionStrategy(ABC):
 
     provider_name: str = "base"
     min_interval: float = 0.0
+    timeout: float = 90.0
 
     def __init__(self):
         self._failure_count = 0
@@ -104,14 +108,14 @@ class VisionStrategy(ABC):
         self._last_failure = time.time()
         if self._failure_count >= CB_THRESHOLD:
             self._circuit_open = True
-            logger.warning("[%s_vision] Circuit breaker OPEN after %d failures", self.provider_name, CB_THRESHOLD)
+            logger.info("[%s_vision] Circuit breaker OPEN after %d failures", self.provider_name, CB_THRESHOLD)
 
     def open_circuit(self):
         """Abre o circuit breaker imediatamente (usado em 429 quando ha fallback)."""
         self._failure_count = CB_THRESHOLD
         self._circuit_open = True
         self._last_failure = time.time()
-        logger.info("[%s_vision] Circuit breaker OPEN (rate-limited, ceding to next provider)", self.provider_name)
+        logger.debug("[%s_vision] Circuit breaker OPEN (ceding to next provider)", self.provider_name)
 
     def record_success(self):
         self._failure_count = 0
@@ -132,7 +136,7 @@ class VisionStrategy(ABC):
             return False
         if self._circuit_open:
             if time.time() - self._last_failure > CB_COOLDOWN:
-                logger.info("[%s_vision] Circuit breaker half-open (cooldown passed)", self.provider_name)
+                logger.debug("[%s_vision] Circuit breaker half-open (cooldown passed)", self.provider_name)
                 self._circuit_open = False
                 return True
             return False
@@ -167,25 +171,21 @@ class VisionStrategy(ABC):
                 headers = self._get_headers()
 
                 self._throttle()
-                resp = get_client().post(self.url, headers=headers, json=payload, timeout=DEFAULT_TIMEOUT)
+                resp = get_client().post(self.url, headers=headers, json=payload, timeout=self.timeout)
 
                 if resp.status_code == 429:
                     if VISION_FAIL_FAST_ON_429 and self._has_fallback:
-                        # Provider globalmente limitado: abre o breaker e cede ao
-                        # proximo da cadeia SEM esperar o Retry-After (poupa o
-                        # orcamento de tempo do scrape). O breaker reseta apos o
-                        # cooldown e tentamos de novo mais tarde na mesma run.
                         self.open_circuit()
                         return None
                     if attempt < VISION_MAX_RETRIES:
                         wait = self._retry_after(resp, attempt)
-                        logger.warning(
+                        logger.info(
                             "[%s_vision] Rate limited, retry %d/%d em %.1fs",
                             self.provider_name, attempt + 1, VISION_MAX_RETRIES, wait,
                         )
                         time.sleep(wait)
                         continue
-                    logger.warning("[%s_vision] Rate limited (retries esgotados)", self.provider_name)
+                    logger.info("[%s_vision] Rate limited (retries exhausted)", self.provider_name)
                     self.record_failure()
                     return None
                 if resp.status_code >= 500:
@@ -193,9 +193,7 @@ class VisionStrategy(ABC):
                     self.record_failure()
                     return None
                 if resp.status_code >= 400:
-                    # 4xx persistente (ex.: 404 modelo inexistente): abre o breaker
-                    # para nao martelar o endpoint a cada imagem — so config resolve.
-                    logger.warning("[%s_vision] Client error: %d — abrindo breaker", self.provider_name, resp.status_code)
+                    logger.warning("[%s_vision] Client error: %d — opening breaker", self.provider_name, resp.status_code)
                     self.open_circuit()
                     return None
                 resp.raise_for_status()
@@ -208,13 +206,17 @@ class VisionStrategy(ABC):
                     self.record_success()
                     result.provider = self.provider_name
                 else:
-                    logger.warning("[%s_vision] Invalid response format", self.provider_name)
+                    logger.info("[%s_vision] Invalid response format", self.provider_name)
                     self.record_failure()
 
                 return result
 
+            except httpx.TimeoutException:
+                logger.debug("[%s_vision] Timeout (%.1fs)", self.provider_name, self.timeout)
+                self.record_failure()
+                return None
             except Exception as e:
-                logger.warning("[%s_vision] Error: %s", self.provider_name, e)
+                logger.info("[%s_vision] Error: %s", self.provider_name, e)
                 self.record_failure()
                 return None
         return None
@@ -273,7 +275,7 @@ def _safe_parse(content: str) -> VisionResult | None:
                 raw_text=data.get("raw_text", ""),
                 provider="",
             )
-    logger.info("[vision] Invalid JSON response (retrying with next provider)")
+    logger.debug("[vision] Invalid JSON response (ceding to next provider)")
     return None
 
 
@@ -319,6 +321,7 @@ class GroqVisionStrategy(VisionStrategy):
 
 class OpenRouterVisionStrategy(VisionStrategy):
     provider_name = "openrouter"
+    timeout = 10.0
 
     def __init__(self):
         super().__init__()
@@ -370,6 +373,7 @@ class NvidiaVisionStrategy(VisionStrategy):
     """
 
     provider_name = "nvidia"
+    timeout = 10.0
 
     def __init__(self):
         super().__init__()
@@ -414,6 +418,269 @@ class NvidiaVisionStrategy(VisionStrategy):
 
 
 # Factory to get the fallback chain
+class TesseractVisionStrategy(VisionStrategy):
+    """Ultimo recurso: OCR local via Tesseract (gratuito, sempre em CI).
+
+    Só ativa quando todos os LLM providers falham. Retorna texto bruto com
+    parser simples de precos.
+    """
+
+    provider_name = "tesseract_ocr"
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._available: bool | None = None  # lazy check
+
+    @property
+    def url(self) -> str:
+        return ""
+
+    @property
+    def api_key(self) -> str:
+        return ""
+
+    def _get_payload(self, image_bytes: bytes) -> dict:
+        return {}
+
+    def _parse_response(self, content: str) -> VisionResult | None:
+        return None
+
+    def _get_headers(self) -> dict:
+        return {}
+
+    def is_available(self) -> bool:
+        if self._available is not None:
+            return self._available
+        try:
+            import pytesseract
+            pytesseract.get_tesseract_version()
+            self._available = True
+        except Exception:
+            logger.debug("[tesseract_ocr] binary not available, skipping")
+            self._available = False
+        return self._available
+
+    def extract(self, image_bytes: bytes) -> VisionResult | None:
+        if not self.is_available():
+            return None
+        try:
+            import pytesseract
+            from PIL import Image as PilImage
+            import io
+            img = PilImage.open(io.BytesIO(image_bytes))
+            raw_text = pytesseract.image_to_string(img, lang="por")
+            if not raw_text.strip():
+                logger.debug("[tesseract_ocr] no text extracted")
+                return None
+            products = _ocr_text_to_products(raw_text)
+            if not products:
+                return None
+            logger.info("[tesseract_ocr] extracted %d products via OCR", len(products))
+            return VisionResult(products=products, raw_text=raw_text, provider="tesseract_ocr")
+        except Exception as exc:
+            logger.debug("[tesseract_ocr] OCR failed: %s", exc)
+            return None
+
+
+def _ocr_text_to_products(raw_text: str) -> list[dict]:
+    """Tentativa simples de extrair produtos do texto bruto do OCR.
+
+    Procura linhas com padrao <nome> + <preco> no mesmo paragrafo.
+    """
+    products: list[dict] = []
+    lines = raw_text.splitlines()
+    price_pattern = re.compile(r"R?\$?\s*(\d+[.,]\d{2})")
+    current_name: list[str] = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            current_name = []
+            continue
+        match = price_pattern.search(line)
+        if match:
+            name = " ".join(current_name + [line[:match.start()].strip()]) if current_name else line[:match.start()].strip()
+            price_str = match.group(1).replace(",", ".")
+            try:
+                price = float(price_str)
+                if price > 0 and name:
+                    products.append({"product": name, "price": price, "unit": "", "validity_raw": "", "brand": "", "store": ""})
+                    current_name = []
+                    continue
+            except ValueError:
+                pass
+        current_name.append(line)
+    return products
+
+
+class GitHubModelsVisionStrategy(VisionStrategy):
+    """GitHub Models — GPT-4o com visao via Azure AI (gratuito, OpenAI-compat).
+
+    Requer GITHUB_TOKEN no ambiente (ja existe no CI). Rate limit: ~10 RPM,
+    50-150 RPD no free tier.
+    """
+
+    provider_name = "github_models"
+    timeout = 15.0
+    min_interval = 6.0  # ~10 RPM
+
+    def __init__(self):
+        super().__init__()
+        self._api_key = os.environ.get("GITHUB_TOKEN", "")
+        self._url = "https://models.inference.ai.azure.com/chat/completions"
+        self.model = "gpt-4o"
+
+    @property
+    def api_key(self) -> str:
+        return self._api_key
+
+    @property
+    def url(self) -> str:
+        return self._url
+
+    def _get_payload(self, image_bytes: bytes) -> dict:
+        b64 = self._encode_image(image_bytes)
+        return {
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": _VISION_PROMPT},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
+                    ],
+                }
+            ],
+            "temperature": 0.1,
+            "max_tokens": 4000,
+            "response_format": {"type": "json_object"},
+        }
+
+    def _get_headers(self) -> dict:
+        return {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
+    def _parse_response(self, content: str) -> VisionResult | None:
+        return _safe_parse(content)
+
+
+class GeminiVisionStrategy(VisionStrategy):
+    """Google Gemini API — visao gratuita via Gemini 2.5 Flash.
+
+    Requer GOOGLE_API_KEY no ambiente. Rate limit: ~10 RPM, ~100 RPD.
+    Usa REST API direta (sem SDK) para evitar dependencia extra.
+    """
+
+    provider_name = "gemini"
+    timeout = 15.0
+    min_interval = 6.0  # ~10 RPM
+
+    def __init__(self):
+        super().__init__()
+        self._api_key = os.environ.get("GOOGLE_API_KEY", "")
+        base_url = "https://generativelanguage.googleapis.com/v1beta/models"
+        self._url = f"{base_url}/gemini-2.5-flash:generateContent"
+
+    @property
+    def api_key(self) -> str:
+        return self._api_key
+
+    @property
+    def url(self) -> str:
+        return self._url
+
+    def _get_payload(self, image_bytes: bytes) -> dict:
+        b64 = base64.b64encode(image_bytes).decode("utf-8")
+        return {
+            "contents": [{
+                "parts": [
+                    {"text": _VISION_PROMPT},
+                    {"inline_data": {"mime_type": "image/jpeg", "data": b64}},
+                ]
+            }],
+            "generationConfig": {
+                "temperature": 0.1,
+                "maxOutputTokens": 4000,
+            },
+        }
+
+    def _get_headers(self) -> dict:
+        return {"Content-Type": "application/json"}
+
+    def _get_request_params(self) -> dict:
+        return {"key": self.api_key}
+
+    def _parse_response(self, content: str) -> VisionResult | None:
+        return _safe_parse(content)
+
+    def _extract_content(self, data: dict) -> str:
+        """Gemini response format: candidates[].content.parts[].text"""
+        try:
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        except (KeyError, IndexError, TypeError):
+            return ""
+
+    def extract(self, image_bytes: bytes) -> VisionResult | None:
+        if not self.is_available():
+            logger.debug("[gemini_vision] Circuit breaker open, skipping")
+            return None
+
+        for attempt in range(VISION_MAX_RETRIES + 1):
+            try:
+                payload = self._get_payload(image_bytes)
+                headers = self._get_headers()
+                params = self._get_request_params()
+
+                self._throttle()
+                resp = get_client().post(self.url, headers=headers, json=payload, params=params, timeout=self.timeout)
+
+                if resp.status_code == 429:
+                    if VISION_FAIL_FAST_ON_429 and self._has_fallback:
+                        self.open_circuit()
+                        return None
+                    if attempt < VISION_MAX_RETRIES:
+                        wait = self._retry_after(resp, attempt)
+                        logger.info("[gemini_vision] Rate limited, retry %d/%d em %.1fs", attempt + 1, VISION_MAX_RETRIES, wait)
+                        time.sleep(wait)
+                        continue
+                    logger.info("[gemini_vision] Rate limited (retries exhausted)")
+                    self.record_failure()
+                    return None
+                if resp.status_code >= 500:
+                    logger.warning("[gemini_vision] Server error: %d", resp.status_code)
+                    self.record_failure()
+                    return None
+                if resp.status_code >= 400:
+                    logger.warning("[gemini_vision] Client error: %d — opening breaker", resp.status_code)
+                    self.open_circuit()
+                    return None
+                resp.raise_for_status()
+
+                data = resp.json()
+                content = self._extract_content(data)
+                result = self._parse_response(content)
+
+                if result:
+                    self.record_success()
+                    result.provider = self.provider_name
+                else:
+                    logger.info("[gemini_vision] Invalid response format")
+                    self.record_failure()
+
+                return result
+
+            except httpx.TimeoutException:
+                logger.debug("[gemini_vision] Timeout (%.1fs)", self.timeout)
+                self.record_failure()
+                return None
+            except Exception as e:
+                logger.info("[gemini_vision] Error: %s", e)
+                self.record_failure()
+                return None
+        return None
+
+
 def get_vision_chain() -> list[VisionStrategy]:
     """Return a FRESH vision strategy chain in fallback order.
 
@@ -421,10 +688,16 @@ def get_vision_chain() -> list[VisionStrategy]:
     producao (varias imagens na mesma run), prefira ``_get_cached_chain()`` para
     que o circuit breaker persista entre imagens.
     """
-    chain = [
-        GroqVisionStrategy(),
+    # Gemini (gratis, visao, rapido) e GitHub Models (GPT-4o gratis) primeiro:
+    # qualidade LLM maxima. OpenRouter (429 cronico) e NVIDIA (lento) como
+    # fallback intermediario. Tesseract OCR local como ultimo recurso antes do
+    # extract_products() do flyer_ocr.py.
+    chain: list[VisionStrategy] = [
+        GeminiVisionStrategy(),
+        GitHubModelsVisionStrategy(),
         OpenRouterVisionStrategy(),
         NvidiaVisionStrategy(),
+        TesseractVisionStrategy(),
     ]
     for i, s in enumerate(chain):
         s._has_fallback = i < len(chain) - 1

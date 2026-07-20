@@ -138,11 +138,11 @@ class TestVisionChain:
     def test_get_vision_chain_returns_list(self):
         chain = get_vision_chain()
         assert isinstance(chain, list)
-        assert len(chain) == 3
+        assert len(chain) == 5
 
-    def test_chain_order_groq_openrouter_nvidia(self):
+    def test_chain_order_gemini_github_openrouter_nvidia_tesseract(self):
         names = [s.provider_name for s in get_vision_chain()]
-        assert names == ["groq", "openrouter", "nvidia"]
+        assert names == ["gemini", "github_models", "openrouter", "nvidia", "tesseract_ocr"]
 
     def test_chain_marks_has_fallback_except_last(self):
         chain = get_vision_chain()
@@ -160,20 +160,22 @@ class TestVisionChain:
     def test_cached_chain_breaker_persists_across_images(self, monkeypatch):
         """Regressao: 429 numa imagem abre o breaker e pula o provider nas proximas."""
         reset_vision_chain()
-        monkeypatch.setenv("GROQ_API_KEY", "k")
+        monkeypatch.setenv("OPENROUTER_API_KEY", "k")
+        monkeypatch.setenv("GOOGLE_API_KEY", "")
+        monkeypatch.setenv("GITHUB_TOKEN", "")
         monkeypatch.setenv("VISION_FAIL_FAST_ON_429", "1")
         monkeypatch.setattr("parsers.vision_strategies.time.sleep", lambda *_: None)
         chain = _get_cached_chain()
-        groq = next(s for s in chain if s.provider_name == "groq")
+        openrouter = next(s for s in chain if s.provider_name == "openrouter")
         client = MagicMock()
         client.post.return_value = _resp429()
         monkeypatch.setattr("parsers.vision_strategies.get_client", lambda: client)
-        r1 = groq.extract(b"img")
+        r1 = openrouter.extract(b"img")
         assert r1 is None
-        r2 = groq.extract(b"img")
+        r2 = openrouter.extract(b"img")
         assert r2 is None
         assert client.post.call_count == 1
-        assert groq._circuit_open is True
+        assert openrouter._circuit_open is True
 
 
 class TestExtractProductsViaVision:
@@ -182,39 +184,41 @@ class TestExtractProductsViaVision:
             result = extract_products_via_vision(b"fake image")
             assert result is None
 
-    def test_groq_429_opens_breaker_so_next_provider_is_tried(self, monkeypatch):
-        """Em 429 com fallback, Groq abre o breaker (fail-fast) e a cadeia
+    def test_openrouter_429_opens_breaker_so_next_provider_is_tried(self, monkeypatch):
+        """Em 429 com fallback, OpenRouter abre o breaker (fail-fast) e a cadeia
         cede ao provider seguinte em vez de obedecer ao Retry-After."""
         reset_vision_chain()
-        monkeypatch.setenv("GROQ_API_KEY", "k")
-        monkeypatch.setenv("OPENROUTER_API_KEY", "o")
+        monkeypatch.setenv("OPENROUTER_API_KEY", "k")
+        monkeypatch.setenv("NVIDIA_API_KEY", "n")
+        monkeypatch.setenv("GOOGLE_API_KEY", "")
+        monkeypatch.setenv("GITHUB_TOKEN", "")
         monkeypatch.setenv("VISION_FAIL_FAST_ON_429", "1")
         monkeypatch.setattr("parsers.vision_strategies.time.sleep", lambda *_: None)
 
         chain = _get_cached_chain()
-        groq = next(s for s in chain if s.provider_name == "groq")
         openrouter = next(s for s in chain if s.provider_name == "openrouter")
+        nvidia = next(s for s in chain if s.provider_name == "nvidia")
 
-        groq_client = MagicMock()
-        groq_client.post.return_value = _resp429()
-        openrouter_client = MagicMock()
-        openrouter_client.post.return_value = _resp(
+        or_client = MagicMock()
+        or_client.post.return_value = _resp429()
+        nvidia_client = MagicMock()
+        nvidia_client.post.return_value = _resp(
             200,
             json_body={"choices": [{"message": {"content": '{"products": [{"product": "Leite", "price": 4.0}]}'}}]},
         )
 
         def _get_client():
-            if not groq._circuit_open:
-                return groq_client
-            return openrouter_client
+            if not openrouter._circuit_open:
+                return or_client
+            return nvidia_client
 
         monkeypatch.setattr("parsers.vision_strategies.get_client", _get_client)
 
         result = extract_products_via_vision(b"img")
         assert result is not None
         assert result[0]["product"] == "Leite"
-        assert groq_client.post.call_count == 1
-        assert openrouter_client.post.call_count == 1
+        assert or_client.post.call_count == 1
+        assert nvidia_client.post.call_count == 1
 
 
 def _make_png(width: int, height: int) -> bytes:
