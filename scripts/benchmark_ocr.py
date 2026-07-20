@@ -15,7 +15,6 @@ from __future__ import annotations
 import argparse
 import io
 import json
-import os
 import re
 import sys
 import time
@@ -138,8 +137,7 @@ def _score_products(found: list[tuple[str, float]]) -> tuple[int, int]:
                 best_score = score
                 best_idx = i
 
-        if best_idx >= 0 and best_score >= 0.5:
-            if not matched[best_idx]:
+        if best_idx >= 0 and best_score >= 0.5 and not matched[best_idx]:
                 matched[best_idx] = True
                 correct_products += 1
                 gt_price = GROUND_TRUTH[best_idx][1]
@@ -212,7 +210,7 @@ def main() -> int:
     if args.engine in ("easyocr", "all"):
         engines.append("easyocr")
 
-    print(f"=== OCR Benchmark ===")
+    print("=== OCR Benchmark ===")
     print(f"Ground truth: {NUM_PRODUCTS} products\n")
 
     image = generate_flyer()
