@@ -150,7 +150,7 @@ class WebsiteScraper(BaseWebScraper):
         )
         return all_entries
 
-    @_retry_with_backoff(max_retries=3, base_delay=2.0, max_delay=30.0)
+    @_retry_with_backoff(max_retries=1, base_delay=2.0, max_delay=30.0)
     def _fetch_shopify_page(self, url: str, page: int) -> dict | None:
         """Busca 1 pagina da API Shopify. Respeita Retry-After em 429/503."""
         resp = self._http.get(url, params={"limit": self.shopify_page_limit, "page": page})

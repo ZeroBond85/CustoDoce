@@ -3,7 +3,7 @@ parsers/vision_strategies.py
 
 Vision Strategy Pattern — extração de produtos de imagens de flyer.
 
-Fallback chain: OpenRouterVisionStrategy → NvidiaVisionStrategy → fallback OCR local (Tesseract).
+Fallback chain: Gemini → NVIDIA → GitHub Models (GPT-4o) → OpenRouter → Tesseract.
 Groq removido: nenhum modelo de visão disponível na API Groq.
 Cada strategy herda circuit breaker + JSON mode do padrão existente.
 """
@@ -525,7 +525,7 @@ class GitHubModelsVisionStrategy(VisionStrategy):
 
     def __init__(self):
         super().__init__()
-        self._api_key = os.environ.get("GITHUB_TOKEN", "")
+        self._api_key = os.environ.get("GH_MODELS_TOKEN", "") or os.environ.get("GITHUB_TOKEN", "")
         self._url = "https://models.inference.ai.azure.com/chat/completions"
         self.model = "gpt-4o"
 
@@ -591,7 +591,7 @@ class GeminiVisionStrategy(VisionStrategy):
         return self._url
 
     def _get_payload(self, image_bytes: bytes) -> dict:
-        b64 = base64.b64encode(image_bytes).decode("utf-8")
+        b64 = self._encode_image(image_bytes)
         return {
             "contents": [{
                 "parts": [
@@ -688,15 +688,16 @@ def get_vision_chain() -> list[VisionStrategy]:
     producao (varias imagens na mesma run), prefira ``_get_cached_chain()`` para
     que o circuit breaker persista entre imagens.
     """
-    # Gemini (gratis, visao, rapido) e GitHub Models (GPT-4o gratis) primeiro:
-    # qualidade LLM maxima. OpenRouter (429 cronico) e NVIDIA (lento) como
-    # fallback intermediario. Tesseract OCR local como ultimo recurso antes do
-    # extract_products() do flyer_ocr.py.
+    # Gemini (gratis, visao, rapido, ~0.5s fail se 429): melhor qualidade free.
+    # NVIDIA (2.7s, llama-3.2-11b-vision): mais rapido dos working, qualidade boa.
+    # GitHub Models (4.5s, GPT-4o): melhor qualidade absoluta, mas mais lento.
+    # OpenRouter (0.1s fail se 429, gemma-4): fallback free.
+    # Tesseract OCR local: ultimo recurso antes do extract_products().
     chain: list[VisionStrategy] = [
         GeminiVisionStrategy(),
+        NvidiaVisionStrategy(),
         GitHubModelsVisionStrategy(),
         OpenRouterVisionStrategy(),
-        NvidiaVisionStrategy(),
         TesseractVisionStrategy(),
     ]
     for i, s in enumerate(chain):

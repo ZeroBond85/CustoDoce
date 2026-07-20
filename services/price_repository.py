@@ -125,7 +125,7 @@ def _upsert_price_rpc_with_retry(client, params, max_retries: int = 3) -> Any:
         except Exception as exc:  # noqa: BLE001 - erro de rede precisa de retry
             last_exc = exc
             if _is_transient_net_err(exc) and attempt < max_retries - 1:
-                logger.warning(
+                logger.info(
                     "upsert_price RPC transient error (attempt %d/%d), retrying: %s",
                     attempt + 1, max_retries, exc,
                 )
@@ -149,7 +149,7 @@ def _upsert_price_table_with_retry(client, data, max_retries: int = 3) -> Any:
         except Exception as exc:  # noqa: BLE001 - erro de rede precisa de retry
             last_exc = exc
             if _is_transient_net_err(exc) and attempt < max_retries - 1:
-                logger.warning(
+                logger.info(
                     "upsert_price fallback transient error (attempt %d/%d), retrying: %s",
                     attempt + 1, max_retries, exc,
                 )
