@@ -23,6 +23,13 @@ structlog
 opentelemetry-api
 opentelemetry-sdk
 
+# RapidOCR: OCR denso para encartes graficos (parsers/flyer_hybrid.py). Emite
+# regioes com bounding-box que a reconstrucao geometrica de preco consome. Puxa
+# onnxruntime + opencv-python transitivamente (modelos PP-OCRv6 vem no wheel, sem
+# download em runtime). Gated por features.ai.flyer_hybrid; degrada p/ vision se
+# o import falhar. Roda nativo no Python 3.14.
+rapidocr>=3.9,<4.0
+
 # Transitive deps explicitly declared (used directly in code)
 # See: parsers/semantic_matcher.py, services/price_intelligence.py, scrapers/ocr.py
 numpy>=2.4

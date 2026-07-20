@@ -18,6 +18,7 @@ import httpx
 
 from parsers.vision_extract import extract_products_via_vision
 from scrapers.extractor import extract_products
+from services.config import get_feature
 from services.logger import logger
 from services.url_guard import guard_url
 
@@ -72,7 +73,25 @@ def _normalize(item: dict, store_name: str, source: str, fallback_validity: str)
 
 
 def _extract_one(image_bytes: bytes, store_name: str) -> list[dict]:
-    """Vision-first, OCR fallback. Retorna a lista bruta de itens extraidos."""
+    """Density-routed extraction: hybrid (dense) -> vision -> OCR fallback.
+
+    Encartes densos (centenas de regioes) sao processados pelo caminho hibrido
+    (RapidOCR + reconstrucao geometrica de preco + LLM-texto), onde a vision-LLM
+    costuma retornar 0 produtos. Encartes esparsos seguem direto para a vision.
+    O roteador so ativa com features.ai.flyer_hybrid e degrada silenciosamente
+    para a vision quando RapidOCR/LLM estao ausentes.
+    """
+    if get_feature("features.ai.flyer_hybrid", default=False):
+        try:
+            from parsers.flyer_hybrid import extract_products_hybrid
+
+            hybrid = extract_products_hybrid(image_bytes)
+            if hybrid:
+                logger.info("[flyer_ocr] %s: hibrido denso -> %d produtos", store_name, len(hybrid))
+                return hybrid
+        except Exception as exc:
+            logger.debug("[flyer_ocr] hibrido falhou para %s: %s", store_name, exc)
+
     try:
         vision = extract_products_via_vision(image_bytes)
     except Exception as exc:

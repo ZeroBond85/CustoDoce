@@ -132,6 +132,51 @@ class TestExtractFlyerProducts:
         assert out == []
 
 
+class TestDensityRouter:
+    """Roteador por densidade em _extract_one (features.ai.flyer_hybrid)."""
+
+    def test_hybrid_disabled_uses_vision(self, monkeypatch):
+        monkeypatch.setattr(flyer_ocr, "get_feature", lambda path, default=None: False)
+        import parsers.flyer_hybrid as fh
+
+        called = {"hybrid": False}
+        monkeypatch.setattr(fh, "extract_products_hybrid", lambda b: called.__setitem__("hybrid", True) or [{"product": "H", "price": 1.0}])
+        monkeypatch.setattr(flyer_ocr, "extract_products_via_vision", lambda _b: [{"product": "Vision Prod", "price": 2.0}])
+        out = flyer_ocr._extract_one(b"bytes", "Loja")
+        assert out == [{"product": "Vision Prod", "price": 2.0}]
+        assert called["hybrid"] is False
+
+    def test_hybrid_enabled_dense_wins(self, monkeypatch):
+        monkeypatch.setattr(flyer_ocr, "get_feature", lambda path, default=None: True)
+        import parsers.flyer_hybrid as fh
+
+        monkeypatch.setattr(fh, "extract_products_hybrid", lambda b: [{"product": "Hybrid Prod", "price": 3.0}])
+        monkeypatch.setattr(flyer_ocr, "extract_products_via_vision", lambda _b: [{"product": "Vision Prod", "price": 2.0}])
+        out = flyer_ocr._extract_one(b"bytes", "Loja")
+        assert out == [{"product": "Hybrid Prod", "price": 3.0}]
+
+    def test_hybrid_enabled_but_sparse_falls_to_vision(self, monkeypatch):
+        monkeypatch.setattr(flyer_ocr, "get_feature", lambda path, default=None: True)
+        import parsers.flyer_hybrid as fh
+
+        monkeypatch.setattr(fh, "extract_products_hybrid", lambda b: None)
+        monkeypatch.setattr(flyer_ocr, "extract_products_via_vision", lambda _b: [{"product": "Vision Prod", "price": 2.0}])
+        out = flyer_ocr._extract_one(b"bytes", "Loja")
+        assert out == [{"product": "Vision Prod", "price": 2.0}]
+
+    def test_hybrid_exception_degrades_to_vision(self, monkeypatch):
+        monkeypatch.setattr(flyer_ocr, "get_feature", lambda path, default=None: True)
+        import parsers.flyer_hybrid as fh
+
+        def _boom(_b):
+            raise RuntimeError("rapidocr exploded")
+
+        monkeypatch.setattr(fh, "extract_products_hybrid", _boom)
+        monkeypatch.setattr(flyer_ocr, "extract_products_via_vision", lambda _b: [{"product": "Vision Prod", "price": 2.0}])
+        out = flyer_ocr._extract_one(b"bytes", "Loja")
+        assert out == [{"product": "Vision Prod", "price": 2.0}]
+
+
 class TestMaxRoldaoWiring:
     def test_max_run_uses_flyer_ocr(self, monkeypatch):
         from scrapers.max_api_scraper import MaxApiScraper
