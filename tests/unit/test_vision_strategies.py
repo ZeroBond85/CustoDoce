@@ -140,9 +140,9 @@ class TestVisionChain:
         assert isinstance(chain, list)
         assert len(chain) == 5
 
-    def test_chain_order_gemini_github_openrouter_nvidia_tesseract(self):
+    def test_chain_order_gemini_nvidia_github_openrouter_tesseract(self):
         names = [s.provider_name for s in get_vision_chain()]
-        assert names == ["gemini", "github_models", "openrouter", "nvidia", "tesseract_ocr"]
+        assert names == ["gemini", "nvidia", "github_models", "openrouter", "tesseract_ocr"]
 
     def test_chain_marks_has_fallback_except_last(self):
         chain = get_vision_chain()
@@ -184,41 +184,54 @@ class TestExtractProductsViaVision:
             result = extract_products_via_vision(b"fake image")
             assert result is None
 
-    def test_openrouter_429_opens_breaker_so_next_provider_is_tried(self, monkeypatch):
-        """Em 429 com fallback, OpenRouter abre o breaker (fail-fast) e a cadeia
-        cede ao provider seguinte em vez de obedecer ao Retry-After."""
+    def test_nvidia_succeeds_when_gemini_and_github_skip(self, monkeypatch):
+        """NVIDIA (2o na chain) e a primeira opcao viavel quando Gemini e
+        GitHubModels sao pulados por falta de config."""
         reset_vision_chain()
         monkeypatch.setenv("OPENROUTER_API_KEY", "k")
         monkeypatch.setenv("NVIDIA_API_KEY", "n")
         monkeypatch.setenv("GOOGLE_API_KEY", "")
         monkeypatch.setenv("GITHUB_TOKEN", "")
-        monkeypatch.setenv("VISION_FAIL_FAST_ON_429", "1")
+        monkeypatch.setenv("GH_MODELS_TOKEN", "")
         monkeypatch.setattr("parsers.vision_strategies.time.sleep", lambda *_: None)
 
-        chain = _get_cached_chain()
-        openrouter = next(s for s in chain if s.provider_name == "openrouter")
-        nvidia = next(s for s in chain if s.provider_name == "nvidia")
-
-        or_client = MagicMock()
-        or_client.post.return_value = _resp429()
         nvidia_client = MagicMock()
         nvidia_client.post.return_value = _resp(
             200,
             json_body={"choices": [{"message": {"content": '{"products": [{"product": "Leite", "price": 4.0}]}'}}]},
         )
 
-        def _get_client():
-            if not openrouter._circuit_open:
-                return or_client
-            return nvidia_client
-
-        monkeypatch.setattr("parsers.vision_strategies.get_client", _get_client)
+        monkeypatch.setattr("parsers.vision_strategies.get_client", lambda: nvidia_client)
 
         result = extract_products_via_vision(b"img")
         assert result is not None
         assert result[0]["product"] == "Leite"
-        assert or_client.post.call_count == 1
         assert nvidia_client.post.call_count == 1
+
+    def test_openrouter_429_opens_breaker_fail_fast(self, monkeypatch):
+        """Em 429 com fallback, OpenRouter abre o breaker (fail-fast) em vez de
+        obedecer ao Retry-After; a cadeia cede aos providers seguintes."""
+        reset_vision_chain()
+        monkeypatch.setenv("OPENROUTER_API_KEY", "k")
+        monkeypatch.setenv("NVIDIA_API_KEY", "")
+        monkeypatch.setenv("GOOGLE_API_KEY", "")
+        monkeypatch.setenv("GITHUB_TOKEN", "")
+        monkeypatch.setenv("GH_MODELS_TOKEN", "")
+        monkeypatch.setenv("VISION_FAIL_FAST_ON_429", "1")
+        monkeypatch.setattr("parsers.vision_strategies.time.sleep", lambda *_: None)
+
+        chain = _get_cached_chain()
+        openrouter = next(s for s in chain if s.provider_name == "openrouter")
+
+        or_client = MagicMock()
+        or_client.post.return_value = _resp429()
+        monkeypatch.setattr("parsers.vision_strategies.get_client", lambda: or_client)
+
+        result = extract_products_via_vision(b"img")
+        # OpenRouter 429 -> breaker abre; Tesseract (ultimo) falha em bytes invalidos
+        assert result is None
+        assert or_client.post.call_count == 1
+        assert openrouter._circuit_open is True
 
 
 def _make_png(width: int, height: int) -> bytes:
