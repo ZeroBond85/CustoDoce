@@ -1,0 +1,78 @@
+name: OCR Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      engine:
+        description: "OCR/vision engine to benchmark"
+        required: true
+        default: "tesseract"
+        type: choice
+        options:
+          - tesseract
+          - easyocr
+          - all
+
+env:
+  PYTHON_VERSION: "3.14.6"
+  PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
+  PYTHONPATH: ${{ github.workspace }}
+  PIP_NO_WARN_YANKED: 1
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: "${{ env.PYTHON_VERSION }}"
+
+      - name: Cache system packages
+        uses: actions/cache@v6
+        with:
+          path: /var/cache/apt/archives
+          key: apt-benchmark-${{ runner.os }}
+
+      - name: Install system deps (tesseract)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-por
+
+      - name: Cache Python packages
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/torch/hub
+          key: ${{ runner.os }}-pip-v2-${{ hashFiles('requirements-prod.lock') }}
+
+      - name: Create venv and install prod deps
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -q -r requirements-prod.lock
+
+      - name: Install EasyOCR (if needed)
+        if: ${{ github.event.inputs.engine == 'easyocr' || github.event.inputs.engine == 'all' }}
+        run: |
+          source .venv/bin/activate
+          pip install -q easyocr
+
+      - name: Run benchmark
+        run: |
+          source .venv/bin/activate
+          python scripts/benchmark_ocr.py \
+            --engine ${{ github.event.inputs.engine }} \
+            --output benchmark-results.json
+
+      - name: Upload results
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-results-${{ github.event.inputs.engine }}
+          path: benchmark-results.json

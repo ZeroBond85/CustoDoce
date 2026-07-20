@@ -210,7 +210,7 @@ class GroqStrategy(LLMStrategy):
             resp = get_client().post(self.url, headers=headers, json=payload, timeout=DEFAULT_TIMEOUT)
 
             if resp.status_code == 429:
-                logger.warning("groq_rate_limited", status=429)
+                logger.info("groq_rate_limited", status=429)
                 # Provider free-tier esgotado: abre o breaker e cede ao próximo
                 # da cadeia (OpenRouter/HF) em vez de gastar a janela em retries.
                 self.open_circuit()
@@ -290,10 +290,12 @@ class OpenRouterStrategy(LLMStrategy):
         }
         try:
             resp = get_client().post(self.url, headers=headers, json=payload, timeout=DEFAULT_TIMEOUT)
-            if resp.status_code == 429 or resp.status_code >= 500:
-                logger.warning("openrouter_retryable_error", status=resp.status_code)
-                # 429 = provider globalmente limitado agora: abre o breaker e cede
-                # ao próximo da cadeia (backoff agressivo evita martelar o limite).
+            if resp.status_code == 429:
+                logger.info("openrouter_rate_limited", status=resp.status_code)
+                self.open_circuit()
+                return None
+            if resp.status_code >= 500:
+                logger.warning("openrouter_server_error", status=resp.status_code)
                 self.open_circuit()
                 return None
             if resp.status_code >= 400:
@@ -368,10 +370,12 @@ class HuggingFaceStrategy(LLMStrategy):
         }
         try:
             resp = get_client().post(url, headers=headers, json=payload, timeout=DEFAULT_TIMEOUT)
-            if resp.status_code == 429 or resp.status_code >= 500:
-                logger.warning("huggingface_retryable_error", status=resp.status_code)
-                # 429 = provider globalmente limitado agora: abre o breaker e cede
-                # ao próximo da cadeia (backoff agressivo evita martelar o limite).
+            if resp.status_code == 429:
+                logger.info("huggingface_rate_limited", status=resp.status_code)
+                self.open_circuit()
+                return None
+            if resp.status_code >= 500:
+                logger.warning("huggingface_server_error", status=resp.status_code)
                 self.open_circuit()
                 return None
             if resp.status_code == 401:

@@ -54,7 +54,7 @@ def _retry_with_backoff(max_retries: int = 3, base_delay: float = 1.0, max_delay
                             )
                         time.sleep(delay)
                     else:
-                        logger.error(
+                        logger.warning(
                             "[%s] Todas %d tentativas falharam (HTTP %s): %s. Retornando None.",
                             scraper_name, max_retries + 1, status, e,
                         )
