@@ -16,6 +16,17 @@ This module takes the opposite approach for dense flyers:
 Density routing lives in :func:`is_dense`; the whole path is gated behind
 ``features.ai.flyer_hybrid`` and degrades gracefully to the vision chain when
 RapidOCR is not installed or no LLM key is configured.
+
+Known limitation (why the flag ships OFF)
+-----------------------------------------
+The integer ("reais") part of prices and the product names come out accurate,
+but the *cents* are unreliable on flyers with heavily stylized superscript
+centavos: RapidOCR's recognition model confidently misreads the small "90"
+glyph as "06" (verified: re-OCR of a 4x-upscaled crop reads "90" correctly, so
+it is a recognition-scale issue, not a geometry bug). Whole-image upscaling and
+a higher detection ``limit_side_len`` did not fix it; a per-price crop+re-OCR
+pass corrects most cases but costs ~18s/flyer and is still imperfect. Until
+cents accuracy is improved, keep ``features.ai.flyer_hybrid`` OFF in production.
 """
 from __future__ import annotations
 
