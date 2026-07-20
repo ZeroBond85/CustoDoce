@@ -23,6 +23,15 @@ structlog
 opentelemetry-api
 opentelemetry-sdk
 
+# RapidOCR: OCR denso para encartes graficos (parsers/flyer_hybrid.py). Emite
+# regioes com bounding-box que a reconstrucao geometrica de preco consome. Os
+# modelos PP-OCRv6 vem no wheel (sem download em runtime), mas o engine de
+# inferencia (onnxruntime) NAO e dependencia declarada do rapidocr — por isso e
+# fixado explicitamente abaixo (sem ele o RapidOCR nao roda). Gated por
+# features.ai.flyer_hybrid; degrada p/ vision se o import falhar. Nativo no 3.14.
+rapidocr>=3.9,<4.0
+onnxruntime>=1.22,<2.0
+
 # Transitive deps explicitly declared (used directly in code)
 # See: parsers/semantic_matcher.py, services/price_intelligence.py, scrapers/ocr.py
 numpy>=2.4
@@ -30,7 +39,8 @@ transformers>=5.0
 pillow>=12.0
 joblib>=1.5
 
-# cryptography, msgpack, onnxruntime: removidos de direct deps — são apenas transitivos
+# cryptography, msgpack: removidos de direct deps — são apenas transitivos
+# onnxruntime: RE-ADICIONADO como direct dep acima (engine do rapidocr, nao transitivo)
 # torch: removido de direct dep — nunca importado diretamente, fica como transitivo de sentence-transformers
 
 # psycopg2-binary NÃO deve estar aqui — AGENTS.md regra #4: NUNCA psycopg2 (usar RPC porta 443)
