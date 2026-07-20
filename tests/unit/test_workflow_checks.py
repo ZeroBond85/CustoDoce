@@ -290,28 +290,26 @@ def test_scrape_reusable_does_not_fail_on_client_error():
     """Regressão: Tier 3 (Promotons/Tiendeo) não deve falhar por 403 de agregador.
 
     O scraper trata `Client error '403 Forbidden'` (fetch de agregador) como
-    warning e pula a loja (self-healing). O grep do job scrape só deve falhar
-    em erros de nível `[error]`/`falha no scraper`, nunca em "Client error"
-    isolado — senão um site bloqueando derruba o tier inteiro.
+    warning e pula a loja (self-healing). O job scrape só deve falhar em
+    Python Traceback, nunca em "Client error" — senão um site bloqueando
+    derruba o tier inteiro.
     """
     workflow = _load_workflow("scrape-reusable.yml")
     jobs = workflow.get("jobs", {}) or {}
-    scrape_job = jobs.get("scrape", {})
-    steps = scrape_job.get("strategy", {}).get("matrix", {})  # placeholder; real is steps
-    # Find the run step containing the grep
+    # Find the run step containing the crash check (grep Traceback)
     run_step = None
     for job in jobs.values():
         for step in (job.get("steps", []) or []):
-            if "grep -qE" in (step.get("run", "") or ""):
+            if "grep.*Traceback" in (step.get("run", "") or "") or "grep -q 'Traceback'" in (step.get("run", "") or ""):
                 run_step = step
                 break
         if run_step:
             break
-    assert run_step is not None, "scrape-reusable deve ter step com grep de erro"
+    assert run_step is not None, "scrape-reusable deve ter step com detecção de crash (grep Traceback)"
     run_text = run_step["run"]
-    # O padrão NÃO deve incluir 'Client error' (capturado como warning de fetch)
-    assert "Client error" not in run_text.split("#")[0], (
-        "grep do scrape não deve falhar job em 'Client error' (403 de agregador é warning)"
+    # O padrão NÃO deve incluir 'Client error' (self-healing, não crash)
+    assert "Client error" not in run_text, (
+        "scrape NÃO deve falhar em 'Client error' (403 de agregador é warning tratado)"
     )
 
 
