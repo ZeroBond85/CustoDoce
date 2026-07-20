@@ -1,6 +1,6 @@
 # `recipe_service` — API
 
-> Última atualização: 2026-07-20 15:47 UTC
+> Última atualização: 2026-07-20 15:53 UTC
 > Gerado por AST parsing dos serviços em `services/recipe_service.py`.
 
 ## Funções Públicas (2)
