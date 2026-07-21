@@ -17,21 +17,23 @@ Density routing lives in :func:`is_dense`; the whole path is gated behind
 ``features.ai.flyer_hybrid`` and degrades gracefully to the vision chain when
 RapidOCR is not installed or no LLM key is configured.
 
-Known limitation (why the flag ships OFF)
------------------------------------------
-The integer ("reais") part of prices and the product names come out accurate,
-but the *cents* are unreliable on flyers with heavily stylized superscript
-centavos: RapidOCR's recognition model confidently misreads the small "90"
-glyph as "06" (verified: re-OCR of a 4x-upscaled crop reads "90" correctly, so
-it is a recognition-scale issue, not a geometry bug). Whole-image upscaling and
-a higher detection ``limit_side_len`` did not fix it; a per-price crop+re-OCR
-pass corrects most cases but costs ~18s/flyer and is still imperfect. Until
-cents accuracy is improved, keep ``features.ai.flyer_hybrid`` OFF in production.
+Cents precision
+---------------
+The integer ("reais") part of prices and the product names come out accurate.
+The *cents* on flyers with heavily stylized superscript centavos are unreliable
+straight from geometry (RapidOCR's base model confidently misreads the small
+"90" glyph as "06"). To recover them, :func:`extract_from_regions` runs a
+per-price crop + re-OCR refinement pass (:func:`_refine_cents`), anchored on the
+already-known reais so it only overrides a value when the integer part is
+re-confirmed. This costs ~+20s/flyer, so it is env-gated via
+``FLYER_HYBRID_REFINE_CENTS`` (ON by default; set to ``0`` to favour speed).
 """
 from __future__ import annotations
 
+import io
 import json
 import os
+import re
 import threading
 
 from services.http_client import get_client
@@ -60,6 +62,17 @@ BLOCK_DY_BELOW = float(os.environ.get("FLYER_BLOCK_DY_BELOW", "40"))
 BLOCK_MAX_TEXTS = int(os.environ.get("FLYER_BLOCK_MAX_TEXTS", "6"))
 
 LLM_TIMEOUT = float(os.environ.get("FLYER_HYBRID_LLM_TIMEOUT", "60"))
+
+# Cents refinement: re-OCR an upscaled crop around each reconstructed price to
+# recover the stylized superscript "centavos" (RapidOCR's base model misreads
+# the small "90" glyph as "06" at flyer scale). This roughly doubles extraction
+# time (~+20s/flyer) but materially improves price precision, so it ships ON by
+# default; set FLYER_HYBRID_REFINE_CENTS=0 to trade precision for speed.
+CENTS_CROP_UPSCALE = int(os.environ.get("FLYER_HYBRID_CENTS_UPSCALE", "6"))
+
+
+def _refine_cents_enabled() -> bool:
+    return os.environ.get("FLYER_HYBRID_REFINE_CENTS", "1").lower() not in ("0", "false", "no", "")
 
 # --- RapidOCR runner ---------------------------------------------------------
 
@@ -168,6 +181,10 @@ def build_price_blocks(regions: list[dict]) -> list[dict]:
     it is fully unit-testable against OCR fixtures.
     """
     prices: list[Price] = deduplicate_dual_prices(reconstruct_prices(regions))
+    return _blocks_from_prices(prices, regions)
+
+
+def _blocks_from_prices(prices: list[Price], regions: list[dict]) -> list[dict]:
     names = [r for r in regions if is_product_name(r.get("text", ""))]
 
     blocks: list[dict] = []
@@ -186,6 +203,89 @@ def build_price_blocks(regions: list[dict]) -> list[dict]:
             }
         )
     return blocks
+
+
+# --- cents refinement (crop + re-OCR) ----------------------------------------
+
+
+def _parse_reocr_cents(txts: list[str] | None, reais: int) -> float | None:
+    """Recover ``reais.CC`` from a re-OCR'd price crop, anchored on the known
+    integer part so we only override geometry when the reais are confirmed.
+
+    Accepts both separated (``"19 90"``, ``"19,90"``) and concatenated
+    (``"1990"``) digit forms; returns None when the reais cannot be confirmed.
+    """
+    digits = re.sub(r"[^0-9]", " ", " ".join(txts or [])).strip()
+    if not digits:
+        return None
+    r = str(reais)
+    # reais followed by a 2-digit cents group (separator collapses to a space)
+    m = re.search(rf"\b{r}\s+(\d{{2}})\b", digits)
+    if m:
+        return reais + int(m.group(1)) / 100
+    # concatenated RRCC token (e.g. reais=19 -> "1990")
+    for tok in digits.split():
+        if tok.startswith(r) and len(tok) == len(r) + 2:
+            return reais + int(tok[len(r):]) / 100
+    return None
+
+
+def _refine_cents(image_bytes: bytes, prices: list[Price]) -> list[Price]:
+    """Re-OCR an upscaled crop around each price to fix stylized centavos.
+
+    Best-effort: on any failure (no engine, unreadable image, unconfirmed
+    reais) the original geometry price is kept unchanged.
+    """
+    engine = _get_engine()
+    if engine is None:
+        return prices
+    try:
+        import numpy as np
+        from PIL import Image
+    except Exception:
+        return prices
+    try:
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    except Exception as exc:
+        logger.info("flyer_hybrid_refine_image_error", error=str(exc))
+        return prices
+
+    up = max(1, CENTS_CROP_UPSCALE)
+    refined: list[Price] = []
+    corrected = 0
+    for price in prices:
+        try:
+            xs = [p[0] for p in price.box]
+            ys = [p[1] for p in price.box]
+            x0, y0, x1, y1 = min(xs), min(ys), max(xs), max(ys)
+            h = y1 - y0
+            if h <= 0:
+                refined.append(price)
+                continue
+            crop = img.crop(
+                (
+                    max(0, int(x0 - h * 0.35)),
+                    max(0, int(y0 - h * 0.6)),
+                    int(x1 + h * 2.4),
+                    int(y1 + h * 0.35),
+                )
+            )
+            if crop.width < 3 or crop.height < 3:
+                refined.append(price)
+                continue
+            big = crop.resize((crop.width * up, crop.height * up), Image.LANCZOS)  # type: ignore[attr-defined]
+            res = engine(np.array(big))
+            new_value = _parse_reocr_cents(getattr(res, "txts", None), int(price.value))
+            if new_value is not None and abs(new_value - price.value) > 0.001:
+                refined.append(Price(new_value, price.box, f"{price.source}+reocr"))
+                corrected += 1
+            else:
+                refined.append(price)
+        except Exception as exc:
+            logger.info("flyer_hybrid_refine_price_error", error=str(exc))
+            refined.append(price)
+    logger.info("flyer_hybrid_cents_refined", total=len(prices), corrected=corrected)
+    return refined
 
 
 # --- text-LLM name resolution ------------------------------------------------
@@ -338,9 +438,19 @@ def _to_products(items: list[dict]) -> list[dict]:
 # --- orchestration -----------------------------------------------------------
 
 
-def extract_from_regions(regions: list[dict]) -> list[dict] | None:
-    """Full hybrid pipeline from OCR regions to products (blocks + text-LLM)."""
-    blocks = build_price_blocks(regions)
+def extract_from_regions(regions: list[dict], image_bytes: bytes | None = None) -> list[dict] | None:
+    """Full hybrid pipeline from OCR regions to products (blocks + text-LLM).
+
+    When ``image_bytes`` is provided and cents refinement is enabled, each
+    reconstructed price is re-OCR'd from an upscaled crop to fix stylized
+    centavos before the blocks are built.
+    """
+    prices = deduplicate_dual_prices(reconstruct_prices(regions))
+    if not prices:
+        return None
+    if image_bytes and _refine_cents_enabled():
+        prices = _refine_cents(image_bytes, prices)
+    blocks = _blocks_from_prices(prices, regions)
     if not blocks:
         return None
     products = resolve_names(blocks)
@@ -356,7 +466,7 @@ def extract_products_hybrid(image_bytes: bytes) -> list[dict] | None:
     regions = run_rapidocr(image_bytes)
     if not regions or not is_dense(regions):
         return None
-    return extract_from_regions(regions)
+    return extract_from_regions(regions, image_bytes=image_bytes)
 
 
 __all__ = [

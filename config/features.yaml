@@ -35,8 +35,9 @@ features:
     # produtos gastando 30-40s; o hibrido le as centenas de regioes via OCR e
     # reconstroi precos pela geometria. Roteado por densidade (nº de regioes >
     # FLYER_DENSITY_THRESHOLD). Requer rapidocr instalado; degrada p/ vision se
-    # ausente. OFF por padrao ate validacao com dados reais em producao.
-    flyer_hybrid: false
+    # ausente. LIGADO apos validacao: cents refinement (crop+re-OCR) melhora
+    # precisao dos centavos (ex: .06 -> .90) com custo ~+20s/flyer.
+    flyer_hybrid: true
 
   matcher:
     threshold: 80
