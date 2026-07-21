@@ -293,3 +293,24 @@ Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarbal
 - `REGRAS.md` — Ambiente, hooks, comandos, arquitetura
 - `docs/skills.md` — Skills OpenCode (globais + overlays locais)
 - `docs/changelog.md` — Histórico por fase/sprint; `config/agents_schema.yaml` — Schema deste arquivo
+
+## Flyer OCR — Clustering Espacial + Layout Adaptativo (Sprint 15)
+
+### Novos Parâmetros (Env Vars)
+
+| Variável | Default | Descrição |
+|----------|---------|-----------|
+| `FLYER_USE_LAYOUT_ADAPTATION` | `1` | Liga auto-detecção de layout (1/0) |
+| `FLYER_BLOCK_GAP` | `50` | Gap vertical p/ clustering (px) |
+| `FLYER_BLOCK_X_GAP` | `250` | Gap horizontal p/ separar colunas (px) |
+| `FLYER_BLOCK_DX` | `260` | Janela horizontal base (px) |
+| `FLYER_BLOCK_DY_ABOVE` | `320` | Janela vertical acima base (px) |
+| `FLYER_BLOCK_DY_BELOW` | `40` | Janela vertical abaixo base (px) |
+| `FLYER_BLOCK_MAX_TEXTS` | `6` | Max textos por bloco |
+
+### Novos Arquivos
+- `parsers/flyer_layout_analyzer.py` — Analisa layout, gera params adaptativos, persiste aprendizado
+- `config/flyer_learned_params.json` — Parâmetros aprendidos por store/tipo (auto-gerado)
+
+### Pipeline Ativo
+`collect_tier1_api_flyers()` → `flyer_ocr.py` → `flyer_hybrid.extract_from_regions()` → `build_price_blocks()` (novo clustering) → match/upsert.

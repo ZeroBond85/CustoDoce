@@ -46,6 +46,12 @@ from .price_geometry import (
     is_product_name,
     reconstruct_prices,
 )
+from .flyer_layout_analyzer import (
+    analyze_layout,
+    params_for_profile,
+    ClusteringParams,
+    USE_LAYOUT_ADAPTATION as GLOBAL_USE_LAYOUT_ADAPTATION,
+)
 
 # --- tunables ----------------------------------------------------------------
 
@@ -55,12 +61,32 @@ from .price_geometry import (
 # for tuning without redeploy.
 DENSITY_THRESHOLD = int(os.environ.get("FLYER_DENSITY_THRESHOLD", "150"))
 
-# Spatial window (in OCR pixel space) used to associate name regions with a
+# Base spatial window (in OCR pixel space) used to associate name regions with a
 # price. Names sit above / around the price block on Tenda flyers.
-BLOCK_DX = float(os.environ.get("FLYER_BLOCK_DX", "260"))
-BLOCK_DY_ABOVE = float(os.environ.get("FLYER_BLOCK_DY_ABOVE", "320"))
-BLOCK_DY_BELOW = float(os.environ.get("FLYER_BLOCK_DY_BELOW", "40"))
-BLOCK_MAX_TEXTS = int(os.environ.get("FLYER_BLOCK_MAX_TEXTS", "6"))
+# These values serve as defaults and can be overridden by layout-adaptive
+# parameters when USE_LAYOUT_ADAPTATION is enabled.
+BASE_BLOCK_DX = float(os.environ.get("FLYER_BLOCK_DX", "260"))
+BASE_BLOCK_DY_ABOVE = float(os.environ.get("FLYER_BLOCK_DY_ABOVE", "320"))
+BASE_BLOCK_DY_BELOW = float(os.environ.get("FLYER_BLOCK_DY_BELOW", "40"))
+BASE_BLOCK_MAX_TEXTS = int(os.environ.get("FLYER_BLOCK_MAX_TEXTS", "6"))
+
+# Legacy constants for backward compatibility (will be deprecated)
+BLOCK_DX = BASE_BLOCK_DX
+BLOCK_DY_ABOVE = BASE_BLOCK_DY_ABOVE
+BLOCK_DY_BELOW = BASE_BLOCK_DY_BELOW
+BLOCK_MAX_TEXTS = BASE_BLOCK_MAX_TEXTS
+
+# Layout adaptation settings
+# Can be overridden by layout analyzer when USE_LAYOUT_ADAPTATION=1
+GAP_THRESHOLD = float(os.environ.get("FLYER_BLOCK_GAP", "50"))
+
+# Horizontal gap threshold for splitting adjacent product columns.
+# On Tenda flyers (2048px) products are laid out in ~4 columns; texts
+# in adjacent columns at the same y-level get merged into one block
+# and contaminate names. A gap > X_GAP_THRESHOLD in x-coordinate
+# between consecutive texts signals a column boundary.
+# Can be overridden by layout analyzer when USE_LAYOUT_ADAPTATION=1
+_X_GAP_THRESHOLD = float(os.environ.get("FLYER_BLOCK_X_GAP", "250"))
 
 LLM_TIMEOUT = float(os.environ.get("FLYER_HYBRID_LLM_TIMEOUT", "60"))
 LLM_CB_THRESHOLD = int(os.environ.get("FLYER_HYBRID_CB_THRESHOLD", "3"))
@@ -227,22 +253,125 @@ def build_price_blocks(regions: list[dict]) -> list[dict]:
     return _blocks_from_prices(prices, regions)
 
 
-def _blocks_from_prices(prices: list[Price], regions: list[dict]) -> list[dict]:
+_PROMO_PATTERNS = re.compile(
+    r"(cliente\s*(app|cartao)?|limite\s*por\s*cpf|descontou?\s*|"
+    r"pagando\s*com\s*o|cart[aã]o\s*tenda|"
+    r"v[aá]lida\s*para|imagens\s*meramente|"
+    r"promo[cç][aã]o\s*v[aá]lida|"
+    r"ofertas\s*v[aá]lidas|enquanto\s*durarem|"
+    r"beber?\s*com\s*modera[cç][aã]o|"
+    r"venda\s*proibida\s*para\s*menores|"
+    r"aleitamento\s*materno|"
+    r"art\.?\s*\d+.*estatuto|"
+    r"220v?\s*somente\s*nas\s*lojas|"
+    r"s[aã]o\s+jos[eé]\s+dos\s+campos|"
+    r"leve\s+\d+\s*pague\s*\d+|leve\s+\d+\s*e\s*pague\s*\d+)"
+)
+
+
+# --- layout analysis uses imports from top of file --------------------------
+
+
+def _is_promo(text: str) -> bool:
+    return bool(_PROMO_PATTERNS.search(text.lower().strip()))
+
+
+def _get_adaptive_params(regions: list[dict], prices: list[Price]):
+    """Get adaptive clustering parameters for this flyer's layout."""
+    if not GLOBAL_USE_LAYOUT_ADAPTATION:
+        return None
+
+    try:
+        profile = analyze_layout(regions, prices)
+        return params_for_profile(profile)
+    except Exception:
+        return None
+
+
+def _blocks_from_prices(
+    prices: list[Price],
+    regions: list[dict],
+    adaptive_params: ClusteringParams | None = None,
+) -> list[dict]:
     names = [r for r in regions if is_product_name(r.get("text", ""))]
+
+    # Get adaptive parameters if not explicitly provided
+    if adaptive_params is None:
+        adaptive_params = _get_adaptive_params(regions, prices)
+
+    # Use adaptive parameters if provided, else fall back to globals
+    if adaptive_params is not None:
+        gap_threshold = adaptive_params.GAP_THRESHOLD
+        x_gap_threshold = adaptive_params.X_GAP_THRESHOLD
+        block_dx = adaptive_params.BLOCK_DX
+        block_dy_above = adaptive_params.BLOCK_DY_ABOVE
+        block_dy_below = adaptive_params.BLOCK_DY_BELOW
+        block_max_texts = adaptive_params.BLOCK_MAX_TEXTS
+    else:
+        gap_threshold = GAP_THRESHOLD
+        x_gap_threshold = _X_GAP_THRESHOLD
+        block_dx = BLOCK_DX
+        block_dy_above = BLOCK_DY_ABOVE
+        block_dy_below = BLOCK_DY_BELOW
+        block_max_texts = BLOCK_MAX_TEXTS
 
     blocks: list[dict] = []
     for price in prices:
         px, py = _cx(price.box), _cy(price.box)
-        nearby: list[tuple[float, str]] = []
+        nearby_raw: list[tuple[float, float, str]] = []
         for r in names:
             tx, ty = _cx(r["box"]), _cy(r["box"])
-            if -BLOCK_DX < (tx - px) < BLOCK_DX and -BLOCK_DY_ABOVE < (ty - py) < BLOCK_DY_BELOW:
-                nearby.append((ty, r["text"]))
-        nearby.sort()
+            if -block_dx < (tx - px) < block_dx and -block_dy_above < (ty - py) < block_dy_below:
+                nearby_raw.append((ty, tx, r["text"]))
+        if not nearby_raw:
+            continue
+
+        # Sort by y descending — closest to price first
+        nearby_raw.sort(key=lambda x: -x[0])
+
+        # Filter promo / garbage strings
+        clean = [(ty, tx, t) for ty, tx, t in nearby_raw if not _is_promo(t)]
+
+        # --- vertical clustering ------------------------------------------------
+        # Keep only texts within gap_threshold of the closest text to the price,
+        # discarding text from product rows above / below.
+        if clean:
+            base_y = clean[0][0]
+            vert = [(ty, tx, t) for ty, tx, t in clean if base_y - ty < gap_threshold]
+        else:
+            vert = nearby_raw[:1]
+
+        # --- horizontal (column) split ------------------------------------------
+        # Texts from adjacent product columns at the same y-level are often
+        # concatenated.  Detect column boundaries via x-gaps > x_gap_threshold
+        # and keep only the column closest to the price centroid.
+        vert.sort(key=lambda x: x[1])  # sort by x ascending
+        x_groups: list[list[tuple[float, float, str]]] = [[vert[0]]]
+        for item in vert[1:]:
+            _, tx, _ = item
+            _, prev_x, _ = x_groups[-1][-1]
+            if tx - prev_x > x_gap_threshold:
+                x_groups.append([item])
+            else:
+                x_groups[-1].append(item)
+
+        if len(x_groups) > 1:
+            # Prefer the column with the most text fragments (real products
+            # emit brand + type + weight → multiple regions; OCR garbage
+            # like "uniddes" is usually a single fragment).  Tie → closest
+            # to price center.
+            selected = max(
+                x_groups,
+                key=lambda g: (len(g), -abs(sum(item[1] for item in g) / len(g) - px)),
+            )
+        else:
+            selected = x_groups[0]
+
+        selected.sort(key=lambda x: x[0])  # top-to-bottom
         blocks.append(
             {
                 "price": round(price.value, 2),
-                "texts": [t for _, t in nearby][-BLOCK_MAX_TEXTS:],
+                "texts": [t for _, _, t in selected[-block_max_texts:]],
             }
         )
     return blocks

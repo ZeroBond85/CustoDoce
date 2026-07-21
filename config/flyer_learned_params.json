@@ -1,0 +1,12 @@
+{
+  "Tenda Atacado:tenda_grid_4col": {
+    "GAP_THRESHOLD": 50.0,
+    "X_GAP_THRESHOLD": 250.0,
+    "BLOCK_DX": 260.0,
+    "BLOCK_DY_ABOVE": 320.0,
+    "BLOCK_DY_BELOW": 40.0,
+    "BLOCK_MAX_TEXTS": 6,
+    "success_count": 1,
+    "avg_quality": 0.9367877473564012
+  }
+}
