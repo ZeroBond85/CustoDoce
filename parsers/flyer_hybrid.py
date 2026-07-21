@@ -35,6 +35,7 @@ import json
 import os
 import re
 import threading
+import time
 
 from services.http_client import get_client
 from services.logger import logger
@@ -62,6 +63,8 @@ BLOCK_DY_BELOW = float(os.environ.get("FLYER_BLOCK_DY_BELOW", "40"))
 BLOCK_MAX_TEXTS = int(os.environ.get("FLYER_BLOCK_MAX_TEXTS", "6"))
 
 LLM_TIMEOUT = float(os.environ.get("FLYER_HYBRID_LLM_TIMEOUT", "60"))
+LLM_CB_THRESHOLD = int(os.environ.get("FLYER_HYBRID_CB_THRESHOLD", "3"))
+LLM_CB_COOLDOWN = int(os.environ.get("FLYER_HYBRID_CB_COOLDOWN", "600"))
 
 # Cents refinement: re-OCR an upscaled crop around each reconstructed price to
 # recover the stylized superscript "centavos" (RapidOCR's base model misreads
@@ -69,6 +72,46 @@ LLM_TIMEOUT = float(os.environ.get("FLYER_HYBRID_LLM_TIMEOUT", "60"))
 # time (~+20s/flyer) but materially improves price precision, so it ships ON by
 # default; set FLYER_HYBRID_REFINE_CENTS=0 to trade precision for speed.
 CENTS_CROP_UPSCALE = int(os.environ.get("FLYER_HYBRID_CENTS_UPSCALE", "6"))
+
+# Minimum raw-OCR name quality (0-1) before LLM refinement is triggered.
+# Higher = more blocks sent to LLM (better names, more rate-limit risk).
+# Lower = more raw-OCR names kept (faster, full coverage).
+QUALITY_THRESHOLD = float(os.environ.get("FLYER_RAW_QUALITY_THRESHOLD", "0.3"))
+
+# Circuit breaker state per provider name.
+_cb_state: dict[str, dict] = {}
+
+
+def _provider_available(name: str) -> bool:
+    state = _cb_state.get(name)
+    if state is None:
+        return True
+    if state["open"] and time.time() - state["since"] > LLM_CB_COOLDOWN:
+        state["open"] = False
+        state["count"] = 0
+        logger.info("flyer_hybrid_cb_half_open", provider=name)
+        return True
+    return not state["open"]
+
+
+def _provider_failed(name: str):
+    state = _cb_state.setdefault(name, {"open": False, "count": 0, "since": 0.0})
+    state["count"] += 1
+    if state["count"] >= LLM_CB_THRESHOLD:
+        state["open"] = True
+        state["since"] = time.time()
+        logger.info("flyer_hybrid_cb_open", provider=name, count=state["count"])
+
+
+def _provider_succeeded(name: str):
+    state = _cb_state.get(name)
+    if state:
+        state["count"] = 0
+        state["open"] = False
+
+
+def _reset_cb():
+    _cb_state.clear()
 
 
 def _refine_cents_enabled() -> bool:
@@ -363,22 +406,75 @@ def _parse_llm_json(content: str) -> list[dict] | None:
     return None
 
 
-def resolve_names(blocks: list[dict]) -> list[dict]:
-    """Ask a text-LLM to compose product names for price blocks.
+def _name_quality(name: str) -> float:
+    """Score name quality 0 (garbage) to 1 (perfect).
 
-    Returns normalized ``{"product", "price", "unit"}`` dicts. Empty list when
-    no provider is configured or every provider fails, so the caller can fall
-    back to the vision chain.
+    Real product names are longer than 4 characters and contain mostly
+    alphabetic words. Names shorter than 5 chars or dominated by digits
+    / single-character fragments are treated as low quality.
+    """
+    if len(name) < 5:
+        return 0.0
+    words = name.split()
+    if not words:
+        return 0.0
+    long_ratio = sum(1 for w in words if len(w) > 2) / len(words)
+    digits_ratio = sum(1 for c in name if c.isdigit()) / max(len(name), 1)
+    return max(0.0, min(1.0, long_ratio * 0.8 + (1 - digits_ratio) * 0.2))
+
+
+def _raw_ocr_fallback(blocks: list[dict]) -> list[dict]:
+    """Fallback when all text-LLM providers fail: use raw OCR texts as names.
+
+    Each block already has the correct price from geometry and a list of
+    nearby OCR text fragments. We concatenate them into a product name.
+    """
+    products = []
+    for b in blocks:
+        texts = b.get("texts", [])
+        name = " ".join(t for t in texts if len(t) > 1).strip()[:80]
+        if name:
+            products.append({"product": name, "price": b["price"], "unit": ""})
+    if products:
+        logger.info("flyer_hybrid_raw_ocr_fallback", count=len(products))
+    return products
+
+
+def resolve_names(blocks: list[dict]) -> list[dict]:
+    """Resolve product names from OCR price blocks (raw-OCR-first strategy).
+
+    Guarantees 100 % coverage by always starting with raw-OCR names. LLM
+    providers are called *only* for blocks whose raw-OCR name scores below
+    ``QUALITY_THRESHOLD``. This eliminates the sequential LLM wait that caused
+    empty results when all providers rate-limited.
+
+    Returns normalized ``{"product", "price", "unit"}`` dicts — never empty
+    when blocks have at least one non-empty text.
     """
     if not blocks:
         return []
+
+    products = _raw_ocr_fallback(blocks)
+    if not products:
+        return []
+
+    low_idx = [i for i, p in enumerate(products) if _name_quality(p.get("product", "")) < QUALITY_THRESHOLD]
+    if not low_idx:
+        logger.info("flyer_hybrid_all_names_ok_llm_skipped", count=len(products))
+        return products
+
     providers = _text_llm_providers()
     if not providers:
         logger.info("flyer_hybrid_no_text_llm_key")
-        return []
+        return products
 
-    payload_blocks = json.dumps(blocks, ensure_ascii=False)
+    low_blocks = [blocks[i] for i in low_idx]
+    payload = json.dumps(low_blocks, ensure_ascii=False)
+
     for prov in providers:
+        if not _provider_available(prov["name"]):
+            logger.info("flyer_hybrid_cb_skipping", provider=prov["name"])
+            continue
         try:
             headers = {
                 "Authorization": f"Bearer {prov['key']}",
@@ -391,12 +487,16 @@ def resolve_names(blocks: list[dict]) -> list[dict]:
                 headers=headers,
                 json={
                     "model": prov["model"],
-                    "messages": [{"role": "user", "content": _NAME_PROMPT + payload_blocks}],
+                    "messages": [{"role": "user", "content": _NAME_PROMPT + payload}],
                     "temperature": 0,
                     "response_format": {"type": "json_object"},
                 },
                 timeout=LLM_TIMEOUT,
             )
+            if resp.status_code == 429:
+                logger.info("flyer_hybrid_llm_429", provider=prov["name"])
+                _provider_failed(prov["name"])
+                continue
             if resp.status_code >= 400:
                 logger.info("flyer_hybrid_llm_http_error", provider=prov["name"], status=resp.status_code)
                 continue
@@ -405,14 +505,22 @@ def resolve_names(blocks: list[dict]) -> list[dict]:
             if items is None:
                 logger.info("flyer_hybrid_llm_bad_json", provider=prov["name"])
                 continue
-            products = _to_products(items)
-            if products:
-                logger.info("flyer_hybrid_names_resolved", provider=prov["name"], count=len(products))
-                return products
+            refined = _to_products(items)
+            if not refined:
+                continue
+            for i, r in zip(low_idx, refined, strict=True):
+                if r.get("product"):
+                    products[i]["product"] = r["product"]
+            _provider_succeeded(prov["name"])
+            logger.info("flyer_hybrid_names_refined", provider=prov["name"], refined=len(refined), total=len(products))
+            return products
         except Exception as exc:
             logger.info("flyer_hybrid_llm_error", provider=prov["name"], error=str(exc))
+            _provider_failed(prov["name"])
             continue
-    return []
+
+    logger.info("flyer_hybrid_no_refinement_raw_ocr_kept", low_count=len(low_idx))
+    return products
 
 
 def _to_products(items: list[dict]) -> list[dict]:
@@ -471,6 +579,7 @@ def extract_products_hybrid(image_bytes: bytes) -> list[dict] | None:
 
 __all__ = [
     "DENSITY_THRESHOLD",
+    "QUALITY_THRESHOLD",
     "build_price_blocks",
     "extract_from_regions",
     "extract_products_hybrid",

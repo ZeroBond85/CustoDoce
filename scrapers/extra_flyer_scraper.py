@@ -6,6 +6,7 @@ import httpx
 
 from parsers.unit_extractor import extract_unit as _extract_unit
 from services.logger import logger
+from services.scraper_health import record_failure, record_success
 
 CAMPANHAS_URL = "https://folheteria.clubeextra.com.br/home/sites/assets/js/campanhas.js"
 SP_OFFSET = timedelta(hours=-3)
@@ -149,6 +150,7 @@ class ExtraFlyerScraper:
 
     BRAND = "extra"
     CAMPAIGN_TYPE = "mercado"
+    safe_in_parent = True
 
     def __init__(self, store: dict):
         self.store = store
@@ -177,19 +179,30 @@ class ExtraFlyerScraper:
         resp = self._http.get(CAMPANHAS_URL)
         resp.raise_for_status()
         text = resp.text
-        eq_idx = text.index("=")
-        start = text.index("'", eq_idx) + 1
-        close = text.rfind("'")
+        eq_idx = text.find("=")
+        if eq_idx < 0:
+            logger.debug("[%s] No '=' in campanhas.js (len=%d): %s", self.store_name, len(text), text[:500])
+            return None
+        try:
+            start = text.index("'", eq_idx) + 1
+            close = text.rfind("'")
+            if start >= close:
+                logger.debug("[%s] Bad quotes in campanhas.js (eq=%d, start=%d, close=%d)", self.store_name, eq_idx, start, close)
+                return None
+        except ValueError:
+            logger.debug("[%s] No quotes after '=' in campanhas.js:\n%s", self.store_name, text[:1000])
+            return None
         raw = text[start:close].replace("\\/", "/")
         try:
             return json.loads(raw)
         except json.JSONDecodeError as e:
-            logger.error("JSON decode error: %s", e)
+            logger.debug("[%s] JSON decode error: %s\nRaw snippet: %s", self.store_name, e, raw[:500])
             return None
 
     def _get_campaign_links(self, data: dict) -> list[dict]:
         today = self._get_today_str()
         brand_data = data.get(self.BRAND, {}) or data.get("extra", {})
+        logger.debug("[%s] brand_data keys: %s", self.store_name, list(brand_data.keys())[:10])
         if today not in brand_data:
             available = sorted(brand_data.keys(), reverse=True)
             selected_today = today
@@ -200,11 +213,13 @@ class ExtraFlyerScraper:
                     selected_today = d
                     break
             else:
-                logger.warning("No campaign data for %s", today)
+                logger.warning("[%s] No campaign data for %s; avail: %s", self.store_name, today, available[:5])
                 return []
+            logger.debug("[%s] No exact match for %s, using %s instead", self.store_name, today, selected_today)
             today = selected_today
 
         day_data = brand_data[today]
+        logger.debug("[%s] day_data keys: %s", self.store_name, list(day_data.keys()))
         campaign_type = (
             day_data.get(self.CAMPAIGN_TYPE, {})
             or day_data.get("mercado", {})
@@ -214,6 +229,8 @@ class ExtraFlyerScraper:
         seen = set()
         for city in TARGET_CITIES:
             camps = campaign_type.get(city, [])
+            if camps:
+                logger.debug("[%s] City %s: %d campaigns", self.store_name, city, len(camps))
             for c in camps:
                 link = c.get("link", "")
                 if link and link not in seen:
@@ -225,6 +242,7 @@ class ExtraFlyerScraper:
                             "city": city,
                         }
                     )
+        logger.debug("[%s] Total unique campaigns: %d", self.store_name, len(campaigns))
         return campaigns
 
     def _fetch_page_texts(self, campaign_link: str) -> list[str]:
@@ -236,17 +254,27 @@ class ExtraFlyerScraper:
         try:
             resp = self._http.get(book_url, timeout=15)
             resp.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            logger.debug("[%s] book_config.js HTTP %s for %s", self.store_name, e.response.status_code, book_url)
+            return []
+        except httpx.TimeoutException:
+            logger.debug("[%s] book_config.js timeout for %s", self.store_name, book_url)
+            return []
         except Exception as e:
-            logger.debug("book_config.js error: %s", e)
+            logger.debug("[%s] book_config.js error: %s (%s)", self.store_name, type(e).__name__, e)
             return []
 
         m = re.search(r"var\s+textForPages\s*=\s*(\[.*?\])\s*;", resp.text, re.DOTALL)
         if not m:
+            logger.debug("[%s] No textForPages in book_config.js (len=%d): %s", self.store_name, len(resp.text), resp.text[:300])
             return []
         try:
             pages = json.loads(m.group(1))
-            return [p for p in pages if isinstance(p, str) and p.strip()]
-        except json.JSONDecodeError:
+            result = [p for p in pages if isinstance(p, str) and p.strip()]
+            logger.debug("[%s] %d/%d pages with text", self.store_name, len(result), len(pages))
+            return result
+        except json.JSONDecodeError as e:
+            logger.debug("[%s] book_config.js JSON error: %s", self.store_name, e)
             return []
 
     @staticmethod
@@ -311,29 +339,40 @@ class ExtraFlyerScraper:
         return products
 
     def run(self, ingredients: list[dict] | None = None) -> list[dict]:
-        data = self._fetch_campanhas()
-        if not data:
+        try:
+            data = self._fetch_campanhas()
+            if not data:
+                logger.debug("[%s] No campaign data fetched", self.store_name)
+                record_failure(self.store_name, reason="no campaign data", attempted_by="extra_flyer_scraper")
+                return []
+
+            campaigns = self._get_campaign_links(data)
+            if not campaigns:
+                logger.info("[%s] No campaigns today", self.store_name)
+                record_failure(self.store_name, reason="no campaigns today", attempted_by="extra_flyer_scraper")
+                return []
+
+            all_products = []
+            for camp in campaigns:
+                pages = self._fetch_page_texts(camp["link"])
+                if not pages:
+                    logger.debug("[%s] %s/%s: no page texts", self.store_name, camp["codigo"], camp["city"])
+                    continue
+
+                products = []
+                for page in pages:
+                    products.extend(self._parse_continuous_text(page))
+
+                for p in products:
+                    p["source_url"] = camp["link"]
+
+                logger.info("[%s] %s/%s: %d products", self.store_name, camp["codigo"], camp["city"], len(products))
+                all_products.extend(products)
+
+            record_success(self.store_name, items_found=len(all_products), attempted_by="extra_flyer_scraper")
+            return all_products
+
+        except Exception as e:
+            logger.error("[%s] run error: %s", self.store_name, e)
+            record_failure(self.store_name, reason=str(e), attempted_by="extra_flyer_scraper")
             return []
-
-        campaigns = self._get_campaign_links(data)
-        if not campaigns:
-            logger.info("[%s] No campaigns today", self.store_name)
-            return []
-
-        all_products = []
-        for camp in campaigns:
-            pages = self._fetch_page_texts(camp["link"])
-            if not pages:
-                continue
-
-            products = []
-            for page in pages:
-                products.extend(self._parse_continuous_text(page))
-
-            for p in products:
-                p["source_url"] = camp["link"]
-
-            logger.info("[%s] %s/%s: %d products", self.store_name, camp["codigo"], camp["city"], len(products))
-            all_products.extend(products)
-
-        return all_products
