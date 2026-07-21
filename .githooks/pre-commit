@@ -17,7 +17,7 @@ set -euo pipefail
 
 # Python/git NATIVO do WSL (definidos cedo; usados em todo o hook).
 # Robustez máxima: não dependem de conda, .venv314 nem PATH do Windows.
-PY="/usr/bin/python3"
+PY="/usr/local/bin/python3.14"
 GIT="/usr/bin/git"
 
 STAGED=$("$GIT" diff --cached --name-only --diff-filter=ACM 2>/dev/null || true)
@@ -147,12 +147,12 @@ if [ -n "${STAGED:-}" ]; then
 fi
 
 # ----------------------------------------------------------------
-# 2. DOC SYNC - AVISA se codigo mudou sem docs (non-interactive por default)
+# 2. DOC SYNC - Auto-sincroniza docs sempre que codigo mudar sem docs stageados
 # ----------------------------------------------------------------
 CODE_PATTERNS='^(services|scrapers|parsers|telegram_bot|dashboard|admin)/|main\.py$|^\.github/workflows/|^config/|^tests/'
 DOC_REQUIRED='^docs/changelog\.md$|^README\.md$|^CUSTO_DOCE_RAIO_X\.md$|^RAIO-X_CUSTO_DOCE_RESUMIDO\.md$'
 
-# Force interactive mode: CUSTODOCE_DOC_SYNC_INTERACTIVE=1
+# Force interactive mode: CUSTODOCE_DOC_SYNC_INTERACTIVE=1 (oferece cancelamento)
 FORCE_INTERACTIVE="${CUSTODOCE_DOC_SYNC_INTERACTIVE:-0}"
 
 if echo "${STAGED:-}" | grep -qE "$CODE_PATTERNS"; then
@@ -163,40 +163,39 @@ if echo "${STAGED:-}" | grep -qE "$CODE_PATTERNS"; then
     echo "Arquivos de codigo staged:"
     echo "$STAGED" | grep -E "$CODE_PATTERNS"
     echo ""
-    echo "Sugestao: stagear pelo menos um dos:"
-    echo "  - docs/changelog.md (sempre que alterou ciclo de release)"
-    echo "  - README.md (mudancas visiveis ao usuario)"
-    echo "  - CUSTO_DOCE_RAIO_X.md / RAIO-X_CUSTO_DOCE_RESUMIDO.md (referencia interna)"
-    echo ""
-    if [ "$FORCE_INTERACTIVE" = "1" ] && [ -t 0 ] && read -r CONFIRM 2>/dev/null; then
+    echo "[INFO] Rodando sync_docs.py para atualizar docs..."
+
+    if [ -n "$PY" ] && [ -f "scripts/sync_docs.py" ]; then
+      SYNC_OUTPUT=$("$PY" scripts/sync_docs.py 2>&1) || true
+      echo "$SYNC_OUTPUT"
+    else
+      echo "[WARN] scripts/sync_docs.py nao encontrado ou Python indisponivel"
+    fi
+
+    # Auto-stage docs modified by sync_docs
+    CHANGED=$("$GIT" diff --name-only 2>/dev/null || true)
+    if [ -n "$CHANGED" ]; then
+      echo ""
+      echo "📝 Auto-stageando docs:"
+      echo "$CHANGED" | sed 's/^/  - /'
+      echo "$CHANGED" | while IFS= read -r f; do
+        "$GIT" add "$f" || true
+      done
+    else
+      echo "[OK] Nenhum arquivo modificado pelo sync_docs"
+    fi
+
+    # Interactive mode: oferece cancelamento antes de continuar
+    if [ "$FORCE_INTERACTIVE" = "1" ] && [ -t 0 ]; then
+      echo ""
+      echo "Pressione ENTER para continuar, ou 'c' + ENTER para cancelar: "
+      read -r CONFIRM || true
       case "$CONFIRM" in
-        [Aa])
-          echo "[INFO] Rodando sync_docs.py..."
-          if [ -n "$PY" ] && [ -f "scripts/sync_docs.py" ]; then
-            SYNC_OUTPUT=$("$PY" scripts/sync_docs.py 2>&1) || true
-            echo "$SYNC_OUTPUT"
-            MODIFIED=$(echo "$SYNC_OUTPUT" | grep -E "^(MODIFIED|CREATE|UPDATE|->)" || true)
-            if [ -n "$MODIFIED" ]; then
-              echo ""
-              echo "📝 Arquivos alterados pelo sync_docs.py (revise e stageie manualmente):"
-              echo "$MODIFIED"
-            fi
-          else
-            echo "[WARN] scripts/sync_docs.py nao encontrado ou Python indisponivel"
-          fi
-          echo "Cancelado. Revise os arquivos alterados e commite novamente."
-          exit 1
-          ;;
         [Cc])
-          echo "Cancelado. Ajuste os docs e commite novamente."
+          echo "Cancelado."
           exit 1
-          ;;
-        *)
-          echo "[AVISO] Continuando sem docs"
           ;;
       esac
-    else
-      echo "[AVISO] Continuando sem docs (non-interactive mode). Para modo interativo: export CUSTODOCE_DOC_SYNC_INTERACTIVE=1"
     fi
   fi
 fi

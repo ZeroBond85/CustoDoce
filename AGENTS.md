@@ -101,7 +101,7 @@ CustoDoce/
 ├── requirements.lock       # = requirements-test.lock (backward compat)
 ├── requirements.txt        # = requirements-prod.in (pip-audit source)
 ├── AGENTS.md          # ← este arquivo (vivo, ~340 linhas)
-├── LESSONS.md         # 82 lições aprendidas
+├── LESSONS.md         # 81 lições aprendidas
 └── REGRAS.md          # Ambiente, hooks, comandos
 ```
 
@@ -236,7 +236,7 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 | Schema manifest | 17 tabelas/views com types, not_null, defaults, constraints |
 | Mock validation tests | 97 parametrizados (colunas, tipos, not_null, FKs, CHECK, jsonb) |
 | AGENTS.md | ~340 linhas (Sprint 14 — md_auto_compress) |
-| LESSONS.md | 82 lições |
+| LESSONS.md | 81 lições |
 | REGRAS.md | Ambiente + hooks + comandos |
 | CI lint/type/test | ✅ Todos verdes (Python 3.14.6) |
 | E2E (cloud) | ⏳ Mensal (Playwright) |
@@ -289,7 +289,28 @@ Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarbal
 
 ## Documentação Relacionada
 
-- `LESSONS.md` — 82 lições (CI, mocks, schema, scrapers, monitoração, segurança)
+- `LESSONS.md` — 81 lições (CI, mocks, schema, scrapers, monitoração, segurança)
 - `REGRAS.md` — Ambiente, hooks, comandos, arquitetura
 - `docs/skills.md` — Skills OpenCode (globais + overlays locais)
 - `docs/changelog.md` — Histórico por fase/sprint; `config/agents_schema.yaml` — Schema deste arquivo
+
+## Flyer OCR — Clustering Espacial + Layout Adaptativo (Sprint 15)
+
+### Novos Parâmetros (Env Vars)
+
+| Variável | Default | Descrição |
+|----------|---------|-----------|
+| `FLYER_USE_LAYOUT_ADAPTATION` | `1` | Liga auto-detecção de layout (1/0) |
+| `FLYER_BLOCK_GAP` | `50` | Gap vertical p/ clustering (px) |
+| `FLYER_BLOCK_X_GAP` | `250` | Gap horizontal p/ separar colunas (px) |
+| `FLYER_BLOCK_DX` | `260` | Janela horizontal base (px) |
+| `FLYER_BLOCK_DY_ABOVE` | `320` | Janela vertical acima base (px) |
+| `FLYER_BLOCK_DY_BELOW` | `40` | Janela vertical abaixo base (px) |
+| `FLYER_BLOCK_MAX_TEXTS` | `6` | Max textos por bloco |
+
+### Novos Arquivos
+- `parsers/flyer_layout_analyzer.py` — Analisa layout, gera params adaptativos, persiste aprendizado
+- `config/flyer_learned_params.json` — Parâmetros aprendidos por store/tipo (auto-gerado)
+
+### Pipeline Ativo
+`collect_tier1_api_flyers()` → `flyer_ocr.py` → `flyer_hybrid.extract_from_regions()` → `build_price_blocks()` (novo clustering) → match/upsert.
