@@ -81,7 +81,7 @@ def analyze_layout(regions: list[dict], prices: list[Any]) -> LayoutProfile:
     # Estimate columns - cluster x positions
     price_xs_sorted = sorted(price_xs)
     COL_SEPARATION_THRESHOLD = 80.0
-    col_centers = []
+    col_centers: list[float] = []
     for x in price_xs_sorted:
         if not col_centers or x - col_centers[-1] > COL_SEPARATION_THRESHOLD:
             col_centers.append(x)
@@ -252,7 +252,7 @@ def get_adaptive_params_with_learning(regions: list[dict], prices: list[Any], st
         try:
             profile = analyze_layout(regions, prices)
             learned = get_params_for_store(store_id, profile.flyer_type)
-            if learned and learned.get("success_count", 0) >= 3:
+            if learned and getattr(learned, "success_count", 0) >= 3:
                 return learned
         except Exception as exc:  # pragma: no cover - best effort
             import logging
