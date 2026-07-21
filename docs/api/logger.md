@@ -1,6 +1,6 @@
 # `logger` — API
 
-> Última atualização: 2026-07-20 23:50 UTC
+> Última atualização: 2026-07-21 01:33 UTC
 > Gerado por AST parsing dos serviços em `services/logger.py`.
 
 ## Funções Públicas (1)
