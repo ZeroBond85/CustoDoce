@@ -53,4 +53,4 @@ Mesmo que o workflow passe, um revisor humano deve validar:
 - `services/telegram_bot/handlers.py` (para notificação)
 
 ---
-> Última atualização: 2026-07-06 00:00 UTC
+> Última atualização: 2026-07-21 00:00 UTC
