@@ -688,25 +688,3 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 ### 89. Security audit: service-role client exposto + AUTH_SECRET_KEY aleatório (S-04/S-07)
 - **Sintoma/causa**: `get_service_client()` (bypass RLS total) era chamado de páginas de dashboard sem checagem de sessão; `auth.load_config()` gerava chave aleatória por processo se `AUTH_SECRET_KEY` vazio (footgun se JWT for usado). **Correção**: `require_service_client()` exige `st.session_state.authenticated`; `lojas_pendentes.py`/`lojas.py` migraram para ele; `load_config()` faz `raise` se vazio em produção (`APP_ENV=production`/`STREAMLIT_SERVER`).
 
-### 90. Hooks sem extensão com CRLF travam push em WSL (`.gitattributes` gap)
-- **Sintoma/causa**: `git push` (mesmo `--delete`) falhava com `env: 'python3.14\r': No such file or directory` no pre-push. RAIZ: `.githooks/pre-push` (sem extensão) NÃO estava coberto por `eol=lf` no `.gitattributes`; com `core.autocrlf=true` no Windows, o check-out gravou CRLF no disco, e o WSL lê o C: montado cru (shebang `#!/usr/bin/env python3.14\r` quebra). `xxd` no Windows mascarou (Git converte na exibição). **Correção (RAIZ)**: adicionar `.githooks/*` e `.git/hooks/*` com `eol=lf` no `.gitattributes` + `git add --renormalize` + check-out forçado; virou regra mandatória #17 no AGENTS.md. **Nunca** auto-fixar CRLF em hooks (R14) — a correção é o `.gitattributes`. Registrado 2026-07-19 após delete em lote de branches órfãs travar.
-
-
-## #83: Flyer OCR - Clustering Espacial + Layout Adaptativo (2026-07-21)
-
-**Sintoma**: Nomes de produtos em flyers densos (Tenda/Roldão/Max) saíam concatenados — ex: `"Cerveja Puro Malte Petra Vinho Tinto Santomé Colgate"` (3 produtos em 1 bloco). Preços OK, nomes ruins.
-
-**Causa**: `BLOCK_DY_ABOVE=320` capturava 2-3 fileiras de produtos; `BLOCK_DX=260` capturava colunas adjacentes. OCR (RapidOCR/PP-OCRv6) já era bom — o problema era **agrupamento geométrico**.
-
-**Correção**: 
-1. **Vertical clustering** (`GAP_THRESHOLD=50px`) — só textos a ≤50px do mais próximo ao preço
-2. **Horizontal column split** (`X_GAP_THRESHOLD=250px`) — separa colunas por gap em x; pega a de mais fragmentos
-3. **Filtro promocional** (`_is_promo`) — remove "Cliente APP", "LEVE X PAGUE Y", "Limite por CPF", etc.
-4. **Layout Analyzer** (`flyer_layout_analyzer.py`) — detecta tipo de flyer (tenda_grid_4col, roldao_dense_grid, atacadao_sparse, etc) e ajusta `GAP_THRESHOLD`, `X_GAP_THRESHOLD`, `BLOCK_DX`, `BLOCK_DY_ABOVE`, `BLOCK_MAX_TEXTS` automaticamente
-5. **Aprendizado persistente** — params bem-sucedidos salvos em `config/flyer_learned_params.json` com média móvel (lr=0.3); após 3 sucessos, params aprendidos têm prioridade
-
-**Testes**: 27 flyers reais (8 Tenda + 5 Roldão + 6 Max + 4 Atacadão PDF + 4 fixtures) → **100% Q>0.5** (530/530 blocos). 1232 testes unit passam.
-
-**Tunáveis**: `FLYER_USE_LAYOUT_ADAPTATION=1`, `FLYER_BLOCK_GAP=50`, `FLYER_BLOCK_X_GAP=250`, `FLYER_BLOCK_DX=260`, `FLYER_BLOCK_DY_ABOVE=320`, `FLYER_BLOCK_DY_BELOW=40`, `FLYER_BLOCK_MAX_TEXTS=6`.
-
-**Arquivos**: `parsers/flyer_hybrid.py`, `parsers/flyer_layout_analyzer.py` (novo), `config/flyer_learned_params.json` (gerado automaticamente).
