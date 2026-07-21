@@ -1,5 +1,5 @@
 # ADR 005: Gestão de Limites do Free Tier
-> Última revisão: 2026-07-06 02:38 UTC
+> Última revisão: 2026-07-21 02:38 UTC
 
 **Status**: Aceito
 **Data**: 27/06/2026
