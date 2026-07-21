@@ -39,6 +39,8 @@ on:
         required: false
       HF_API_KEY:
         required: false
+      NVIDIA_API_KEY:
+        required: false
       SMTP_HOST:
         required: false
       SMTP_PORT:
@@ -198,7 +200,8 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          HF_API_KEY: ${{ secrets.HF_API_KEY }}
+          HUGGINGFACE_API_KEY: ${{ secrets.HF_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           CI_JOB_START: ${{ env.CI_JOB_START }}
       - name: Check time budget for scraping
         run: python scripts/check_time_budget.py --timeout-minutes 120 --label "scrape-tier-${{ matrix.tier }}"

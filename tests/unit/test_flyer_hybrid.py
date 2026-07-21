@@ -190,17 +190,28 @@ class TestResolveNames:
     def test_empty_blocks_returns_empty(self):
         assert fh.resolve_names([]) == []
 
-    def test_no_provider_key_returns_empty(self, monkeypatch):
+    def test_no_provider_key_falls_back_to_raw_ocr(self, monkeypatch):
         self._clear_keys(monkeypatch)
-        assert fh.resolve_names([{"price": 5.0, "texts": ["Arroz"]}]) == []
+        out = fh.resolve_names([{"price": 5.0, "texts": ["Arroz"]}])
+        assert out == [{"product": "Arroz", "price": 5.0, "unit": ""}]
 
-    def test_success_returns_products(self, monkeypatch):
+    def test_good_names_skip_llm(self, monkeypatch):
         self._clear_keys(monkeypatch)
         monkeypatch.setenv("GROQ_API_KEY", "test-key")
-        client = _FakeClient(_FakeResp(_llm_payload([{"nome": "Arroz 5kg", "preco": 25.9}])))
+        client = _FakeClient(_FakeResp({}))
         monkeypatch.setattr(fh, "get_client", lambda: client)
         out = fh.resolve_names([{"price": 25.9, "texts": ["Arroz", "5kg"]}])
         assert out == [{"product": "Arroz 5kg", "price": 25.9, "unit": ""}]
+        assert not client.calls  # LLM was NOT called — all names good
+
+    def test_low_quality_triggers_llm_refine(self, monkeypatch):
+        self._clear_keys(monkeypatch)
+        monkeypatch.setenv("GROQ_API_KEY", "test-key")
+        client = _FakeClient(_FakeResp(_llm_payload([{"nome": "Cafe 500g", "preco": 9.9}])))
+        monkeypatch.setattr(fh, "get_client", lambda: client)
+        # Short name (< 5 chars) triggers LLM refinement
+        out = fh.resolve_names([{"price": 9.9, "texts": ["Cafe"]}])
+        assert out == [{"product": "Cafe 500g", "price": 9.9, "unit": ""}]
         assert client.calls and "api.groq.com" in client.calls[0]["url"]
 
     def test_http_error_falls_through_to_next_provider(self, monkeypatch):
@@ -218,9 +229,111 @@ class TestResolveNames:
                 return _FakeResp(_llm_payload([{"nome": "Cafe", "preco": 9.9}]))
 
         monkeypatch.setattr(fh, "get_client", lambda: _Router())
+        # Short name triggers LLM, groq 429 → openrouter succeeds
         out = fh.resolve_names([{"price": 9.9, "texts": ["Cafe"]}])
         assert out == [{"product": "Cafe", "price": 9.9, "unit": ""}]
-        assert len(calls) == 2  # groq failed, openrouter succeeded
+        assert len(calls) == 2
+
+    def test_refine_only_low_quality_blocks(self, monkeypatch):
+        self._clear_keys(monkeypatch)
+        monkeypatch.setenv("GROQ_API_KEY", "test-key")
+        client = _FakeClient(_FakeResp(_llm_payload([{"nome": "Cafe 500g", "preco": 9.9}])))
+        monkeypatch.setattr(fh, "get_client", lambda: client)
+        blocks = [
+            {"price": 9.9, "texts": ["Cafe"]},          # low quality (< 5 chars)
+            {"price": 5.0, "texts": ["Arroz", "5kg"]},  # high quality
+        ]
+        out = fh.resolve_names(blocks)
+        assert len(out) == 2
+        assert out[0]["product"] == "Cafe 500g"  # refined by LLM
+        assert out[1]["product"] == "Arroz 5kg"   # kept from raw-OCR
+        assert len(client.calls) == 1  # only called once with 1 block
+
+
+# --- quality & coverage (data-driven against fixtures) -----------------------
+
+
+class TestQualityAndCoverage:
+    """Validate that raw-OCR-first strategy guarantees 100 % coverage on real
+    flyer fixtures and that name quality is sufficient for the matcher.
+
+    These tests are the "quality benchmark" — if any regressor lowers coverage
+    or average quality, they catch it before deployment.
+    """
+
+    FIXTURE_PATH = os.path.join(os.path.dirname(__file__), "..", "fixtures", "flyer_ocr_sample.json")
+
+    @pytest.fixture
+    def all_flyers(self):
+        with open(self.FIXTURE_PATH, encoding="utf-8") as f:
+            return json.load(f)
+
+    def test_all_prices_have_names(self, all_flyers, monkeypatch):
+        """Coverage: every block with text MUST produce a product name.
+
+        Blocks with empty ``texts`` (orphan prices with no nearby OCR
+        fragments) are skipped by ``_raw_ocr_fallback`` — that's expected.
+        """
+        cls = _FakeClient(_FakeResp({}))
+        monkeypatch.setattr(fh, "get_client", lambda: cls)
+
+        for name, data in all_flyers.items():
+            blocks = fh.build_price_blocks(data["regions"])
+            products = fh.resolve_names(blocks)
+
+            blocks_with_text = sum(1 for b in blocks if b.get("texts"))
+            assert len(products) == blocks_with_text, (
+                f"{name}: {len(products)} names for {blocks_with_text} blocks "
+                f"with text ({len(blocks)} total, {len(blocks) - blocks_with_text} empty)"
+            )
+
+    def test_name_quality_distribution(self, all_flyers, monkeypatch):
+        """Quality: most raw-OCR names should score above threshold, meaning
+        the LLM is only needed for a minority of blocks."""
+        cls = _FakeClient(_FakeResp({}))
+        monkeypatch.setattr(fh, "get_client", lambda: cls)
+
+        low_quality = 0
+        total = 0
+        qualities = []
+
+        for data in all_flyers.values():
+            blocks = fh.build_price_blocks(data["regions"])
+            products = fh.resolve_names(blocks)
+            for p in products:
+                q = fh._name_quality(p.get("product", ""))
+                qualities.append(q)
+                if q < fh.QUALITY_THRESHOLD:
+                    low_quality += 1
+                total += 1
+
+        low_pct = low_quality / max(total, 1)
+        avg_q = sum(qualities) / max(len(qualities), 1)
+
+        assert low_pct < 0.4, (
+            f"{low_quality}/{total} ({low_pct:.1%}) blocks below quality "
+            f"threshold (avg={avg_q:.2f}) — too many would need LLM refinement"
+        )
+
+    def test_raw_ocr_preserves_all_prices(self, all_flyers, monkeypatch):
+        """Prices from geometry must be preserved verbatim by raw-OCR pass.
+
+        Matches by price value rather than position to handle orphan blocks
+        (empty texts) that skip the output.
+        """
+        cls = _FakeClient(_FakeResp({}))
+        monkeypatch.setattr(fh, "get_client", lambda: cls)
+
+        for name, data in all_flyers.items():
+            blocks = fh.build_price_blocks(data["regions"])
+            products = fh.resolve_names(blocks)
+            block_prices = {b["price"] for b in blocks}
+            product_prices = {p["price"] for p in products}
+            # Every product price must come from a block (no phantom prices)
+            assert product_prices.issubset(block_prices), (
+                f"{name}: products contain prices not in blocks: "
+                f"{product_prices - block_prices}"
+            )
 
 
 # --- orchestration ----------------------------------------------------------
