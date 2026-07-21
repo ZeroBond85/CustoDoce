@@ -228,11 +228,13 @@ class TestResolveNames:
 
 class TestOrchestration:
     def test_extract_from_regions_empty_blocks(self, monkeypatch):
-        monkeypatch.setattr(fh, "build_price_blocks", lambda r: [])
+        monkeypatch.setattr(fh, "reconstruct_prices", lambda r: [])
         assert fh.extract_from_regions([{"text": "x", "box": [[0, 0]] * 4}]) is None
 
     def test_extract_from_regions_calls_resolve(self, monkeypatch):
-        monkeypatch.setattr(fh, "build_price_blocks", lambda r: [{"price": 1.0, "texts": ["A"]}])
+        monkeypatch.setattr(fh, "reconstruct_prices", lambda r: [fh.Price(1.0, [[0,0]]*4, "src")])
+        monkeypatch.setattr(fh, "deduplicate_dual_prices", lambda p: p)
+        monkeypatch.setattr(fh, "_blocks_from_prices", lambda p, r: [{"price": 1.0, "texts": ["A"]}])
         monkeypatch.setattr(fh, "resolve_names", lambda b: [{"product": "A B C", "price": 1.0, "unit": ""}])
         out = fh.extract_from_regions([{"text": "x", "box": [[0, 0]] * 4}])
         assert out == [{"product": "A B C", "price": 1.0, "unit": ""}]
@@ -248,6 +250,6 @@ class TestOrchestration:
     def test_hybrid_dense_path(self, monkeypatch):
         dense = [{"text": "x", "box": [[0, 0]] * 4}] * fh.DENSITY_THRESHOLD
         monkeypatch.setattr(fh, "run_rapidocr", lambda b: dense)
-        monkeypatch.setattr(fh, "extract_from_regions", lambda r: [{"product": "P", "price": 1.0, "unit": ""}])
+        monkeypatch.setattr(fh, "extract_from_regions", lambda r, image_bytes=None: [{"product": "P", "price": 1.0, "unit": ""}])
         out = fh.extract_products_hybrid(b"bytes")
         assert out == [{"product": "P", "price": 1.0, "unit": ""}]
