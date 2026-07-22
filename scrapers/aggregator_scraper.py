@@ -524,22 +524,15 @@ class TiendeoPlaywrightScraper:
         return PlaywrightTiendeoScraper(config)
 
     def run(self) -> list[dict]:
-        """SSR scraper primary, Playwright fallback if HTTP fails or returns 0."""
-        http_scraper = TiendeoScraper(self.store)
-        flyers = http_scraper.run()
-
-        if flyers:
-            logger.info("[%s] HTTP scraper succeeded: %d flyers", self.name, len(flyers))
-            return flyers
-
-        logger.warning("[%s] HTTP returned 0 flyers — trying Playwright fallback", self.name)
+        """Playwright-first (HTTP SSR gets 403 on 7/8 cities)."""
+        logger.info("[%s] Using Playwright-first strategy (HTTP SSR gets 403 on 7/8 cities)", self.name)
         try:
             pw_scraper = self._build_playwright_scraper()
             flyers = pw_scraper.run()
             if flyers:
-                logger.info("[%s] Playwright fallback succeeded: %d flyers", self.name, len(flyers))
+                logger.info("[%s] Playwright scraper succeeded: %d flyers", self.name, len(flyers))
             return flyers
         except Exception as e:
-            logger.error("[%s] Playwright fallback failed: %s", self.name, e)
+            logger.error("[%s] Playwright scraper failed: %s", self.name, e)
             return []
 

@@ -420,3 +420,399 @@ class HuggingFaceStrategy(LLMStrategy):
             self.record_failure()
             return None
             return None
+
+
+# ====================================================================
+# Additional Provider Strategies (completing the 9-provider chain)
+# ====================================================================
+
+class GoogleStrategy(LLMStrategy):
+    """Google Gemini strategy."""
+
+    def __init__(self):
+        super().__init__("google")
+        self.url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+        self.api_key = os.environ.get("GOOGLE_API_KEY", "")
+        self.headers = {"Content-Type": "application/json"}
+
+    def is_configured(self) -> bool:
+        return bool(self.api_key)
+
+    def classify(self, product_text: str, candidates: list) -> LLMResult | None:
+        if not self.api_key:
+            logger.debug("google_skipped_no_api_key")
+            return None
+        if self.is_circuit_open():
+            logger.debug("google_circuit_open")
+            return None
+
+        prompt = self._build_prompt(product_text, candidates)
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.1,
+                "responseMimeType": "application/json",
+            },
+        }
+        params = {"key": self.api_key}
+
+        try:
+            resp = get_client().post(self.url, headers=self.headers, json=payload, params=params, timeout=DEFAULT_TIMEOUT)
+            if resp.status_code == 429:
+                logger.info("google_rate_limited", status=resp.status_code)
+                self.open_circuit()
+                return None
+            if resp.status_code >= 500:
+                logger.warning("google_server_error", status=resp.status_code)
+                self.open_circuit()
+                return None
+            resp.raise_for_status()
+            data = resp.json()
+            # Parse Gemini response
+            content = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+            parsed = self._safe_parse(content)
+            if not parsed:
+                logger.warning("google_invalid_json_response")
+                self.record_failure()
+                return None
+            self.record_success()
+            return LLMResult(
+                match=bool(parsed.get("match", False)),
+                canonical_name=str(parsed.get("canonical_name") or ""),
+                confidence_score=float(parsed.get("confidence_score") or 0.0),
+                reason=str(parsed.get("reason", "")),
+                provider="google",
+            )
+        except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
+            logger.warning("google_network_error", error=str(e))
+            self.open_circuit()
+            return None
+        except Exception as e:
+            logger.warning("google_error", error=str(e))
+            self.record_failure()
+            return None
+
+
+class OpenAIStrategy(LLMStrategy):
+    """OpenAI GPT strategy."""
+
+    def __init__(self):
+        super().__init__("openai")
+        self.url = "https://api.openai.com/v1/chat/completions"
+        self.api_key = os.environ.get("OPENAI_API_KEY", "")
+        self.headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+
+    def is_configured(self) -> bool:
+        return bool(self.api_key)
+
+    def classify(self, product_text: str, candidates: list) -> LLMResult | None:
+        if not self.api_key:
+            logger.debug("openai_skipped_no_api_key")
+            return None
+        if self.is_circuit_open():
+            logger.debug("openai_circuit_open")
+            return None
+
+        prompt = self._build_prompt(product_text, candidates)
+        payload = {
+            "model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.1,
+            "response_format": {"type": "json_object"},
+        }
+
+        try:
+            resp = get_client().post(self.url, headers=self.headers, json=payload, timeout=DEFAULT_TIMEOUT)
+            if resp.status_code == 429:
+                logger.info("openai_rate_limited", status=resp.status_code)
+                self.open_circuit()
+                return None
+            if resp.status_code >= 500:
+                logger.warning("openai_server_error", status=resp.status_code)
+                self.open_circuit()
+                return None
+            resp.raise_for_status()
+            data = resp.json()
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            parsed = self._safe_parse(content)
+            if not parsed:
+                logger.warning("openai_invalid_json_response")
+                self.record_failure()
+                return None
+            self.record_success()
+            return LLMResult(
+                match=bool(parsed.get("match", False)),
+                canonical_name=str(parsed.get("canonical_name") or ""),
+                confidence_score=float(parsed.get("confidence_score") or 0.0),
+                reason=str(parsed.get("reason", "")),
+                provider="openai",
+            )
+        except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
+            logger.warning("openai_network_error", error=str(e))
+            self.open_circuit()
+            return None
+        except Exception as e:
+            logger.warning("openai_error", error=str(e))
+            self.record_failure()
+            return None
+
+
+class MistralStrategy(LLMStrategy):
+    """Mistral AI strategy."""
+
+    def __init__(self):
+        super().__init__("mistral")
+        self.url = "https://api.mistral.ai/v1/chat/completions"
+        self.api_key = os.environ.get("MISTRAL_API_KEY", "")
+        self.headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+
+    def is_configured(self) -> bool:
+        return bool(self.api_key)
+
+    def classify(self, product_text: str, candidates: list) -> LLMResult | None:
+        if not self.api_key:
+            logger.debug("mistral_skipped_no_api_key")
+            return None
+        if self.is_circuit_open():
+            logger.debug("mistral_circuit_open")
+            return None
+
+        prompt = self._build_prompt(product_text, candidates)
+        payload = {
+            "model": os.environ.get("MISTRAL_MODEL", "mistral-small-latest"),
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.1,
+            "response_format": {"type": "json_object"},
+        }
+
+        try:
+            resp = get_client().post(self.url, headers=self.headers, json=payload, timeout=DEFAULT_TIMEOUT)
+            if resp.status_code == 429:
+                logger.info("mistral_rate_limited", status=resp.status_code)
+                self.open_circuit()
+                return None
+            if resp.status_code >= 500:
+                logger.warning("mistral_server_error", status=resp.status_code)
+                self.open_circuit()
+                return None
+            resp.raise_for_status()
+            data = resp.json()
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            parsed = self._safe_parse(content)
+            if not parsed:
+                logger.warning("mistral_invalid_json_response")
+                self.record_failure()
+                return None
+            self.record_success()
+            return LLMResult(
+                match=bool(parsed.get("match", False)),
+                canonical_name=str(parsed.get("canonical_name") or ""),
+                confidence_score=float(parsed.get("confidence_score") or 0.0),
+                reason=str(parsed.get("reason", "")),
+                provider="mistral",
+            )
+        except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
+            logger.warning("mistral_network_error", error=str(e))
+            self.open_circuit()
+            return None
+        except Exception as e:
+            logger.warning("mistral_error", error=str(e))
+            self.record_failure()
+            return None
+
+
+class DeepSeekStrategy(LLMStrategy):
+    """DeepSeek strategy."""
+
+    def __init__(self):
+        super().__init__("deepseek")
+        self.url = "https://api.deepseek.com/v1/chat/completions"
+        self.api_key = os.environ.get("DEEPSEEK_API_KEY", "")
+        self.headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+
+    def is_configured(self) -> bool:
+        return bool(self.api_key)
+
+    def classify(self, product_text: str, candidates: list) -> LLMResult | None:
+        if not self.api_key:
+            logger.debug("deepseek_skipped_no_api_key")
+            return None
+        if self.is_circuit_open():
+            logger.debug("deepseek_circuit_open")
+            return None
+
+        prompt = self._build_prompt(product_text, candidates)
+        payload = {
+            "model": os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"),
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.1,
+            "response_format": {"type": "json_object"},
+        }
+
+        try:
+            resp = get_client().post(self.url, headers=self.headers, json=payload, timeout=DEFAULT_TIMEOUT)
+            if resp.status_code == 429:
+                logger.info("deepseek_rate_limited", status=resp.status_code)
+                self.open_circuit()
+                return None
+            if resp.status_code >= 500:
+                logger.warning("deepseek_server_error", status=resp.status_code)
+                self.open_circuit()
+                return None
+            resp.raise_for_status()
+            data = resp.json()
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            parsed = self._safe_parse(content)
+            if not parsed:
+                logger.warning("deepseek_invalid_json_response")
+                self.record_failure()
+                return None
+            self.record_success()
+            return LLMResult(
+                match=bool(parsed.get("match", False)),
+                canonical_name=str(parsed.get("canonical_name") or ""),
+                confidence_score=float(parsed.get("confidence_score") or 0.0),
+                reason=str(parsed.get("reason", "")),
+                provider="deepseek",
+            )
+        except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
+            logger.warning("deepseek_network_error", error=str(e))
+            self.open_circuit()
+            return None
+        except Exception as e:
+            logger.warning("deepseek_error", error=str(e))
+            self.record_failure()
+            return None
+
+
+class NVIDIAStrategy(LLMStrategy):
+    """NVIDIA NIM strategy."""
+
+    def __init__(self):
+        super().__init__("nvidia")
+        self.url = "https://integrate.api.nvidia.com/v1/chat/completions"
+        self.api_key = os.environ.get("NVIDIA_API_KEY", "")
+        self.headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+
+    def is_configured(self) -> bool:
+        return bool(self.api_key)
+
+    def classify(self, product_text: str, candidates: list) -> LLMResult | None:
+        if not self.api_key:
+            logger.debug("nvidia_skipped_no_api_key")
+            return None
+        if self.is_circuit_open():
+            logger.debug("nvidia_circuit_open")
+            return None
+
+        prompt = self._build_prompt(product_text, candidates)
+        payload = {
+            "model": os.environ.get("NVIDIA_MODEL", "meta/llama-3.1-8b-instruct"),
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.1,
+            "response_format": {"type": "json_object"},
+        }
+
+        try:
+            resp = get_client().post(self.url, headers=self.headers, json=payload, timeout=DEFAULT_TIMEOUT)
+            if resp.status_code == 429:
+                logger.info("nvidia_rate_limited", status=resp.status_code)
+                self.open_circuit()
+                return None
+            if resp.status_code >= 500:
+                logger.warning("nvidia_server_error", status=resp.status_code)
+                self.open_circuit()
+                return None
+            resp.raise_for_status()
+            data = resp.json()
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            parsed = self._safe_parse(content)
+            if not parsed:
+                logger.warning("nvidia_invalid_json_response")
+                self.record_failure()
+                return None
+            self.record_success()
+            return LLMResult(
+                match=bool(parsed.get("match", False)),
+                canonical_name=str(parsed.get("canonical_name") or ""),
+                confidence_score=float(parsed.get("confidence_score") or 0.0),
+                reason=str(parsed.get("reason", "")),
+                provider="nvidia",
+            )
+        except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
+            logger.warning("nvidia_network_error", error=str(e))
+            self.open_circuit()
+            return None
+        except Exception as e:
+            logger.warning("nvidia_error", error=str(e))
+            self.record_failure()
+            return None
+
+
+class GitHubModelsStrategy(LLMStrategy):
+    """GitHub Models strategy (via GitHub Models API)."""
+
+    def __init__(self):
+        super().__init__("github_models")
+        self.url = "https://models.inference.ai.azure.com/chat/completions"
+        self.api_key = os.environ.get("GH_MODELS_TOKEN", "")
+        self.headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+
+    def is_configured(self) -> bool:
+        return bool(self.api_key)
+
+    def classify(self, product_text: str, candidates: list) -> LLMResult | None:
+        if not self.api_key:
+            logger.debug("github_models_skipped_no_api_key")
+            return None
+        if self.is_circuit_open():
+            logger.debug("github_models_circuit_open")
+            return None
+
+        prompt = self._build_prompt(product_text, candidates)
+        payload = {
+            "model": os.environ.get("GITHUB_MODELS_MODEL", "gpt-4o-mini"),
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.1,
+            "response_format": {"type": "json_object"},
+        }
+
+        try:
+            resp = get_client().post(
+                self.url,
+                headers=self.headers,
+                json=payload,
+                timeout=DEFAULT_TIMEOUT,
+            )
+            if resp.status_code == 429:
+                logger.info("github_models_rate_limited", status=resp.status_code)
+                self.open_circuit()
+                return None
+            if resp.status_code >= 500:
+                logger.warning("github_models_server_error", status=resp.status_code)
+                self.open_circuit()
+                return None
+            resp.raise_for_status()
+            data = resp.json()
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            parsed = self._safe_parse(content)
+            if not parsed:
+                logger.warning("github_models_invalid_json_response")
+                self.record_failure()
+                return None
+            self.record_success()
+            return LLMResult(
+                match=bool(parsed.get("match", False)),
+                canonical_name=str(parsed.get("canonical_name") or ""),
+                confidence_score=float(parsed.get("confidence_score") or 0.0),
+                reason=str(parsed.get("reason", "")),
+                provider="github_models",
+            )
+        except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
+            logger.warning("github_models_network_error", error=str(e))
+            self.open_circuit()
+            return None
+        except Exception as e:
+            logger.warning("github_models_error", error=str(e))
+            self.record_failure()
+            return None

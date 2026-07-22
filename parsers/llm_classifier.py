@@ -17,9 +17,15 @@ import contextlib
 
 from parsers.llm_cache import get_cache, set_cache
 from parsers.llm_strategies import (
+    DeepSeekStrategy,
+    GitHubModelsStrategy,
+    GoogleStrategy,
     GroqStrategy,
     HuggingFaceStrategy,
     LLMResult,
+    MistralStrategy,
+    NVIDIAStrategy,
+    OpenAIStrategy,
     OpenRouterStrategy,
 )
 from services.logger import logger
@@ -58,6 +64,12 @@ class LLMClassifier:
             GroqStrategy(),
             OpenRouterStrategy(),
             HuggingFaceStrategy(),
+            GoogleStrategy(),
+            OpenAIStrategy(),
+            MistralStrategy(),
+            DeepSeekStrategy(),
+            NVIDIAStrategy(),
+            GitHubModelsStrategy(),
         ]
 
     def classify_sync(self, product_text: str, candidates: list) -> dict | None:
