@@ -14,7 +14,7 @@ description: "CustoDoce 3-tier scraping: PDF (9 atacadistas), VTEX API (e-commer
 | 1 | PDF Direto (9 redes) | Semanal (qua/qui) | pdfplumber + OCR |
 | 2a | E-commerce SP (VTEX) | Diária | requests API |
 | 2b | Atacado Físico SP | Mensal | Planilha manual |
-| 3 | Agregadores (Tiendeo/Guiato) | Fallback | Playwright/SSR |
+| 3 | Agregadores (Tiendeo/Kimbino/Portafolhetos) | Fallback | Playwright/SSR |
 
 ## Tier 1: PDF Scraper
 
