@@ -680,7 +680,7 @@ stores:
   # ============================================================================
   - name: "Tiendeo"
     tier: 3
-    type: "aggregator"
+    type: "aggregator_js"
     logistics: "pickup_local"
     base_url: "https://www.tiendeo.com.br"
     regions:
