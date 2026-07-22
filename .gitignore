@@ -169,3 +169,7 @@ scripts/_local_test_barradoce.py
 
 # Runtime caches
 data/if_cache/
+/NUL
+/data/discovered_cities.json
+/data/portafolhetos_cities.json
+/tests/manual/
