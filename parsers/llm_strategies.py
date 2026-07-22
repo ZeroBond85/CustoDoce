@@ -494,6 +494,19 @@ class GoogleStrategy(LLMStrategy):
             self.record_failure()
             return None
 
+    def _build_prompt(self, product_text: str, candidates: list) -> str:
+        candidates_str = "\n".join(
+            f"- {c.get('canonical_name', '?')} (aliases: {', '.join(c.get('aliases', []))})" for c in candidates
+        )
+        return (
+            "Você é um classificador de ingredientes para confeitaria analítica e metódica. "
+            "Analise o produto e decida se corresponde a algum dos ingredientes listados. "
+            "Responda APENAS com JSON válido (sem markdown, sem texto extra) no schema: "
+            '{"match": boolean, "canonical_name": string, "confidence_score": float entre 0 e 1, "reason": string}. '
+            "Se nenhum ingrediente corresponder, retorne match=false.\n\n"
+            f"Produto: {product_text}\n\nIngredientes candidatos:\n{candidates_str}"
+        )
+
 
 class OpenAIStrategy(LLMStrategy):
     """OpenAI GPT strategy."""
@@ -557,6 +570,19 @@ class OpenAIStrategy(LLMStrategy):
             logger.warning("openai_error", error=str(e))
             self.record_failure()
             return None
+
+    def _build_prompt(self, product_text: str, candidates: list) -> str:
+        candidates_str = "\n".join(
+            f"- {c.get('canonical_name', '?')} (aliases: {', '.join(c.get('aliases', []))})" for c in candidates
+        )
+        return (
+            "Você é um classificador de ingredientes para confeitaria analítica e metódica. "
+            "Analise o produto e decida se corresponde a algum dos ingredientes listados. "
+            "Responda APENAS com JSON válido (sem markdown, sem texto extra) no schema: "
+            '{"match": boolean, "canonical_name": string, "confidence_score": float entre 0 e 1, "reason": string}. '
+            "Se nenhum ingrediente corresponder, retorne match=false.\n\n"
+            f"Produto: {product_text}\n\nIngredientes candidatos:\n{candidates_str}"
+        )
 
 
 class MistralStrategy(LLMStrategy):
@@ -623,6 +649,20 @@ class MistralStrategy(LLMStrategy):
             return None
 
 
+    def _build_prompt(self, product_text: str, candidates: list) -> str:
+        candidates_str = "\n".join(
+            f"- {c.get('canonical_name', '?')} (aliases: {', '.join(c.get('aliases', []))})" for c in candidates
+        )
+        return (
+            "Você é um classificador de ingredientes para confeitaria analítica e metódica. "
+            "Analise o produto e decida se corresponde a algum dos ingredientes listados. "
+            "Responda APENAS com JSON válido (sem markdown, sem texto extra) no schema: "
+            '{"match": boolean, "canonical_name": string, "confidence_score": float entre 0 e 1, "reason": string}. '
+            "Se nenhum ingrediente corresponder, retorne match=false.\n\n"
+            f"Produto: {product_text}\n\nIngredientes candidatos:\n{candidates_str}"
+        )
+
+
 class DeepSeekStrategy(LLMStrategy):
     """DeepSeek strategy."""
 
@@ -687,6 +727,20 @@ class DeepSeekStrategy(LLMStrategy):
             return None
 
 
+    def _build_prompt(self, product_text: str, candidates: list) -> str:
+        candidates_str = "\n".join(
+            f"- {c.get('canonical_name', '?')} (aliases: {', '.join(c.get('aliases', []))})" for c in candidates
+        )
+        return (
+            "Você é um classificador de ingredientes para confeitaria analítica e metódica. "
+            "Analise o produto e decida se corresponde a algum dos ingredientes listados. "
+            "Responda APENAS com JSON válido (sem markdown, sem texto extra) no schema: "
+            '{"match": boolean, "canonical_name": string, "confidence_score": float entre 0 e 1, "reason": string}. '
+            "Se nenhum ingrediente corresponder, retorne match=false.\n\n"
+            f"Produto: {product_text}\n\nIngredientes candidatos:\n{candidates_str}"
+        )
+
+
 class NVIDIAStrategy(LLMStrategy):
     """NVIDIA NIM strategy."""
 
@@ -749,6 +803,20 @@ class NVIDIAStrategy(LLMStrategy):
             logger.warning("nvidia_error", error=str(e))
             self.record_failure()
             return None
+
+
+    def _build_prompt(self, product_text: str, candidates: list) -> str:
+        candidates_str = "\n".join(
+            f"- {c.get('canonical_name', '?')} (aliases: {', '.join(c.get('aliases', []))})" for c in candidates
+        )
+        return (
+            "Você é um classificador de ingredientes para confeitaria analítica e metódica. "
+            "Analise o produto e decida se corresponde a algum dos ingredientes listados. "
+            "Responda APENAS com JSON válido (sem markdown, sem texto extra) no schema: "
+            '{"match": boolean, "canonical_name": string, "confidence_score": float entre 0 e 1, "reason": string}. '
+            "Se nenhum ingrediente corresponder, retorne match=false.\n\n"
+            f"Produto: {product_text}\n\nIngredientes candidatos:\n{candidates_str}"
+        )
 
 
 class GitHubModelsStrategy(LLMStrategy):
@@ -818,3 +886,16 @@ class GitHubModelsStrategy(LLMStrategy):
             logger.warning("github_models_error", error=str(e))
             self.record_failure()
             return None
+
+    def _build_prompt(self, product_text: str, candidates: list) -> str:
+        candidates_str = "\n".join(
+            f"- {c.get('canonical_name', '?')} (aliases: {', '.join(c.get('aliases', []))})" for c in candidates
+        )
+        return (
+            "Você é um classificador de ingredientes para confeitaria analítica e metódica. "
+            "Analise o produto e decida se corresponde a algum dos ingredientes listados. "
+            "Responda APENAS com JSON válido (sem markdown, sem texto extra) no schema: "
+            '{"match": boolean, "canonical_name": string, "confidence_score": float entre 0 e 1, "reason": string}. '
+            "Se nenhum ingrediente corresponder, retorne match=false.\n\n"
+            f"Produto: {product_text}\n\nIngredientes candidatos:\n{candidates_str}"
+        )
