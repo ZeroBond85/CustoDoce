@@ -693,7 +693,7 @@ stores:
       - "guaruja"
       - "sao-paulo"
     collection_method: "automated"
-    scraper: "aggregator_scraper"
+    scraper: "playwright_scraper"
     priority: 30
 
   # ============================================================================

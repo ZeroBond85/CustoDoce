@@ -72,7 +72,9 @@ class LLMStrategy(ABC):
 
     provider_name: str = "abstract"
 
-    def __init__(self):
+    def __init__(self, provider_name: str | None = None):
+        if provider_name is not None:
+            self.provider_name = provider_name
         self.failure_count = 0
         self.last_failure_ts: float = 0.0
         # Cooldown efetivo atual (cresce com backoff agressivo a cada reabertura).
