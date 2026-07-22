@@ -74,7 +74,7 @@ class RoldaoApiScraper(BaseWebScraper):
         for post in posts:
             image_entries.extend(self.parse_post(post))
 
-        products = extract_flyer_products(
+        products, _ = extract_flyer_products(
             self._http, image_entries, self.name, source="roldao_flyer"
         )
         if products:

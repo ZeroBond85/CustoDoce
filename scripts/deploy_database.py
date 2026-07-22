@@ -706,6 +706,14 @@ DO $$ BEGIN
 END $$;
 """)
 
+    # ─── PHASE 28: Store addresses, units, and address extraction (012_store_address.sql) ──
+    store_addr_path = REPO_ROOT / "supabase" / "012_store_address.sql"
+    if store_addr_path.exists():
+        gen.append("\n-- ============================================================")
+        gen.append("-- PHASE 28: Store addresses + units + flyer address (012_store_address.sql)")
+        gen.append("-- ============================================================")
+        gen.append(store_addr_path.read_text(encoding="utf-8"))
+
     return "\n".join(gen)
 
 

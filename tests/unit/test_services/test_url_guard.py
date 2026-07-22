@@ -36,7 +36,7 @@ class TestAllowlist:
             "https://www.giga.com.vc/encartes",
             "https://d3gdr9n5lqb5z7.cloudfront.net/flyer.png",
             "https://www.tiendeo.com.br/loja/x",
-            "https://www.promotons.com.br/b",
+            "https://www.portafolhetos.com.br/b",
             "https://www.kimbino.com.br/c",
             "https://www.portafolhetos.com.br/d",
             "https://na.kimbicdn.com/flyer.jpg",        # Kimbino CDN

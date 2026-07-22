@@ -6,7 +6,7 @@
 ![License](https://img.shields.io/badge/license-Personal-green)
 ![Deploy](https://img.shields.io/badge/deploy-production%20%7C%20staging-brightgreen)
 
-Sistema automatizado de busca e comparação de preços de ingredientes para confeitaria, focado na **Baixada Santista** (Santos, São Vicente, Praia Grande, Mongaguá, Itanhaém, Peruíbe) e **São Paulo Capital**. Infraestrutura otimizada para operar 100% no **Free Tier**.
+Sistema automatizado de busca e comparação de preços de ingredientes para confeitaria, focado na **Baixada Santista** (Santos, São Vicente, Praia Grande, Mongaguá, Itanhaém, Peruíbe, Guarujá) e **São Paulo Capital**. Infraestrutura otimizada para operar 100% no **Free Tier**.
 
 ## 🚀 Funcionalidades Principais
 

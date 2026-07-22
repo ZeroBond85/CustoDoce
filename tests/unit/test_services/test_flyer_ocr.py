@@ -56,7 +56,7 @@ class TestExtractFlyerProducts:
 
         monkeypatch.setattr(flyer_ocr, "extract_products_via_vision", fake_vision)
         http = _FakeHttp({})
-        out = extract_flyer_products(http, IMG_ENTRIES, "Loja X", source="max_flyer")
+        out, _ = extract_flyer_products(http, IMG_ENTRIES, "Loja X", source="max_flyer")
         # 1 valido por imagem x 2 imagens
         assert len(out) == 2
         first = out[0]
@@ -74,7 +74,7 @@ class TestExtractFlyerProducts:
 
         monkeypatch.setattr(flyer_ocr, "extract_products", fake_ocr)
         http = _FakeHttp({})
-        out = extract_flyer_products(http, [IMG_ENTRIES[0]], "Loja Y")
+        out, _ = extract_flyer_products(http, [IMG_ENTRIES[0]], "Loja Y")
         assert len(out) == 1
         assert out[0]["product"] == "Creme de Leite 200g"
         assert out[0]["source"] == "flyer"
@@ -85,7 +85,7 @@ class TestExtractFlyerProducts:
             lambda _b: [{"product": "Farinha de Trigo 1kg", "price": 5.0}],
         )
         http = _FakeHttp({})
-        out = extract_flyer_products(http, [IMG_ENTRIES[0]], "Loja Z")
+        out, _ = extract_flyer_products(http, [IMG_ENTRIES[0]], "Loja Z")
         assert out[0]["validity_raw"] == "2026-07-13"
 
     def test_dedup_by_hash(self, monkeypatch):
@@ -95,7 +95,7 @@ class TestExtractFlyerProducts:
         )
         http = _FakeHttp({})
         dupes = [IMG_ENTRIES[0], dict(IMG_ENTRIES[0])]
-        out = extract_flyer_products(http, dupes, "Loja W")
+        out, _ = extract_flyer_products(http, dupes, "Loja W")
         assert len(out) == 1
         assert len(http.calls) == 1
 
@@ -105,7 +105,7 @@ class TestExtractFlyerProducts:
             lambda _b: [{"product": "Manteiga 200g", "price": 9.0}],
         )
         http = _FakeHttp({})
-        out = extract_flyer_products(http, IMG_ENTRIES, "Loja V", max_images=1)
+        out, _ = extract_flyer_products(http, IMG_ENTRIES, "Loja V", max_images=1)
         assert len(out) == 1
         assert len(http.calls) == 1
 
@@ -118,7 +118,7 @@ class TestExtractFlyerProducts:
             ],
         )
         http = _FakeHttp({})
-        out = extract_flyer_products(http, [IMG_ENTRIES[0]], "Loja U")
+        out, _ = extract_flyer_products(http, [IMG_ENTRIES[0]], "Loja U")
         assert out == []
 
     def test_download_failure_is_skipped(self, monkeypatch):
@@ -128,7 +128,7 @@ class TestExtractFlyerProducts:
             def get(self, url, **kwargs):
                 raise RuntimeError("network down")
 
-        out = extract_flyer_products(_BoomHttp(), [IMG_ENTRIES[0]], "Loja T")
+        out, _ = extract_flyer_products(_BoomHttp(), [IMG_ENTRIES[0]], "Loja T")
         assert out == []
 
 
@@ -142,7 +142,7 @@ class TestDensityRouter:
         called = {"hybrid": False}
         monkeypatch.setattr(fh, "extract_products_hybrid", lambda b: called.__setitem__("hybrid", True) or [{"product": "H", "price": 1.0}])
         monkeypatch.setattr(flyer_ocr, "extract_products_via_vision", lambda _b: [{"product": "Vision Prod", "price": 2.0}])
-        out = flyer_ocr._extract_one(b"bytes", "Loja")
+        out, _ = flyer_ocr._extract_one(b"bytes", "Loja")
         assert out == [{"product": "Vision Prod", "price": 2.0}]
         assert called["hybrid"] is False
 
@@ -152,7 +152,7 @@ class TestDensityRouter:
 
         monkeypatch.setattr(fh, "extract_products_hybrid", lambda b: [{"product": "Hybrid Prod", "price": 3.0}])
         monkeypatch.setattr(flyer_ocr, "extract_products_via_vision", lambda _b: [{"product": "Vision Prod", "price": 2.0}])
-        out = flyer_ocr._extract_one(b"bytes", "Loja")
+        out, _ = flyer_ocr._extract_one(b"bytes", "Loja")
         assert out == [{"product": "Hybrid Prod", "price": 3.0}]
 
     def test_hybrid_enabled_but_sparse_falls_to_vision(self, monkeypatch):
@@ -161,7 +161,7 @@ class TestDensityRouter:
 
         monkeypatch.setattr(fh, "extract_products_hybrid", lambda b: None)
         monkeypatch.setattr(flyer_ocr, "extract_products_via_vision", lambda _b: [{"product": "Vision Prod", "price": 2.0}])
-        out = flyer_ocr._extract_one(b"bytes", "Loja")
+        out, _ = flyer_ocr._extract_one(b"bytes", "Loja")
         assert out == [{"product": "Vision Prod", "price": 2.0}]
 
     def test_hybrid_exception_degrades_to_vision(self, monkeypatch):
@@ -173,7 +173,7 @@ class TestDensityRouter:
 
         monkeypatch.setattr(fh, "extract_products_hybrid", _boom)
         monkeypatch.setattr(flyer_ocr, "extract_products_via_vision", lambda _b: [{"product": "Vision Prod", "price": 2.0}])
-        out = flyer_ocr._extract_one(b"bytes", "Loja")
+        out, _ = flyer_ocr._extract_one(b"bytes", "Loja")
         assert out == [{"product": "Vision Prod", "price": 2.0}]
 
 
@@ -188,7 +188,7 @@ class TestMaxRoldaoWiring:
         )
         monkeypatch.setattr(
             "scrapers.max_api_scraper.extract_flyer_products",
-            lambda http, entries, name, source: [{"product": "P", "price": 1.0, "store": name, "source": source}],
+            lambda http, entries, name, source: ([{"product": "P", "price": 1.0, "store": name, "source": source}], ""),
         )
         monkeypatch.setattr(scraper, "report_success", lambda **k: {"recorded": True})
         out = scraper.run([])
@@ -216,7 +216,7 @@ class TestMaxRoldaoWiring:
         monkeypatch.setattr(gmod.asyncio, "run", lambda coro: (coro.close(), [{"image_url": "https://x/enc.jpg", "image_hash": "h", "validity_raw": "13/07"}])[1])
         monkeypatch.setattr(
             "scrapers.giga_flyer_scraper.extract_flyer_products",
-            lambda http, entries, name, source: [{"product": "P", "price": 2.0, "store": name, "source": source}],
+            lambda http, entries, name, source: ([{"product": "P", "price": 2.0, "store": name, "source": source}], ""),
         )
         monkeypatch.setattr(scraper, "report_success", lambda **k: {"recorded": True})
         out = scraper.run([])
@@ -243,7 +243,7 @@ class TestMaxRoldaoWiring:
         monkeypatch.setattr(scraper, "get_posts", lambda: [])
         monkeypatch.setattr(
             "scrapers.roldao_api_scraper.extract_flyer_products",
-            lambda http, entries, name, source: [],
+            lambda http, entries, name, source: ([], ""),
         )
         called = {}
         monkeypatch.setattr(scraper, "report_failure", lambda **k: called.update(k) or {"recorded": True})

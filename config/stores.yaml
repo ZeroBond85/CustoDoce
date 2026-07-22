@@ -690,29 +690,11 @@ stores:
       - "mongagua"
       - "itanhaem"
       - "peruibe"
+      - "guaruja"
       - "sao-paulo"
-    sp_zones: ["zona-sul"]
     collection_method: "automated"
     scraper: "aggregator_scraper"
     priority: 30
-
-  - name: "Promotons"
-    tier: 3
-    type: "aggregator_js"
-    experimental: true
-    base_url: "https://www.promotons.com.br"
-    regions:
-      - "santos"
-      - "sao-vicente"
-      - "praia-grande"
-      - "mongagua"
-      - "itanhaem"
-      - "peruibe"
-      - "sao-paulo"
-    sp_zones: ["zona-sul"]
-    collection_method: "automated"
-    scraper: "playwright_scraper"
-    priority: 31
 
   # ============================================================================
   # TIER 3B - AGREGADORES JS (Requer Playwright)
@@ -729,8 +711,8 @@ stores:
       - "mongagua"
       - "itanhaem"
       - "peruibe"
+      - "guaruja"
       - "sao-paulo"
-    sp_zones: ["centro", "oeste", "sul", "leste", "norte", "pari", "bras"]
     collection_method: "automated"
     scraper: "playwright_scraper"
     priority: 32
@@ -747,8 +729,8 @@ stores:
       - "mongagua"
       - "itanhaem"
       - "peruibe"
+      - "guaruja"
       - "sao-paulo"
-    sp_zones: ["centro", "oeste", "sul", "leste", "norte", "pari", "bras"]
     collection_method: "automated"
     scraper: "playwright_scraper"
     priority: 33

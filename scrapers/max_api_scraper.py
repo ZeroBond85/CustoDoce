@@ -89,7 +89,7 @@ class MaxApiScraper(BaseWebScraper):
             )
             return []
 
-        products = extract_flyer_products(
+        products, _ = extract_flyer_products(
             self._http, image_entries[:self.max_flyer_pages], self.name, source="max_flyer"
         )
         if products:

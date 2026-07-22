@@ -33,7 +33,7 @@
 
 ## Sobre
 
-Busca e comparação de preços de ingredientes para confeitaria. Foco na Baixada Santista e São Paulo Capital. Infraestrutura 100% gratuita.
+Busca e comparação de preços de ingredientes para confeitaria. Foco na Baixada Santista (Santos, São Vicente, Praia Grande, Mongaguá, Itanhaém, Peruíbe, Guarujá) e São Paulo Capital (Centro, Sul, Leste, Oeste, Norte). Infraestrutura 100% gratuita.
 
 ## Stack
 
@@ -112,7 +112,7 @@ CustoDoce/
 | 1 | PDF Direto (9 redes atacadistas) | Semanal (qua/qui) | pdfplumber + OCR fallback |
 | 2a | E-commerce SP (VTEX API) | Diária | requests API |
 | 2b | Atacado Físico SP | Mensal | Manual (planilha) |
-| 3 | Agregadores (Tiendeo, Guiato) | Fallback | Playwright / SSR |
+| 3 | Agregadores (Tiendeo, Kimbino, Portafolhetos) | Fallback | Playwright / SSR |
 | 4 | Manual (WhatsApp, visita) | Sob demanda | Planilha .xlsx |
 
 ## Ingredientes Monitorados (23)

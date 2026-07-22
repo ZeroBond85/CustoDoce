@@ -72,7 +72,7 @@ def _normalize(item: dict, store_name: str, source: str, fallback_validity: str)
     }
 
 
-def _extract_one(image_bytes: bytes, store_name: str) -> list[dict]:
+def _extract_one(image_bytes: bytes, store_name: str) -> tuple[list[dict], str]:
     """Density-routed extraction: hybrid (dense) -> vision -> OCR fallback.
 
     Encartes densos (centenas de regioes) sao processados pelo caminho hibrido
@@ -80,7 +80,12 @@ def _extract_one(image_bytes: bytes, store_name: str) -> list[dict]:
     costuma retornar 0 produtos. Encartes esparsos seguem direto para a vision.
     O roteador so ativa com features.ai.flyer_hybrid e degrada silenciosamente
     para a vision quando RapidOCR/LLM estao ausentes.
+
+    Returns:
+        (list[dict], str) — (produtos, raw_ocr_text)
     """
+    raw_text = ""
+
     if get_feature("features.ai.flyer_hybrid", default=False):
         try:
             from parsers.flyer_hybrid import extract_products_hybrid
@@ -88,7 +93,7 @@ def _extract_one(image_bytes: bytes, store_name: str) -> list[dict]:
             hybrid = extract_products_hybrid(image_bytes)
             if hybrid:
                 logger.info("[flyer_ocr] %s: hibrido denso -> %d produtos", store_name, len(hybrid))
-                return hybrid
+                return hybrid, ""
         except Exception as exc:
             logger.debug("[flyer_ocr] hibrido falhou para %s: %s", store_name, exc)
 
@@ -98,14 +103,15 @@ def _extract_one(image_bytes: bytes, store_name: str) -> list[dict]:
         logger.debug("[flyer_ocr] vision failed for %s: %s", store_name, exc)
         vision = None
     if vision:
-        return vision
+        return vision, ""
 
     try:
-        ocr_products, _text, _mode = extract_products(image_bytes, source_type="image")
-        return ocr_products or []
+        ocr_products, ocr_text, _mode = extract_products(image_bytes, source_type="image")
+        raw_text = ocr_text or ""
+        return ocr_products or [], raw_text
     except Exception as exc:
         logger.debug("[flyer_ocr] OCR failed for %s: %s", store_name, exc)
-        return []
+        return [], raw_text
 
 
 def extract_flyer_products(
@@ -115,7 +121,7 @@ def extract_flyer_products(
     source: str = "flyer",
     max_images: int | None = None,
     max_concurrency: int = 1,
-) -> list[dict]:
+) -> tuple[list[dict], str]:
     """Baixa cada encarte e extrai produtos (vision-first -> OCR).
 
     Imagens processadas em paralelo (asyncio + semaforo) para nao ficar
@@ -130,11 +136,12 @@ def extract_flyer_products(
         max_concurrency: nivel de paralelismo no vision (default 4).
 
     Returns:
-        Lista de produtos normalizados. Vazia se nada foi extraido.
+        (list[dict], str) — (produtos normalizados, raw_ocr_text).
     """
     import asyncio
 
     products: list[dict] = []
+    raw_text_parts: list[str] = []
     seen: set[str] = set()
     counted: set[str] = set()
     total = 0
@@ -148,21 +155,21 @@ def extract_flyer_products(
     sem = asyncio.Semaphore(max_concurrency)
     processed = 0
 
-    async def _worker(entry: dict) -> list[dict]:
+    async def _worker(entry: dict) -> tuple[list[dict], str]:
         nonlocal processed
         url = entry.get("image_url")
         if not url:
-            return []
+            return [], ""
         image_hash = entry.get("image_hash") or url
         if image_hash in seen:
-            return []
+            return [], ""
         seen.add(image_hash)
         async with sem:
             loop = asyncio.get_event_loop()
             image_bytes = await loop.run_in_executor(None, _download_image, http, url)
         if not image_bytes:
             logger.warning("[flyer_ocr] %s: encarte falhou ao baixar", store_name)
-            return []
+            return [], ""
         processed_local = processed + 1
         processed = processed_local
         logger.info(
@@ -175,15 +182,16 @@ def extract_flyer_products(
         fallback_validity = entry.get("post_date") or entry.get("validity_raw") or ""
         found = 0
         out: list[dict] = []
-        for item in _extract_one(image_bytes, store_name):
+        items, raw_text = _extract_one(image_bytes, store_name)
+        for item in items:
             norm = _normalize(item, store_name, source, fallback_validity)
             if norm:
                 out.append(norm)
                 found += 1
         logger.info("[flyer_ocr] %s: encarte %d/%d -> %d produtos", store_name, processed_local, total, found)
-        return out
+        return out, raw_text
 
-    async def _run() -> list[list[dict]]:
+    async def _run() -> list[tuple[list[dict], str]]:
         tasks = []
         idx = 0
         for entry in image_entries:
@@ -200,11 +208,14 @@ def extract_flyer_products(
         return await asyncio.gather(*tasks)
 
     results = asyncio.run(_run())
-    for r in results:
-        products.extend(r)
+    for result_products, result_text in results:
+        products.extend(result_products)
+        if result_text:
+            raw_text_parts.append(result_text)
 
+    combined_text = "\n".join(raw_text_parts)
     logger.info("[flyer_ocr] %s: %d produtos de %d imagens", store_name, len(products), processed)
-    return products
+    return products, combined_text
 
 
 __all__ = ["extract_flyer_products"]

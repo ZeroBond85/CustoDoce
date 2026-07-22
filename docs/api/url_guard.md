@@ -1,6 +1,6 @@
 # `url_guard` — API
 
-> Última atualização: 2026-07-21 21:44 UTC
+> Última atualização: 2026-07-22 00:58 UTC
 > Gerado por AST parsing dos serviços em `services/url_guard.py`.
 
 ## Funções Públicas (5)

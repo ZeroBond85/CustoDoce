@@ -125,7 +125,7 @@ class TestPlaywrightCoroutineLowerBug:
     """Regressão: `await self._get_page_html(page).lower()` aplicava o `.lower()`
 
     no coroutine (sem await), causando ``'coroutine' object has no attribute 'lower'``
-    no Tier 3 (Promotons). Corrigido para ``(await self._get_page_html(page)).lower()``.
+    no Tier 3 (agregador). Corrigido para ``(await self._get_page_html(page)).lower()``.
     """
 
     def test_wait_for_real_content_awaits_html_before_lower(self):
@@ -134,7 +134,7 @@ class TestPlaywrightCoroutineLowerBug:
         from scrapers.playwright_scraper import PlaywrightAggregatorScraper
 
         scraper = PlaywrightAggregatorScraper(
-            {"name": "Promotons", "base_url": "https://www.promotons.com.br", "regions": ["santos"]}
+            {"name": "Kimbino", "base_url": "https://www.kimbino.com.br", "regions": ["santos"]}
         )
 
         class _FakePage:

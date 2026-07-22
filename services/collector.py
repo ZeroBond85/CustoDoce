@@ -1032,7 +1032,7 @@ def process_ocr_queue() -> int:
 
             store_name = flyer.get("store_name", "")
             image_entries = [flyer]
-            products = extract_flyer_products(
+            products, raw_text = extract_flyer_products(
                 http, image_entries, store_name, source=flyer.get("source", "tiendeo"),
             )
 
@@ -1040,6 +1040,36 @@ def process_ocr_queue() -> int:
                 logger.warning("[OCR] No products extracted from %s", flyer.get("id"))
                 mark_failed(flyer["id"])
                 continue
+
+            # Extrair endereco do texto OCR
+            if raw_text:
+                from parsers.address_extractor import best_address
+                addr = best_address(raw_text)
+                if addr:
+                    from services.flyer_service import get_service_client
+                    try:
+                        sc = get_service_client()
+                        sc.table("flyers").update({
+                            "address": addr.address,
+                            "address_confidence": addr.confidence,
+                        }).eq("id", flyer["id"]).execute()
+                    except Exception as exc:
+                        logger.debug("[OCR] Failed to save address for %s: %s", flyer["id"], exc)
+
+                    # Se store nao tem endereco ainda, tentar salvar no store_registry
+                    try:
+                        from services.store_registry import normalize_name, find_similar_stores
+                        norm = normalize_name(store_name)
+                        if norm and addr.confidence >= 7.0:
+                            matches = find_similar_stores(norm, threshold=92)
+                            if matches:
+                                sid = matches[0]["id"]
+                                sc = get_service_client()
+                                sc.table("stores").update({
+                                    "address": addr.address,
+                                }).eq("id", sid).execute()
+                    except Exception as exc:
+                        logger.debug("[OCR] Failed to update store address for %s: %s", store_name, exc)
 
             matched = 0
             for prod in products:

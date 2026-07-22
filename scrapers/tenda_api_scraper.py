@@ -78,7 +78,7 @@ class TendaApiScraper(BaseWebScraper):
             )
             return []
 
-        products = extract_flyer_products(
+        products, _ = extract_flyer_products(
             self._http, image_entries, self.name, source="tenda_flyer"
         )
         if products:

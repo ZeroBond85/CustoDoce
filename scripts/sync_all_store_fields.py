@@ -128,9 +128,70 @@ def sync_scrape_frequencies() -> int:
     return synced
 
 
+def sync_store_units() -> int:
+    """Sync units from stores.yaml into store_units table.
+
+    Each YAML store can have a list of unit dicts with unit_name + address.
+    This function upserts them into store_units (keyed by store_id + address).
+    """
+    c = get_service_client()
+    yaml_path = Path(__file__).resolve().parent.parent / "config" / "stores.yaml"
+    with open(yaml_path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+
+    synced = 0
+    for s in data.get("stores", []):
+        units = s.get("units", [])
+        if not units:
+            continue
+        name = s.get("name", "")
+        if not name:
+            continue
+        r = c.table("stores").select("id").ilike("name", name).maybe_single().execute()
+        if not r or not r.data:
+            logger.info("MISSING store in DB: %s — cannot sync units", name)
+            continue
+        store_id = r.data["id"]
+
+        for unit in units:
+            unit_name = unit.get("name", "") if isinstance(unit, dict) else ""
+            address = unit.get("address", unit) if isinstance(unit, dict) else unit
+            if not address:
+                continue
+            # Extract city/neighborhood from address if possible
+            neighborhood = ""
+            city = ""
+            if "," in str(address):
+                parts = str(address).split(",")
+                if len(parts) >= 2:
+                    neighborhood = parts[0].strip()
+                    city = parts[-1].strip()
+
+            c.table("store_units").upsert(
+                {
+                    "store_id": store_id,
+                    "unit_name": unit_name,
+                    "address": str(address),
+                    "neighborhood": neighborhood,
+                    "city": city,
+                    "source": "yaml",
+                    "confidence": 1.0,
+                    "is_active": True,
+                },
+                on_conflict="store_id, address",
+            ).execute()
+            synced += 1
+
+    if synced:
+        logger.info("[sync_store_units] Synced %d units from YAML", synced)
+    return synced
+
+
 if __name__ == "__main__":
     updated = sync_store_fields()
     print(f"{updated} stores updated.")
     synced = sync_scrape_frequencies()
     print(f"{synced} frequencies synced.")
-    print("Done: all stores + frequencies synced")
+    units_synced = sync_store_units()
+    print(f"{units_synced} store units synced.")
+    print("Done: all stores + frequencies + units synced")

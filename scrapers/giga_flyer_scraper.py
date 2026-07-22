@@ -56,7 +56,7 @@ class GigaFlyerScraper(BaseWebScraper):
             self.report_failure(reason="no flyer images found", items_found=0, products_matched=0)
             return []
 
-        products = extract_flyer_products(self._http, image_entries, self.name, source="giga_flyer")
+        products, _ = extract_flyer_products(self._http, image_entries, self.name, source="giga_flyer")
         if products:
             self.report_success(items_found=len(products), products_matched=0, flyer_count=len(image_entries))
         else:

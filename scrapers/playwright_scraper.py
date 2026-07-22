@@ -1,10 +1,18 @@
 import asyncio
+import json
 import re
+import time
+from datetime import UTC, datetime
+from pathlib import Path
 
+import httpx
 from playwright.async_api import Browser, Page
 
 from scrapers.playwright_pool import get_browser_pool
 from services.logger import logger
+
+CITY_CACHE_FILE = Path("data") / "discovered_cities.json"
+CITY_CACHE_TTL_DAYS = 7
 
 CITY_SLUGS = {
     "santos": "Santos",
@@ -13,6 +21,7 @@ CITY_SLUGS = {
     "mongagua": "Mongaguá",
     "itanhaem": "Itanhaém",
     "peruibe": "Peruíbe",
+    "guaruja": "Guarujá",
     "sao-paulo": "São Paulo",
 }
 
@@ -55,17 +64,6 @@ PORTAL_CONFIG = {
         "pagination": "auto-scroll",
         "wait_timeout": 30000,
     },
-    "promotons": {
-        "wait_selectors": [".brochure-thumb", ".flyer-item", ".catalog-card"],
-        "card_selector": "[class*='brochure'], [class*='flyer'], [class*='catalog']",
-        "store_name_patterns": [
-            r'class="shop[^"]*"[^>]*>([^<]+)',
-            r'class="store-name"[^>]*>([^<]+)',
-        ],
-        "flyer_link_patterns": [r"/brochure/", r"/flyer/", r"/encarte/"],
-        "pagination": "auto-scroll",
-        "wait_timeout": 30000,
-    },
     "tiendeo": {
         "wait_selectors": [".brochure-thumb", ".flyer-card", "[data-testid='flyer']"],
         "card_selector": "[data-testid='flyer_list_item'], [data-testid='flyer'], .brochure-thumb",
@@ -102,27 +100,170 @@ class PlaywrightAggregatorScraper:
         self.sp_zones = store_config.get("sp_zones", [])
         self.portal_config = get_portal_config(self.name)
         self.logger = logger
+        self._available_regions: set[str] | None = self._load_or_discover_cities()
+
+    def _load_city_cache(self) -> set[str] | None:
+        if not CITY_CACHE_FILE.exists():
+            return None
+        try:
+            data = json.loads(CITY_CACHE_FILE.read_text(encoding="utf-8"))
+            entry = data.get(self.name)
+            if entry is None:
+                return None
+            discovered_at = datetime.fromisoformat(entry["discovered_at"])
+            if (datetime.now(UTC) - discovered_at).days >= CITY_CACHE_TTL_DAYS:
+                self.logger.info("[%s] City cache expired (>=%d days)", self.name, CITY_CACHE_TTL_DAYS)
+                return None
+            return set(entry["available_slugs"])
+        except Exception as e:
+            self.logger.debug("[%s] Error loading city cache: %s", self.name, e)
+            return None
+
+    def _save_city_cache(self, slugs: list[str]) -> None:
+        try:
+            CITY_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            data = {}
+            if CITY_CACHE_FILE.exists():
+                data = json.loads(CITY_CACHE_FILE.read_text(encoding="utf-8"))
+            data[self.name] = {
+                "available_slugs": slugs,
+                "discovered_at": datetime.now(UTC).isoformat(),
+            }
+            CITY_CACHE_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        except Exception as e:
+            self.logger.warning("[%s] Failed to save city cache: %s", self.name, e)
+
+    def _discover_from_az_pages(self, target_slugs: set[str]) -> set[str]:
+        """Discover cities from A-Z letter pages (works on Kimbino)."""
+        letters = {slug[0] for slug in target_slugs}
+        found: set[str] = set()
+
+        for letter in sorted(letters):
+            url = f"{self.base_url}/cidades/{letter}/"
+            for attempt in range(2):
+                try:
+                    resp = httpx.get(url, timeout=15.0, follow_redirects=True,
+                                     headers={"User-Agent": "Mozilla/5.0"})
+                    resp.raise_for_status()
+                    html_text = resp.text
+                except Exception as e:
+                    self.logger.debug("[%s] A-Z page error %s (attempt %d/2): %s", self.name, url, attempt + 1, e)
+                    time.sleep(1)
+                    continue
+                break
+            else:
+                continue
+
+            for href_match in re.finditer(r'href="([^"]+)"', html_text):
+                href = href_match.group(1)
+                m = re.match(r"/cidade/([^/]+)/", href) or re.match(r"/([a-z][a-z0-9-]*[a-z])/?$", href)
+                if m:
+                    slug = m.group(1)
+                    if slug in target_slugs:
+                        found.add(slug)
+
+            if found == target_slugs:
+                break
+        return found
+
+    def _discover_portafolhetos_cities(self) -> set[str]:
+        """Discover cities from Portafolhetos city search API."""
+        found: set[str] = set()
+        api_base = "https://www.portafolhetos.com.br/city/list/"
+        letters = list("abcdefghijklmnopqrstuvwxyz")
+
+        # 1. Query each letter a-z for general discovery
+        for letter in letters:
+            try:
+                resp = httpx.get(
+                    api_base,
+                    params={"query": letter, "population": 5000},
+                    timeout=10.0,
+                    headers={"User-Agent": "Mozilla/5.0"},
+                )
+                if resp.status_code == 200:
+                    for item in resp.json():
+                        slug = item.get("sef", "")
+                        if slug:
+                            found.add(slug)
+            except Exception as e:
+                self.logger.debug("[%s] API discovery error for letter %s: %s", self.name, letter, e)
+
+        # 2. Verify each configured city by direct name query (use display name with accents)
+        for slug in self.regions:
+            city_query = CITY_SLUGS.get(slug, slug.replace("-", " ").title())
+            if not city_query:
+                continue
+            try:
+                resp = httpx.get(
+                    api_base,
+                    params={"query": city_query, "population": 5000},
+                    timeout=10.0,
+                    headers={"User-Agent": "Mozilla/5.0"},
+                )
+                if resp.status_code == 200:
+                    for item in resp.json():
+                        api_slug = item.get("sef", "")
+                        if api_slug and api_slug not in found:
+                            found.add(api_slug)
+            except Exception as e:
+                self.logger.debug("[%s] API city verify error for %s: %s", self.name, slug, e)
+
+        self.logger.info("[%s] API discovery found %d cities", self.name, len(found))
+        return found
+
+    def _discover_available_cities(self) -> set[str]:
+        target_slugs = set(self.regions)
+        is_portafolhetos = "portafolhetos" in self.name.lower()
+        found = self._discover_portafolhetos_cities() if is_portafolhetos else self._discover_from_az_pages(target_slugs)
+
+        if found:
+            self.logger.info("[%s] Discovered %d/%d cities", self.name, len(found), len(target_slugs))
+            missing = target_slugs - found
+            if missing:
+                self.logger.warning("[%s] Cities NOT found on %s: %s", self.name, self.name, ", ".join(sorted(missing)))
+        else:
+            self.logger.warning("[%s] City discovery returned no results — will use all configured cities", self.name)
+
+        return found or set(self.regions)
+
+    def _load_or_discover_cities(self) -> set[str] | None:
+        cached = self._load_city_cache()
+        if cached is not None:
+            return cached
+        try:
+            discovered = self._discover_available_cities()
+            if discovered:
+                self._save_city_cache(list(discovered))
+            return discovered
+        except Exception as e:
+            self.logger.warning("[%s] City discovery failed: %s — using all configured cities", self.name, e)
+            return set(self.regions)
 
     def _build_city_urls(self) -> list[tuple[str, str]]:
         """Build city-specific URLs based on portal requirements."""
+        active = [r for r in self.regions if r in (self._available_regions or set(self.regions))]
+        if not active:
+            active = self.regions
+
         urls = []
 
         # Special handling for Portafolhetos: city-specific offer pages
         if "portafolhetos" in self.name.lower():
-            for slug in self.regions:
+            for slug in active:
                 city_name = CITY_SLUGS.get(slug, slug.replace("-", " ").title())
                 urls.append((f"{self.base_url}/ofertas/{slug}/", city_name))
             return urls
 
         # For Kimbino and others, use base URL + region slug
         if "kimbino" in self.name.lower():
-            for slug in self.regions:
+            for slug in active:
                 city_name = CITY_SLUGS.get(slug, slug.replace("-", " ").title())
                 urls.append((f"{self.base_url}/{slug}", CITY_SLUGS.get(slug, slug.replace("-", " ").title())))
             return urls
 
         # Default: base URL + region
-        for slug in self.regions:
+        for slug in active:
             city_name = CITY_SLUGS.get(slug, slug.replace("-", " ").title())
             if slug == "sao-paulo":
                 for zone in self.sp_zones:
@@ -348,6 +489,43 @@ class PlaywrightAggregatorScraper:
             if after == before:
                 break
 
+    async def _enrich_portafolhetos_images(self, flyers: list[dict]) -> list[dict]:
+        """Visit each flyer page via httpx to get full-res image from og:image meta."""
+        import re as _re
+
+        enriched = []
+        for flyer in flyers:
+            flyer_url = flyer.get("flyer_url", "")
+            if not flyer_url or not flyer.get("image_url", ""):
+                enriched.append(flyer)
+                continue
+            try:
+                resp = httpx.get(
+                    flyer_url,
+                    timeout=15.0,
+                    follow_redirects=True,
+                    headers={"User-Agent": "Mozilla/5.0"},
+                )
+                resp.raise_for_status()
+                match = _re.search(
+                    r'<meta[^>]+property="og:image"[^>]+content="([^"]+)"',
+                    resp.text,
+                )
+                if match:
+                    full_url = match.group(1)
+                    if full_url != flyer["image_url"]:
+                        self.logger.debug(
+                            "[%s] Upgraded image: %s -> %s",
+                            self.name,
+                            flyer["image_url"][:60],
+                            full_url[:60],
+                        )
+                        flyer["image_url"] = full_url
+            except Exception as e:
+                self.logger.debug("[%s] Image enrich error for %s: %s", self.name, flyer_url, e)
+            enriched.append(flyer)
+        return enriched
+
     async def run_async(self) -> list[dict]:
         source = self.name.lower().replace(" ", "_")
         city_urls = self._build_city_urls()
@@ -369,6 +547,11 @@ class PlaywrightAggregatorScraper:
                 continue
             all_flyers.extend(result)  # type: ignore[arg-type]
 
+        # Portafolhetos: upgrade thumbnail URLs to full-res via og:image
+        if "portafolhetos" in self.name.lower() and all_flyers:
+            self.logger.info("[%s] Enriching %d flyers with full-res images...", self.name, len(all_flyers))
+            all_flyers = await self._enrich_portafolhetos_images(all_flyers)
+
         self.logger.info(f"[{self.name}] Total flyers collected: {len(all_flyers)}")
         return all_flyers
 
@@ -385,10 +568,31 @@ class PlaywrightTiendeoScraper:
         self.base_url = store_config["base_url"].rstrip("/")
         self.regions = store_config.get("regions", [])
         self.sp_zones = store_config.get("sp_zones", [])
+        self._available_regions: set[str] | None = self._load_cached_regions()
+
+    def _load_cached_regions(self) -> set[str] | None:
+        if not CITY_CACHE_FILE.exists():
+            return None
+        try:
+            data = json.loads(CITY_CACHE_FILE.read_text(encoding="utf-8"))
+            entry = data.get(self.name)
+            if entry is None:
+                return None
+            discovered_at = datetime.fromisoformat(entry["discovered_at"])
+            if (datetime.now(UTC) - discovered_at).days >= CITY_CACHE_TTL_DAYS:
+                logger.info("[%s] City cache expired (>=%d days)", self.name, CITY_CACHE_TTL_DAYS)
+                return None
+            return set(entry["available_slugs"])
+        except Exception as e:
+            logger.debug("[%s] Error loading city cache: %s", self.name, e)
+            return None
 
     def _build_city_urls(self) -> list[tuple[str, str]]:
+        active = [r for r in self.regions if r in (self._available_regions or set(self.regions))]
+        if not active:
+            active = self.regions
         urls = []
-        for slug in self.regions:
+        for slug in active:
             city_name = CITY_SLUGS.get(slug, slug.replace("-", " ").title())
             if slug == "sao-paulo":
                 urls.append((f"{self.base_url}/sao-paulo", "São Paulo"))

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import random
 import re
 import time
 from contextlib import suppress
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import httpx
@@ -139,8 +141,14 @@ CITY_SLUGS = {
     "mongagua": "Mongaguá",
     "itanhaem": "Itanhaém",
     "peruibe": "Peruíbe",
+    "guaruja": "Guarujá",
     "sao-paulo": "São Paulo",
 }
+
+REVERSE_CITY_SLUGS = {v.lower().replace(" ", ""): k for k, v in CITY_SLUGS.items()}
+
+CITY_CACHE_FILE = Path("data") / "discovered_cities.json"
+CITY_CACHE_TTL_DAYS = 7
 
 
 # User-Agent pool for rotation (helps avoid IP-based blocking)
@@ -183,18 +191,24 @@ class TiendeoScraper:
                 "Upgrade-Insecure-Requests": "1",
             },
         )
+        self._available_regions: set[str] | None = self._load_or_discover_cities()
 
     def _build_city_urls(self) -> list[tuple[str, str]]:
+        # Filtra regiões para apenas as descobertas como disponíveis no site
+        active = [r for r in self.regions if r in (self._available_regions or set(self.regions))]
+        if not active:
+            active = self.regions
+
         # Loja com página dedicada no Tiendeo: usa store_slug em vez de varrer cidades.
         if self.store_slug:
             base = f"{self.base_url}/Encartes-Catalogos/{self.store_slug}"
-            if self.regions:
-                urls = [(f"{base}/{slug}", CITY_SLUGS.get(slug, slug.replace("-", " ").title())) for slug in self.regions]
+            if active:
+                urls = [(f"{base}/{slug}", CITY_SLUGS.get(slug, slug.replace("-", " ").title())) for slug in active]
                 if urls:
                     return urls
             return [(base, self.name)]
         urls = []
-        for slug in self.regions:
+        for slug in active:
             city_name = CITY_SLUGS.get(slug, slug.replace("-", " ").title())
             if slug == "sao-paulo":
                 urls.append((f"{self.base_url}/sao-paulo", "São Paulo"))
@@ -204,6 +218,102 @@ class TiendeoScraper:
             else:
                 urls.append((f"{self.base_url}/{slug}", city_name))
         return urls
+
+    def _load_city_cache(self) -> set[str] | None:
+        if not CITY_CACHE_FILE.exists():
+            return None
+        try:
+            data = json.loads(CITY_CACHE_FILE.read_text(encoding="utf-8"))
+            entry = data.get(self.name)
+            if entry is None:
+                return None
+            discovered_at = datetime.fromisoformat(entry["discovered_at"])
+            if (datetime.now(UTC) - discovered_at).days >= CITY_CACHE_TTL_DAYS:
+                logger.info("[%s] City cache expired (>=%d days)", self.name, CITY_CACHE_TTL_DAYS)
+                return None
+            return set(entry["available_slugs"])
+        except Exception as e:
+            logger.debug("[%s] Error loading city cache: %s", self.name, e)
+            return None
+
+    def _save_city_cache(self, slugs: list[str]) -> None:
+        try:
+            CITY_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            data = {}
+            if CITY_CACHE_FILE.exists():
+                data = json.loads(CITY_CACHE_FILE.read_text(encoding="utf-8"))
+            data[self.name] = {
+                "available_slugs": slugs,
+                "discovered_at": datetime.now(UTC).isoformat(),
+            }
+            CITY_CACHE_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        except Exception as e:
+            logger.warning("[%s] Failed to save city cache: %s", self.name, e)
+
+    def _fetch_page_raw(self, url: str) -> str | None:
+        """Fetch a page with retry — no /Catalogos/ check (for city listing pages)."""
+        for attempt in range(3):
+            ua = self._rotate_ua()
+            self.session.headers.update({"User-Agent": ua})
+            try:
+                resp = self.session.get(url, timeout=30.0)
+                resp.raise_for_status()
+                return resp.text
+            except Exception as e:
+                logger.debug("[%s] Fetch error %s (attempt %d/3): %s", self.name, url, attempt + 1, e)
+                if attempt < 2:
+                    time.sleep(2 ** attempt)
+        return None
+
+    def _discover_available_cities(self) -> set[str]:
+        target_slugs = set(self.regions)
+        found: set[str] = set()
+
+        for page_num in range(1, 21):
+            page_url = f"{self.base_url}/Cidades?page={page_num}"
+            html = self._fetch_page_raw(page_url)
+            if not html:
+                break
+
+            tree = HTMLParser(html)
+            for link in tree.css("a[href]"):
+                href = (link.attributes.get("href") or "").strip()
+                # City URLs on Tiendeo are single-segment: /santos, /sao-paulo
+                if href.startswith("/") and href.count("/") == 1:
+                    slug = href.strip("/")
+                    if slug in target_slugs:
+                        found.add(slug)
+
+            if found == target_slugs:
+                break
+
+            # Check if next page exists (look for pagination link to page_num+1)
+            next_str = f"page={page_num + 1}"
+            if not any(next_str in (a.attributes.get("href") or "") for a in tree.css("a[href]")):
+                break
+
+        if found:
+            logger.info("[%s] Discovered %d/%d cities on Tiendeo", self.name, len(found), len(target_slugs))
+            missing = target_slugs - found
+            if missing:
+                logger.warning("[%s] Cities NOT found on Tiendeo: %s", self.name, ", ".join(sorted(missing)))
+        else:
+            logger.warning("[%s] City discovery returned no results — will use all configured cities", self.name)
+
+        return found or set(self.regions)
+
+    def _load_or_discover_cities(self) -> set[str] | None:
+        cached = self._load_city_cache()
+        if cached is not None:
+            return cached
+        try:
+            discovered = self._discover_available_cities()
+            if discovered:
+                self._save_city_cache(list(discovered))
+            return discovered
+        except Exception as e:
+            logger.warning("[%s] City discovery failed: %s — using all configured cities", self.name, e)
+            return set(self.regions)
 
     def _rotate_ua(self) -> str:
         return random.choice(self.ua_pool)  # noqa: S311
