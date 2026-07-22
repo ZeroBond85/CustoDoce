@@ -122,13 +122,14 @@ def log_scraper_run(
 
 def cleanup_test_data() -> dict[str, int]:
     client = get_service_client()
-    removed = {"prices": 0, "review_queue": 0, "scraping_logs": 0}
+    removed = {"prices": 0, "review_queue": 0, "scraping_logs": 0, "flyers": 0, "stores": 0}
     _TEST_PREFIXES = ("test ", "e2e ", "_test_", "Cleanup Store ")
+    _SAFE_TABLES = ("prices", "review_queue", "scraping_logs", "flyers", "stores")
     for prefix in _TEST_PREFIXES:
         prefix_norm = prefix.strip()
-        for table in ("prices", "review_queue", "scraping_logs"):
+        for table in _SAFE_TABLES:
             try:
-                result = client.table(table).delete().ilike("store_name", f"{prefix_norm}%").execute()
+                result = client.table(table).delete().ilike("store_name" if "name" in table else "name", f"{prefix_norm}%").execute()
                 count = len(result.data) if result.data else 0
                 removed[table] = removed.get(table, 0) + count
             except Exception as e:

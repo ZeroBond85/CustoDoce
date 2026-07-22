@@ -19,6 +19,19 @@ import parsers.flyer_hybrid as fh
 # --- fixtures ---------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+def _reset_cb_between_tests():
+    """Limpa o circuit-breaker global antes de cada teste.
+
+    Sem isso, testes que disparam 429/401 no provedor afetariam o CB e
+    vazariam para outros testes (groq chega a ser "bloqueado" entre
+    testes sequenciais).
+    """
+    fh._cb_state.clear()
+    yield
+    fh._cb_state.clear()
+
+
 @pytest.fixture
 def flyer_regions():
     path = os.path.join(

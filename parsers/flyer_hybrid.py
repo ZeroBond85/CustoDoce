@@ -89,7 +89,8 @@ GAP_THRESHOLD = float(os.environ.get("FLYER_BLOCK_GAP", "50"))
 _X_GAP_THRESHOLD = float(os.environ.get("FLYER_BLOCK_X_GAP", "250"))
 
 LLM_TIMEOUT = float(os.environ.get("FLYER_HYBRID_LLM_TIMEOUT", "60"))
-LLM_CB_THRESHOLD = int(os.environ.get("FLYER_HYBRID_CB_THRESHOLD", "3"))
+# 429 = global rate-limit. 1 falha ja basta: re-tentar so desperdiça quota.
+LLM_CB_THRESHOLD = int(os.environ.get("FLYER_HYBRID_CB_THRESHOLD", "1"))
 LLM_CB_COOLDOWN = int(os.environ.get("FLYER_HYBRID_CB_COOLDOWN", "600"))
 
 # Cents refinement: re-OCR an upscaled crop around each reconstructed price to
@@ -623,11 +624,26 @@ def resolve_names(blocks: list[dict]) -> list[dict]:
                 timeout=LLM_TIMEOUT,
             )
             if resp.status_code == 429:
+                # 429 = global rate-limit do provider. Abrir CB imediatamente
+                # (re-tentar so desperdiça quota + queima timeout).
                 logger.info("flyer_hybrid_llm_429", provider=prov["name"])
-                _provider_failed(prov["name"])
+                _cb_state.setdefault(prov["name"], {"open": False, "count": 0, "since": 0.0})
+                _cb_state[prov["name"]]["open"] = True
+                _cb_state[prov["name"]]["since"] = time.time()
+                _cb_state[prov["name"]]["count"] = LLM_CB_THRESHOLD
+                continue
+            if resp.status_code in (401, 403):
+                # Token invalido/insuficiente — abrir circuit breaker permanente
+                # para essa chave (chamar de novo nao vai mudar). Cooldown longo.
+                logger.warning("flyer_hybrid_llm_auth_error", provider=prov["name"], status=resp.status_code)
+                _cb_state.setdefault(prov["name"], {"open": False, "count": 0, "since": 0.0})
+                _cb_state[prov["name"]]["open"] = True
+                _cb_state[prov["name"]]["since"] = time.time()
+                _cb_state[prov["name"]]["count"] = LLM_CB_THRESHOLD
                 continue
             if resp.status_code >= 400:
-                logger.info("flyer_hybrid_llm_http_error", provider=prov["name"], status=resp.status_code)
+                logger.warning("flyer_hybrid_llm_http_error", provider=prov["name"], status=resp.status_code)
+                _provider_failed(prov["name"])
                 continue
             content = resp.json().get("choices", [{}])[0].get("message", {}).get("content", "")
             items = _parse_llm_json(content)

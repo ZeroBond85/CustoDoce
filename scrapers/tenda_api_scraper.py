@@ -1,6 +1,7 @@
 import hashlib
 
 from scrapers.base_web_scraper import BaseWebScraper
+from scrapers.flyer_ocr import extract_flyer_products
 
 
 class TendaApiScraper(BaseWebScraper):
@@ -60,7 +61,7 @@ class TendaApiScraper(BaseWebScraper):
         return []
 
     def run(self, ingredients: list[dict]) -> list[dict]:
-        all_entries = []
+        image_entries = []
         branches = self.get_branches_with_flyers()
 
         for branch in branches:
@@ -69,7 +70,23 @@ class TendaApiScraper(BaseWebScraper):
                 continue
             flyers = self.get_flyers_by_branch(branch_id)
             for flyer in flyers:
-                parsed = self.parse_flyer(flyer)
-                all_entries.extend(parsed)
+                image_entries.extend(self.parse_flyer(flyer))
 
-        return all_entries
+        if not image_entries:
+            self.report_failure(
+                reason="no flyers from API (DNS or auth failure)", items_found=0, products_matched=0
+            )
+            return []
+
+        products = extract_flyer_products(
+            self._http, image_entries, self.name, source="tenda_flyer"
+        )
+        if products:
+            self.report_success(
+                items_found=len(products), products_matched=0, flyer_count=len(image_entries)
+            )
+        else:
+            self.report_failure(
+                reason="no products extracted from flyers", items_found=0, products_matched=0
+            )
+        return products

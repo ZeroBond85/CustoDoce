@@ -196,7 +196,6 @@ class VisionStrategy(ABC):
                     logger.warning("[%s_vision] Client error: %d — opening breaker", self.provider_name, resp.status_code)
                     self.open_circuit()
                     return None
-                resp.raise_for_status()
 
                 data = resp.json()
                 content = self._extract_content(data)

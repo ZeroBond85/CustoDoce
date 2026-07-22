@@ -11,6 +11,7 @@ from pathlib import Path
 
 from scripts.sync_all_store_fields import sync_scrape_frequencies, sync_store_fields
 from services import collector, email_service, flyer_service, otel, price_analytics, price_intelligence, price_service, store_registry
+from services.maintenance_service import cleanup_test_data
 from services.logger import logger
 
 DATA_DIR = Path("data")
@@ -214,6 +215,17 @@ def main(args: Namespace | None = None):
 
         ingredients = collector.load_ingredients()
         logger.info("ingredients_loaded", count=len(ingredients))
+
+        # Limpar dados de teste orfaos (Cleanup Store, _test_, e2e_, test _)
+        # antes de iniciar a coleta para evitar scraper warnings por lixo
+        # residual de execucoes de integration tests.
+        try:
+            cleaned = cleanup_test_data()
+            total_cleaned = sum(cleaned.values())
+            if total_cleaned > 0:
+                logger.info("cleanup_test_data_executed", **cleaned)
+        except Exception as e:
+            logger.warning("cleanup_test_data_error", error=str(e))
 
         try:
             n = sync_store_fields()
