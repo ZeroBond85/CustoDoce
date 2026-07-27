@@ -1,5 +1,5 @@
 # Lições Aprendidas
-> Última atualização: 2026-07-22 19:56 UTC
+> Última atualização: 2026-07-27 17:12 UTC
 
 > Extraídas de AGENTS.md. Numeração original preservada.
 > Regras de execução/ambiente → `REGRAS.md`.
@@ -687,4 +687,7 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 
 ### 89. Security audit: service-role client exposto + AUTH_SECRET_KEY aleatório (S-04/S-07)
 - **Sintoma/causa**: `get_service_client()` (bypass RLS total) era chamado de páginas de dashboard sem checagem de sessão; `auth.load_config()` gerava chave aleatória por processo se `AUTH_SECRET_KEY` vazio (footgun se JWT for usado). **Correção**: `require_service_client()` exige `st.session_state.authenticated`; `lojas_pendentes.py`/`lojas.py` migraram para ele; `load_config()` faz `raise` se vazio em produção (`APP_ENV=production`/`STREAMLIT_SERVER`).
+
+### 90. Scraper refactoring (BaseScraper migration) arquivado como tech debt
+- **Sintoma/causa**: FASE 0.7-0.14 planejava migrar todos scrapers (WebsiteScraper, VtexScraper, FlyerScraper, EcomplusScraper, PlaywrightPriceScraper, CarrefourScraper, AggregatorScraper) para BaseScraper (`base_unified.py`). `selector_resolver.py` já centraliza selectors via `selectors.yaml`. A arquitetura atual funciona e 1443 testes passam. **Decisão**: refactoring deferred. `selector_resolver` resolve a fragmentação de selectors; BaseScraper continua existindo como alternativa para novos scrapers sem quebrar os existentes. Risco de migração (6+ scrapers, cada um com lógica específica de fetch/parse/throttle) não justifica o benefício incremental. **Registro**: `services/selector_resolver.py` criado, `selectors.yaml` integrado em `WebsiteScraper` e `PlaywrightPriceScraper`. `BaseScraper` permanece em `base_unified.py` para novos desenvolvimentos.
 

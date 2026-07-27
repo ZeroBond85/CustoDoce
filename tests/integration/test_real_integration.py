@@ -5,11 +5,12 @@ Mark with @pytest.mark.real to run separately from fast mock tests.
 """
 
 import os
+from pathlib import Path
 
 import pytest
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 # Skip if no real Supabase credentials
 SUPABASE_URL = os.getenv("SUPABASE_URL")

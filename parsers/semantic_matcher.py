@@ -24,6 +24,8 @@ class SemanticMatcher:
         self._onnx_model = None
         self._ingredient_embeddings: dict[str, np.ndarray] = {}
         self._loaded = False
+        # Pre-warm ONNX model at startup (PyTorch fallback se ONNX falhar)
+        self._get_onnx_model()
 
     def _get_model(self):
         if self._model is None:
@@ -43,7 +45,6 @@ class SemanticMatcher:
             from transformers import AutoTokenizer
 
             if not onnx_path.exists():
-                # Export model to ONNX
                 model = ORTModelForFeatureExtraction.from_pretrained(self.model_name, export=True)
                 tokenizer = AutoTokenizer.from_pretrained(self.model_name)
                 model.save_pretrained(str(onnx_path))
@@ -81,12 +82,12 @@ class SemanticMatcher:
             model, tokenizer = onnx_data
             inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
             outputs = model(**inputs)
-            # Mean pooling of token embeddings
             emb = outputs.last_hidden_state.mean(dim=1).detach().numpy()[0]
         else:
             model = self._get_model()
             emb = model.encode(text)
 
+        emb = np.asarray(emb).ravel()
         self._cache_embedding(text, emb)
         return emb
 

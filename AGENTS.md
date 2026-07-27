@@ -101,7 +101,7 @@ CustoDoce/
 ├── requirements.lock       # = requirements-test.lock (backward compat)
 ├── requirements.txt        # = requirements-prod.in (pip-audit source)
 ├── AGENTS.md          # ← este arquivo (vivo, ~340 linhas)
-├── LESSONS.md         # 81 lições aprendidas
+├── LESSONS.md         # 82 lições aprendidas
 └── REGRAS.md          # Ambiente, hooks, comandos
 ```
 
@@ -236,7 +236,7 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 | Schema manifest | 17 tabelas/views com types, not_null, defaults, constraints |
 | Mock validation tests | 97 parametrizados (colunas, tipos, not_null, FKs, CHECK, jsonb) |
 | AGENTS.md | ~340 linhas (Sprint 14 — md_auto_compress) |
-| LESSONS.md | 81 lições |
+| LESSONS.md | 82 lições |
 | REGRAS.md | Ambiente + hooks + comandos |
 | CI lint/type/test | ✅ Todos verdes (Python 3.14.6) |
 | E2E (cloud) | ⏳ Mensal (Playwright) |
@@ -289,7 +289,7 @@ Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarbal
 
 ## Documentação Relacionada
 
-- `LESSONS.md` — 81 lições (CI, mocks, schema, scrapers, monitoração, segurança)
+- `LESSONS.md` — 82 lições (CI, mocks, schema, scrapers, monitoração, segurança)
 - `REGRAS.md` — Ambiente, hooks, comandos, arquitetura
 - `docs/skills.md` — Skills OpenCode (globais + overlays locais)
 - `docs/changelog.md` — Histórico por fase/sprint; `config/agents_schema.yaml` — Schema deste arquivo

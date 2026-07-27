@@ -14,7 +14,7 @@ import httpx
 import pytest
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 pytestmark = pytest.mark.slow
 

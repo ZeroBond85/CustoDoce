@@ -457,20 +457,26 @@ stores:
 
   - name: "Doce Festa"
     tier: 2
-    type: "website_catalog"
+    type: "website_js"
     is_active: true
     logistics: "pickup_sp"
     base_url: "https://www.doceefesta.com.br"
     search_url: "https://www.doceefesta.com.br/busca?q={query}"
     selectors:
-      product_card: [".product", "li.product", ".product-item", ".item"]
-      product_name: [".woocommerce-loop-product__title", "h2 a", ".product-title"]
-      product_price: [".price", ".amount", ".preco"]
+      product_card: ["jet-card.products-card"]
+      product_name: ["a.product-name.notranslate", "h3"]
+      product_price: [".best-price"]
+      product_brand: [".brand-name"]
+    browse_urls:
+      - "https://www.doceefesta.com.br/departamentos/confeitaria/c"
+      - "https://www.doceefesta.com.br/departamentos/descartaveis/c"
+      - "https://www.doceefesta.com.br/departamentos/pelucia/c"
+    browse_parallel: false
     address: "Rua São Caetano, s/n - Vila Industrial, Sertãozinho, SP"
     zone: "interior_sp"
     coverage: "Artigos festa + insumos confeitaria — 32 anos de mercado"
     collection_method: "automated"
-    scraper: "website_scraper"
+    scraper: "playwright_price_scraper"
     priority: 16
 
   - name: "GP Distribuidora"
@@ -1058,24 +1064,6 @@ stores:
     collection_method: "automated"
     scraper: "website_scraper"
     priority: 38
-
-  - name: "Bezerra Embalagens"
-    tier: 2
-    type: "website_catalog"
-    is_active: true
-    logistics: "pickup_local"
-    base_url: "https://www.bezerraembalagens.com.br"
-    search_url: "https://www.bezerraembalagens.com.br/busca?q={query}"
-    selectors:
-      product_card: [".product", ".product-item", ".item", "[class*=produto]"]
-      product_name: [".product-name", ".nome-produto", "h2 a", "h3 a"]
-      product_price: [".price", ".preco", ".amount"]
-    address: "Rua Santa Cecília, 499 - Balneário Regina Maria, Mongaguá"
-    city: "Mongaguá"
-    coverage: "Artigos festa, embalagens, Chantilly Fleischmann, Liga Neutra Marvi — confeitaria parcial"
-    collection_method: "automated"
-    scraper: "website_scraper"
-    priority: 39
 
   - name: "Pejuca Festas"
     tier: 2

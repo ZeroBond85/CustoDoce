@@ -1,0 +1,114 @@
+# Selectors centralizados por tipo de loja
+# Usado por scrapers/base_unified.py e website_scraper.py
+# Cada store pode sobrescrever via store_config["selectors"]
+
+defaults: &defaults
+  product_card:
+    - ".product-item"
+    - ".product"
+    - ".produto"
+    - "li.product"
+    - "article.product"
+    - ".item"
+    - ".product-card"
+    - ".product-box"
+    - "[class*=produto]"
+    - "[class*=product]"
+  product_name:
+    - "h2 a"
+    - "h3 a"
+    - ".product-name a"
+    - ".product-name"
+    - ".nome-produto"
+    - ".name a"
+    - "a[class*=name]"
+    - "a[class*=nome]"
+    - "[class*=title] a"
+    - ".product-title a"
+  product_price:
+    - ".price"
+    - ".preco"
+    - ".current-price"
+    - "span.price"
+    - ".product-price"
+    - "[class*=price]"
+    - "[class*=preco]"
+    - ".sale-price"
+    - ".offer-price"
+    - ".box-price"
+  product_old_price:
+    - "s"
+    - ".old-price"
+    - ".original-price"
+    - ".price-old"
+    - "[class*=old]"
+  product_brand: []
+  product_validity: []
+
+ecomplus:
+  <<: *defaults
+  product_card:
+    - "a[href^='/produto/']"
+  product_name:
+    - "h3.ui-link"
+    - "h5.ui-link"
+    - "h3"
+    - "h5"
+    - "a.ui-link"
+  product_price:
+    - "strong.text-base-800"
+  product_old_price:
+    - "s"
+  product_discount:
+    - "span.uno-zmd234"
+
+vtex:
+  <<: *defaults
+  product_card:
+    - ".vtex-product-summary"
+    - "[class*=productSummary]"
+    - ".vtex-search-result"
+  product_name:
+    - "[class*=productName]"
+    - "[class*=nameContainer] a"
+
+aggregator:
+  <<: *defaults
+  product_card:
+    - "[data-testid='flyer_list_item']"
+    - ".js-flyer"
+    - "li[data-type='flyer']"
+    - ".flyer-item"
+    - ".offer-item"
+
+shopify:
+  <<: *defaults
+  product_card:
+    - ".product-card"
+    - ".grid__item"
+    - ".product-grid .product"
+  product_name:
+    - ".product-card__title"
+    - ".product__title"
+    - "h2.card-title a"
+  product_price:
+    - ".price"
+    - ".product-price"
+    - ".price__regular"
+    - ".price-item"
+
+playwright:
+  <<: *defaults
+  product_card:
+    - "[class*=product]"
+    - "[class*=offer]"
+    - "[class*=item]"
+  product_name:
+    - "h1"
+    - "h2"
+    - ".product-name"
+    - "[class*=title]"
+  product_price:
+    - "[class*=price]"
+    - "[data-testid*=price]"
+    - ".current-price"
