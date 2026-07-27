@@ -1,6 +1,6 @@
 # `telegram_service` — API
 
-> Última atualização: 2026-07-27 18:41 UTC
+> Última atualização: 2026-07-27 19:25 UTC
 > Gerado por AST parsing dos serviços em `services/telegram_service.py`.
 
 ## Funções Públicas (3)

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import importlib.util
 from unittest.mock import patch
 
+import pytest
 
 from parsers.document_parser import extract_from_regions, extract_pdf_text, ocr_image, ocr_pdf_bytes
 
@@ -78,7 +80,14 @@ def test_ocr_pdf_bytes_calls_ocr(mock_ocr):
         assert isinstance(result, str)
 
 
+import importlib.util
+
+
 def test_ocr_image_tesseract_fallback():
+    # Skip if rapidocr_onnxruntime is not installed (CI environment)
+    if importlib.util.find_spec("rapidocr_onnxruntime") is None:
+        pytest.skip("rapidocr_onnxruntime not installed")
+
     with patch("rapidocr_onnxruntime.RapidOCR") as mock_rapid:
         mock_rapid.side_effect = ImportError("no rapidocr")
         with patch("pytesseract.image_to_string") as mock_ts:
