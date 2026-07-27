@@ -2,7 +2,7 @@
   "_meta": {
     "generator": "scripts/generate_schema_manifest.py",
     "source": "consolidated_migration.sql",
-    "tables": 19,
+    "tables": 20,
     "version": 2
   },
   "alert_recipients": {
@@ -157,7 +157,6 @@
       "flyer_date_start",
       "flyer_date_end",
       "image_url",
-      "flyer_url",
       "image_hash",
       "image_type",
       "image_width",
@@ -171,7 +170,10 @@
       "valid_until",
       "collected_at",
       "processed_at",
-      "is_active"
+      "is_active",
+      "flyer_url",
+      "address",
+      "address_confidence"
     ],
     "constraints": {
       "check": [],
@@ -188,6 +190,8 @@
       ]
     },
     "defaults": {
+      "address": "''",
+      "address_confidence": "0",
       "city": "''",
       "collected_at": "NOW()",
       "flyer_title": "''",
@@ -210,10 +214,10 @@
       "region",
       "city",
       "image_url",
-      "flyer_url",
       "ocr_status",
       "source",
-      "collected_at"
+      "collected_at",
+      "flyer_url"
     ],
     "not_null_no_default": [
       "store_name",
@@ -221,6 +225,8 @@
       "image_url"
     ],
     "types": {
+      "address": "text",
+      "address_confidence": "decimal(3,2)",
       "city": "text",
       "collected_at": "timestamptz",
       "flyer_date_end": "date",
@@ -1020,7 +1026,13 @@
       "created_at",
       "updated_at",
       "reviewed_at",
-      "reviewed_by"
+      "reviewed_by",
+      "address",
+      "neighborhood",
+      "phone",
+      "address_confidence",
+      "discovery_source",
+      "region"
     ],
     "constraints": {
       "check": [],
@@ -1042,14 +1054,20 @@
       "unique": []
     },
     "defaults": {
+      "address": "''",
+      "address_confidence": "0",
       "city": "''",
       "collection_method": "'auto'",
       "config": "'{}'",
       "coverage": "''",
       "created_at": "now()",
+      "discovery_source": "'flyer'",
       "id": "gen_random_uuid()",
       "logistics": "'pickup_local'",
       "match_score": "0",
+      "neighborhood": "''",
+      "phone": "''",
+      "region": "''",
       "source": "'auto'",
       "status": "'pending_review'",
       "tier": "3",
@@ -1073,17 +1091,23 @@
       "normalized_name"
     ],
     "types": {
+      "address": "text",
+      "address_confidence": "decimal(3,2)",
       "city": "text",
       "collection_method": "text",
       "config": "jsonb",
       "coverage": "text",
       "created_at": "timestamptz",
+      "discovery_source": "text",
       "id": "uuid",
       "logistics": "text",
       "match_score": "real",
       "matched_store_id": "text",
       "name": "text",
+      "neighborhood": "text",
       "normalized_name": "text",
+      "phone": "text",
+      "region": "text",
       "reviewed_at": "timestamptz",
       "reviewed_by": "text",
       "source": "text",
@@ -1092,6 +1116,91 @@
       "type": "text",
       "updated_at": "timestamptz",
       "zone": "text"
+    }
+  },
+  "store_units": {
+    "columns": [
+      "id",
+      "store_id",
+      "unit_name",
+      "address",
+      "neighborhood",
+      "city",
+      "state",
+      "zipcode",
+      "phone",
+      "latitude",
+      "longitude",
+      "source",
+      "confidence",
+      "is_active",
+      "collected_at",
+      "updated_at"
+    ],
+    "constraints": {
+      "check": [],
+      "fk": [
+        {
+          "columns": [
+            "store_id"
+          ],
+          "references": {
+            "column": "id",
+            "on_delete": "CASCADE",
+            "table": "stores"
+          }
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "unique": [
+        [
+          "store_id",
+          "address"
+        ]
+      ]
+    },
+    "defaults": {
+      "address": "''",
+      "city": "''",
+      "collected_at": "NOW()",
+      "confidence": "1.0",
+      "id": "gen_random_uuid()",
+      "is_active": "TRUE",
+      "neighborhood": "''",
+      "phone": "''",
+      "source": "'auto'",
+      "state": "'SP'",
+      "unit_name": "''",
+      "updated_at": "NOW()",
+      "zipcode": "''"
+    },
+    "generated": {},
+    "not_null": [
+      "store_id",
+      "source"
+    ],
+    "not_null_no_default": [
+      "store_id"
+    ],
+    "types": {
+      "address": "text",
+      "city": "text",
+      "collected_at": "timestamptz",
+      "confidence": "decimal(3,2)",
+      "id": "uuid",
+      "is_active": "boolean",
+      "latitude": "decimal(10,7)",
+      "longitude": "decimal(10,7)",
+      "neighborhood": "text",
+      "phone": "text",
+      "source": "text",
+      "state": "text",
+      "store_id": "text",
+      "unit_name": "text",
+      "updated_at": "timestamptz",
+      "zipcode": "text"
     }
   },
   "stores": {
@@ -1118,7 +1227,12 @@
       "selectors",
       "publish_day",
       "visit_frequency",
-      "contact"
+      "contact",
+      "address",
+      "neighborhood",
+      "phone",
+      "latitude",
+      "longitude"
     ],
     "constraints": {
       "check": [],
@@ -1129,6 +1243,7 @@
       "unique": []
     },
     "defaults": {
+      "address": "''",
       "city": "''",
       "collection_method": "'manual'",
       "config": "'{}'",
@@ -1136,6 +1251,8 @@
       "created_at": "NOW()",
       "is_active": "TRUE",
       "logistics": "'pickup_local'",
+      "neighborhood": "''",
+      "phone": "''",
       "priority": "99",
       "selectors": "'{}'",
       "tier": "3",
@@ -1155,6 +1272,7 @@
       "name"
     ],
     "types": {
+      "address": "text",
       "api_endpoint": "text",
       "base_url": "text",
       "city": "text",
@@ -1165,8 +1283,12 @@
       "created_at": "timestamptz",
       "id": "text",
       "is_active": "boolean",
+      "latitude": "decimal(10,7)",
       "logistics": "text",
+      "longitude": "decimal(10,7)",
       "name": "text",
+      "neighborhood": "text",
+      "phone": "text",
       "priority": "int",
       "publish_day": "text",
       "scraper": "text",
