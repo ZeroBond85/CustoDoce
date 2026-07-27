@@ -1,6 +1,6 @@
 # `dashboard_queries` — API
 
-> Última atualização: 2026-07-27 19:25 UTC
+> Última atualização: 2026-07-27 20:06 UTC
 > Gerado por AST parsing dos serviços em `services/dashboard_queries.py`.
 
 ## Funções Públicas (39)
