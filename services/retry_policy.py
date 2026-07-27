@@ -67,7 +67,7 @@ class RetryPolicy:
             return float(retry_after)
         delay = min(self.base_delay * (2 ** attempt), self.max_delay)
         if self.jitter:
-            delay = delay * (0.5 + random.random() * 0.5)  # noqa: S311
+            delay = delay * (0.5 + random.random() * 0.5)  # noqa: S311  # nosec B311
         return delay
 
     def classify(self, exception: Exception) -> RetryableError | None:
