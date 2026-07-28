@@ -1,6 +1,7 @@
 from parsers.brand_extractor import extract_brand
 from parsers.unit_extractor import extract_unit
 from scrapers.base_web_scraper import BaseWebScraper
+from services.error_classifier import classify_error
 from services.logger import logger
 
 
@@ -10,6 +11,7 @@ class VtexScraper(BaseWebScraper):
         self.api_endpoint = (
             store_config.get("api_endpoint") or f"{self.base_url}/api/catalog_system/pub/products/search"
         )
+        self._dns_resolved = False
 
     def _search_and_parse(self, ing: dict) -> list[dict]:
         ing_name = ing.get("canonical_name", "?")
@@ -82,7 +84,11 @@ class VtexScraper(BaseWebScraper):
                 if self.rate_limit > 0:
                     _time.sleep(self.rate_limit)
         except Exception as e:
-            logger.warning("[%s] Error searching '%s' (page %d): %s", self.name, query, page, e)
+            classified = classify_error(e, context=self.name)
+            logger.warning(
+                "[%s] Error searching '%s' (page %d): %s [%s]",
+                self.name, query, page, e, classified.category.value,
+            )
         total = _time.time() - start
         logger.info("[%s] '%s' done: %d results in %.1fs", self.name, query, len(all_results), total)
         return all_results

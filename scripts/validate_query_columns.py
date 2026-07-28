@@ -39,7 +39,10 @@ def load_manifest() -> dict[str, set[str]]:
 
 def extract_references(filepath: Path, manifest: dict[str, set[str]]) -> list[dict]:
     """Scan file using AST for dict keys and regex for .select() calls."""
-    text = filepath.read_text(encoding="utf-8")
+    try:
+        text = filepath.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, LookupError):
+        return []
     results = []
 
     # AST: look for dict lookups (e.g., row['column'])
@@ -86,9 +89,8 @@ def main() -> int:
     manifest = load_manifest()
     py_files = []
     # Simplified scan for production files
-    for root, _, files in os.walk(REPO_ROOT):
-        if any(d in root for d in ["__pycache__", ".venv", ".opencode", "tests"]):
-            continue
+    for root, dirs, files in os.walk(REPO_ROOT):
+        dirs[:] = [d for d in dirs if d not in ("__pycache__", ".venv", ".venv314", ".opencode", "tests", "node_modules", ".git", ".mypy_cache", ".pytest_cache")]
         for f in files:
             if f.endswith(".py"):
                 py_files.append(Path(root) / f)

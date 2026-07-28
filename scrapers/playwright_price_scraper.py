@@ -6,9 +6,10 @@ import time as _time
 from selectolax.parser import HTMLParser
 
 from parsers.unit_extractor import extract_unit
-from scrapers.base_web_scraper import DEFAULT_SELECTORS, BaseWebScraper
+from scrapers.base_web_scraper import BaseWebScraper
 from scrapers.playwright_pool import get_browser_pool
 from services.logger import logger
+from services.selector_resolver import resolve_selectors
 
 
 class PlaywrightPriceScraper(BaseWebScraper):
@@ -21,7 +22,7 @@ class PlaywrightPriceScraper(BaseWebScraper):
         # scraper browses these pages and collects ALL products; downstream
         # process_price_match filters by ingredient.
         self.browse_urls = list(store_config.get("browse_urls", []) or [])
-        self.selectors = {**DEFAULT_SELECTORS, **store_config.get("selectors", {})}
+        self.selectors = resolve_selectors(store_config)
 
     def run(self, ingredients: list[dict]) -> list[dict]:
         return asyncio.run(self._run_async(ingredients))

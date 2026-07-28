@@ -41,6 +41,14 @@ on:
         required: false
       NVIDIA_API_KEY:
         required: false
+      OPENAI_API_KEY:
+        required: false
+      MISTRAL_API_KEY:
+        required: false
+      DEEPSEEK_API_KEY:
+        required: false
+      GH_MODELS_TOKEN:
+        required: false
       SMTP_HOST:
         required: false
       SMTP_PORT:
@@ -166,6 +174,7 @@ jobs:
           # ── Guarda de cobertura: WARN, não FAIL ──
           # Freshness skip é normal (cron 12h vs frequências 24h/7d/30d do DB).
           # Coverage baixa vira WARN para não bloquear enrich/commit.
+          # Piso do tier 1 é menor em dias sem publicação de encartes (seg/ter/sex).
           TIER=${{ matrix.tier }}
           if [ "$TIER" != "2b" ]; then
             TOTAL=$(echo "$CLEAN" | grep -oE 'collection_done[^]]*total=[0-9]+' | grep -oE 'total=[0-9]+' | grep -oE '[0-9]+' | tail -1)
@@ -173,8 +182,9 @@ jobs:
             SKIP_COUNT=$(echo "$CLEAN" | grep -c 'skip:.*freq=' || true)
             RAN_COUNT=$(echo "$CLEAN" | grep -c '>>> INICIANDO' || true)
 
+            DOW=$(date +%u)  # 1=Mon..7=Sun
             case "$TIER" in
-              1)   MIN=15;;
+              1)   if [ "$DOW" = "3" ] || [ "$DOW" = "4" ]; then MIN=15; else MIN=5; fi;;
               2a)  MIN=50;;
               3)   MIN=50;;
               *)   MIN=1;;
@@ -202,6 +212,10 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           HUGGINGFACE_API_KEY: ${{ secrets.HF_API_KEY }}
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          GH_MODELS_TOKEN: ${{ secrets.GH_MODELS_TOKEN }}
           CI_JOB_START: ${{ env.CI_JOB_START }}
       - name: Check time budget for scraping
         run: python scripts/check_time_budget.py --timeout-minutes 120 --label "scrape-tier-${{ matrix.tier }}"
@@ -241,6 +255,15 @@ jobs:
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           SMTP_FROM: ${{ secrets.SMTP_FROM }}
           ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          HUGGINGFACE_API_KEY: ${{ secrets.HF_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          GH_MODELS_TOKEN: ${{ secrets.GH_MODELS_TOKEN }}
           CI_JOB_START: ${{ env.CI_JOB_START }}
       - name: Check time budget for finalize
         run: python scripts/check_time_budget.py --timeout-minutes 20 --label "finalize"

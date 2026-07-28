@@ -207,7 +207,7 @@ def process_price_match(
         "features.ai.enabled", ingredient=ingredient["canonical_name"] if ingredient else None, default=True
     )
     if ai_enabled:
-        if ingredient and score >= 55.0:
+        if ingredient and score >= 60.0:
             sm = get_matcher()
             semantic_score = sm.get_similarity(product_text, ingredient)
             combined = sm.combined_score(score, semantic_score)
@@ -232,7 +232,7 @@ def process_price_match(
                 return None
             return entry
 
-        if 0.65 <= combined < 0.80 and os.environ.get("GROQ_API_KEY"):
+        if 0.70 <= combined < 0.80 and os.environ.get("GROQ_API_KEY"):
             from parsers.llm_classifier import classify as _llm_classify
 
             candidates = rank_ingredients(product_text, ingredients, top_n=3)

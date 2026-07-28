@@ -101,8 +101,8 @@ def test_open_circuit_resets_on_success(mock_env, monkeypatch):
     assert g.is_circuit_open() is False
 
 
-def test_groq_429_opens_circuit(mock_env):
-    """Classify com 429 deve abrir o breaker (não só incrementar contador)."""
+def test_groq_429_fallthrough_no_circuit(mock_env):
+    """Classify com 429 DEVE fallthrough (Smart 429) sem abrir o breaker."""
     from parsers.llm_strategies import GroqStrategy
 
     g = GroqStrategy()
@@ -112,8 +112,8 @@ def test_groq_429_opens_circuit(mock_env):
     with patch("httpx.Client.post", return_value=mock_response):
         result = g.classify("anything", [{"canonical_name": "x"}])
     assert result is None
-    assert g.is_circuit_open() is True
-    assert g._consecutive_openings >= 1
+    assert g.is_circuit_open() is False
+    assert g._consecutive_openings == 0
 
 
 def test_groq_open_circuit_skips_http_call(mock_env):
@@ -235,7 +235,7 @@ def test_groq_rate_limit_429(mock_env):
     with patch("httpx.Client.post", return_value=mock_response):
         result = g.classify("anything", [{"canonical_name": "x"}])
     assert result is None
-    assert g.failure_count >= 1
+    assert g.failure_count == 0  # 429 não incrementa failure_count (Smart 429)
 
 
 def test_groq_500_error(mock_env):
@@ -312,7 +312,7 @@ def test_openrouter_rate_limit(mock_env):
     with patch("httpx.Client.post", return_value=mock):
         result = o.classify("x", [{"canonical_name": "y"}])
     assert result is None
-    assert o.failure_count >= 1
+    assert o.failure_count == 0  # 429 não incrementa failure_count (Smart 429)
 
 
 def test_openrouter_default_model_is_free_router(mock_env):
@@ -455,7 +455,7 @@ def test_classifier_falls_back_when_all_providers_fail(mock_env):
     import parsers.llm_strategies as mod
     from parsers.llm_classifier import LLMClassifier
 
-    # Forca todos os providers com breaker aberto (simulando 429 global).
+    # Forca todos os providers com breaker aberto (simulando falha global).
     strategies = []
     for s in [mod.GroqStrategy(), mod.OpenRouterStrategy(), mod.HuggingFaceStrategy()]:
         s.open_circuit()

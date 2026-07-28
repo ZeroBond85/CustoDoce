@@ -19,14 +19,16 @@ from dataclasses import asdict, dataclass
 from services.http_client import get_client
 from services.logger import logger
 
+from services.rate_limiter import TokenBucket, TokenBucketConfig
+
 CIRCUIT_FAILURE_THRESHOLD = int(os.environ.get("LLM_CB_THRESHOLD", "3"))
-CIRCUIT_COOLDOWN_SECONDS = int(os.environ.get("LLM_CB_COOLDOWN", "600"))  # 10 min
-# Backoff agressivo: a cada reabertura do breaker (provider ainda limitado),
-# o cooldown DOBRA até o teto — evita martelar um provider free-tier esgotado
-# (ex.: Groq 429) e desperdiçar a janela de scrape em retries inúteis.
-CIRCUIT_COOLDOWN_MAX = int(os.environ.get("LLM_CB_COOLDOWN_MAX", "3600"))  # 1h
-CIRCUIT_COOLDOWN_GROWTH = float(os.environ.get("LLM_CB_COOLDOWN_GROWTH", "2.0"))
+CIRCUIT_COOLDOWN_SECONDS = int(os.environ.get("LLM_CB_COOLDOWN", "60"))  # 60s (nao 600)
+CIRCUIT_COOLDOWN_MAX = int(os.environ.get("LLM_CB_COOLDOWN_MAX", "300"))  # 5min max
+CIRCUIT_COOLDOWN_GROWTH = float(os.environ.get("LLM_CB_COOLDOWN_GROWTH", "1.5"))
 DEFAULT_TIMEOUT = float(os.environ.get("LLM_TIMEOUT", "15"))
+# TokenBucket por provider: 30 RPM default
+TOKEN_BUCKET_RATE = float(os.environ.get("LLM_RATE_LIMIT", "30"))
+TOKEN_BUCKET_CAPACITY = float(os.environ.get("LLM_BURST", "30"))
 
 
 def _get_cooldown_seconds() -> int:
@@ -77,10 +79,37 @@ class LLMStrategy(ABC):
             self.provider_name = provider_name
         self.failure_count = 0
         self.last_failure_ts: float = 0.0
-        # Cooldown efetivo atual (cresce com backoff agressivo a cada reabertura).
         self._cooldown_seconds = _get_cooldown_seconds()
-        # Quantas vezes o breaker já reabriu por exaustão (para o backoff).
         self._consecutive_openings = 0
+        self._token_bucket = TokenBucket(
+            TokenBucketConfig(
+                capacity=TOKEN_BUCKET_CAPACITY,
+                refill_rate=TOKEN_BUCKET_RATE / 60.0,
+            )
+        )
+
+    def _check_rate_limit(self) -> bool:
+        """Proactive rate limiting via TokenBucket. Returns False if throttled."""
+        if not self._token_bucket.consume(self.provider_name):
+            wait = self._token_bucket.wait_time(self.provider_name)
+            if wait > 1.0:
+                logger.info("[%s] Rate limited (TokenBucket), waiting %.1fs", self.provider_name, wait)
+            time.sleep(wait)
+            return self._token_bucket.consume(self.provider_name)
+        return True
+
+    def _smart_429(self, response) -> bool:
+        """Handle 429: retry ONCE with Retry-After, then fall through. Returns True if caller should retry."""
+        retry_after = response.headers.get("Retry-After")
+        if retry_after:
+            try:
+                delay = float(retry_after)
+                logger.info("[%s] 429 Retry-After=%ss, waiting then retrying once", self.provider_name, delay)
+                time.sleep(min(delay, 30.0))
+                return True
+            except (TypeError, ValueError):
+                pass
+        return False
 
     @abstractmethod
     def classify(self, product_text: str, candidates: list) -> LLMResult | None: ...
@@ -119,12 +148,10 @@ class LLMStrategy(ABC):
         self._cooldown_seconds = _get_cooldown_seconds()
 
     def open_circuit(self) -> None:
-        """Abre o breaker IMEDIATAMENTE (usado em 429/rate-limit).
+        """Abre o breaker para 500/503/timeout (erros de servidor/rede).
 
-        Aplica backoff agressivo: a cada reabertura consecutiva, o cooldown dobra
-        (capado em LLM_CB_COOLDOWN_MAX). Assim um provider free-tier esgotado é
-        pulado por períodos cada vez maiores, cedendo aos providers seguintes da
-        cadeia em vez de queimar a janela de scrape em retries 429.
+        429 NAO abre circuit — apenas fallthrough para proximo provider.
+        Cooldown: 60s base, backoff 1.5x a cada reabertura, max 300s.
         """
         self.failure_count = _get_failure_threshold()
         self.last_failure_ts = time.time()
@@ -132,13 +159,93 @@ class LLMStrategy(ABC):
         growth = _get_cooldown_growth()
         base = _get_cooldown_seconds()
         new_cooldown = min(base * (growth**self._consecutive_openings), _get_cooldown_max())
-        # Arredonda para int e garante ao menos o cooldown base.
         self._cooldown_seconds = int(max(base, new_cooldown))
         logger.warning(
-            "[%s] Circuit breaker OPEN (rate-limited, ceding to next provider) cooldown=%ds",
+            "[%s] Circuit breaker OPEN (server error) cooldown=%ds",
             self.provider_name,
             self._cooldown_seconds,
         )
+
+    def _handle_429(self, response) -> None:
+        """429: smart retry ONCE, then fall through. NEVER opens circuit."""
+        retry_after = response.headers.get("Retry-After", "")
+        try:
+            delay = min(float(retry_after), 30.0) if retry_after else 5.0
+        except (TypeError, ValueError):
+            delay = 5.0
+        logger.info("[%s] 429 rate limited, retrying once after %.1fs", self.provider_name, delay)
+        time.sleep(delay)
+        # Do NOT open circuit — 429 is transient, next provider in chain handles it
+
+    def _safe_api_call(self, url: str, headers: dict, payload: dict, params: dict | None = None) -> httpx.Response | None:
+        """Unified API call with TokenBucket + Smart 429 + Circuit Breaker.
+
+        Returns response on success (2xx), None on fallthrough (429/error).
+        Opens circuit only on 500/503/timeout.
+        """
+        if not self._check_rate_limit():
+            logger.debug("[%s] TokenBucket exhausted, skipping", self.provider_name)
+            return None
+
+        try:
+            resp = get_client().post(url, headers=headers, json=payload, params=params, timeout=DEFAULT_TIMEOUT)
+
+            if resp.status_code == 429:
+                retried = self._smart_429(resp)
+                if retried:
+                    resp2 = get_client().post(url, headers=headers, json=payload, params=params, timeout=DEFAULT_TIMEOUT)
+                    if resp2.status_code == 429:
+                        logger.info("[%s] 429 after retry, falling through", self.provider_name)
+                        return None
+                    resp = resp2
+                else:
+                    return None
+
+            if resp.status_code >= 400:
+                logger.warning("[%s] HTTP %s error, opening circuit", self.provider_name, resp.status_code)
+                self.open_circuit()
+                return None
+
+            return resp
+
+        except httpx.TimeoutException:
+            logger.warning("[%s] timeout", self.provider_name)
+            self.open_circuit()
+            return None
+        except httpx.NetworkError:
+            logger.warning("[%s] network error, opening circuit", self.provider_name)
+            self.open_circuit()
+            return None
+        except httpx.HTTPStatusError as e:
+            status = e.response.status_code
+            if status == 429:
+                retried = self._smart_429(e.response)
+                if retried:
+                    try:
+                        resp2 = get_client().post(url, headers=headers, json=payload, params=params, timeout=DEFAULT_TIMEOUT)
+                        resp2.raise_for_status()
+                        return resp2
+                    except httpx.HTTPStatusError as e2:
+                        if e2.response.status_code == 429:
+                            logger.info("[%s] 429 after retry, falling through", self.provider_name)
+                            return None
+                        self.record_failure()
+                        return None
+                    except Exception:
+                        self.record_failure()
+                        return None
+                return None
+            if status >= 400 and status != 429:
+                logger.warning("[%s] HTTP %s client error, opening circuit", self.provider_name, status)
+                self.open_circuit()
+                return None
+            logger.warning("[%s] HTTP error %s", self.provider_name, e)
+            self.record_failure()
+            return None
+        except Exception as e:
+            logger.warning("[%s] API call error: %s", self.provider_name, e)
+            self.record_failure()
+            return None
 
     def _safe_parse(self, content: str) -> dict | None:
         """Parses JSON content robustly, handling markdown fences and malformed responses."""
@@ -209,19 +316,10 @@ class GroqStrategy(LLMStrategy):
             "Content-Type": "application/json",
         }
         try:
-            resp = get_client().post(self.url, headers=headers, json=payload, timeout=DEFAULT_TIMEOUT)
+            resp = self._safe_api_call(self.url, headers, payload)
+            if resp is None:
+                return None
 
-            if resp.status_code == 429:
-                logger.info("groq_rate_limited", status=429)
-                # Provider free-tier esgotado: abre o breaker e cede ao próximo
-                # da cadeia (OpenRouter/HF) em vez de gastar a janela em retries.
-                self.open_circuit()
-                return None
-            if resp.status_code >= 500:
-                logger.warning("groq_server_error", status=resp.status_code)
-                self.record_failure()
-                return None
-            resp.raise_for_status()
             data = resp.json()
             content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
             parsed = self._safe_parse(content)
@@ -237,14 +335,6 @@ class GroqStrategy(LLMStrategy):
                 reason=str(parsed.get("reason", "")),
                 provider="groq",
             )
-        except httpx.TimeoutException:
-            logger.warning("groq_timeout")
-            self.record_failure()
-            return None
-        except httpx.HTTPError as e:
-            logger.warning("groq_http_error", error=str(e))
-            self.record_failure()
-            return None
         except Exception as e:
             logger.warning("groq_unexpected_error", error=str(e))
             self.record_failure()
@@ -291,25 +381,11 @@ class OpenRouterStrategy(LLMStrategy):
             "Content-Type": "application/json",
         }
         try:
-            resp = get_client().post(self.url, headers=headers, json=payload, timeout=DEFAULT_TIMEOUT)
-            if resp.status_code == 429:
-                logger.info("openrouter_rate_limited", status=resp.status_code)
-                self.open_circuit()
+            resp = self._safe_api_call(self.url, headers, payload)
+            if resp is None:
                 return None
-            if resp.status_code >= 500:
-                logger.warning("openrouter_server_error", status=resp.status_code)
-                self.open_circuit()
-                return None
-            if resp.status_code >= 400:
-                # 4xx persistente (ex.: 404 modelo inexistente/config quebrada):
-                # abre o breaker para NAO martelar o endpoint a cada produto —
-                # o erro nao se resolve em retry, so corrigindo a config.
-                logger.warning("openrouter_client_error", status=resp.status_code)
-                self.open_circuit()
-                return None
-            resp.raise_for_status()
+
             data = resp.json()
-            # API error envelope (ex.: {"error": {...}}) — config/quota, nao parse pontual.
             if isinstance(data, dict) and "error" in data and "choices" not in data:
                 logger.warning("openrouter_api_error", error=str(data["error"]))
                 self.open_circuit()
@@ -371,31 +447,17 @@ class HuggingFaceStrategy(LLMStrategy):
             "Content-Type": "application/json",
         }
         try:
-            resp = get_client().post(url, headers=headers, json=payload, timeout=DEFAULT_TIMEOUT)
-            if resp.status_code == 429:
-                logger.info("huggingface_rate_limited", status=resp.status_code)
-                self.open_circuit()
+            resp = self._safe_api_call(url, headers, payload)
+            if resp is None:
                 return None
-            if resp.status_code >= 500:
-                logger.warning("huggingface_server_error", status=resp.status_code)
-                self.open_circuit()
-                return None
-            if resp.status_code == 401:
-                # 401 not retryable
-                logger.warning("huggingface_unauthorized")
-                self.record_failure()
-                return None
-            resp.raise_for_status()
+
             data = resp.json()
-            # API error envelope — config/quota, cede imediatamente.
             if isinstance(data, dict) and "error" in data and "choices" not in data:
                 logger.warning("huggingface_api_error", error=str(data["error"]))
                 self.open_circuit()
                 return None
-            # HF chat-completions format mirrors OpenAI
             content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
             if not content:
-                # Fallback: text-generation endpoint
                 content = data.get("generated_text", "")
             parsed = self._safe_parse(content)
             if not parsed:
@@ -410,17 +472,9 @@ class HuggingFaceStrategy(LLMStrategy):
                 reason=str(parsed.get("reason", "")),
                 provider="huggingface",
             )
-        except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
-            # DNS/resolucao/rede quebrada (ex.: getaddrinfo failed): host inalcançável
-            # agora — abre o breaker e cede ao próximo da cadeia em vez de martelar
-            # um host morto por 3 falhas lentas.
-            logger.warning("huggingface_network_error", error=str(e))
-            self.open_circuit()
-            return None
         except Exception as e:
             logger.warning("huggingface_error", error=str(e))
             self.record_failure()
-            return None
             return None
 
 
@@ -459,18 +513,12 @@ class GoogleStrategy(LLMStrategy):
         params = {"key": self.api_key}
 
         try:
-            resp = get_client().post(self.url, headers=self.headers, json=payload, params=params, timeout=DEFAULT_TIMEOUT)
-            if resp.status_code == 429:
-                logger.info("google_rate_limited", status=resp.status_code)
-                self.open_circuit()
+            params = {"key": self.api_key}
+            resp = self._safe_api_call(self.url, self.headers, payload, params=params)
+            if resp is None:
                 return None
-            if resp.status_code >= 500:
-                logger.warning("google_server_error", status=resp.status_code)
-                self.open_circuit()
-                return None
-            resp.raise_for_status()
+
             data = resp.json()
-            # Parse Gemini response
             content = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
             parsed = self._safe_parse(content)
             if not parsed:
@@ -485,10 +533,6 @@ class GoogleStrategy(LLMStrategy):
                 reason=str(parsed.get("reason", "")),
                 provider="google",
             )
-        except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
-            logger.warning("google_network_error", error=str(e))
-            self.open_circuit()
-            return None
         except Exception as e:
             logger.warning("google_error", error=str(e))
             self.record_failure()
@@ -537,16 +581,10 @@ class OpenAIStrategy(LLMStrategy):
         }
 
         try:
-            resp = get_client().post(self.url, headers=self.headers, json=payload, timeout=DEFAULT_TIMEOUT)
-            if resp.status_code == 429:
-                logger.info("openai_rate_limited", status=resp.status_code)
-                self.open_circuit()
+            resp = self._safe_api_call(self.url, self.headers, payload)
+            if resp is None:
                 return None
-            if resp.status_code >= 500:
-                logger.warning("openai_server_error", status=resp.status_code)
-                self.open_circuit()
-                return None
-            resp.raise_for_status()
+
             data = resp.json()
             content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
             parsed = self._safe_parse(content)
@@ -562,10 +600,6 @@ class OpenAIStrategy(LLMStrategy):
                 reason=str(parsed.get("reason", "")),
                 provider="openai",
             )
-        except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
-            logger.warning("openai_network_error", error=str(e))
-            self.open_circuit()
-            return None
         except Exception as e:
             logger.warning("openai_error", error=str(e))
             self.record_failure()
@@ -614,16 +648,10 @@ class MistralStrategy(LLMStrategy):
         }
 
         try:
-            resp = get_client().post(self.url, headers=self.headers, json=payload, timeout=DEFAULT_TIMEOUT)
-            if resp.status_code == 429:
-                logger.info("mistral_rate_limited", status=resp.status_code)
-                self.open_circuit()
+            resp = self._safe_api_call(self.url, self.headers, payload)
+            if resp is None:
                 return None
-            if resp.status_code >= 500:
-                logger.warning("mistral_server_error", status=resp.status_code)
-                self.open_circuit()
-                return None
-            resp.raise_for_status()
+
             data = resp.json()
             content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
             parsed = self._safe_parse(content)
@@ -639,10 +667,6 @@ class MistralStrategy(LLMStrategy):
                 reason=str(parsed.get("reason", "")),
                 provider="mistral",
             )
-        except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
-            logger.warning("mistral_network_error", error=str(e))
-            self.open_circuit()
-            return None
         except Exception as e:
             logger.warning("mistral_error", error=str(e))
             self.record_failure()
@@ -692,16 +716,10 @@ class DeepSeekStrategy(LLMStrategy):
         }
 
         try:
-            resp = get_client().post(self.url, headers=self.headers, json=payload, timeout=DEFAULT_TIMEOUT)
-            if resp.status_code == 429:
-                logger.info("deepseek_rate_limited", status=resp.status_code)
-                self.open_circuit()
+            resp = self._safe_api_call(self.url, self.headers, payload)
+            if resp is None:
                 return None
-            if resp.status_code >= 500:
-                logger.warning("deepseek_server_error", status=resp.status_code)
-                self.open_circuit()
-                return None
-            resp.raise_for_status()
+
             data = resp.json()
             content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
             parsed = self._safe_parse(content)
@@ -717,10 +735,6 @@ class DeepSeekStrategy(LLMStrategy):
                 reason=str(parsed.get("reason", "")),
                 provider="deepseek",
             )
-        except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
-            logger.warning("deepseek_network_error", error=str(e))
-            self.open_circuit()
-            return None
         except Exception as e:
             logger.warning("deepseek_error", error=str(e))
             self.record_failure()
@@ -770,16 +784,10 @@ class NVIDIAStrategy(LLMStrategy):
         }
 
         try:
-            resp = get_client().post(self.url, headers=self.headers, json=payload, timeout=DEFAULT_TIMEOUT)
-            if resp.status_code == 429:
-                logger.info("nvidia_rate_limited", status=resp.status_code)
-                self.open_circuit()
+            resp = self._safe_api_call(self.url, self.headers, payload)
+            if resp is None:
                 return None
-            if resp.status_code >= 500:
-                logger.warning("nvidia_server_error", status=resp.status_code)
-                self.open_circuit()
-                return None
-            resp.raise_for_status()
+
             data = resp.json()
             content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
             parsed = self._safe_parse(content)
@@ -795,10 +803,6 @@ class NVIDIAStrategy(LLMStrategy):
                 reason=str(parsed.get("reason", "")),
                 provider="nvidia",
             )
-        except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
-            logger.warning("nvidia_network_error", error=str(e))
-            self.open_circuit()
-            return None
         except Exception as e:
             logger.warning("nvidia_error", error=str(e))
             self.record_failure()
@@ -848,21 +852,10 @@ class GitHubModelsStrategy(LLMStrategy):
         }
 
         try:
-            resp = get_client().post(
-                self.url,
-                headers=self.headers,
-                json=payload,
-                timeout=DEFAULT_TIMEOUT,
-            )
-            if resp.status_code == 429:
-                logger.info("github_models_rate_limited", status=resp.status_code)
-                self.open_circuit()
+            resp = self._safe_api_call(self.url, self.headers, payload)
+            if resp is None:
                 return None
-            if resp.status_code >= 500:
-                logger.warning("github_models_server_error", status=resp.status_code)
-                self.open_circuit()
-                return None
-            resp.raise_for_status()
+
             data = resp.json()
             content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
             parsed = self._safe_parse(content)
@@ -878,10 +871,6 @@ class GitHubModelsStrategy(LLMStrategy):
                 reason=str(parsed.get("reason", "")),
                 provider="github_models",
             )
-        except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
-            logger.warning("github_models_network_error", error=str(e))
-            self.open_circuit()
-            return None
         except Exception as e:
             logger.warning("github_models_error", error=str(e))
             self.record_failure()

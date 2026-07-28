@@ -6,8 +6,9 @@ from urllib.parse import quote
 from selectolax.parser import HTMLParser
 
 from parsers.unit_extractor import extract_unit
-from scrapers.base_web_scraper import DEFAULT_SELECTORS, BaseWebScraper, _retry_with_backoff
+from scrapers.base_web_scraper import BaseWebScraper, _retry_with_backoff
 from services.logger import logger
+from services.selector_resolver import resolve_selectors
 
 
 class WebsiteScraper(BaseWebScraper):
@@ -18,7 +19,7 @@ class WebsiteScraper(BaseWebScraper):
     def __init__(self, store_config: dict):
         super().__init__(store_config)
         self.search_url = store_config.get("search_url") or f"{self.base_url}/busca?q={{query}}"
-        self.selectors = {**DEFAULT_SELECTORS, **store_config.get("selectors", {})}
+        self.selectors = resolve_selectors(store_config)
         self.browse_parallel = store_config.get("browse_parallel", False)
         # Teto de parede por URL de browse: evita que UMA url lenta/travada
         # (Cloudflare, WAF) segure o loop paralelo inteiro. Default 30s.
@@ -150,7 +151,7 @@ class WebsiteScraper(BaseWebScraper):
         )
         return all_entries
 
-    @_retry_with_backoff(max_retries=3, base_delay=5.0, max_delay=120.0)
+    @_retry_with_backoff(max_retries=6, base_delay=10.0, max_delay=300.0)
     def _fetch_shopify_page(self, url: str, page: int) -> dict | None:
         """Busca 1 pagina da API Shopify. Respeita Retry-After em 429/503."""
         resp = self._http.get(url, params={"limit": self.shopify_page_limit, "page": page})

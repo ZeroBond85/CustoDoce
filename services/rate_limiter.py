@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import os
 import sqlite3
 import threading
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 
@@ -68,3 +71,71 @@ class RateLimiter:
                 wait = int(self._window - (now - ts[0]))
                 return max(0, wait)
             return 0
+
+
+@dataclass
+class TokenBucketConfig:
+    capacity: float = 30.0
+    refill_rate: float = 1.0
+    max_backlog: float = 60.0
+
+
+class TokenBucket:
+    """Token bucket rate limiter — proactive, per-key."""
+
+    _buckets: dict[str, _BucketState] = {}
+    _lock = threading.Lock()
+
+    def __init__(self, config: TokenBucketConfig | None = None):
+        self._config = config or TokenBucketConfig()
+
+    def consume(self, key: str, tokens: float = 1.0) -> bool:
+        """Try to consume tokens. Returns True if allowed."""
+        with self._lock:
+            state = self._get_state(key)
+            now = time.monotonic()
+            state._refill(now, self._config)
+            if state.tokens >= tokens:
+                state.tokens -= tokens
+                state.last_refill = now
+                return True
+            return False
+
+    def wait_time(self, key: str, tokens: float = 1.0) -> float:
+        """Seconds until `tokens` are available."""
+        with self._lock:
+            state = self._get_state(key)
+            now = time.monotonic()
+            state._refill(now, self._config)
+            if state.tokens >= tokens:
+                return 0.0
+            deficit = tokens - state.tokens
+            return deficit / self._config.refill_rate
+
+    def reset(self, key: str):
+        with self._lock:
+            self._buckets.pop(key, None)
+
+    def reset_all(self):
+        with self._lock:
+            self._buckets.clear()
+
+    def _get_state(self, key: str) -> _BucketState:
+        if key not in self._buckets:
+            self._buckets[key] = _BucketState(
+                tokens=self._config.capacity,
+                last_refill=time.monotonic(),
+            )
+        return self._buckets[key]
+
+
+@dataclass
+class _BucketState:
+    tokens: float
+    last_refill: float
+
+    def _refill(self, now: float, config: TokenBucketConfig):
+        elapsed = now - self.last_refill
+        added = elapsed * config.refill_rate
+        self.tokens = min(self.tokens + added, config.capacity + config.max_backlog)
+        self.last_refill = now

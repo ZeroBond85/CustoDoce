@@ -5,11 +5,12 @@ and data type mismatches before they reach E2E page crawl.
 """
 
 import os
+from pathlib import Path
 
 import pytest
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
