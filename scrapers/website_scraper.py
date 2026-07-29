@@ -46,6 +46,9 @@ class WebsiteScraper(BaseWebScraper):
         self.shopify_page_limit = int(store_config.get("shopify_page_limit", 250))
         self.shopify_max_pages = int(store_config.get("shopify_max_pages", 40))
         self.shopify_curl_cffi_retries = int(store_config.get("shopify_curl_cffi_retries", 4))
+        self.shopify_curl_cffi_base_delay = float(store_config.get("shopify_curl_cffi_base_delay", 15.0))
+        self.shopify_curl_cffi_max_delay = float(store_config.get("shopify_curl_cffi_max_delay", 120.0))
+        self.shopify_playwright_fallback = bool(store_config.get("shopify_playwright_fallback", False))
 
     def fetch_search(self, query: str) -> str | None:
         url = self.search_url.format(query=quote(query))
@@ -125,22 +128,18 @@ class WebsiteScraper(BaseWebScraper):
     def _run_shopify_json(self) -> list[dict]:
         """Coleta TODOS os produtos via Shopify Storefront JSON API.
 
-        Endpoint publico ``/collections/<col>/products.json?limit=250&page=N``
-        paginado. Nao dispara Cloudflare challenge (diferente das paginas
-        HTML), entao e a rota raiz para lojas como Chefon.
-
-        Estrategia de bypass anti-bot (2 camadas):
-          1. curl_cffi com Chrome120 impersonation (bypass TLS fingerprint).
-          2. Se curl_cffi falhar (429), Playwright com Chromium real
-             (executa JS e passa no challenge Cloudflare mesmo de IP
-             datacenter). Browser aberto 1x e reusado em todas as paginas.
+        Endpoint publico ``/collections/<col>/products.json?limit=250&page=N``.
+        Usa curl_cffi com Chrome120 impersonation (bypass TLS fingerprint).
+        Quando ``shopify_playwright_fallback`` esta ativo, tenta Playwright
+        como fallback se o curl_cffi falhar com 429 (padrao: desligado,
+        pois Playwright tambem e bloqueado por IP de datacenter CI).
         """
         import time as _time
 
         start_ts = _time.time()
         all_entries: list[dict] = []
         use_playwright = False
-        _pw_ctx = None  # playwright resources (lazy)
+        _pw_ctx = None
 
         for collection in self.shopify_collections:
             page = 1
@@ -155,10 +154,12 @@ class WebsiteScraper(BaseWebScraper):
                         resp = self._fetch_shopify_page(url, page)
                 except Exception as e:
                     logger.error("[%s] Erro Shopify collection=%s page=%d: %s", self.name, collection, page, e)
-                    if not use_playwright and self._is_429_error(e):
-                        logger.warning(
-                            "[%s] curl_cffi bloqueado (429) — tentando Playwright...", self.name,
-                        )
+                    if (
+                        not use_playwright
+                        and self.shopify_playwright_fallback
+                        and self._is_429_error(e)
+                    ):
+                        logger.warning("[%s] curl_cffi bloqueado (429) — tentando Playwright...", self.name)
                         pw_resp, _pw_ctx = self._init_playwright_for_shopify(url)
                         if pw_resp is not None:
                             use_playwright = True
@@ -240,17 +241,22 @@ class WebsiteScraper(BaseWebScraper):
             return None, None
 
     def _fetch_shopify_page(self, url: str, page: int) -> dict | None:
-        """Busca 1 pagina via curl_cffi (com retry) ou httpx fallback.
+        """Busca 1 pagina via curl_cffi com retry + backoff exponencial.
 
-        Usado como camada 1 (rapida, bypass TLS fingerprint). Se curl_cffi
-        nao estiver configurado/disponivel, usa httpx direto. Se falhar com
-        429, o caller (_run_shopify_json) faz fallback para Playwright.
+        Parametros de retry sao configurados via stores.yaml:
+          shopify_curl_cffi_retries (default 4)
+          shopify_curl_cffi_base_delay (default 15s)
+          shopify_curl_cffi_max_delay (default 120s)
+
+        Quando curl_cffi esta ativo e todas as tentativas falharem com 429,
+        retorna None sem tentar httpx (que tambem seria bloqueado por
+        Cloudflare). Quando curl_cffi nao esta configurado/disponivel, usa
+        httpx como fallback (compativel com testes unitarios).
         """
         params = {"limit": self.shopify_page_limit, "page": page}
 
         if self.shopify_curl_cffi and _HAS_CURL_CFFI:
-            max_att = self.shopify_curl_cffi_retries
-            for attempt in range(max_att):
+            for attempt in range(self.shopify_curl_cffi_retries):
                 try:
                     resp = curl_requests.get(
                         url, params=params, timeout=30, impersonate="chrome120",
@@ -259,24 +265,39 @@ class WebsiteScraper(BaseWebScraper):
                     return resp.json()
                 except Exception as e:
                     status = getattr(getattr(e, "response", None), "status_code", None)
-                    if status == 429 and attempt < max_att - 1:
-                        delay = min(15.0 * (2**attempt), 120.0)
-                        logger.warning(
-                            "[%s] curl_cffi 429 page %d (attempt %d/%d) — retry %.0fs",
-                            self.name, page, attempt + 1, max_att, delay,
-                        )
-                        time.sleep(delay)
+                    if status == 429:
+                        if attempt < self.shopify_curl_cffi_retries - 1:
+                            delay = min(
+                                self.shopify_curl_cffi_base_delay * (2**attempt),
+                                self.shopify_curl_cffi_max_delay,
+                            )
+                            logger.warning(
+                                "[%s] curl_cffi 429 page %d (attempt %d/%d) — retry %.0fs",
+                                self.name, page, attempt + 1, self.shopify_curl_cffi_retries, delay,
+                            )
+                            time.sleep(delay)
+                        else:
+                            logger.error(
+                                "[%s] curl_cffi page %d esgotou %d tentativas com 429 — retornando None",
+                                self.name, page, self.shopify_curl_cffi_retries,
+                            )
+                            return None
                     else:
-                        raise
+                        logger.error(
+                            "[%s] curl_cffi page %d erro nao-recuperavel: %s",
+                            self.name, page, e,
+                        )
+                        return None
 
-        # Fallback httpx (usado em testes ou quando curl_cffi nao instalado)
+        # Fallback httpx: usado quando curl_cffi nao esta configurado ou
+        # nao instalado (ex.: testes unitarios que mockam self._http).
         try:
             resp = self._http.get(url, params=params)
             resp.raise_for_status()
             return resp.json()
         except Exception as e:
             logger.warning("[%s] HTTP page %d falhou: %s", self.name, page, e)
-            raise
+            return None
 
     def _fetch_shopify_page_via_playwright(self, url: str, params: dict, ctx_tuple: tuple | None = None) -> dict | None:
         """Busca 1 pagina via Playwright reusando browser ja aberto.

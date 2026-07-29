@@ -905,6 +905,11 @@ stores:
     cloudflare: true
     shopify_json: true
     shopify_curl_cffi: true
+    shopify_curl_cffi_retries: 6
+    shopify_curl_cffi_base_delay: 30
+    shopify_curl_cffi_max_delay: 120
+    shopify_playwright_fallback: false
+    rate_limit: 30
     shopify_collections:
       - "all"
     shopify_page_limit: 250
