@@ -119,6 +119,8 @@ stores:
     scraper: "tenda_api_scraper"
     vision_timeout_seconds: 600
     priority: 5
+    matcher_threshold: 70
+    flyer_mode: true
 
   - name: "Roldão Atacadista"
     tier: 1
@@ -702,6 +704,16 @@ stores:
     collection_method: "automated"
     scraper: "playwright_scraper"
     priority: 30
+    playwright_timeout: 120000
+    playwright_wait_until: "domcontentloaded"
+    block_resources: [image, font, stylesheet, media, other]
+    wait_selector: ".brochure-thumb"
+    api_endpoint: "https://www.tiendeo.com.br/api/v2/offers"
+    api_fallback: true
+    api_params:
+      store: "{store_id}"
+      lat: "-23.96"
+      lng: "-46.33"
 
   # ============================================================================
   # TIER 3B - AGREGADORES JS (Requer Playwright)

@@ -456,9 +456,16 @@ class PlaywrightAggregatorScraper:
 
     async def _scrape_city(self, browser: Browser, url: str, region: str, source: str) -> list[dict]:
         page = await browser.new_page()
+        # Configurable timeouts from store config
+        play_timeout = int(self.store.get("playwright_timeout", 120000))
+        wait_until = self.store.get("playwright_wait_until", "domcontentloaded")
+        block_resources = self.store.get("block_resources", [])
+
+        if block_resources:
+            await page.route("**/*", lambda route: route.abort() if route.request.resource_type in block_resources else route.continue_())
+
         try:
-            # Use domcontentloaded instead of networkidle (avoids SPA hang)
-            await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            await page.goto(url, wait_until=wait_until, timeout=play_timeout)
 
             # Wait for real content to hydrate (skip skeleton placeholders)
             await self._wait_for_real_content(page, source)
