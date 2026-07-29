@@ -80,7 +80,8 @@ class RoldaoApiScraper(BaseWebScraper):
         if products:
             self.report_success(items_found=len(products), products_matched=0, flyer_count=len(image_entries))
         else:
-            self.report_failure(
-                reason="no products extracted from flyers", items_found=0, products_matched=0
-            )
+            logger.info("[%s] No new products from flyer OCR (cache hit or empty)", self.name)
+            # NÃO chama report_failure aqui: OCR vazio NÃO é erro — pode ser
+            # cache hit (já processado), flyer sem produtos novos, etc.
+            # Quem gerencia o health é o caller (_collect_prices → record_success).
         return products

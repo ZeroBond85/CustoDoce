@@ -2,6 +2,7 @@ import hashlib
 
 from scrapers.base_web_scraper import BaseWebScraper
 from scrapers.flyer_ocr import extract_flyer_products
+from services.logger import logger
 
 
 class TendaApiScraper(BaseWebScraper):
@@ -79,14 +80,12 @@ class TendaApiScraper(BaseWebScraper):
             return []
 
         products, _ = extract_flyer_products(
-            self._http, image_entries, self.name, source="tenda_flyer"
+            self._http, image_entries, self.name, source="tenda_flyer", max_concurrency=2
         )
         if products:
             self.report_success(
                 items_found=len(products), products_matched=0, flyer_count=len(image_entries)
             )
         else:
-            self.report_failure(
-                reason="no products extracted from flyers", items_found=0, products_matched=0
-            )
+            logger.info("[%s] No new products from flyer OCR (cache hit or empty)", self.name)
         return products

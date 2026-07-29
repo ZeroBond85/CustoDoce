@@ -10,6 +10,13 @@ from scrapers.base_web_scraper import BaseWebScraper, _retry_with_backoff
 from services.logger import logger
 from services.selector_resolver import resolve_selectors
 
+_HAS_CURL_CFFI = False
+try:
+    from curl_cffi import requests as curl_requests
+    _HAS_CURL_CFFI = True
+except ImportError:
+    curl_requests = None
+
 
 class WebsiteScraper(BaseWebScraper):
     # Scraper HTTP (requests) com timeouts por-URL: seguro no processo pai
@@ -25,10 +32,15 @@ class WebsiteScraper(BaseWebScraper):
         # (Cloudflare, WAF) segure o loop paralelo inteiro. Default 30s.
         self.browse_url_timeout = float(store_config.get("browse_url_timeout", 30))
         # Modo Shopify Storefront JSON API: algumas lojas (ex.: Chefon)
-        # protegem as paginas HTML com Cloudflare (HTTP 429), mas expoem a
-        # rota publica /collections/<x>/products.json paginada, sem challenge.
-        # Colecionar via JSON e muito mais robusto e leve que scraping de HTML.
+        # protegem as paginas HTML com Cloudflare (HTTP 429), CSS/JS static assets
+        # e a propria rota /collections/<x>/products.json tambem — Cloudflare
+        # bloqueia o fingerprint TLS do httpx (JA3). curl_cffi com
+        # impersonate="chrome120" contorna o bloqueio via fingerprint do Chrome.
         self.shopify_json = bool(store_config.get("shopify_json", False))
+        self.shopify_curl_cffi = bool(store_config.get("shopify_curl_cffi", False))
+        if self.shopify_curl_cffi and not _HAS_CURL_CFFI:
+            logger.warning("[%s] shopify_curl_cffi=true mas curl_cffi nao instalado — fallback httpx", self.name)
+            self.shopify_curl_cffi = False
         self.shopify_collections = store_config.get("shopify_collections") or ["all"]
         self.shopify_page_limit = int(store_config.get("shopify_page_limit", 250))
         self.shopify_max_pages = int(store_config.get("shopify_max_pages", 40))
@@ -153,8 +165,16 @@ class WebsiteScraper(BaseWebScraper):
 
     @_retry_with_backoff(max_retries=6, base_delay=10.0, max_delay=300.0)
     def _fetch_shopify_page(self, url: str, page: int) -> dict | None:
-        """Busca 1 pagina da API Shopify. Respeita Retry-After em 429/503."""
-        resp = self._http.get(url, params={"limit": self.shopify_page_limit, "page": page})
+        """Busca 1 pagina da API Shopify. Respeita Retry-After em 429/503.
+
+        Quando ``shopify_curl_cffi`` esta ativo, usa curl_cffi com Chrome120
+        impersonation (contorna bloqueio Cloudflare por fingerprint TLS/JA3).
+        """
+        params = {"limit": self.shopify_page_limit, "page": page}
+        if self.shopify_curl_cffi:
+            resp = curl_requests.get(url, params=params, timeout=30, impersonate="chrome120")
+        else:
+            resp = self._http.get(url, params=params)
         resp.raise_for_status()
         return resp.json()
 

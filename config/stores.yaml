@@ -117,6 +117,7 @@ stores:
     publish_day: "wednesday"
     collection_method: "automated"
     scraper: "tenda_api_scraper"
+    vision_timeout_seconds: 600
     priority: 5
 
   - name: "Roldão Atacadista"
@@ -894,17 +895,16 @@ stores:
   - name: "Chefon"
     tier: 2
     type: "website_catalog"
-    # SOLUCAO RAIZ (2026-07-17): as paginas HTML /collections/* sao protegidas
-    # por Cloudflare e retornam HTTP 429 (mesmo respeitando Retry-After). A rota
-    # publica da Shopify Storefront API /collections/<col>/products.json?limit=&page=
-    # NAO dispara challenge e retorna JSON estruturado (title/variants/price/vendor).
-    # Colecionar via JSON elimina o 429 e coleta 100% do catalogo (~7.031 SKUs).
-    # curl_cffi NAO e necessario: o httpx padrao funciona na JSON API.
+    # SOLUCAO RAIZ (2026-07-29): Cloudflare agora protege TAMBEM a rota
+    # /collections/<x>/products.json (httpx retorna 429). curl_cffi com
+    # impersonate="chrome120" contorna o bloqueio via fingerprint TLS/JA3.
+    # Testado em 2026-07-29: 750 produtos em 3 paginas, zero 429.
     logistics: "pickup_sp"
     base_url: "https://chefon.com.br"
     anti_bot: true
     cloudflare: true
     shopify_json: true
+    shopify_curl_cffi: true
     shopify_collections:
       - "all"
     shopify_page_limit: 250

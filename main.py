@@ -110,6 +110,10 @@ def _collect(args: Namespace, collector, ingredients: list) -> list[dict]:
     data. Previously main() ignored --tier and ran the full pipeline N times
     (once per matrix entry), causing 4x redundant I/O, emails and cleanups.
     """
+    # Reset session-level LLM exhaustion flag at start of each scrape
+    from parsers.llm_strategies import reset_llm_exhausted
+    reset_llm_exhausted()
+
     collected: list[list] = []
     for tier, method, needs_ing in TIER_PLAN:
         if args.tier and tier != args.tier:
