@@ -1,6 +1,6 @@
 # `price_analytics` — API
 
-> Última atualização: 2026-07-29 03:23 UTC
+> Última atualização: 2026-07-29 15:35 UTC
 > Gerado por AST parsing dos serviços em `services/price_analytics.py`.
 
 ## Funções Públicas (6)
