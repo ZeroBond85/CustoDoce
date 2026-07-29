@@ -45,6 +45,7 @@ class WebsiteScraper(BaseWebScraper):
         self.shopify_collections = store_config.get("shopify_collections") or ["all"]
         self.shopify_page_limit = int(store_config.get("shopify_page_limit", 250))
         self.shopify_max_pages = int(store_config.get("shopify_max_pages", 40))
+        self.shopify_curl_cffi_retries = int(store_config.get("shopify_curl_cffi_retries", 4))
 
     def fetch_search(self, query: str) -> str | None:
         url = self.search_url.format(query=quote(query))
@@ -248,7 +249,8 @@ class WebsiteScraper(BaseWebScraper):
         params = {"limit": self.shopify_page_limit, "page": page}
 
         if self.shopify_curl_cffi and _HAS_CURL_CFFI:
-            for attempt in range(4):
+            max_att = self.shopify_curl_cffi_retries
+            for attempt in range(max_att):
                 try:
                     resp = curl_requests.get(
                         url, params=params, timeout=30, impersonate="chrome120",
@@ -257,11 +259,11 @@ class WebsiteScraper(BaseWebScraper):
                     return resp.json()
                 except Exception as e:
                     status = getattr(getattr(e, "response", None), "status_code", None)
-                    if status == 429 and attempt < 3:
-                        delay = min(10.0 * (2**attempt), 60.0)
+                    if status == 429 and attempt < max_att - 1:
+                        delay = min(15.0 * (2**attempt), 120.0)
                         logger.warning(
-                            "[%s] curl_cffi 429 page %d (attempt %d/4) — retry %.0fs",
-                            self.name, page, attempt + 1, delay,
+                            "[%s] curl_cffi 429 page %d (attempt %d/%d) — retry %.0fs",
+                            self.name, page, attempt + 1, max_att, delay,
                         )
                         time.sleep(delay)
                     else:
