@@ -192,13 +192,11 @@ class TestLLMClassifier:
 
         old_groq = os.environ.pop("GROQ_API_KEY", None)
         old_or = os.environ.pop("OPENROUTER_API_KEY", None)
-        old_hf = os.environ.pop("HUGGINGFACE_API_KEY", None)
         try:
             classifier = LLMClassifier(
                 strategies=[
                     __import__("parsers.llm_strategies", fromlist=["GroqStrategy"]).GroqStrategy(),
                     __import__("parsers.llm_strategies", fromlist=["OpenRouterStrategy"]).OpenRouterStrategy(),
-                    __import__("parsers.llm_strategies", fromlist=["HuggingFaceStrategy"]).HuggingFaceStrategy(),
                 ]
             )
             result = classifier.classify_sync(
@@ -210,8 +208,6 @@ class TestLLMClassifier:
                 os.environ["GROQ_API_KEY"] = old_groq
             if old_or:
                 os.environ["OPENROUTER_API_KEY"] = old_or
-            if old_hf:
-                os.environ["HUGGINGFACE_API_KEY"] = old_hf
 
 
 class TestCleanupFunctions:
