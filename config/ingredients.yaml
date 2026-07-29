@@ -123,7 +123,21 @@ ingredients:
       - "Açúcar Mascavo 1kg"
       - "ACUCAR Mascavo JR"
       - "Açúcar Mascavo 500g"
-    exclude_terms: ["acucar cristal", "acucar refinado", "acucar de confeiteiro"]
+    exclude_terms: ["açúcar cristal", "acucar cristal", "açúcar refinado", "acucar refinado", "açúcar de confeiteiro", "acucar de confeiteiro"]
+
+  - canonical: "Açúcar Cristal / Refinado"
+    category: "acucares"
+    brands: ["União", "Cisne", "Caramuru"]
+    search_terms: ["acucar cristal", "acucar refinado", "acucar branco", "acucar tipo 1"]
+    aliases:
+      - "Açúcar Cristal União 1kg"
+      - "Açúcar Cristal União 5kg"
+      - "Açúcar Refinado União 1kg"
+      - "Açúcar Refinado Cisne 1kg"
+      - "Açúcar Tipo 1 1kg"
+      - "ACUCAR CRISTAL UNIAO"
+      - "ACUCAR REFINADO UNIAO"
+    exclude_terms: ["mascavo", "confeiteiro", "po"]
 
   - canonical: "Açúcar de Confeiteiro"
     category: "acucares"
@@ -184,6 +198,10 @@ ingredients:
       - "Gotas de Chocolate Branco Melken"
       - "Gotas de Chocolate Branco 1kg"
       - "GOTAS DE CHOCOLATE BRANCO MELKEN"
+      - "Gotas Brancas Melken"
+      - "Gotas Brancas 1kg"
+      - "Gotas Brancas"
+      - "Gotas Branco"
     exclude_terms: ["achocolatado", "bebida", "preparado"]
 
   - canonical: "Manteiga"
@@ -206,6 +224,10 @@ ingredients:
       - "Gotas de Chocolate Meio Amargo Melken"
       - "Gotas Meio Amargo 1kg"
       - "GOTAS MEIO AMARGO HARALD"
+      - "Gotas 70%"
+      - "Gotas 70% Cacau"
+      - "Gotas Meio Amargo 70%"
+      - "Gotas 70% Melken"
     exclude_terms: ["achocolatado", "bebida", "preparado"]
 
   - canonical: "Chocolate Meio Amargo em Barra"
