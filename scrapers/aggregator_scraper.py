@@ -536,3 +536,146 @@ class TiendeoPlaywrightScraper:
             logger.error("[%s] Playwright scraper failed: %s", self.name, e)
             return []
 
+
+class TiendeoAPIScraper:
+    """API-first Tiendeo scraper with Playwright fallback.
+
+    Tries the internal Tiendeo API first (fast, no JS rendering needed),
+    falls back to Playwright if API fails or returns no results.
+    """
+
+    def __init__(self, store_config: dict):
+        self.store = store_config
+        self.name = store_config["name"]
+        self.base_url = store_config["base_url"].rstrip("/")
+        self.regions = store_config.get("regions", [])
+        self.sp_zones = store_config.get("sp_zones", [])
+        self.api_endpoint = store_config.get("api_endpoint", "https://www.tiendeo.com.br/api/v2/offers")
+        self.api_fallback = store_config.get("api_fallback", True)
+        self.play_timeout = store_config.get("playwright_timeout", 120000)
+        self.play_wait_until = store_config.get("playwright_wait_until", "domcontentloaded")
+        self.block_resources = store_config.get("block_resources", ["image", "font", "stylesheet", "media", "other"])
+        self.ua_pool = UA_POOL
+
+    def _build_city_urls(self) -> list[tuple[str, str]]:
+        active = [r for r in self.regions if r in (self._available_regions or set(self.regions))]
+        if not active:
+            active = self.regions
+
+        urls = []
+        for slug in active:
+            city_name = CITY_SLUGS.get(slug, slug.replace("-", " ").title())
+            if slug == "sao-paulo":
+                urls.append((f"{self.base_url}/sao-paulo", "São Paulo"))
+                for zone in self.sp_zones:
+                    zone_slug = zone.lower().replace(" ", "-")
+                    urls.append((f"{self.base_url}/sao-paulo/{zone_slug}", f"São Paulo - {zone}"))
+            else:
+                urls.append((f"{self.base_url}/{slug}", city_name))
+        return urls
+
+    def _get_api_params(self, city_slug: str) -> dict:
+        lat = self.store.get("lat", "-23.96")
+        lng = self.store.get("lng", "-46.33")
+        return {
+            "city": city_slug,
+            "lat": lat,
+            "lng": lng,
+            "radius": "50",
+            "limit": "100",
+        }
+
+    def _fetch_api(self, city_slug: str) -> list[dict] | None:
+        """Fetch flyers from Tiendeo API."""
+        try:
+            import httpx
+            params = self._get_api_params(city_slug)
+            resp = httpx.get(
+                self.api_endpoint,
+                params=params,
+                timeout=30.0,
+                headers={"User-Agent": self.ua_pool[0]},
+            )
+            if resp.status_code != 200:
+                logger.warning("[%s] API returned %d for %s", self.name, resp.status_code, city_slug)
+                return None
+            data = resp.json()
+            # API response structure varies; try common fields
+            flyers = data.get("offers") or data.get("flyers") or data.get("data") or []
+            if not flyers and isinstance(data, list):
+                flyers = data
+            return flyers if flyers else None
+        except Exception as e:
+            logger.warning("[%s] API fetch failed for %s: %s", self.name, city_slug, e)
+            return None
+
+    def _parse_api_flyers(self, api_flyers: list[dict], region: str) -> list[dict]:
+        flyers = []
+        for f in api_flyers:
+            try:
+                store_name = f.get("retailer_name") or f.get("store_name") or f.get("shop_name") or ""
+                if not store_name:
+                    continue
+
+                title = f.get("title") or f.get("name") or "Folheto"
+                img = f.get("image_url") or f.get("thumbnail") or f.get("cover") or ""
+                flyer_url = f.get("url") or f.get("link") or f.get("flyer_url") or ""
+                date_end = f.get("valid_to") or f.get("date_end") or f.get("end_date") or ""
+
+                # Normalize URL
+                if flyer_url and not flyer_url.startswith("http"):
+                    flyer_url = f"{self.base_url}{flyer_url}"
+
+                flyers.append({
+                    "store_name": store_name,
+                    "region": region,
+                    "flyer_title": title,
+                    "image_url": img,
+                    "image_hash": f"tiendeo_api_{hash(img or flyer_url or title)}",
+                    "flyer_url": flyer_url,
+                    "flyer_date_end": date_end,
+                    "source": "tiendeo_api",
+                })
+            except Exception as e:
+                logger.debug("[%s] Error parsing API flyer: %s", self.name, e)
+                continue
+        return flyers
+
+    def run(self) -> list[dict]:
+        """Try API first, fallback to Playwright."""
+        all_flyers: list[dict] = []
+
+        for slug in self.regions:
+            city_name = CITY_SLUGS.get(slug, slug.replace("-", " ").title())
+            logger.info("[%s] Trying API for %s...", self.name, city_name)
+
+            api_flyers = self._fetch_api(slug)
+            if api_flyers:
+                parsed = self._parse_api_flyers(api_flyers, city_name)
+                logger.info("[%s] API succeeded for %s: %d flyers", self.name, city_name, len(parsed))
+                all_flyers.extend(parsed)
+                continue
+
+            logger.warning("[%s] API failed for %s, will use Playwright fallback", self.name, city_name)
+
+        # If API got some flyers, return them
+        if all_flyers:
+            logger.info("[%s] API collected %d flyers total", self.name, len(all_flyers))
+            return all_flyers
+
+        # Fallback to Playwright for cities where API failed
+        if self.api_fallback:
+            logger.info("[%s] Falling back to Playwright for remaining cities", self.name)
+            from scrapers.playwright_scraper import PlaywrightTiendeoScraper
+            config = self.store.copy()
+            config["scraper_type"] = "tiendeo"
+            pw_scraper = PlaywrightTiendeoScraper(config)
+            try:
+                pw_flyers = pw_scraper.run()
+                logger.info("[%s] Playwright fallback collected %d flyers", self.name, len(pw_flyers))
+                all_flyers.extend(pw_flyers)
+            except Exception as e:
+                logger.error("[%s] Playwright fallback failed: %s", self.name, e)
+
+        return all_flyers
+
