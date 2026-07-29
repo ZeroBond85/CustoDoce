@@ -1,5 +1,6 @@
 import json
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import quote
 
@@ -125,22 +126,47 @@ class WebsiteScraper(BaseWebScraper):
 
         Endpoint publico ``/collections/<col>/products.json?limit=250&page=N``
         paginado. Nao dispara Cloudflare challenge (diferente das paginas
-        HTML), entao e a rota raiz para lojas como Chefon. Respeita
-        Retry-After (ver _retry_with_backoff) e throttle anti-rate-limit.
+        HTML), entao e a rota raiz para lojas como Chefon.
+
+        Estrategia de bypass anti-bot (2 camadas):
+          1. curl_cffi com Chrome120 impersonation (bypass TLS fingerprint).
+          2. Se curl_cffi falhar (429), Playwright com Chromium real
+             (executa JS e passa no challenge Cloudflare mesmo de IP
+             datacenter). Browser aberto 1x e reusado em todas as paginas.
         """
         import time as _time
 
         start_ts = _time.time()
         all_entries: list[dict] = []
+        use_playwright = False
+        _pw_ctx = None  # playwright resources (lazy)
+
         for collection in self.shopify_collections:
             page = 1
             while page <= self.shopify_max_pages:
                 url = f"{self.base_url}/collections/{collection}/products.json"
+                params = {"limit": self.shopify_page_limit, "page": page}
+
                 try:
-                    resp = self._fetch_shopify_page(url, page)
-                except Exception as e:  # noqa: BLE001 - falha de rede vira coleta parcial
+                    if use_playwright:
+                        resp = self._fetch_shopify_page_via_playwright(url, params, _pw_ctx)
+                    else:
+                        resp = self._fetch_shopify_page(url, page)
+                except Exception as e:
                     logger.error("[%s] Erro Shopify collection=%s page=%d: %s", self.name, collection, page, e)
-                    break
+                    if not use_playwright and self._is_429_error(e):
+                        logger.warning(
+                            "[%s] curl_cffi bloqueado (429) — tentando Playwright...", self.name,
+                        )
+                        pw_resp, _pw_ctx = self._init_playwright_for_shopify(url)
+                        if pw_resp is not None:
+                            use_playwright = True
+                            resp = pw_resp
+                        else:
+                            break
+                    else:
+                        break
+
                 if resp is None:
                     break
                 prods = resp.get("products", [])
@@ -158,25 +184,141 @@ class WebsiteScraper(BaseWebScraper):
                     break
                 page += 1
                 self._throttle()
+
+        if _pw_ctx:
+            _pw_ctx[0].close()
+
         logger.info(
             "[%s] Shopify coleta total: %d produtos em %.1fs", self.name, len(all_entries), _time.time() - start_ts
         )
         return all_entries
 
-    @_retry_with_backoff(max_retries=6, base_delay=10.0, max_delay=300.0)
-    def _fetch_shopify_page(self, url: str, page: int) -> dict | None:
-        """Busca 1 pagina da API Shopify. Respeita Retry-After em 429/503.
+    def _is_429_error(self, exc: Exception) -> bool:
+        """Verifica se a excecao corresponde a HTTP 429 (curl_cffi ou httpx)."""
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+        return status == 429 or "429" in str(exc)
 
-        Quando ``shopify_curl_cffi`` esta ativo, usa curl_cffi com Chrome120
-        impersonation (contorna bloqueio Cloudflare por fingerprint TLS/JA3).
+    def _init_playwright_for_shopify(self, url: str) -> tuple[dict | None, tuple | None]:
+        """Inicializa Playwright com Chromium e retorna a primeira pagina + context tuple.
+
+        Retorna (response_json, (browser, context, playwright_instance)) ou (None, None).
+        """
+        try:
+            from playwright.sync_api import sync_playwright
+        except ImportError:
+            logger.error("[%s] playwright nao instalado — sem bypass Cloudflare", self.name)
+            return None, None
+
+        params = {"limit": self.shopify_page_limit, "page": 1}
+        query = "&".join(f"{k}={v}" for k, v in params.items())
+        full_url = f"{url}?{query}"
+        try:
+            pw = sync_playwright().start()
+            browser = pw.chromium.launch(headless=True)
+            ctx = browser.new_context(
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                ),
+                locale="pt-BR",
+            )
+            page_obj = ctx.new_page()
+            response = page_obj.goto(full_url, wait_until="networkidle", timeout=60000)
+            if response and response.ok:
+                data = response.json()
+                logger.info("[%s] Playwright iniciado — OK page 1 (%d produtos)", self.name, len(data.get("products", [])))
+                ctx_tuple = (browser, pw)
+                return data, ctx_tuple
+            logger.error("[%s] Playwright HTTP %s na inicializacao", self.name, response.status if response else "???")
+            browser.close()
+            pw.stop()
+            return None, None
+        except Exception as e:
+            logger.error("[%s] Playwright init falhou: %s", self.name, e)
+            return None, None
+
+    def _fetch_shopify_page(self, url: str, page: int) -> dict | None:
+        """Busca 1 pagina via curl_cffi (com retry) ou httpx fallback.
+
+        Usado como camada 1 (rapida, bypass TLS fingerprint). Se curl_cffi
+        nao estiver configurado/disponivel, usa httpx direto. Se falhar com
+        429, o caller (_run_shopify_json) faz fallback para Playwright.
         """
         params = {"limit": self.shopify_page_limit, "page": page}
-        if self.shopify_curl_cffi:
-            resp = curl_requests.get(url, params=params, timeout=30, impersonate="chrome120")
-        else:
+
+        if self.shopify_curl_cffi and _HAS_CURL_CFFI:
+            for attempt in range(4):
+                try:
+                    resp = curl_requests.get(
+                        url, params=params, timeout=30, impersonate="chrome120",
+                    )
+                    resp.raise_for_status()
+                    return resp.json()
+                except Exception as e:
+                    status = getattr(getattr(e, "response", None), "status_code", None)
+                    if status == 429 and attempt < 3:
+                        delay = min(10.0 * (2**attempt), 60.0)
+                        logger.warning(
+                            "[%s] curl_cffi 429 page %d (attempt %d/4) — retry %.0fs",
+                            self.name, page, attempt + 1, delay,
+                        )
+                        time.sleep(delay)
+                    else:
+                        raise
+
+        # Fallback httpx (usado em testes ou quando curl_cffi nao instalado)
+        try:
             resp = self._http.get(url, params=params)
-        resp.raise_for_status()
-        return resp.json()
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            logger.warning("[%s] HTTP page %d falhou: %s", self.name, page, e)
+            raise
+
+    def _fetch_shopify_page_via_playwright(self, url: str, params: dict, ctx_tuple: tuple | None = None) -> dict | None:
+        """Busca 1 pagina via Playwright reusando browser ja aberto.
+
+        ``ctx_tuple`` = (browser, playwright_instance) retornado por
+        ``_init_playwright_for_shopify()``. Se None, abre/fecha browser
+        a cada chamada (ineficiente, usado apenas em fallback individual).
+        """
+        try:
+            from playwright.sync_api import sync_playwright
+        except ImportError:
+            return None
+
+        query = "&".join(f"{k}={v}" for k, v in params.items())
+        full_url = f"{url}?{query}"
+
+        if ctx_tuple:
+            browser, pw = ctx_tuple
+            page_obj = browser.new_page()
+            try:
+                response = page_obj.goto(full_url, wait_until="networkidle", timeout=60000)
+                if response and response.ok:
+                    data = response.json()
+                    page_obj.close()
+                    return data
+                page_obj.close()
+                return None
+            except Exception as e:
+                logger.error("[%s] Playwright page %s erro: %s", self.name, params.get("page", "?"), e)
+                page_obj.close()
+                return None
+        else:
+            # Fallback: abre/fecha browser por chamada
+            try:
+                with sync_playwright() as pw:
+                    browser = pw.chromium.launch(headless=True)
+                    page_obj = browser.new_page()
+                    response = page_obj.goto(full_url, wait_until="networkidle", timeout=60000)
+                    if response and response.ok:
+                        return response.json()
+                    return None
+            except Exception as e:
+                logger.error("[%s] Playwright avulso falhou: %s", self.name, e)
+                return None
 
     def _parse_shopify_product(self, p: dict) -> dict | None:
         """Converte 1 produto Shopify no contrato padrao (product/price/unit/brand)."""
