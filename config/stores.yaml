@@ -1008,7 +1008,17 @@ stores:
     cities: ["Santos", "São Vicente", "Praia Grande", "Mongaguá", "Itanhaém", "Peruíbe", "São Paulo"]
     coverage: "Supermercado delivery - leite condensado, creme de leite, chocolate, granulado, coco ralado"
     collection_method: "automated"
-    scraper: "carrefour_scraper"
+    scraper: "carrefour_graphql_scraper"
+    graphql_endpoint: "https://mercado.carrefour.com.br/_v/segment/graphql/v1"
+    headers_custom:
+      Accept: "application/json"
+      Content-Type: "application/json"
+      X-Requested-With: "XMLHttpRequest"
+    persist_cookies: true
+    graphql_variables_template:
+      term: "{query}"
+      first: 50
+      after: null
     priority: 34
 
   - name: "Casa Rio Doces"

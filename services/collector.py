@@ -27,7 +27,7 @@ from parsers.matcher import (
 from parsers.normalizer import normalize_price
 from parsers.semantic_matcher import get_matcher
 from scrapers.aggregator_scraper import TiendeoScraper
-from scrapers.carrefour_scraper import CarrefourScraper
+from scrapers.carrefour_graphql_scraper import CarrefourGraphQLScraper
 from scrapers.ecomplus_scraper import EcomplusScraper
 from scrapers.extra_flyer_scraper import ExtraFlyerScraper
 from scrapers.facebook_flyer_scraper import FacebookFlyerScraper
@@ -906,9 +906,9 @@ def collect_vipcommerce(ingredients: list[Ingredient]) -> list[PriceEntry]:
 
 def collect_carrefour(ingredients: list[Ingredient]) -> list[PriceEntry]:
     stores = [
-        s for s in load_stores() if s.get("scraper") == "carrefour_scraper" and s.get("type") == "website_catalog"
+        s for s in load_stores() if s.get("scraper") == "carrefour_graphql_scraper" and s.get("type") == "website_catalog"
     ]
-    return _collect_prices(stores, CarrefourScraper, ingredients, "Carrefour")
+    return _collect_prices(stores, CarrefourGraphQLScraper, ingredients, "Carrefour")
 
 
 def collect_tier2_js(ingredients: list[Ingredient]) -> list[PriceEntry]:
