@@ -3,15 +3,19 @@ LLM Strategy Pattern com Circuit Breaker e JSON Mode.
 
 Objetivo (RFC Recurso 2): Evitar crashes do pipeline quando APIs externas caem.
 - Cada provider implementa o mesmo contrato (LLMStrategy ABC).
-- Tenta Groq (primário) → OpenRouter (fallback 1) → HuggingFace (fallback 2).
+- Tenta Groq (primário) → OpenRouter (fallback 1) → para.
 - JSON Mode (response_format={"type":"json_object"}) garante schema.
-- Circuit Breaker simples: 3 falhas consecutivas → desliga o provider por 10 min.
+- Circuit Breaker: 3 falhas consecutivas → cooldown 60-300s (backoff 1.5x).
+- 429 ABRE circuit do provider (evita martelar free-tier esgotado).
+- Session-level exhaustion: se TODOS providers falham → flag "LLM esgotado"
+  pro resto do scrape → review_queue direto, sem latência.
 - Try/except robusto: timeout, rate limit, erro de rede → todos capturados.
 """
 
 import httpx
 import json
 import os
+import threading
 import time
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
@@ -47,6 +51,33 @@ def _get_cooldown_growth() -> float:
 def _get_failure_threshold() -> int:
     """Read threshold dynamically so tests using monkeypatch.setenv work correctly."""
     return int(os.environ.get("LLM_CB_THRESHOLD", str(CIRCUIT_FAILURE_THRESHOLD)))
+
+
+# Session-level LLM exhaustion flag (thread-safe)
+# Quando TODOS os providers configurados falham, seta True pro resto do scrape.
+# Evita chamar LLM pro resto da coleta -> review_queue direto, sem latencia.
+_LLM_EXHAUSTED = False
+_LLM_EXHAUSTED_LOCK = threading.Lock()
+
+
+def reset_llm_exhausted() -> None:
+    """Chamar no INICIO de cada scrape (main.py / collector)."""
+    global _LLM_EXHAUSTED
+    with _LLM_EXHAUSTED_LOCK:
+        _LLM_EXHAUSTED = False
+
+
+def _is_llm_exhausted() -> bool:
+    """Checar se LLM já esgotou nessa sessao."""
+    with _LLM_EXHAUSTED_LOCK:
+        return _LLM_EXHAUSTED
+
+
+def _set_llm_exhausted(value: bool) -> None:
+    """Marcar LLM como esgotado pro resto da sessao."""
+    global _LLM_EXHAUSTED
+    with _LLM_EXHAUSTED_LOCK:
+        _LLM_EXHAUSTED = value
 
 
 @dataclass
@@ -98,44 +129,28 @@ class LLMStrategy(ABC):
             return self._token_bucket.consume(self.provider_name)
         return True
 
-    def _smart_429(self, response) -> bool:
-        """Handle 429: retry ONCE with Retry-After, then fall through. Returns True if caller should retry."""
-        retry_after = response.headers.get("Retry-After")
-        if retry_after:
-            try:
-                delay = float(retry_after)
-                logger.info("[%s] 429 Retry-After=%ss, waiting then retrying once", self.provider_name, delay)
-                time.sleep(min(delay, 30.0))
-                return True
-            except (TypeError, ValueError):
-                pass
-        return False
-
     @abstractmethod
     def classify(self, product_text: str, candidates: list) -> LLMResult | None: ...
 
     @abstractmethod
     def is_configured(self) -> bool:
         """True if this provider has credentials / configuration available."""
-
         return True
 
     def is_circuit_open(self) -> bool:
         """Returns True if the circuit breaker should be treated as open.
 
-        Ao expirar o cooldown, NÃO zera o contador cegamente: tenta UMA vez e,
-        se o provider ainda estiver limitado, aplica backoff agressivo (cooldown
-        crescente) em vez de reiniciar o ciclo de 3 falhas rápidas. Isso evita
-        os centenas de warnings de 429 que ocorriam quando o free-tier do Groq
-        fica esgotado por horas.
+        Circuit abre em 3 falhas consecutivas. Cooldown: 60s base, backoff 1.5x,
+        max 300s. Ao expirar, permite UMA tentativa (half-open). Se falhar de novo
+        (429/500), reabre com cooldown maior.
         """
         threshold = _get_failure_threshold()
         if self.failure_count < threshold:
             return False
         elapsed = time.time() - self.last_failure_ts
-        # Cooldown não expirou → aberto. Ao expirar, permitimos UMA tentativa
+        # Cooldown não expirou -> aberto. Ao expirar, permite UMA tentativa
         # (half-open); o contador só zera de fato em record_success(). Se falhar
-        # de novo (429), open_circuit reabre com cooldown maior (backoff).
+        # de novo (429/500), open_circuit reabre com cooldown maior (backoff).
         return elapsed < self._cooldown_seconds
 
     def record_failure(self) -> None:
@@ -148,9 +163,9 @@ class LLMStrategy(ABC):
         self._cooldown_seconds = _get_cooldown_seconds()
 
     def open_circuit(self) -> None:
-        """Abre o breaker para 500/503/timeout (erros de servidor/rede).
+        """Abre o breaker para 429/500/503/timeout.
 
-        429 NAO abre circuit — apenas fallthrough para proximo provider.
+        429 AGORA ABRE circuit -- provider esgotou quota, nao adianta martelar.
         Cooldown: 60s base, backoff 1.5x a cada reabertura, max 300s.
         """
         self.failure_count = _get_failure_threshold()
@@ -161,28 +176,28 @@ class LLMStrategy(ABC):
         new_cooldown = min(base * (growth**self._consecutive_openings), _get_cooldown_max())
         self._cooldown_seconds = int(max(base, new_cooldown))
         logger.warning(
-            "[%s] Circuit breaker OPEN (server error) cooldown=%ds",
+            "[%s] Circuit breaker OPEN cooldown=%ds",
             self.provider_name,
             self._cooldown_seconds,
         )
 
     def _handle_429(self, response) -> None:
-        """429: smart retry ONCE, then fall through. NEVER opens circuit."""
-        retry_after = response.headers.get("Retry-After", "")
-        try:
-            delay = min(float(retry_after), 30.0) if retry_after else 5.0
-        except (TypeError, ValueError):
-            delay = 5.0
-        logger.info("[%s] 429 rate limited, retrying once after %.1fs", self.provider_name, delay)
-        time.sleep(delay)
-        # Do NOT open circuit — 429 is transient, next provider in chain handles it
+        """429: abre circuit e fallthrough. NAO faz retry interno."""
+        logger.info("[%s] 429 rate limited, opening circuit (fallthrough)", self.provider_name)
+        self.open_circuit()
+        return None
 
     def _safe_api_call(self, url: str, headers: dict, payload: dict, params: dict | None = None) -> httpx.Response | None:
-        """Unified API call with TokenBucket + Smart 429 + Circuit Breaker.
+        """Unified API call with TokenBucket + 429->circuit + Circuit Breaker.
 
-        Returns response on success (2xx), None on fallthrough (429/error).
-        Opens circuit only on 500/503/timeout.
+        Returns response on success (2xx), None on fallthrough (429/500/timeout).
+        Opens circuit on 429/500/503/timeout.
         """
+        # Early exit: LLM esgotado nesta sessao
+        if _is_llm_exhausted():
+            logger.debug("[%s] LLM exhausted flag set, skipping", self.provider_name)
+            return None
+
         if not self._check_rate_limit():
             logger.debug("[%s] TokenBucket exhausted, skipping", self.provider_name)
             return None
@@ -191,56 +206,28 @@ class LLMStrategy(ABC):
             resp = get_client().post(url, headers=headers, json=payload, params=params, timeout=DEFAULT_TIMEOUT)
 
             if resp.status_code == 429:
-                retried = self._smart_429(resp)
-                if retried:
-                    resp2 = get_client().post(url, headers=headers, json=payload, params=params, timeout=DEFAULT_TIMEOUT)
-                    if resp2.status_code == 429:
-                        logger.info("[%s] 429 after retry, falling through", self.provider_name)
-                        return None
-                    resp = resp2
-                else:
-                    return None
+                self._handle_429(resp)
+                return None
+
+            if resp.status_code >= 500:
+                logger.warning("[%s] HTTP %s server error, opening circuit", self.provider_name, resp.status_code)
+                self.open_circuit()
+                return None
 
             if resp.status_code >= 400:
-                logger.warning("[%s] HTTP %s error, opening circuit", self.provider_name, resp.status_code)
+                logger.warning("[%s] HTTP %s client error, opening circuit", self.provider_name, resp.status_code)
                 self.open_circuit()
                 return None
 
             return resp
 
         except httpx.TimeoutException:
-            logger.warning("[%s] timeout", self.provider_name)
+            logger.warning("[%s] timeout, opening circuit", self.provider_name)
             self.open_circuit()
             return None
         except httpx.NetworkError:
             logger.warning("[%s] network error, opening circuit", self.provider_name)
             self.open_circuit()
-            return None
-        except httpx.HTTPStatusError as e:
-            status = e.response.status_code
-            if status == 429:
-                retried = self._smart_429(e.response)
-                if retried:
-                    try:
-                        resp2 = get_client().post(url, headers=headers, json=payload, params=params, timeout=DEFAULT_TIMEOUT)
-                        resp2.raise_for_status()
-                        return resp2
-                    except httpx.HTTPStatusError as e2:
-                        if e2.response.status_code == 429:
-                            logger.info("[%s] 429 after retry, falling through", self.provider_name)
-                            return None
-                        self.record_failure()
-                        return None
-                    except Exception:
-                        self.record_failure()
-                        return None
-                return None
-            if status >= 400 and status != 429:
-                logger.warning("[%s] HTTP %s client error, opening circuit", self.provider_name, status)
-                self.open_circuit()
-                return None
-            logger.warning("[%s] HTTP error %s", self.provider_name, e)
-            self.record_failure()
             return None
         except Exception as e:
             logger.warning("[%s] API call error: %s", self.provider_name, e)
@@ -284,9 +271,6 @@ class GroqStrategy(LLMStrategy):
             logger.debug("groq_skipped_no_api_key")
             return None
         if self.is_circuit_open():
-            # Breaker aberto (provider limitado/indisponível): pulamos e cedemos
-            # ao próximo da cadeia. É comportamento normal de degradação
-            # graceful, não erro — logado em debug para não poluir o scrape.
             logger.debug("groq_circuit_open")
             return None
 
@@ -348,9 +332,6 @@ class OpenRouterStrategy(LLMStrategy):
         super().__init__()
         self.api_key = os.environ.get("OPENROUTER_API_KEY", "")
         self.url = "https://openrouter.ai/api/v1/chat/completions"
-        # `openrouter/free` roteia automaticamente para um modelo free disponivel
-        # (filtra por structured outputs). Slugs fixos (ex.: mixtral-8x7b) sao
-        # descontinuados e passam a retornar 404 silenciosamente.
         self.model = os.environ.get("OPENROUTER_MODEL", "openrouter/free")
 
     def is_configured(self) -> bool:
@@ -410,481 +391,7 @@ class OpenRouterStrategy(LLMStrategy):
             return None
 
 
-class HuggingFaceStrategy(LLMStrategy):
-    provider_name = "huggingface"
-
-    def __init__(self):
-        super().__init__()
-        self.api_key = os.environ.get("HUGGINGFACE_API_KEY", "")
-        self.model = os.environ.get("HUGGINGFACE_MODEL", "mistralai/Mistral-7B-Instruct-v0.2")
-
-    def is_configured(self) -> bool:
-        return bool(self.api_key)
-
-    def classify(self, product_text: str, candidates: list) -> LLMResult | None:
-        if not self.api_key:
-            logger.debug("huggingface_skipped_no_api_key")
-            return None
-        if self.is_circuit_open():
-            logger.debug("huggingface_circuit_open")
-            return None
-
-        url = f"https://api-inference.huggingface.co/models/{self.model}/v1/chat/completions"
-        candidates_str = ", ".join(c.get("canonical_name", "?") for c in candidates)
-        prompt = (
-            "You are an ingredient classifier. Respond ONLY with JSON using schema: "
-            '{"match": bool, "canonical_name": str, "confidence_score": float, "reason": str}\n'
-            f"Product: {product_text}. Candidates: {candidates_str}"
-        )
-        payload = {
-            "model": self.model,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.1,
-            "max_tokens": 200,
-        }
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-        try:
-            resp = self._safe_api_call(url, headers, payload)
-            if resp is None:
-                return None
-
-            data = resp.json()
-            if isinstance(data, dict) and "error" in data and "choices" not in data:
-                logger.warning("huggingface_api_error", error=str(data["error"]))
-                self.open_circuit()
-                return None
-            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            if not content:
-                content = data.get("generated_text", "")
-            parsed = self._safe_parse(content)
-            if not parsed:
-                logger.warning("huggingface_invalid_json_response")
-                self.record_failure()
-                return None
-            self.record_success()
-            return LLMResult(
-                match=bool(parsed.get("match", False)),
-                canonical_name=str(parsed.get("canonical_name") or ""),
-                confidence_score=float(parsed.get("confidence_score") or 0.0),
-                reason=str(parsed.get("reason", "")),
-                provider="huggingface",
-            )
-        except Exception as e:
-            logger.warning("huggingface_error", error=str(e))
-            self.record_failure()
-            return None
-
-
 # ====================================================================
-# Additional Provider Strategies (completing the 9-provider chain)
+# End of file - only Groq and OpenRouter strategies remain
+# (Other providers removed to reduce 429 rate limit issues)
 # ====================================================================
-
-class GoogleStrategy(LLMStrategy):
-    """Google Gemini strategy."""
-
-    def __init__(self):
-        super().__init__("google")
-        self.url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
-        self.api_key = os.environ.get("GOOGLE_API_KEY", "")
-        self.headers = {"Content-Type": "application/json"}
-
-    def is_configured(self) -> bool:
-        return bool(self.api_key)
-
-    def classify(self, product_text: str, candidates: list) -> LLMResult | None:
-        if not self.api_key:
-            logger.debug("google_skipped_no_api_key")
-            return None
-        if self.is_circuit_open():
-            logger.debug("google_circuit_open")
-            return None
-
-        prompt = self._build_prompt(product_text, candidates)
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": 0.1,
-                "responseMimeType": "application/json",
-            },
-        }
-        params = {"key": self.api_key}
-
-        try:
-            params = {"key": self.api_key}
-            resp = self._safe_api_call(self.url, self.headers, payload, params=params)
-            if resp is None:
-                return None
-
-            data = resp.json()
-            content = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
-            parsed = self._safe_parse(content)
-            if not parsed:
-                logger.warning("google_invalid_json_response")
-                self.record_failure()
-                return None
-            self.record_success()
-            return LLMResult(
-                match=bool(parsed.get("match", False)),
-                canonical_name=str(parsed.get("canonical_name") or ""),
-                confidence_score=float(parsed.get("confidence_score") or 0.0),
-                reason=str(parsed.get("reason", "")),
-                provider="google",
-            )
-        except Exception as e:
-            logger.warning("google_error", error=str(e))
-            self.record_failure()
-            return None
-
-    def _build_prompt(self, product_text: str, candidates: list) -> str:
-        candidates_str = "\n".join(
-            f"- {c.get('canonical_name', '?')} (aliases: {', '.join(c.get('aliases', []))})" for c in candidates
-        )
-        return (
-            "Você é um classificador de ingredientes para confeitaria analítica e metódica. "
-            "Analise o produto e decida se corresponde a algum dos ingredientes listados. "
-            "Responda APENAS com JSON válido (sem markdown, sem texto extra) no schema: "
-            '{"match": boolean, "canonical_name": string, "confidence_score": float entre 0 e 1, "reason": string}. '
-            "Se nenhum ingrediente corresponder, retorne match=false.\n\n"
-            f"Produto: {product_text}\n\nIngredientes candidatos:\n{candidates_str}"
-        )
-
-
-class OpenAIStrategy(LLMStrategy):
-    """OpenAI GPT strategy."""
-
-    def __init__(self):
-        super().__init__("openai")
-        self.url = "https://api.openai.com/v1/chat/completions"
-        self.api_key = os.environ.get("OPENAI_API_KEY", "")
-        self.headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-
-    def is_configured(self) -> bool:
-        return bool(self.api_key)
-
-    def classify(self, product_text: str, candidates: list) -> LLMResult | None:
-        if not self.api_key:
-            logger.debug("openai_skipped_no_api_key")
-            return None
-        if self.is_circuit_open():
-            logger.debug("openai_circuit_open")
-            return None
-
-        prompt = self._build_prompt(product_text, candidates)
-        payload = {
-            "model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.1,
-            "response_format": {"type": "json_object"},
-        }
-
-        try:
-            resp = self._safe_api_call(self.url, self.headers, payload)
-            if resp is None:
-                return None
-
-            data = resp.json()
-            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            parsed = self._safe_parse(content)
-            if not parsed:
-                logger.warning("openai_invalid_json_response")
-                self.record_failure()
-                return None
-            self.record_success()
-            return LLMResult(
-                match=bool(parsed.get("match", False)),
-                canonical_name=str(parsed.get("canonical_name") or ""),
-                confidence_score=float(parsed.get("confidence_score") or 0.0),
-                reason=str(parsed.get("reason", "")),
-                provider="openai",
-            )
-        except Exception as e:
-            logger.warning("openai_error", error=str(e))
-            self.record_failure()
-            return None
-
-    def _build_prompt(self, product_text: str, candidates: list) -> str:
-        candidates_str = "\n".join(
-            f"- {c.get('canonical_name', '?')} (aliases: {', '.join(c.get('aliases', []))})" for c in candidates
-        )
-        return (
-            "Você é um classificador de ingredientes para confeitaria analítica e metódica. "
-            "Analise o produto e decida se corresponde a algum dos ingredientes listados. "
-            "Responda APENAS com JSON válido (sem markdown, sem texto extra) no schema: "
-            '{"match": boolean, "canonical_name": string, "confidence_score": float entre 0 e 1, "reason": string}. '
-            "Se nenhum ingrediente corresponder, retorne match=false.\n\n"
-            f"Produto: {product_text}\n\nIngredientes candidatos:\n{candidates_str}"
-        )
-
-
-class MistralStrategy(LLMStrategy):
-    """Mistral AI strategy."""
-
-    def __init__(self):
-        super().__init__("mistral")
-        self.url = "https://api.mistral.ai/v1/chat/completions"
-        self.api_key = os.environ.get("MISTRAL_API_KEY", "")
-        self.headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-
-    def is_configured(self) -> bool:
-        return bool(self.api_key)
-
-    def classify(self, product_text: str, candidates: list) -> LLMResult | None:
-        if not self.api_key:
-            logger.debug("mistral_skipped_no_api_key")
-            return None
-        if self.is_circuit_open():
-            logger.debug("mistral_circuit_open")
-            return None
-
-        prompt = self._build_prompt(product_text, candidates)
-        payload = {
-            "model": os.environ.get("MISTRAL_MODEL", "mistral-small-latest"),
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.1,
-            "response_format": {"type": "json_object"},
-        }
-
-        try:
-            resp = self._safe_api_call(self.url, self.headers, payload)
-            if resp is None:
-                return None
-
-            data = resp.json()
-            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            parsed = self._safe_parse(content)
-            if not parsed:
-                logger.warning("mistral_invalid_json_response")
-                self.record_failure()
-                return None
-            self.record_success()
-            return LLMResult(
-                match=bool(parsed.get("match", False)),
-                canonical_name=str(parsed.get("canonical_name") or ""),
-                confidence_score=float(parsed.get("confidence_score") or 0.0),
-                reason=str(parsed.get("reason", "")),
-                provider="mistral",
-            )
-        except Exception as e:
-            logger.warning("mistral_error", error=str(e))
-            self.record_failure()
-            return None
-
-
-    def _build_prompt(self, product_text: str, candidates: list) -> str:
-        candidates_str = "\n".join(
-            f"- {c.get('canonical_name', '?')} (aliases: {', '.join(c.get('aliases', []))})" for c in candidates
-        )
-        return (
-            "Você é um classificador de ingredientes para confeitaria analítica e metódica. "
-            "Analise o produto e decida se corresponde a algum dos ingredientes listados. "
-            "Responda APENAS com JSON válido (sem markdown, sem texto extra) no schema: "
-            '{"match": boolean, "canonical_name": string, "confidence_score": float entre 0 e 1, "reason": string}. '
-            "Se nenhum ingrediente corresponder, retorne match=false.\n\n"
-            f"Produto: {product_text}\n\nIngredientes candidatos:\n{candidates_str}"
-        )
-
-
-class DeepSeekStrategy(LLMStrategy):
-    """DeepSeek strategy."""
-
-    def __init__(self):
-        super().__init__("deepseek")
-        self.url = "https://api.deepseek.com/v1/chat/completions"
-        self.api_key = os.environ.get("DEEPSEEK_API_KEY", "")
-        self.headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-
-    def is_configured(self) -> bool:
-        return bool(self.api_key)
-
-    def classify(self, product_text: str, candidates: list) -> LLMResult | None:
-        if not self.api_key:
-            logger.debug("deepseek_skipped_no_api_key")
-            return None
-        if self.is_circuit_open():
-            logger.debug("deepseek_circuit_open")
-            return None
-
-        prompt = self._build_prompt(product_text, candidates)
-        payload = {
-            "model": os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"),
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.1,
-            "response_format": {"type": "json_object"},
-        }
-
-        try:
-            resp = self._safe_api_call(self.url, self.headers, payload)
-            if resp is None:
-                return None
-
-            data = resp.json()
-            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            parsed = self._safe_parse(content)
-            if not parsed:
-                logger.warning("deepseek_invalid_json_response")
-                self.record_failure()
-                return None
-            self.record_success()
-            return LLMResult(
-                match=bool(parsed.get("match", False)),
-                canonical_name=str(parsed.get("canonical_name") or ""),
-                confidence_score=float(parsed.get("confidence_score") or 0.0),
-                reason=str(parsed.get("reason", "")),
-                provider="deepseek",
-            )
-        except Exception as e:
-            logger.warning("deepseek_error", error=str(e))
-            self.record_failure()
-            return None
-
-
-    def _build_prompt(self, product_text: str, candidates: list) -> str:
-        candidates_str = "\n".join(
-            f"- {c.get('canonical_name', '?')} (aliases: {', '.join(c.get('aliases', []))})" for c in candidates
-        )
-        return (
-            "Você é um classificador de ingredientes para confeitaria analítica e metódica. "
-            "Analise o produto e decida se corresponde a algum dos ingredientes listados. "
-            "Responda APENAS com JSON válido (sem markdown, sem texto extra) no schema: "
-            '{"match": boolean, "canonical_name": string, "confidence_score": float entre 0 e 1, "reason": string}. '
-            "Se nenhum ingrediente corresponder, retorne match=false.\n\n"
-            f"Produto: {product_text}\n\nIngredientes candidatos:\n{candidates_str}"
-        )
-
-
-class NVIDIAStrategy(LLMStrategy):
-    """NVIDIA NIM strategy."""
-
-    def __init__(self):
-        super().__init__("nvidia")
-        self.url = "https://integrate.api.nvidia.com/v1/chat/completions"
-        self.api_key = os.environ.get("NVIDIA_API_KEY", "")
-        self.headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-
-    def is_configured(self) -> bool:
-        return bool(self.api_key)
-
-    def classify(self, product_text: str, candidates: list) -> LLMResult | None:
-        if not self.api_key:
-            logger.debug("nvidia_skipped_no_api_key")
-            return None
-        if self.is_circuit_open():
-            logger.debug("nvidia_circuit_open")
-            return None
-
-        prompt = self._build_prompt(product_text, candidates)
-        payload = {
-            "model": os.environ.get("NVIDIA_MODEL", "meta/llama-3.1-8b-instruct"),
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.1,
-            "response_format": {"type": "json_object"},
-        }
-
-        try:
-            resp = self._safe_api_call(self.url, self.headers, payload)
-            if resp is None:
-                return None
-
-            data = resp.json()
-            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            parsed = self._safe_parse(content)
-            if not parsed:
-                logger.warning("nvidia_invalid_json_response")
-                self.record_failure()
-                return None
-            self.record_success()
-            return LLMResult(
-                match=bool(parsed.get("match", False)),
-                canonical_name=str(parsed.get("canonical_name") or ""),
-                confidence_score=float(parsed.get("confidence_score") or 0.0),
-                reason=str(parsed.get("reason", "")),
-                provider="nvidia",
-            )
-        except Exception as e:
-            logger.warning("nvidia_error", error=str(e))
-            self.record_failure()
-            return None
-
-
-    def _build_prompt(self, product_text: str, candidates: list) -> str:
-        candidates_str = "\n".join(
-            f"- {c.get('canonical_name', '?')} (aliases: {', '.join(c.get('aliases', []))})" for c in candidates
-        )
-        return (
-            "Você é um classificador de ingredientes para confeitaria analítica e metódica. "
-            "Analise o produto e decida se corresponde a algum dos ingredientes listados. "
-            "Responda APENAS com JSON válido (sem markdown, sem texto extra) no schema: "
-            '{"match": boolean, "canonical_name": string, "confidence_score": float entre 0 e 1, "reason": string}. '
-            "Se nenhum ingrediente corresponder, retorne match=false.\n\n"
-            f"Produto: {product_text}\n\nIngredientes candidatos:\n{candidates_str}"
-        )
-
-
-class GitHubModelsStrategy(LLMStrategy):
-    """GitHub Models strategy (via GitHub Models API)."""
-
-    def __init__(self):
-        super().__init__("github_models")
-        self.url = "https://models.inference.ai.azure.com/chat/completions"
-        self.api_key = os.environ.get("GH_MODELS_TOKEN", "")
-        self.headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-
-    def is_configured(self) -> bool:
-        return bool(self.api_key)
-
-    def classify(self, product_text: str, candidates: list) -> LLMResult | None:
-        if not self.api_key:
-            logger.debug("github_models_skipped_no_api_key")
-            return None
-        if self.is_circuit_open():
-            logger.debug("github_models_circuit_open")
-            return None
-
-        prompt = self._build_prompt(product_text, candidates)
-        payload = {
-            "model": os.environ.get("GITHUB_MODELS_MODEL", "gpt-4o-mini"),
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.1,
-            "response_format": {"type": "json_object"},
-        }
-
-        try:
-            resp = self._safe_api_call(self.url, self.headers, payload)
-            if resp is None:
-                return None
-
-            data = resp.json()
-            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            parsed = self._safe_parse(content)
-            if not parsed:
-                logger.warning("github_models_invalid_json_response")
-                self.record_failure()
-                return None
-            self.record_success()
-            return LLMResult(
-                match=bool(parsed.get("match", False)),
-                canonical_name=str(parsed.get("canonical_name") or ""),
-                confidence_score=float(parsed.get("confidence_score") or 0.0),
-                reason=str(parsed.get("reason", "")),
-                provider="github_models",
-            )
-        except Exception as e:
-            logger.warning("github_models_error", error=str(e))
-            self.record_failure()
-            return None
-
-    def _build_prompt(self, product_text: str, candidates: list) -> str:
-        candidates_str = "\n".join(
-            f"- {c.get('canonical_name', '?')} (aliases: {', '.join(c.get('aliases', []))})" for c in candidates
-        )
-        return (
-            "Você é um classificador de ingredientes para confeitaria analítica e metódica. "
-            "Analise o produto e decida se corresponde a algum dos ingredientes listados. "
-            "Responda APENAS com JSON válido (sem markdown, sem texto extra) no schema: "
-            '{"match": boolean, "canonical_name": string, "confidence_score": float entre 0 e 1, "reason": string}. '
-            "Se nenhum ingrediente corresponder, retorne match=false.\n\n"
-            f"Produto: {product_text}\n\nIngredientes candidatos:\n{candidates_str}"
-        )

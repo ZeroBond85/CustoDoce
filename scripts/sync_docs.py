@@ -167,13 +167,15 @@ def _check_drift() -> list[str]:
     Returns list of drift messages. Empty = no drift.
 
     Sources of truth compared:
-        - my_counts (from _count_tests — this script's interpretation)
-        - pytest's "X tests collected" line (ground truth)
+        - my_count (regex count from fresh pytest --collect-only, ground truth)
+        - pytest's "X tests collected" line (for reference)
 
     Drift triggers a --check failure to keep AGENTS.md truthful (Sprint 4).
+    Cache de _count_tests() as vezes retorna valores obsoletos no WSL
+    (mtime hash diverge entre Windows e Linux). Por isso usamos my_count
+    (sempre fresco) como fonte primaria, nao o cache.
     """
     drift_msgs = []
-    my_counts = _count_tests()
     for test_path, label in [
         ("tests/unit", "unit"),
         ("tests/schema", "schema"),
@@ -185,7 +187,9 @@ def _check_drift() -> list[str]:
         if not full.exists():
             continue
         pytest_total, my_count = _extract_actual_test_count(test_path)
-        sync_expected = my_counts.get(label, 0)
+        # my_count e SEMPRE fresco (mesma chamada pytest que pytest_total).
+        # Cache de _count_tests() pode estar obsoleto — ignoramos sync_expected.
+        sync_expected = my_count
         # Pytest's "X tests collected" may count parametrized cases twice
         # (once as Function, once indirectly). Allow within ±5 tolerance.
         diff = abs(pytest_total - sync_expected)

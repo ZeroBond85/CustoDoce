@@ -5,7 +5,7 @@ Cobre:
 - JSON Mode parsing (response_format)
 - Circuit Breaker (failure tracking e cooldown)
 - Mock HTTP (httpx_mock)
-- Cada provider (Groq, OpenRouter, HuggingFace)
+- Cada provider (Groq, OpenRouter)
 - Safe parse de respostas mal-formadas
 """
 
@@ -22,7 +22,6 @@ import pytest
 def mock_env(monkeypatch):
     monkeypatch.setenv("GROQ_API_KEY", "test_groq_key")
     monkeypatch.setenv("OPENROUTER_API_KEY", "test_or_key")
-    monkeypatch.setenv("HUGGINGFACE_API_KEY", "test_hf_key")
     monkeypatch.setenv("LLM_CB_THRESHOLD", "3")
     monkeypatch.setenv("LLM_CB_COOLDOWN", "1")  # short for tests
     monkeypatch.setenv("LLM_TIMEOUT", "5")
@@ -101,8 +100,8 @@ def test_open_circuit_resets_on_success(mock_env, monkeypatch):
     assert g.is_circuit_open() is False
 
 
-def test_groq_429_fallthrough_no_circuit(mock_env):
-    """Classify com 429 DEVE fallthrough (Smart 429) sem abrir o breaker."""
+def test_groq_429_opens_circuit(mock_env):
+    """Classify com 429 DEVE abrir o breaker (429 = quota esgotada, não martelar)."""
     from parsers.llm_strategies import GroqStrategy
 
     g = GroqStrategy()
@@ -112,8 +111,8 @@ def test_groq_429_fallthrough_no_circuit(mock_env):
     with patch("httpx.Client.post", return_value=mock_response):
         result = g.classify("anything", [{"canonical_name": "x"}])
     assert result is None
-    assert g.is_circuit_open() is False
-    assert g._consecutive_openings == 0
+    assert g.is_circuit_open() is True  # 429 agora ABRE circuit
+    assert g._consecutive_openings == 1
 
 
 def test_groq_open_circuit_skips_http_call(mock_env):
@@ -224,6 +223,7 @@ def test_groq_success_mocked(mock_env):
 
 
 def test_groq_rate_limit_429(mock_env):
+    """429 agora ABRE circuit (nao martela free-tier exhausted)."""
     from parsers.llm_strategies import GroqStrategy
 
     g = GroqStrategy()
@@ -235,7 +235,8 @@ def test_groq_rate_limit_429(mock_env):
     with patch("httpx.Client.post", return_value=mock_response):
         result = g.classify("anything", [{"canonical_name": "x"}])
     assert result is None
-    assert g.failure_count == 0  # 429 não incrementa failure_count (Smart 429)
+    assert g.is_circuit_open() is True  # 429 abre circuit
+    assert g._consecutive_openings == 1
 
 
 def test_groq_500_error(mock_env):
@@ -303,6 +304,7 @@ def test_openrouter_success(mock_env):
 
 
 def test_openrouter_rate_limit(mock_env):
+    """429 agora ABRE circuit (nao martela free-tier exhausted)."""
     from parsers.llm_strategies import OpenRouterStrategy
 
     o = OpenRouterStrategy()
@@ -312,7 +314,8 @@ def test_openrouter_rate_limit(mock_env):
     with patch("httpx.Client.post", return_value=mock):
         result = o.classify("x", [{"canonical_name": "y"}])
     assert result is None
-    assert o.failure_count == 0  # 429 não incrementa failure_count (Smart 429)
+    assert o.is_circuit_open() is True  # 429 abre circuit
+    assert o._consecutive_openings == 1
 
 
 def test_openrouter_default_model_is_free_router(mock_env):
@@ -339,56 +342,6 @@ def test_openrouter_404_opens_circuit(mock_env):
     assert result is None
     # Breaker aberto → proxima chamada nem faz request (economiza a janela).
     assert o.is_circuit_open()
-
-
-# ====================================================================
-# HuggingFaceStrategy
-# ====================================================================
-
-
-def test_huggingface_no_api_key(mock_env, monkeypatch):
-    monkeypatch.setenv("HUGGINGFACE_API_KEY", "")
-    from parsers.llm_strategies import HuggingFaceStrategy
-
-    h = HuggingFaceStrategy()
-    result = h.classify("o que é", [{"canonical_name": "x"}])
-    assert result is None
-
-
-def test_huggingface_success(mock_env):
-    from parsers.llm_strategies import HuggingFaceStrategy
-
-    h = HuggingFaceStrategy()
-    mock = MagicMock()
-    mock.status_code = 200
-    mock.json.return_value = {
-        "choices": [
-            {
-                "message": {
-                    "content": '{"match": false, "canonical_name": "", "confidence_score": 0.1, "reason": "no match"}'
-                }
-            }
-        ]
-    }
-    mock.raise_for_status = MagicMock()
-    with patch("httpx.Client.post", return_value=mock):
-        result = h.classify("o que é açúcar", [{"canonical_name": "açúcar"}])
-    assert result is not None
-    assert result.match is False
-    assert result.provider == "huggingface"
-
-
-def test_huggingface_401_unauthorized(mock_env):
-    from parsers.llm_strategies import HuggingFaceStrategy
-
-    h = HuggingFaceStrategy()
-    mock = MagicMock()
-    mock.status_code = 401
-    mock.raise_for_status = MagicMock()
-    with patch("httpx.Client.post", return_value=mock):
-        r = h.classify("x", [{"canonical_name": "y"}])
-    assert r is None
-    assert h.failure_count >= 1  # still records failure for opacity
 
 
 def test_openrouter_api_error_envelope_opens_circuit(mock_env):
@@ -424,45 +377,22 @@ def test_openrouter_200_but_no_choices_still_parsed(mock_env):
     assert o.failure_count >= 1
 
 
-def test_huggingface_network_error_opens_circuit(mock_env):
-    """DNS/rede quebrada (ConnectError) deve ABRIR o breaker imediatamente e ceder
-    ao proximo provider, em vez de martelar um host inalcançavel por 3 falhas."""
-    import httpx
-    from parsers.llm_strategies import HuggingFaceStrategy
-
-    h = HuggingFaceStrategy()
-    with patch("httpx.Client.post", side_effect=httpx.ConnectError("getaddrinfo failed")):
-        r = h.classify("x", [{"canonical_name": "y"}])
-    assert r is None
-    assert h.is_circuit_open(), "erro de rede deve abrir o circuit breaker"
-    assert h._consecutive_openings >= 1
-
-
-def test_huggingface_timeout_opens_circuit(mock_env):
-    import httpx
-    from parsers.llm_strategies import HuggingFaceStrategy
-
-    h = HuggingFaceStrategy()
-    with patch("httpx.Client.post", side_effect=httpx.TimeoutException("timed out")):
-        r = h.classify("x", [{"canonical_name": "y"}])
-    assert r is None
-    assert h.is_circuit_open()
-
-
 def test_classifier_falls_back_when_all_providers_fail(mock_env):
     """Quando todos os providers estao configurados mas falham (circuit open),
     o LLMClassifier deve retornar um fallback seguro (match=False) e NUNCA crashar."""
     import parsers.llm_strategies as mod
-    from parsers.llm_classifier import LLMClassifier
+    import parsers.llm_classifier as clf_mod
+    from unittest.mock import patch
 
     # Forca todos os providers com breaker aberto (simulando falha global).
     strategies = []
-    for s in [mod.GroqStrategy(), mod.OpenRouterStrategy(), mod.HuggingFaceStrategy()]:
+    for s in [mod.GroqStrategy(), mod.OpenRouterStrategy()]:
         s.open_circuit()
         strategies.append(s)
 
-    clf = LLMClassifier(strategies=strategies)
-    result = clf.classify_sync("Leite Condensado", [{"canonical_name": "leite condensado"}])
+    clf = clf_mod.LLMClassifier(strategies=strategies)
+    with patch("services.config.get_feature", return_value=True):
+        result = clf.classify_sync("Leite Condensado", [{"canonical_name": "leite condensado"}])
     assert result is not None
     assert result["match"] is False
     assert result["provider"] == "fallback"

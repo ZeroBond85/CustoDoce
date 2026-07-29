@@ -230,12 +230,12 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 
 | Métrica | Valor |
 |---------|-------|
-| pytest (unit + schema, no slow) | 1068 passing |
+| pytest (unit + schema, no slow) | 1350 passing |
 | pytest (integration) | 113 passing |
 | pytest (diagnostics, slow) | 4 passing |
 | Schema manifest | 17 tabelas/views com types, not_null, defaults, constraints |
 | Mock validation tests | 97 parametrizados (colunas, tipos, not_null, FKs, CHECK, jsonb) |
-| AGENTS.md | ~340 linhas (Sprint 14 — md_auto_compress) |
+| AGENTS.md | ~338 linhas (Sprint 16) |
 | LESSONS.md | 82 lições |
 | REGRAS.md | Ambiente + hooks + comandos |
 | CI lint/type/test | ✅ Todos verdes (Python 3.14.6) |
@@ -314,3 +314,25 @@ Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarbal
 
 ### Pipeline Ativo
 `collect_tier1_api_flyers()` → `flyer_ocr.py` → `flyer_hybrid.extract_from_regions()` → `build_price_blocks()` (novo clustering) → match/upsert.
+
+## Sprint 16 — Chefon curl_cffi Bypass + Tenda/Roldão OCR Fixes (2026-07-29)
+
+### Chefon — Cloudflare 429 resolvido via curl_cffi
+- **Problema**: Cloudflare passou a proteger também a rota `/collections/<x>/products.json` — httpx retornava 429 em 100% das requisições (JA3 fingerprint detectado).
+- **Solução**: `curl_cffi` com `impersonate="chrome120"` (fingerprint TLS do Chrome real). Testado: 250 produtos/página, 0 erros 429. Fallback httpx se curl_cffi não estiver instalado.
+- **Config**: `config/stores.yaml` → `shopify_curl_cffi: true` + `scrapers/website_scraper.py` switch condicional.
+- **Dependência**: `curl_cffi>=0.15,<1.0` em `requirements-prod.in`.
+
+### Tenda Atacadista — OCR timeout + paralelismo
+- **Problema**: Encartes grandes estouravam o timeout default de 300s.
+- **Solução**: `vision_timeout_seconds: 600` + `max_concurrency=2` no `extract_flyer_products()`.
+
+### Roldão/Tenda — Falso positivo de saúde
+- **Problema**: OCR vazio (cache hit, flyer já processado) chamava `report_failure()`, incrementando contagem de falhas consecutivas e disparando alertas.
+- **Solução**: Removeu `report_failure()` quando OCR retorna vazio. Caller (`_collect_prices`) já chama `record_success()` com 0 items. Cache hit não é erro.
+
+### Bezerra Embalagens / Promotons
+- Removidos do pipeline: `UPDATE stores SET is_active=false` no Supabase DB.
+
+### SMTP
+- Credenciais Gmail verificadas e válidas (app password funcional).

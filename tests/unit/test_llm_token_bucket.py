@@ -10,6 +10,7 @@ import pytest
 from parsers.llm_strategies import (
     LLMStrategy,
     _get_cooldown_seconds,
+    reset_llm_exhausted,
 )
 
 
@@ -29,6 +30,7 @@ class _TestStrategy(LLMStrategy):
 
 @pytest.fixture
 def strategy():
+    reset_llm_exhausted()
     return _TestStrategy()
 
 
@@ -71,22 +73,24 @@ def test_open_circuit_server_error(strategy):
     assert strategy._cooldown_seconds >= _get_cooldown_seconds()
 
 
-def test_smart_429_returns_true_with_retry_after():
-    """_smart_429 returns True when Retry-After is present."""
+def test_handle_429_opens_circuit():
+    """_handle_429 opens circuit regardless of Retry-After header."""
     strategy = _TestStrategy()
     mock_resp = MagicMock(spec=httpx.Response)
     mock_resp.headers = {"Retry-After": "2"}
-    result = strategy._smart_429(mock_resp)
-    assert result is True
+    result = strategy._handle_429(mock_resp)
+    assert result is None
+    assert strategy.is_circuit_open() is True
 
 
-def test_smart_429_returns_false_without_retry_after():
-    """_smart_429 returns False when no Retry-After header."""
+def test_handle_429_without_retry_after():
+    """_handle_429 opens circuit even without Retry-After header."""
     strategy = _TestStrategy()
     mock_resp = MagicMock(spec=httpx.Response)
     mock_resp.headers = {}
-    result = strategy._smart_429(mock_resp)
-    assert result is False
+    result = strategy._handle_429(mock_resp)
+    assert result is None
+    assert strategy.is_circuit_open() is True
 
 
 def test_safe_api_call_returns_response_on_success(strategy):
@@ -101,8 +105,8 @@ def test_safe_api_call_returns_response_on_success(strategy):
         assert result is mock_resp
 
 
-def test_safe_api_call_429_fallthrough_no_retry(strategy):
-    """429 without Retry-After → None, NO circuit open."""
+def test_safe_api_call_429_opens_circuit(strategy):
+    """429 opens circuit breaker to avoid hammering exhausted free-tier."""
     mock_resp = MagicMock(spec=httpx.Response)
     mock_resp.status_code = 429
     mock_resp.headers = {}
@@ -111,8 +115,7 @@ def test_safe_api_call_429_fallthrough_no_retry(strategy):
         mock_client.return_value.post.return_value = mock_resp
         result = strategy._safe_api_call("https://api.test.com", {}, {})
         assert result is None
-        # Circuit should NOT be open (429 != server error)
-        assert strategy.is_circuit_open() is False
+        assert strategy.is_circuit_open() is True
 
 
 def test_safe_api_call_500_opens_circuit(strategy):
@@ -150,8 +153,8 @@ def test_safe_api_call_503_opens_circuit(strategy):
         assert strategy.is_circuit_open() is True
 
 
-def test_429_does_not_increment_failure_count(strategy):
-    """429 should NOT increment failure_count."""
+def test_429_increments_failure_count_and_opens_circuit(strategy):
+    """429 opens circuit (sets failure_count to threshold)."""
     initial = strategy.failure_count
     mock_resp = MagicMock(spec=httpx.Response)
     mock_resp.status_code = 429
@@ -160,7 +163,8 @@ def test_429_does_not_increment_failure_count(strategy):
     with patch("parsers.llm_strategies.get_client") as mock_client:
         mock_client.return_value.post.return_value = mock_resp
         strategy._safe_api_call("https://api.test.com", {}, {})
-        assert strategy.failure_count == initial
+        assert strategy.is_circuit_open() is True
+        assert strategy.failure_count > initial  # open_circuit increments
 
 
 def test_500_increments_opens_circuit_immediately(strategy):

@@ -236,7 +236,7 @@ class TestMaxRoldaoWiring:
         assert "reason" in called
         scraper.close()
 
-    def test_roldao_run_reports_failure_when_empty(self, monkeypatch):
+    def test_roldao_run_does_not_report_failure_when_empty(self, monkeypatch):
         from scrapers.roldao_api_scraper import RoldaoApiScraper
 
         scraper = RoldaoApiScraper({"name": "Roldao"})
@@ -249,5 +249,5 @@ class TestMaxRoldaoWiring:
         monkeypatch.setattr(scraper, "report_failure", lambda **k: called.update(k) or {"recorded": True})
         out = scraper.run([])
         assert out == []
-        assert "reason" in called
+        assert "reason" not in called, "report_failure should NOT be called when OCR returns empty (cache hit)"
         scraper.close()

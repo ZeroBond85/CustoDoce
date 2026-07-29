@@ -30,6 +30,11 @@ features:
   # Requer GROQ_API_KEY (ou OPENROUTER/HF) no ambiente. Degrada p/ OCR se ausente.
   ai:
     vision: true
+    # LLM classifier para match 70-80% (match_ingredient -> semantic -> LLM).
+    # LIGADO apenas se quiser validar matches "gray zone" com LLM.
+    # Desligado: match 70-80% vai direto p/ review_queue sem LLM.
+    # Requer GROQ_API_KEY/OPENROUTER_API_KEY. Cuidado: consome quota free-tier.
+    llm_classifier: false
     # Caminho hibrido para encartes DENSOS (RapidOCR + reconstrucao geometrica
     # de preco + LLM-texto p/ nomes). Em flyers densos a vision-LLM retorna 0
     # produtos gastando 30-40s; o hibrido le as centenas de regioes via OCR e

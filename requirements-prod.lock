@@ -30,11 +30,14 @@ cachetools==7.1.4
     # via streamlit
 certifi==2026.6.17
     # via
+    #   curl-cffi
     #   httpcore
     #   httpx
     #   requests
 cffi==2.1.0
-    # via cryptography
+    # via
+    #   cryptography
+    #   curl-cffi
 charset-normalizer==3.4.7
     # via
     #   -r requirements-prod.in
@@ -51,6 +54,8 @@ cryptography==49.0.0
     # via
     #   pdfminer-six
     #   pyjwt
+curl-cffi==0.15.0
+    # via -r requirements-prod.in
 deprecation==2.1.0
     # via
     #   postgrest
@@ -285,7 +290,9 @@ requests==2.34.2
     #   rapidocr
     #   streamlit
 rich==15.0.0
-    # via typer
+    # via
+    #   curl-cffi
+    #   typer
 rpds-py==2026.6.3
     # via
     #   jsonschema

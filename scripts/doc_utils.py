@@ -432,7 +432,18 @@ def count_tests_cached(root: Path, pytest_func) -> dict[str, int]:
                 cached = {}
 
         if cached.get("hash") == state_hash:
-            return cached["counts"]
+            cached_counts = cached.get("counts", {})
+            # Sanity check: cache nao pode ter menos que 20% do esperado.
+            # WSL as vezes tem mtime hash divergente entre Windows e Linux,
+            # retornando cache obsoleto com valores como unit=2 (real ~1258).
+            expected_min = {"unit": 800, "schema": 50, "integration": 50}
+            sane = all(
+                cached_counts.get(k, 0) >= v
+                for k, v in expected_min.items()
+            )
+            if sane:
+                return cached_counts
+            # Cache invalido: ignora e regera
 
     counts = pytest_func()
     cache_file.write_text(

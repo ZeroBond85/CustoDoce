@@ -1,11 +1,14 @@
 """
 LLM Classifier - Orquestrador com Cache, Strategy Pattern e Graceful Degradation.
 
-Pipeline (RFC Recurso 2 + 3):
+Pipeline (RFC Recurso 2 + 3 + Session Exhaustion):
     1. Verifica cache SQLite local (get_cache)
-    2. Cache miss → itera providers [Groq → OpenRouter → HuggingFace]
-    3. Cada provider tem Circuit Breaker (3 falhas → 10 min cooldown)
-    4. Caso todos falhem → fallback seguro {match: False, provider: fallback}
+    2. Cache miss → itera providers [Groq → OpenRouter] (apenas 2 confiáveis)
+    3. Cada provider tem Circuit Breaker (3 falhas → cooldown 60-300s backoff)
+    4. 429 ABRE circuit do provider (evita martelar free-tier esgotado)
+    5. Se TODOS providers configurados falharem → flag "LLM esgotado" por sessão
+    6. Flag evita chamadas LLM pro resto do scrape → review_queue direto
+    7. Caso todos falhem → fallback seguro {match: False, provider: fallback}
 
 Compatibilidade:
     - Mantém API antiga `classify_sync(product_text, candidates)` que retorna
@@ -17,16 +20,12 @@ import contextlib
 
 from parsers.llm_cache import get_cache, set_cache
 from parsers.llm_strategies import (
-    DeepSeekStrategy,
-    GitHubModelsStrategy,
-    GoogleStrategy,
     GroqStrategy,
-    HuggingFaceStrategy,
     LLMResult,
-    MistralStrategy,
-    NVIDIAStrategy,
-    OpenAIStrategy,
     OpenRouterStrategy,
+    _is_llm_exhausted,
+    _set_llm_exhausted,
+    reset_llm_exhausted,
 )
 from services.logger import logger
 
@@ -54,22 +53,17 @@ def _fallback_result(reason: str = "Fallback: All LLM providers unavailable") ->
 
 
 class LLMClassifier:
-    """Orquestrador de classification LLM."""
+    """Orquestrador de classification LLM com session-level exhaustion."""
 
     def __init__(
         self,
         strategies: list | None = None,
     ):
+        # Apenas 2 providers confiáveis no free-tier (Groq + OpenRouter)
+        # Menos providers = menos latência, menos 429, fallback mais rápido
         self.strategies = strategies or [
             GroqStrategy(),
             OpenRouterStrategy(),
-            HuggingFaceStrategy(),
-            GoogleStrategy(),
-            OpenAIStrategy(),
-            MistralStrategy(),
-            DeepSeekStrategy(),
-            NVIDIAStrategy(),
-            GitHubModelsStrategy(),
         ]
 
     def classify_sync(self, product_text: str, candidates: list) -> dict | None:
@@ -78,28 +72,33 @@ class LLMClassifier:
         ou se nenhum provider tiver credencial configurada. Caso contrário
         retorna sempre um dict (nunca crash).
         """
-        from services.config import get as get_config
+        from services.config import get_feature as get_config
 
-        if not get_config("features.ai.llm_classifier", True):
+        if not get_config("features.ai.llm_classifier", ingredient=ingredient_name if (ingredient_name := (candidates[0].get("canonical_name") if candidates else None)) else None, default=False):
             return None
 
         if not candidates:
             return _fallback_result("No candidates provided")
 
         # If all configured providers are missing credentials, signal unavailability.
-        # Strategies that don't implement is_configured() (e.g., test mocks) are
-        # always considered "available".
         has_config_check = [s for s in self.strategies if hasattr(s, "is_configured")]
         if has_config_check and not any(s.is_configured() for s in has_config_check):
             return None
+
+        # 0. Reset session flags at start of scrape
+        reset_llm_exhausted()
 
         # 1. Cache check
         cached = get_cache(product_text)
         if cached is not None:
             return cached
 
-        # 2. Strategy iteration
+        # 2. Strategy iteration — early exit if session exhausted
         for strategy in self.strategies:
+            if _is_llm_exhausted():
+                logger.debug("LLM exhausted flag set, skipping remaining providers")
+                break
+
             if hasattr(strategy, "is_configured") and not strategy.is_configured():
                 continue
             try:
@@ -118,7 +117,11 @@ class LLMClassifier:
                 )
                 continue
 
-        # 4. Graceful degradation
+        # 4. All providers failed → set exhausted flag for rest of scrape
+        _set_llm_exhausted(True)
+        logger.info("All LLM providers failed, LLM exhausted for this scrape session")
+
+        # 5. Graceful degradation
         return _fallback_result()
 
     def flush_cache(self):
@@ -128,13 +131,7 @@ class LLMClassifier:
         return cleanup_ttl()
 
     def reset_circuits(self):
-        """Reseta o estado dos circuit breakers de todos os providers.
-
-        Usado no início de um novo scrape para que um provider que recuperou
-        (ex.: Groq free-tier) seja tentado novamente do zero. Os strategies são
-        instâncias efêmeras por padrão, mas o singleton _default_classifier as
-        mantém; este método zera o contador/cooldown de cada um.
-        """
+        """Reseta circuit breakers + session exhausted flag (novo scrape)."""
         for s in self.strategies:
             if hasattr(s, "failure_count"):
                 s.failure_count = 0
@@ -144,6 +141,7 @@ class LLMClassifier:
                 from parsers.llm_strategies import _get_cooldown_seconds
 
                 s._cooldown_seconds = _get_cooldown_seconds()
+        reset_llm_exhausted()
 
 
 # ====================================================================
@@ -158,5 +156,5 @@ def classify(product_text: str, candidates: list) -> dict | None:
 
 
 def reset_circuits() -> None:
-    """Reseta os circuit breakers do classifier singleton (novo scrape)."""
+    """Reseta os circuit breakers + exhausted flag do classifier singleton (novo scrape)."""
     _default_classifier.reset_circuits()
