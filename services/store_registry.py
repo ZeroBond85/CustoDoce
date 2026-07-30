@@ -8,6 +8,7 @@ Used by collector for auto-discovery from aggregator flyers.
 import logging
 import re
 from dataclasses import dataclass
+from datetime import datetime, UTC
 
 from rapidfuzz import fuzz
 
@@ -417,6 +418,61 @@ def merge_store_address_from_registry(entry: StoreRegistryEntry) -> bool:
     except Exception as exc:
         logger.debug("[store_registry] merge_store_address_from_registry failed: %s", exc)
     return False
+
+
+
+
+def auto_promote_discovered_stores(min_matched_products: int = 2) -> int:
+    """
+    Auto-promote stores from pending_review to approved if they have
+    >= min_matched_products confirmed ingredient matches.
+
+    Only promotes stores that already have a matched_store_id (linked to existing store).
+    New stores without matched_store_id require manual review with scraper config.
+    """
+    try:
+        client = get_service_client()
+    except Exception as exc:
+        logger.warning("store_registry.auto_promote: no supabase client (%s)", exc)
+        return 0
+
+    try:
+        # Query pending stores with their matched product counts
+        query = """
+        SELECT sr.id, sr.name, sr.matched_store_id, COUNT(DISTINCT p.ingredient_id) as matched_count
+        FROM store_registry sr
+        JOIN prices p ON p.store_name = sr.name
+        WHERE sr.status = 'pending_review'
+        GROUP BY sr.id, sr.name, sr.matched_store_id
+        HAVING COUNT(DISTINCT p.ingredient_id) >= %s
+        """
+        result = client.rpc('exec_sql_query', {'query': query, 'params': [min_matched_products]}).execute()
+
+        if not result.data:
+            return 0
+
+        promoted = 0
+        for row in result.data:
+            if row['matched_store_id']:
+                now_iso = datetime.now(UTC).isoformat()
+                # Already matched to existing store - just approve
+                client.table("store_registry").update({
+                    "status": "approved",
+                    "promoted_at": now_iso,
+                    "reviewed_at": now_iso,
+                }).eq("id", row["id"]).execute()
+                logger.info("[store_registry] Auto-promoted %s (matched to store %s, %d products)",
+                           row["name"], row["matched_store_id"], row["matched_count"])
+                promoted += 1
+            # If no matched_store_id, requires manual review with scraper config
+
+        if promoted:
+            logger.info("[store_registry] Auto-promoted %d stores", promoted)
+        return promoted
+
+    except Exception as exc:
+        logger.warning("store_registry.auto_promote failed: %s", exc)
+        return 0
 
 
 def get_registry_entry(entry_id: str) -> StoreRegistryEntry | None:

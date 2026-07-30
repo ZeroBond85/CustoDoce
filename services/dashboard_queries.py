@@ -4,7 +4,10 @@ Extracted from admin/app.py to separate query logic from UI.
 All functions use cached Supabase clients for performance.
 """
 
+from datetime import UTC, datetime
 from functools import lru_cache
+
+from services.logger import logger
 
 from services.config_db import (
     get_active_ingredients,
@@ -165,6 +168,12 @@ def get_active_stores_by_tier(tier: int | None = None):
     if tier:
         stores = [s for s in stores if s.get("tier") == tier]
     return stores
+
+
+def get_active_stores() -> dict[str, str]:
+    """Get active stores as dict of name -> id."""
+    stores = cached_get_all_stores(include_inactive=False)
+    return {s["name"]: s["id"] for s in stores}
 
 
 def get_store_scraper_config(store_name: str):
@@ -370,7 +379,7 @@ def get_store_coverage_health(stale_days: int = 3):
     Isto dá visão no dia a dia de lojas que estão fora sem alarde
     (ex.: Tier 1 zerado por bug de flyer).
     """
-    from datetime import UTC, datetime
+    from datetime import datetime
 
     stores = cached_get_all_stores(include_inactive=False)
     prices = get_latest_prices_cached(valid_only=True, limit=5000)
@@ -462,6 +471,148 @@ def get_scraper_health_dashboard():
             item["latency_label"] = "Fast"
 
     return data
+
+
+# ============================================================
+# Store Registry Queries
+# ============================================================
+
+
+def get_store_registry_pending_cached() -> list[dict]:
+    """Get stores pending review from store_registry."""
+    client = get_supabase()
+    res = client.table("store_registry").select("*").eq("status", "pending_review").order("created_at", desc=True).execute()
+    return res.data or []
+
+
+def get_store_registry_approved_cached() -> list[dict]:
+    """Get approved stores from store_registry, ordered by updated_at."""
+    client = get_supabase()
+    try:
+        res = client.table("store_registry").select("*").eq("status", "approved").order("updated_at", desc=True).execute()
+        return res.data or []
+    except Exception:
+        # Fallback: try ordering by updated_at
+        res = client.table("store_registry").select("*").eq("status", "approved").order("created_at", desc=True).execute()
+        return res.data or []
+
+
+def approve_store_registry_cached(entry_id: str) -> bool:
+    """Approve a store registry entry and populate store_units."""
+    client = get_supabase()
+    try:
+        now_iso = datetime.now(UTC).isoformat()
+        # Fetch entry data before updating
+        entry = client.table("store_registry").select("*").eq("id", entry_id).single().execute()
+        if not entry.data:
+            return False
+
+        client.table("store_registry").update({
+            "status": "approved",
+            "reviewed_at": now_iso,
+            "promoted_at": now_iso,
+        }).eq("id", entry_id).execute()
+
+        # Populate store_units if address exists
+        if entry.data.get("address"):
+            _populate_store_unit(entry.data)
+
+        return True
+    except Exception:
+        # Fallback without promoted_at column
+        try:
+            client.table("store_registry").update({
+                "status": "approved",
+                "reviewed_at": datetime.now(UTC).isoformat(),
+            }).eq("id", entry_id).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to approve store registry {entry_id}: {e}")
+            return False
+
+
+def _populate_store_unit(entry: dict):
+    """Upsert a store_units row from a store_registry entry."""
+    client = get_supabase()
+    store_id = entry.get("matched_store_id") or entry.get("id", "")
+    unit_data = {
+        "store_id": store_id,
+        "unit_name": entry.get("name", ""),
+        "address": entry.get("address", ""),
+        "neighborhood": entry.get("neighborhood", ""),
+        "city": entry.get("city", ""),
+        "source": "store_registry",
+        "confidence": entry.get("address_confidence", 0.5),
+        "is_active": True,
+    }
+    try:
+        client.table("store_units").upsert(unit_data, on_conflict="store_id, address").execute()
+    except Exception as e:
+        logger.debug(f"Failed to populate store_unit: {e}")
+
+
+def reject_store_registry_cached(entry_id: str) -> bool:
+    """Reject a store registry entry."""
+    client = get_supabase()
+    try:
+        client.table("store_registry").update({"status": "rejected"}).eq("id", entry_id).execute()
+        return True
+    except Exception as e:
+        logger.error(f"Failed to reject store registry {entry_id}: {e}")
+        return False
+
+
+def merge_store_registry_cached(entry_id: str, target_store_id: str) -> bool:
+    """Merge a registry entry into an existing store and populate store_units."""
+    client = get_supabase()
+    try:
+        now_iso = datetime.now(UTC).isoformat()
+        # Fetch entry data before updating
+        entry = client.table("store_registry").select("*").eq("id", entry_id).single().execute()
+        if not entry.data:
+            return False
+
+        # Update the registry entry
+        client.table("store_registry").update({
+            "status": "approved",
+            "matched_store_id": target_store_id,
+            "reviewed_at": now_iso,
+            "promoted_at": now_iso,
+        }).eq("id", entry_id).execute()
+
+        # Update the store's address if the registry has one
+        if entry.data.get("address"):
+            client.table("stores").update({"address": entry.data["address"]}).eq("id", target_store_id).execute()
+
+        # Populate store_units
+        unit_data = {
+            "store_id": target_store_id,
+            "unit_name": entry.data.get("name", ""),
+            "address": entry.data.get("address", ""),
+            "neighborhood": entry.data.get("neighborhood", ""),
+            "city": entry.data.get("city", ""),
+            "source": "store_registry",
+            "confidence": entry.data.get("address_confidence", 0.5),
+            "is_active": True,
+        }
+        try:
+            client.table("store_units").upsert(unit_data, on_conflict="store_id, address").execute()
+        except Exception as e:
+            logger.debug(f"Failed to upsert store_unit on merge: {e}")
+
+        return True
+    except Exception:
+        # Fallback without promoted_at column
+        try:
+            client.table("store_registry").update({
+                "status": "approved",
+                "matched_store_id": target_store_id,
+                "reviewed_at": datetime.now(UTC).isoformat(),
+            }).eq("id", entry_id).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to merge store registry {entry_id}: {e}")
+            return False
 
 
 # ============================================================

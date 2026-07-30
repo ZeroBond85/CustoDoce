@@ -1,13 +1,18 @@
 # `store_registry` — API
 
-> Última atualização: 2026-07-29 15:35 UTC
+> Última atualização: 2026-07-30 03:43 UTC
 > Gerado por AST parsing dos serviços em `services/store_registry.py`.
 
-## Funções Públicas (9)
+## Funções Públicas (10)
 
 ### approve_registry_entry(entry_id: str, ingredient_id: str, brand_override: str)
 
 Approve a pending registry entry and attempt merge.
+
+### auto_promote_discovered_stores(min_matched_products: int)
+
+Auto-promote stores from pending_review to approved if they have
+>= min_matched_products confirmed ingredient matches.
 
 ### discover_stores_from_flyers()
 

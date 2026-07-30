@@ -44,11 +44,11 @@ PAGE_FUNCTIONS: dict[str, Callable] = {
     "historico": render_historico,
     "flyers": render_flyers,
     "revisao": render_revisao,
-    "fontes": render_fontes,
     "ranking": render_ranking,
     "insights": render_insights,
     "lojas": render_lojas,
     "lojas_pendentes": render_lojas_pendentes,
+    "lojas_registro": render_lojas_pendentes,
     "ingredientes": render_ingredientes,
     "alertas": render_alertas,
     "scrapers": render_scrapers,
@@ -60,6 +60,7 @@ PAGE_FUNCTIONS: dict[str, Callable] = {
     "promocoes": render_promocoes,
     "capacity_planning": render_capacity_planning,
     "ci_telemetry": render_ci_telemetry,
+    "fontes": render_fontes,
 }
 
 # ── MENU_GROUPS: st.navigation() source of truth ──────────────────────────
@@ -81,6 +82,7 @@ MENU_GROUPS: dict[str, list[tuple[str, str, str]]] = {
     "📦 Cadastros": [
         ("Lojas", "🏪", "lojas"),
         ("Lojas Pendentes", "🕵️", "lojas_pendentes"),
+        ("Registro de Lojas", "📋", "lojas_registro"),
         ("Ingredientes", "🛒", "ingredientes"),
     ],
     "🤖 Operações": [

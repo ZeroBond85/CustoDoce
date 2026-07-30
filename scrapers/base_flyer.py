@@ -206,7 +206,20 @@ class BaseFlyerScraper(ABC):
                 logger.warning("[%s] OCR error: %s", self.name, e)
 
         self._thumbnail = self._render_first_page(content)
-        return self.parse_products(raw_text)
+        products = self.parse_products(raw_text)
+
+        # Tier 1 PDF Summary Logging
+        self._log_tier1_summary(len(products))
+        return products
+
+    def _log_tier1_summary(self, products_matched: int) -> None:
+        """Log summary for Tier 1 PDF flyer collection."""
+        flyer_count = getattr(self, '_flyer_count', 1)
+        ocr_ok = 1 if getattr(self, '_thumbnail', None) else 0
+        logger.info(
+            "[%s] TIER 1 SUMMARY: flyers=%d, ocr_ok=%d, extracted=%d, matched=%d",
+            self.name, flyer_count, ocr_ok, len(self._extracted_products) if hasattr(self, '_extracted_products') else 0, products_matched
+        )
 
     @abstractmethod
     def parse_products(self, text: str) -> list[dict]: ...

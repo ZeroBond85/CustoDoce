@@ -669,6 +669,14 @@ CREATE INDEX IF NOT EXISTS idx_flyers_store_active ON flyers(store_name, is_acti
         gen.append("-- ============================================================")
         gen.append(migration_006_path.read_text(encoding="utf-8"))
 
+    # ─── PHASE 21: promoted_at column on store_registry (008) ──────────
+    migration_008_path = REPO_ROOT / "supabase" / "migrations" / "008_store_registry_promoted_at.sql"
+    if migration_008_path.exists():
+        gen.append("\n-- ============================================================")
+        gen.append("-- PHASE 21: add promoted_at column to store_registry (008_store_registry_promoted_at.sql)")
+        gen.append("-- ============================================================")
+        gen.append(migration_008_path.read_text(encoding="utf-8"))
+
     # ─── PHASE 24: Store Registry + discover_stores_from_flyers (009_store_registry.sql) ──
     store_registry_path = REPO_ROOT / "supabase" / "009_store_registry.sql"
     if store_registry_path.exists():

@@ -9,7 +9,7 @@ from argparse import ArgumentParser, Namespace
 from datetime import UTC, date, datetime
 from pathlib import Path
 
-from scripts.sync_all_store_fields import sync_scrape_frequencies, sync_store_fields
+from scripts.sync_all_store_fields import sync_scrape_frequencies, sync_store_fields, sync_store_units
 from services import collector, email_service, flyer_service, otel, price_analytics, price_intelligence, price_service, store_registry
 from services.maintenance_service import cleanup_test_data
 from services.logger import logger
@@ -156,6 +156,15 @@ def _finalize(all_products: list[dict], ingredients: list, args: Namespace) -> N
     except Exception as e:
         logger.warning("price_intelligence_error", error=str(e))
 
+    # Auto-promote discovered stores with >=2 matched products
+    try:
+        from services.store_registry import auto_promote_discovered_stores
+        promoted = auto_promote_discovered_stores(min_matched_products=2)
+        if promoted:
+            logger.info("auto_promote_completed", promoted=promoted)
+    except Exception as e:
+        logger.warning("auto_promote_error", error=str(e))
+
     snapshot = {
         "collected_at": datetime.now(UTC).isoformat(),
         "total_prices": len(all_products),
@@ -234,7 +243,8 @@ def main(args: Namespace | None = None):
         try:
             n = sync_store_fields()
             m = sync_scrape_frequencies()
-            logger.info("store_fields_synced", updated=n, frequencies=m)
+            u = sync_store_units()
+            logger.info("store_fields_synced", updated=n, frequencies=m, units=u)
         except Exception as e:
             logger.warning("sync_store_fields_error", error=str(e))
 

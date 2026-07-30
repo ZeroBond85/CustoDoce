@@ -1,11 +1,15 @@
 # `dashboard_queries` — API
 
-> Última atualização: 2026-07-29 15:35 UTC
+> Última atualização: 2026-07-30 03:43 UTC
 > Gerado por AST parsing dos serviços em `services/dashboard_queries.py`.
 
-## Funções Públicas (39)
+## Funções Públicas (45)
 
 ### approve_review_item_cached(item_id: str, ingredient_id: str, brand_override: str)
+
+### approve_store_registry_cached(entry_id: str)
+
+Approve a store registry entry and populate store_units.
 
 ### cached_get_active_ingredients()
 
@@ -42,6 +46,10 @@ Extract price_per_un from a row, handling both nested and flat schemas.
 ### get_active_promotions()
 
 Get currently active promotions.
+
+### get_active_stores()
+
+Get active stores as dict of name -> id.
 
 ### get_active_stores_by_tier(tier: int | None)
 
@@ -105,6 +113,14 @@ Visão de cobertura de PREÇOS por loja (não só sucesso do scraper).
 
 Get health status for all stores based on recent logs.
 
+### get_store_registry_approved_cached()
+
+Get approved stores from store_registry, ordered by updated_at.
+
+### get_store_registry_pending_cached()
+
+Get stores pending review from store_registry.
+
 ### get_store_scraper_config(store_name: str)
 
 Get scraper configuration for a store.
@@ -117,5 +133,13 @@ Get all stores with their scrape frequencies merged.
 
 ### load_stores_yaml()
 
+### merge_store_registry_cached(entry_id: str, target_store_id: str)
+
+Merge a registry entry into an existing store and populate store_units.
+
 ### reject_review_item_cached(item_id: str)
+
+### reject_store_registry_cached(entry_id: str)
+
+Reject a store registry entry.
 

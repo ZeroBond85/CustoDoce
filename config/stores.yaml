@@ -689,7 +689,7 @@ stores:
   # ============================================================================
   - name: "Tiendeo"
     tier: 3
-    type: "aggregator_js"
+    type: "aggregator"
     logistics: "pickup_local"
     base_url: "https://www.tiendeo.com.br"
     regions:
@@ -702,18 +702,15 @@ stores:
       - "guaruja"
       - "sao-paulo"
     collection_method: "automated"
-    scraper: "playwright_scraper"
+    scraper: "aggregator_scraper"
     priority: 30
     playwright_timeout: 120000
     playwright_wait_until: "domcontentloaded"
     block_resources: [image, font, stylesheet, media, other]
-    wait_selector: ".brochure-thumb"
-    api_endpoint: "https://www.tiendeo.com.br/api/v2/offers"
+    wait_selector: ".brochure-thumb, [data-testid='flyer-card'], [class*='flyer']"
+    # API: Shopfully backend (api-viewer-zmags.shopfully.cloud) requires client-side auth
+    # The api/v2/offers endpoint is dead (404). Playwright fallback is the default.
     api_fallback: true
-    api_params:
-      store: "{store_id}"
-      lat: "-23.96"
-      lng: "-46.33"
 
   # ============================================================================
   # TIER 3B - AGREGADORES JS (Requer Playwright)
@@ -907,10 +904,6 @@ stores:
   - name: "Chefon"
     tier: 2
     type: "website_catalog"
-    # SOLUCAO RAIZ (2026-07-29): Cloudflare agora protege TAMBEM a rota
-    # /collections/<x>/products.json (httpx retorna 429). curl_cffi com
-    # impersonate="chrome120" contorna o bloqueio via fingerprint TLS/JA3.
-    # Testado em 2026-07-29: 750 produtos em 3 paginas, zero 429.
     logistics: "pickup_sp"
     base_url: "https://chefon.com.br"
     anti_bot: true
@@ -918,14 +911,12 @@ stores:
     shopify_json: true
     shopify_curl_cffi: true
     shopify_curl_cffi_retries: 6
-    shopify_curl_cffi_base_delay: 30
-    shopify_curl_cffi_max_delay: 120
+    shopify_curl_cffi_base_delay: 60
+    shopify_curl_cffi_max_delay: 240
     shopify_playwright_fallback: false
-    rate_limit: 30
-    shopify_collections:
-      - "all"
-    shopify_page_limit: 250
-    shopify_max_pages: 40
+    rate_limit: 15
+    shopify_page_limit: 200
+    shopify_max_pages: 20
     search_url: "https://chefon.com.br/search?q={query}&type=product"
     browse_urls:
       - "https://chefon.com.br/collections/all"
@@ -1020,7 +1011,8 @@ stores:
     cities: ["Santos", "São Vicente", "Praia Grande", "Mongaguá", "Itanhaém", "Peruíbe", "São Paulo"]
     coverage: "Supermercado delivery - leite condensado, creme de leite, chocolate, granulado, coco ralado"
     collection_method: "automated"
-    scraper: "carrefour_graphql_scraper"
+    scraper: "carrefour_hybrid_scraper"
+    # GraphQL (tentativa primeiro, fallback para HTML)
     graphql_endpoint: "https://mercado.carrefour.com.br/_v/segment/graphql/v1"
     headers_custom:
       Accept: "application/json"
@@ -1031,6 +1023,22 @@ stores:
       term: "{query}"
       first: 50
       after: null
+    # HTML category fallback URLs (fornecidos pelo usuário - funcionam)
+    category_urls:
+      - "https://mercado.carrefour.com.br/categoria/mercearia"
+      - "https://mercado.carrefour.com.br/categoria/frios-e-laticinios"
+      - "https://mercado.carrefour.com.br/categoria/hortifruti"
+      - "https://mercado.carrefour.com.br/wl/produtos-carrefour"
+      - "https://mercado.carrefour.com.br/colecao/28617"
+    pagination: "?sort=orders_desc&page={page}"
+    search_url: "https://mercado.carrefour.com.br/busca?q={query}"
+    selectors:
+      product_card: ['[data-testid="product-card"]', '.product-card', '.product', '.product-item']
+      product_name: ['[data-testid="product-name"]', 'h3', '.product-title', '.product-name']
+      product_price: ['[data-testid="product-price"]', '.price', '.product-price', '.product-price__value']
+      product_brand: ['[data-testid="product-brand"]', '.brand', '.product-brand']
+    rate_limit: 2
+    priority: 34
     priority: 34
 
   - name: "Casa Rio Doces"
