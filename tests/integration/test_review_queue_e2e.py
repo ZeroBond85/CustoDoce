@@ -248,10 +248,11 @@ class TestApproveReviewItem:
     """Testa approve_review_item contra banco real."""
 
     TEST_ING_NAME = None  # set in fixture
-    TEST_STORE_ID = "_test_approve_store"
+    TEST_STORE_ID = "_test_review_queue_store"  # deve bater com a fixture test_store
+    TEST_STORE_NAME = "Test Review Queue Store"
 
     def _cleanup(self, client, db_conn):
-        client.table("review_queue").delete().eq("store_name", "Approve Test Store").execute()
+        client.table("review_queue").delete().eq("store_name", self.TEST_STORE_NAME).execute()
         client.table("price_history").delete().eq("store_id", self.TEST_STORE_ID).execute()
         client.table("prices").delete().eq("store_id", self.TEST_STORE_ID).eq("source", "approve_test").execute()
 
@@ -438,6 +439,7 @@ class TestApproveReviewItem:
         # Approve — this should NOT fail with 23505
         result = approve_review_item(item_id, test_ingredient["id"])
         assert result, "approve duplicate price returned empty (was 23505)"
+        assert "error" not in result, f"approve duplicate price falhou: {result.get('error')}"
 
         # Verify price was updated (not duplicated)
         check = (
