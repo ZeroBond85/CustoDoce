@@ -369,3 +369,8 @@ class CarrefourHybridScraper(BaseWebScraper):
     def _throttle(self):
         if self.rate_limit > 0:
             time.sleep(self.rate_limit)
+
+    # Required by BaseWebScraper abstract interface
+    def parse_products(self, raw_data: str) -> list[dict]:
+        """Delegate to HTML parser — used in fallback paths."""
+        return self._parse_html_products(raw_data)

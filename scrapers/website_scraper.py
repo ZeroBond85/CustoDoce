@@ -49,6 +49,7 @@ class WebsiteScraper(BaseWebScraper):
         self.shopify_curl_cffi_base_delay = float(store_config.get("shopify_curl_cffi_base_delay", 15.0))
         self.shopify_curl_cffi_max_delay = float(store_config.get("shopify_curl_cffi_max_delay", 120.0))
         self.shopify_playwright_fallback = bool(store_config.get("shopify_playwright_fallback", False))
+        self._curl_session = None
 
     def fetch_search(self, query: str) -> str | None:
         url = self.search_url.format(query=quote(query))
@@ -185,7 +186,13 @@ class WebsiteScraper(BaseWebScraper):
                 if len(prods) < self.shopify_page_limit:
                     break
                 page += 1
+                # Jitter no delay entre paginas: Cloudflare detecta intervalos fixos
                 self._throttle()
+                if self.shopify_curl_cffi and _HAS_CURL_CFFI:
+                    import random as _random
+                    _time.sleep(_random.uniform(1.0, 3.0))  #noqa: S311 — jitter nao-critico
+
+        self._close_curl_session()
 
         if _pw_ctx:
             _pw_ctx[0].close()
@@ -240,8 +247,35 @@ class WebsiteScraper(BaseWebScraper):
             logger.error("[%s] Playwright init falhou: %s", self.name, e)
             return None, None
 
+    # ── curl_cffi session management (persistent cookies + TLS fingerprint) ──
+
+    def _get_curl_session(self):
+        """Lazy-init persistent curl_cffi Session for cookie/TLS reuse across pages."""
+        if self._curl_session is None and self.shopify_curl_cffi and _HAS_CURL_CFFI:
+            self._curl_session = curl_requests.Session(impersonate="chrome")
+            self._curl_session.headers.update({
+                "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Referer": "https://www.google.com/",
+                "Sec-Fetch-Dest": "empty",
+                "Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Site": "same-origin",
+            })
+        return self._curl_session
+
+    def _close_curl_session(self):
+        if self._curl_session is not None:
+            from contextlib import suppress
+            with suppress(Exception):
+                self._curl_session.close()
+            self._curl_session = None
+
     def _fetch_shopify_page(self, url: str, page: int) -> dict | None:
-        """Busca 1 pagina via curl_cffi com retry + backoff exponencial.
+        """Busca 1 pagina via curl_cffi Session com retry + backoff exponencial.
+
+        Usa sessao persistente (``_get_curl_session()``) para reutilizar
+        cookies ``__cf_bm`` e fingerprint TLS entre paginas — Cloudflare
+        enxerga uma unica sessao browser, nao requisicoes isoladas.
 
         Parametros de retry sao configurados via stores.yaml:
           shopify_curl_cffi_retries (default 4)
@@ -256,22 +290,29 @@ class WebsiteScraper(BaseWebScraper):
         params = {"limit": self.shopify_page_limit, "page": page}
 
         if self.shopify_curl_cffi and _HAS_CURL_CFFI:
+            session = self._get_curl_session()
             for attempt in range(self.shopify_curl_cffi_retries):
                 try:
-                    resp = curl_requests.get(
-                        url, params=params, timeout=30, impersonate="chrome120",
-                    )
+                    if session is not None:
+                        resp = session.get(url, params=params, timeout=30)
+                    else:
+                        resp = curl_requests.get(
+                            url, params=params, timeout=30, impersonate="chrome",
+                        )
                     resp.raise_for_status()
                     return resp.json()
                 except Exception as e:
                     status = getattr(getattr(e, "response", None), "status_code", None)
                     if status == 429:
                         if attempt < self.shopify_curl_cffi_retries - 1:
+                            import random as _rand
                             delay = min(
                                 self.shopify_curl_cffi_base_delay * (2**attempt),
                                 self.shopify_curl_cffi_max_delay,
                             )
-                            logger.warning(
+                            # Jitter: +/- 20% para parecer menos robotic
+                            delay *= _rand.uniform(0.8, 1.2)  #noqa: S311 — jitter nao-critico
+                            logger.info(
                                 "[%s] curl_cffi 429 page %d (attempt %d/%d) — retry %.0fs",
                                 self.name, page, attempt + 1, self.shopify_curl_cffi_retries, delay,
                             )

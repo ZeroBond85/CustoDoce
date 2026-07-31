@@ -437,34 +437,43 @@ def auto_promote_discovered_stores(min_matched_products: int = 2) -> int:
         return 0
 
     try:
-        # Query pending stores with their matched product counts
-        query = """
-        SELECT sr.id, sr.name, sr.matched_store_id, COUNT(DISTINCT p.ingredient_id) as matched_count
-        FROM store_registry sr
-        JOIN prices p ON p.store_name = sr.name
-        WHERE sr.status = 'pending_review'
-        GROUP BY sr.id, sr.name, sr.matched_store_id
-        HAVING COUNT(DISTINCT p.ingredient_id) >= %s
-        """
-        result = client.rpc('exec_sql_query', {'query': query, 'params': [min_matched_products]}).execute()
-
-        if not result.data:
+        # Get pending stores that already have a matched_store_id
+        pending = client.table("store_registry")\
+            .select("id, name, matched_store_id")\
+            .eq("status", "pending_review")\
+            .execute()
+        if not pending.data:
             return 0
 
         promoted = 0
-        for row in result.data:
-            if row['matched_store_id']:
-                now_iso = datetime.now(UTC).isoformat()
-                # Already matched to existing store - just approve
-                client.table("store_registry").update({
-                    "status": "approved",
-                    "promoted_at": now_iso,
-                    "reviewed_at": now_iso,
-                }).eq("id", row["id"]).execute()
-                logger.info("[store_registry] Auto-promoted %s (matched to store %s, %d products)",
-                           row["name"], row["matched_store_id"], row["matched_count"])
-                promoted += 1
-            # If no matched_store_id, requires manual review with scraper config
+        for entry in pending.data:
+            store_name = entry["name"]
+            matched_id = entry.get("matched_store_id")
+            entry_id = entry["id"]
+
+            # Only promote stores with an existing matched_store_id
+            if not matched_id:
+                continue
+
+            # Count distinct ingredients matched in prices for this store
+            prices = client.table("prices")\
+                .select("ingredient_id")\
+                .eq("store_name", store_name)\
+                .execute()
+            matched_count = len({p.get("ingredient_id") for p in (prices.data or []) if p.get("ingredient_id")})
+
+            if matched_count < min_matched_products:
+                continue
+
+            now_iso = datetime.now(UTC).isoformat()
+            client.table("store_registry").update({
+                "status": "approved",
+                "promoted_at": now_iso,
+                "reviewed_at": now_iso,
+            }).eq("id", entry_id).execute()
+            logger.info("[store_registry] Auto-promoted %s (matched to store %s, %d products)",
+                        store_name, matched_id, matched_count)
+            promoted += 1
 
         if promoted:
             logger.info("[store_registry] Auto-promoted %d stores", promoted)

@@ -500,7 +500,7 @@ def _text_llm_providers() -> list[dict]:
                 "model": os.environ.get("OPENROUTER_MODEL", "openrouter/free"),
             }
         )
-    gh = os.environ.get("GH_MODELS_TOKEN", "") or os.environ.get("GITHUB_TOKEN", "")
+    gh = os.environ.get("GH_MODELS_TOKEN", "")
     if gh:
         providers.append(
             {

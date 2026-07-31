@@ -911,12 +911,12 @@ stores:
     shopify_json: true
     shopify_curl_cffi: true
     shopify_curl_cffi_retries: 6
-    shopify_curl_cffi_base_delay: 60
+    shopify_curl_cffi_base_delay: 120
     shopify_curl_cffi_max_delay: 240
     shopify_playwright_fallback: false
     rate_limit: 15
     shopify_page_limit: 200
-    shopify_max_pages: 20
+    shopify_max_pages: 12
     search_url: "https://chefon.com.br/search?q={query}&type=product"
     browse_urls:
       - "https://chefon.com.br/collections/all"

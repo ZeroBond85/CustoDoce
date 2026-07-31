@@ -514,8 +514,8 @@ def _ocr_text_to_products(raw_text: str) -> list[dict]:
 class GitHubModelsVisionStrategy(VisionStrategy):
     """GitHub Models — GPT-4o com visao via Azure AI (gratuito, OpenAI-compat).
 
-    Requer GITHUB_TOKEN no ambiente (ja existe no CI). Rate limit: ~10 RPM,
-    50-150 RPD no free tier.
+    Requer GH_MODELS_TOKEN (NÃO GITHUB_TOKEN — o token auto do Actions não tem
+    escopo models/copilot). Rate limit: ~10 RPM, 50-150 RPD no free tier.
     """
 
     provider_name = "github_models"
@@ -524,7 +524,7 @@ class GitHubModelsVisionStrategy(VisionStrategy):
 
     def __init__(self):
         super().__init__()
-        self._api_key = os.environ.get("GH_MODELS_TOKEN", "") or os.environ.get("GITHUB_TOKEN", "")
+        self._api_key = os.environ.get("GH_MODELS_TOKEN", "")
         self._url = "https://models.inference.ai.azure.com/chat/completions"
         self.model = "gpt-4o"
 
