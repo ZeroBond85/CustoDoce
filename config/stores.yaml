@@ -763,6 +763,11 @@ stores:
     collection_method: "automated"
     scraper: "roldao_flyer_scraper"
     priority: 34
+    # Duplicata legada: Tier 1 (roldao_api_scraper) já cobre o Roldão com 117+
+    # produtos via WP API. Este scraper foi criado para cards de produto que não
+    # existem mais na página (agora só renderiza imagens de encarte) → 0 produtos
+    # + warning coleta vazia. Desativado (is_active=false no DB).
+    is_active: false
 
   # ============================================================================
   # TIER 3C - FACEBOOK FLYERS (Best-effort OCR via Playwright)
@@ -1012,7 +1017,8 @@ stores:
     coverage: "Supermercado delivery - leite condensado, creme de leite, chocolate, granulado, coco ralado"
     collection_method: "automated"
     scraper: "carrefour_hybrid_scraper"
-    # GraphQL (tentativa primeiro, fallback para HTML)
+    # GraphQL endpoint retorna 503 (desativado 2026-07-31) — HTML e o caminho ativo
+    use_graphql: false
     graphql_endpoint: "https://mercado.carrefour.com.br/_v/segment/graphql/v1"
     headers_custom:
       Accept: "application/json"
@@ -1033,9 +1039,9 @@ stores:
     pagination: "?sort=orders_desc&page={page}"
     search_url: "https://mercado.carrefour.com.br/busca?q={query}"
     selectors:
-      product_card: ['[data-testid="product-card"]', '.product-card', '.product', '.product-item']
-      product_name: ['[data-testid="product-name"]', 'h3', '.product-title', '.product-name']
-      product_price: ['[data-testid="product-price"]', '.price', '.product-price', '.product-price__value']
+      product_card: ['[data-testid="search-product-card"]', '[data-testid="highlight-product-card"]', '.product-card', '.product', '.product-item']
+      product_name: ['[data-testid="product-name"]', 'h2', 'h3', '.product-title', '.product-name']
+      product_price: ['.text-price-default', '[data-testid="product-price"]', '.price', '.product-price', '.product-price__value']
       product_brand: ['[data-testid="product-brand"]', '.brand', '.product-brand']
     rate_limit: 2
     priority: 34

@@ -26,7 +26,6 @@ from parsers.matcher import (
 )
 from parsers.normalizer import normalize_price
 from parsers.semantic_matcher import get_matcher
-from scrapers.aggregator_scraper import TiendeoScraper
 from scrapers.carrefour_hybrid_scraper import CarrefourHybridScraper
 from scrapers.ecomplus_scraper import EcomplusScraper
 from scrapers.extra_flyer_scraper import ExtraFlyerScraper
@@ -938,7 +937,10 @@ def collect_aggregators_ssr() -> list[dict]:
 
 
 def _run_ssr_scraper(store: dict) -> list[dict]:
-    scraper = TiendeoScraper(store)
+    # Tiendeo bloqueia HTTP SSR com 403 (Cloudflare). Playwright-first.
+    from scrapers.aggregator_scraper import TiendeoPlaywrightScraper
+
+    scraper = TiendeoPlaywrightScraper(store)
     return scraper.run()
 
 

@@ -7,6 +7,7 @@ Valida que registros antigos são removidos e registros novos são mantidos.
 import sys
 import time
 import uuid
+from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -155,40 +156,59 @@ class TestDbCleanup:
 
         return store_id, store_name
 
+    def _cleanup_test_data(self, client, store_id: str, store_name: str):
+        """Remove dados de teste criados pelo setup (evita vazamento no banco real)."""
+        with suppress(Exception):
+            _retry_supabase(client.table("scraping_logs").delete().eq("store_name", store_name))
+        with suppress(Exception):
+            _retry_supabase(client.table("flyers").delete().eq("store_name", store_name))
+        with suppress(Exception):
+            _retry_supabase(client.table("price_history").delete().eq("store_id", store_id))
+        with suppress(Exception):
+            _retry_supabase(client.table("prices").delete().eq("store_id", store_id))
+        with suppress(Exception):
+            _retry_supabase(client.table("stores").delete().eq("id", store_id))
+
     def test_cleanup_old_prices(self, real_supabase):
         """Valida cleanup_old_prices(retention_days)."""
         store_id, store_name = self._setup_test_data(real_supabase, include_flyers=False)
+        try:
+            _retry_supabase(real_supabase.rpc("cleanup_old_prices", {"retention_days": 30}))
 
-        _retry_supabase(real_supabase.rpc("cleanup_old_prices", {"retention_days": 30}))
+            res = _retry_supabase(real_supabase.table("prices").select("raw_product").eq("ingredient_id", self.TEST_ING))
+            products = [r["raw_product"] for r in res.data]
 
-        res = _retry_supabase(real_supabase.table("prices").select("raw_product").eq("ingredient_id", self.TEST_ING))
-        products = [r["raw_product"] for r in res.data]
-
-        assert "New" in products
-        assert "Old" not in products, "Price antigo não foi removido"
+            assert "New" in products
+            assert "Old" not in products, "Price antigo não foi removido"
+        finally:
+            self._cleanup_test_data(real_supabase, store_id, store_name)
 
     def test_cleanup_old_logs(self, real_supabase):
         """Valida cleanup_old_logs(retention_days)."""
         store_id, store_name = self._setup_test_data(real_supabase, include_flyers=False)
+        try:
+            _retry_supabase(real_supabase.rpc("cleanup_old_logs", {"retention_days": 30}))
 
-        _retry_supabase(real_supabase.rpc("cleanup_old_logs", {"retention_days": 30}))
+            res = _retry_supabase(real_supabase.table("scraping_logs").select("started_at").eq("store_name", store_name))
+            today_limit = datetime.now(UTC) - timedelta(days=30)
 
-        res = _retry_supabase(real_supabase.table("scraping_logs").select("started_at").eq("store_name", store_name))
-        today_limit = datetime.now(UTC) - timedelta(days=30)
-
-        for log in res.data:
-            started_at = datetime.fromisoformat(log["started_at"].replace("Z", "+00:00"))
-            assert started_at > today_limit, f"Log antigo permaneceu: {started_at}"
+            for log in res.data:
+                started_at = datetime.fromisoformat(log["started_at"].replace("Z", "+00:00"))
+                assert started_at > today_limit, f"Log antigo permaneceu: {started_at}"
+        finally:
+            self._cleanup_test_data(real_supabase, store_id, store_name)
 
     def test_cleanup_old_flyers(self, real_supabase):
         """Valida cleanup_old_flyers_all(retention_days)."""
         store_id, store_name = self._setup_test_data(real_supabase, include_flyers=True)
+        try:
+            _retry_supabase(real_supabase.rpc("cleanup_old_flyers_all", {"retention_days": 30}))
 
-        _retry_supabase(real_supabase.rpc("cleanup_old_flyers_all", {"retention_days": 30}))
+            res = _retry_supabase(real_supabase.table("flyers").select("collected_at").eq("store_name", store_name))
+            today_limit = datetime.now(UTC) - timedelta(days=30)
 
-        res = _retry_supabase(real_supabase.table("flyers").select("collected_at").eq("store_name", store_name))
-        today_limit = datetime.now(UTC) - timedelta(days=30)
-
-        for flyer in res.data:
-            collected_at = datetime.fromisoformat(flyer["collected_at"].replace("Z", "+00:00"))
-            assert collected_at > today_limit, f"Flyer antigo permaneceu: {collected_at}"
+            for flyer in res.data:
+                collected_at = datetime.fromisoformat(flyer["collected_at"].replace("Z", "+00:00"))
+                assert collected_at > today_limit, f"Flyer antigo permaneceu: {collected_at}"
+        finally:
+            self._cleanup_test_data(real_supabase, store_id, store_name)

@@ -35,6 +35,8 @@ class CarrefourHybridScraper(BaseWebScraper):
         selectors = store_config.get("selectors", {})
         self.selectors = {
             "product_card": selectors.get("product_card", [
+                '[data-testid="search-product-card"]',
+                '[data-testid="highlight-product-card"]',
                 '[data-testid="product-card"]',
                 ".product-card",
                 ".product",
@@ -45,6 +47,7 @@ class CarrefourHybridScraper(BaseWebScraper):
             ]),
             "product_name": selectors.get("product_name", [
                 '[data-testid="product-name"]',
+                "h2",
                 "h3",
                 ".product-title",
                 ".product-name",
@@ -52,6 +55,7 @@ class CarrefourHybridScraper(BaseWebScraper):
                 "[class*='ProductName']",
             ]),
             "product_price": selectors.get("product_price", [
+                ".text-price-default",
                 '[data-testid="product-price"]',
                 ".price",
                 ".product-price",
@@ -259,11 +263,21 @@ class CarrefourHybridScraper(BaseWebScraper):
         return missing_entries
 
     def _search_html(self, query: str) -> list[dict]:
-        """Busca HTML via search_url."""
+        """Busca HTML via search_url.
+
+        O Carrefour redireciona ``/busca?q=`` para ``/busca/{query}`` e retorna
+        500 quando o path contem ``%25`` (query original com ``%``, ex.:
+        "Creme de Leite 20%"). Sanitiza o ``%`` antes de montar a URL.
+        """
         if not self.search_url:
             return []
 
-        url = self.search_url.format(query=quote(query))
+        # Carrefour 500 em busca com '%' (ex: "Chocolate 70%") — remove o char
+        cleaned = re.sub(r"%", "", query).strip()
+        if not cleaned:
+            return []
+
+        url = self.search_url.format(query=quote(cleaned))
         html = self._fetch_html(url)
         if not html:
             return []

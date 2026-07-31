@@ -5,6 +5,7 @@ Mark with @pytest.mark.real to run separately from fast mock tests.
 """
 
 import os
+from contextlib import suppress
 from pathlib import Path
 
 import pytest
@@ -314,32 +315,37 @@ def test_real_ocr_processing():
     }
     upsert_flyer(dummy_flyer)
 
-    pending = get_pending_flyers(limit=1)
-    if not pending:
-        pytest.fail("Failed to insert dummy flyer for OCR test")
+    try:
+        pending = get_pending_flyers(limit=1)
+        if not pending:
+            pytest.fail("Failed to insert dummy flyer for OCR test")
 
-    flyer = pending[0]
-    img_url = flyer["image_url"]
+        flyer = pending[0]
+        img_url = flyer["image_url"]
 
-    # Patch both the HTTP call and the OCR logic
-    with patch("httpx.get") as mock_get, patch("scrapers.ocr.ocr_image_bytes") as mock_ocr:
-        mock_get.return_value = type(
-            "obj",
-            (object,),
-            {
-                "status_code": 200,
-                "content": b"fake image bytes" * 200,
-            },
-        )
-        mock_ocr.return_value = "Extracted Product Name 10.00"
+        # Patch both the HTTP call and the OCR logic
+        with patch("httpx.get") as mock_get, patch("scrapers.ocr.ocr_image_bytes") as mock_ocr:
+            mock_get.return_value = type(
+                "obj",
+                (object,),
+                {
+                    "status_code": 200,
+                    "content": b"fake image bytes" * 200,
+                },
+            )
+            mock_ocr.return_value = "Extracted Product Name 10.00"
 
-        from scrapers.ocr import ocr_image_bytes
+            from scrapers.ocr import ocr_image_bytes
 
-        resp = httpx.get(img_url, timeout=30)
-        img_bytes = resp.content
-        text = ocr_image_bytes(img_bytes)
-        assert isinstance(text, str)
-        assert len(text) > 0
+            resp = httpx.get(img_url, timeout=30)
+            img_bytes = resp.content
+            text = ocr_image_bytes(img_bytes)
+            assert isinstance(text, str)
+            assert len(text) > 0
+    finally:
+        # Remove o flyer de teste para não vazar para o banco real.
+        with suppress(Exception):
+            client.table("flyers").delete().eq("store_name", "OCR Test Store").execute()
 
 
 @pytest.mark.slow
