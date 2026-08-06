@@ -629,6 +629,10 @@ _GENERIC_MD_FILES: list[str] = [
     "docs/deployment-staging.md",
     "docs/migration-guide.md",
     "docs/ROLLBACK_PROD.md",
+    ".github/BACKUP_POLICY.md",
+    ".github/CONCURRENCY.md",
+    ".github/SECURITY.md",
+    "docs/design/DESIGN-store-discovery-dedup-address.md",
 ]
 
 

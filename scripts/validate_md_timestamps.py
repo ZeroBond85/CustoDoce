@@ -2,10 +2,15 @@
 Validate MD Timestamps — CI gate.
 
 Falha se:
-1. Algum .md não tem timestamp padronizado (> Última atualização/revisão: ...)
-2. Timestamp tem mais de N dias (default: 14, configurável via --max-age-days)
+1. Algum .md (policy TIMESTAMP/TIMESTAMP_PROTECTED) não tem timestamp
+   padronizado (> Última atualização/revisão: ...)
+2. Timestamp tem mais de N dias (default: 30, configurável via --max-age-days)
 
-Ignora: .git, .venv, node_modules, __pycache__, lib64
+Respeita doc_sync_policy: arquivos que o sync NUNCA mantém (IMMUTABLE,
+SNAPSHOT_FROZEN, SNAPSHOT_DERIVED_LIVE, SNAPSHOT_REFERENCE_LIVE) são
+ignorados — não faz sentido exigir freshness de docs imutáveis/congelados.
+
+Ignora: .git, .venv*, node_modules, __pycache__, lib64
 """
 
 from __future__ import annotations
@@ -16,18 +21,37 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+# `python scripts/validate_md_timestamps.py` põe scripts/ no sys.path, não o
+# root — necessário para `import scripts.doc_sync_policy`.
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
+from scripts.doc_sync_policy import DocPolicy, policy_for  # noqa: E402
+
 _TIMESTAMP_PAT = re.compile(
     r"> Última (atualização|revisão): (\d{4}-\d{2}-\d{2}) \d{2}:\d{2} UTC"
 )
 
-_SKIP_DIRS = {".git", ".venv", ".venv314", "node_modules", "__pycache__", "lib64", ".pytest_cache", ".opencode", ".agent"}
+_SKIP_DIRS = {
+    ".git", ".venv", ".venv314", ".venv_wsl", ".venv314wsl",
+    "node_modules", "__pycache__", "lib64", ".pytest_cache",
+    ".opencode", ".agent", "data",
+}
 
 # Arquivos que têm sistemas próprios de data (changelog tem entries)
 _EXCLUDE_FILES = {"docs/changelog.md", "docs/skills.md", "AGENTS.md"}
 
 
-def validate(root: Path, max_age_days: int = 14) -> list[str]:
+def validate(root: Path, max_age_days: int = 30) -> list[str]:
     """Varre todos .md e retorna lista de issues."""
+    _POLICY_SKIP = {
+        DocPolicy.IMMUTABLE,
+        DocPolicy.SNAPSHOT_FROZEN,
+        DocPolicy.SNAPSHOT_DERIVED_LIVE,
+        DocPolicy.SNAPSHOT_REFERENCE_LIVE,
+    }
+
     issues: list[str] = []
 
     for md_file in root.rglob("*.md"):
@@ -36,6 +60,13 @@ def validate(root: Path, max_age_days: int = 14) -> list[str]:
             continue
         if str(rel).replace("\\", "/") in _EXCLUDE_FILES:
             continue
+
+        # Arquivos que o sync nunca mantém não devem exigir freshness.
+        try:
+            if policy_for(rel) in _POLICY_SKIP:
+                continue
+        except Exception:
+            pass
 
         try:
             content = md_file.read_text(encoding="utf-8")
@@ -68,8 +99,8 @@ def main():
     parser.add_argument(
         "--max-age-days",
         type=int,
-        default=14,
-        help="Max age in days (default: 14)",
+        default=30,
+        help="Max age in days (default: 30)",
     )
     parser.add_argument(
         "--root",

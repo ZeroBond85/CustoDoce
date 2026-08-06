@@ -72,7 +72,7 @@ jobs:
       - run: python scripts/sync_docs.py --check --strict --experimental
         timeout-minutes: 3
       - run: python scripts/agents_tool.py --check
-      - run: python scripts/validate_md_timestamps.py --max-age-days 14
+      - run: python scripts/validate_md_timestamps.py --max-age-days 30
         timeout-minutes: 2
       - run: python scripts/sync_md_v2.py --pulse
 

@@ -185,7 +185,7 @@ def check_sync_docs() -> tuple[str, subprocess.CompletedProcess]:
         return "sync_docs", fix
 
     rev_applied = subprocess.run(  # noqa: S603
-        ["git", "status", "--porcelain"],
+        ["git", "status", "--porcelain"],  # noqa: S607
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
@@ -196,8 +196,6 @@ def check_sync_docs() -> tuple[str, subprocess.CompletedProcess]:
     if rev_applied.returncode != 0:
         print("  [sync_docs] git status falhou pós-apply", file=sys.stderr)
         return "sync_docs", rev_applied
-
-    import json as _json
 
     try:
         from scripts.doc_sync_policy import DocPolicy, policy_for  # type: ignore
@@ -251,7 +249,7 @@ def check_sync_docs() -> tuple[str, subprocess.CompletedProcess]:
 
     for path in eligible_to_add:
         subprocess.run(  # noqa: S603
-            ["git", "add", "--", path],
+            ["git", "add", "--", path],  # noqa: S607
             cwd=REPO_ROOT,
             capture_output=True,
             text=True,
@@ -269,6 +267,18 @@ def check_sync_docs() -> tuple[str, subprocess.CompletedProcess]:
     return "sync_docs", rev
 
 
+def check_md_timestamps() -> tuple[str, subprocess.CompletedProcess]:
+    """Gate de timestamps local — igual ao CI (docs-sync job).
+
+    Roda APÓS sync_docs (auto-fix já aplicou timestamps). Fecha o gap:
+    push não deve chegar ao CI com docs velhos (padrão 30 dias, respeita
+    policies — ADRs/snapshots imutáveis ficam fora).
+    """
+    return "md_timestamps", run(
+        [THIS_PYTHON, "scripts/validate_md_timestamps.py", "--max-age-days", "30"]
+    )
+
+
 PARALLEL_CHECKS = [
     check_audit_secrets,
     check_agents_tool,
@@ -280,6 +290,7 @@ PARALLEL_CHECKS = [
     check_line_endings,
     check_gitattributes_hooks,
     check_sync_docs,
+    check_md_timestamps,
 ]
 
 

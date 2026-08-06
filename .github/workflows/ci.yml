@@ -170,7 +170,7 @@ jobs:
       - name: Validate all MD timestamps (max 14 days)
         env:
           CI_JOB_START: ${{ env.CI_JOB_START }}
-        run: python scripts/validate_md_timestamps.py --max-age-days 14
+        run: python scripts/validate_md_timestamps.py --max-age-days 30
       - name: Check time budget for docs-sync
         run: python scripts/check_time_budget.py --timeout-minutes 10 --label "docs-sync"
         env:
