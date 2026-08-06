@@ -937,8 +937,19 @@ def collect_aggregators_ssr() -> list[dict]:
 
 
 def _run_ssr_scraper(store: dict) -> list[dict]:
-    # Tiendeo bloqueia HTTP SSR com 403 (Cloudflare). Playwright-first.
-    from scrapers.aggregator_scraper import TiendeoPlaywrightScraper
+    # Tiendeo bloqueava HTTP SSR com 403 (Cloudflare) — agora usa curl_cffi
+    # (impersonate="chrome") que bypassa a detecção TLS. Playwright fica como
+    # fallback caso o curl_cffi ainda seja bloqueado (ex.: IP datacenter).
+    from scrapers.aggregator_scraper import TiendeoPlaywrightScraper, TiendeoScraper
+
+    try:
+        flyers = TiendeoScraper(store).run()
+        if flyers:
+            logger.info("[%s] TiendeoScraper (curl_cffi) coletou %d flyers", store.get("name", "unknown"), len(flyers))
+            return flyers
+        logger.warning("[%s] TiendeoScraper (curl_cffi) retornou 0 flyers — usando Playwright fallback", store.get("name", "unknown"))
+    except Exception as e:
+        logger.warning("[%s] TiendeoScraper (curl_cffi) falhou: %s — usando Playwright fallback", store.get("name", "unknown"), e)
 
     scraper = TiendeoPlaywrightScraper(store)
     return scraper.run()

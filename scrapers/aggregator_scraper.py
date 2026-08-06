@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import httpx
+from curl_cffi.requests import AsyncSession, Session
 from selectolax.parser import HTMLParser
 
 from services.logger import logger
@@ -175,9 +175,10 @@ class TiendeoScraper:
         # cidades. Usado quando uma loja tem cobertura própria e estável.
         self.store_slug = store_config.get("store_slug")
         self.ua_pool = UA_POOL
-        self.session = httpx.Client(
+        self.session = Session(
             timeout=30.0,
-            follow_redirects=True,
+            allow_redirects=True,
+            impersonate="chrome",
             headers={
                 "User-Agent": DEFAULT_UA,
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
@@ -348,8 +349,6 @@ class TiendeoScraper:
 
                 return html
 
-            except httpx.HTTPStatusError as e:
-                logger.warning("[%s] HTTP %d for %s - attempt %d/%d", self.name, e.response.status_code, url, attempt + 1, max_retries + 1)
             except Exception as e:
                 logger.error("[%s] Error fetching %s: %s - attempt %d/%d", self.name, url, e, attempt + 1, max_retries + 1)
 
@@ -443,7 +442,7 @@ class TiendeoScraper:
         today = datetime.now(UTC)
         return today.year + 1 if month < today.month else today.year
 
-    async def _fetch_city_async(self, client: httpx.AsyncClient, url: str) -> str | None:
+    async def _fetch_city_async(self, client: AsyncSession, url: str) -> str | None:
         for attempt in range(3):
             try:
                 resp = await client.get(url, timeout=30.0)
@@ -469,7 +468,7 @@ class TiendeoScraper:
             "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
         }
 
-        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, headers=headers) as client:
+        async with AsyncSession(timeout=30.0, allow_redirects=True, impersonate="chrome", headers=headers) as client:
             tasks = [self._fetch_city_async(client, url) for url, _ in city_urls]
             results = await asyncio.gather(*tasks)
 
