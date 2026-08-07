@@ -84,6 +84,38 @@ def _merge_store_config(store: Store) -> Store:
     return merged
 
 
+def _filter_by_env_stores(stores: list[Store]) -> list[Store]:
+    """Aplica o filtro CUSTODOCE_STORES_FILTER (nomes separados por virgula).
+
+    Case-insensitive, match por substring do nome da loja. Vazio/ausente = sem
+    filtro (todas as lojas). Usado por main.py (--stores-filter) para rodar
+    coleta parcial (ex.: job macOS dedicado só p/ Tiendeo + Carrefour).
+
+    Regra (inclusão → exclusão, nessa ordem):
+      - Inclusão: termos comuns ("Tiendeo,Carrefour Mercado") mantém só as
+        lojas que casam com PELO MENOS UM termo. Sem termos de inclusão → todas.
+      - Exclusão: termos com prefixo "-" ("-Tiendeo,-Carrefour") removem as
+        lojas que casam com PELO MENOS UM termo de exclusão.
+
+    Ex.: "--stores-filter 'Tiendeo,-Carrefour'" → mantém Tiendeo, remove
+    Carrefour (mesmo se casar). Ex.: "-Tiendeo,-Carrefour" → tudo menos os dois.
+    """
+    raw = os.environ.get("CUSTODOCE_STORES_FILTER", "").strip()
+    if not raw:
+        return stores
+    terms = [t.strip().lower() for t in raw.split(",") if t.strip()]
+    if not terms:
+        return stores
+    exclude = [t[1:].strip() for t in terms if t.startswith("-") and t[1:].strip()]
+    include = [t for t in terms if not t.startswith("-") and t]
+    result = stores
+    if include:
+        result = [s for s in result if any(t in str(s.get("name", "")).lower() for t in include)]
+    if exclude:
+        result = [s for s in result if not any(t in str(s.get("name", "")).lower() for t in exclude)]
+    return result
+
+
 def load_stores() -> list[Store]:
     all_stores = get_active_stores()
     if not all_stores:
@@ -98,6 +130,7 @@ def load_stores() -> list[Store]:
     # Include store if it has no freq row (use tier default), or if its freq row is enabled.
     # Explicitly disabled rows (enabled=False) still exclude the store.
     active = [s for s in all_stores if s.get("id") not in freq_by_store or freq_by_store.get(s["id"], True)]
+    active = _filter_by_env_stores(active)
     return [_merge_store_config(s) for s in active]
 
 

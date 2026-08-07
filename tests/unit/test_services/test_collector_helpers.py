@@ -76,6 +76,65 @@ def test_should_skip_store_bypassed_by_force_env():
     mock_db.assert_not_called()
 
 
+def test_filter_by_env_stores_no_env_returns_all():
+    stores = [{"name": "Tiendeo", "tier": 3}, {"name": "Carrefour Mercado", "tier": 2}]
+    with patch.dict(os.environ, {}, clear=True):
+        out = collector._filter_by_env_stores(stores)
+    assert out == stores
+
+
+def test_filter_by_env_stores_case_insensitive_substring():
+    stores = [
+        {"name": "Tiendeo", "tier": 3},
+        {"name": "Carrefour Mercado", "tier": 2},
+        {"name": "Kimbino", "tier": 3},
+    ]
+    with patch.dict(os.environ, {"CUSTODOCE_STORES_FILTER": "tiendeo, CARREFOUR"}):
+        out = collector._filter_by_env_stores(stores)
+    assert [s["name"] for s in out] == ["Tiendeo", "Carrefour Mercado"]
+
+
+def test_filter_by_env_stores_empty_and_blank_terms():
+    stores = [{"name": "Tiendeo"}, {"name": "Kimbino"}]
+    with patch.dict(os.environ, {"CUSTODOCE_STORES_FILTER": "  ,  "}):
+        assert collector._filter_by_env_stores(stores) == stores
+    with patch.dict(os.environ, {"CUSTODOCE_STORES_FILTER": "   "}):
+        assert collector._filter_by_env_stores(stores) == stores
+
+
+def test_filter_by_env_stores_no_match_returns_empty():
+    stores = [{"name": "Tiendeo"}, {"name": "Kimbino"}]
+    with patch.dict(os.environ, {"CUSTODOCE_STORES_FILTER": "Loja Inexistente"}):
+        assert collector._filter_by_env_stores(stores) == []
+
+
+def test_filter_by_env_stores_exclusion_prefix():
+    stores = [
+        {"name": "Tiendeo", "tier": 3},
+        {"name": "Carrefour Mercado", "tier": 2},
+        {"name": "Kimbino", "tier": 3},
+        {"name": "Spani Atacadista", "tier": 1},
+    ]
+    with patch.dict(os.environ, {"CUSTODOCE_STORES_FILTER": "-tiendeo,-carrefour"}):
+        out = collector._filter_by_env_stores(stores)
+    assert [s["name"] for s in out] == ["Kimbino", "Spani Atacadista"]
+
+
+def test_filter_by_env_stores_exclusion_only_blanks_returns_all():
+    stores = [{"name": "Tiendeo"}, {"name": "Kimbino"}]
+    with patch.dict(os.environ, {"CUSTODOCE_STORES_FILTER": "-,-"}):
+        assert collector._filter_by_env_stores(stores) == stores
+
+
+def test_filter_by_env_stores_mixed_inclusion_then_exclusion():
+    stores = [{"name": "Tiendeo"}, {"name": "Kimbino"}]
+    with patch.dict(os.environ, {"CUSTODOCE_STORES_FILTER": "tiendeo,-kimbino"}):
+        assert [s["name"] for s in collector._filter_by_env_stores(stores)] == ["Tiendeo"]
+    # Exclusão remove mesmo loja que casaria com inclusão.
+    with patch.dict(os.environ, {"CUSTODOCE_STORES_FILTER": "tiendeo,-tiendeo"}):
+        assert collector._filter_by_env_stores(stores) == []
+
+
 def test_collect_tier1_api_flyers_routes_products_as_prices():
     """Regressão scrape 29582782313: produtos extraídos por vision (name+price,
     SEM image_url) das lojas api_flyer (Max/Roldão) eram roteados pelo pipeline de

@@ -7,6 +7,7 @@ These tests prove each tier collects only its own collectors and that
 finalize runs exactly once (pulling all prices from DB).
 """
 
+import os
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -120,12 +121,17 @@ def _args(argv):
         "dry_run": False,
         "force": False,
         "mode": "cron",
+        "stores_filter": None,
     }
     i = 0
     while i < len(argv):
         a = argv[i]
         if a == "--tier":
             kwargs["tier"] = argv[i + 1]
+            i += 2
+            continue
+        if a == "--stores-filter":
+            kwargs["stores_filter"] = argv[i + 1]
             i += 2
             continue
         if a == "--finalize":
@@ -202,3 +208,15 @@ def test_no_finalize_skips_side_effects(harness):
     assert not harness.mocks["collect_tier1_pdfs"].called
     assert not harness.pi.enrich_prices.called
     assert not harness.alert.process_proactive_alerts.called
+
+
+def test_stores_filter_sets_env_var(harness):
+    with patch.dict("os.environ", {}, clear=True):
+        main_mod.main(_args(["--tier", "2a", "--stores-filter", "Tiendeo, Carrefour Mercado"]))
+        assert os.environ.get("CUSTODOCE_STORES_FILTER") == "Tiendeo, Carrefour Mercado"
+
+
+def test_stores_filter_absent_leaves_env_clean(harness):
+    with patch.dict("os.environ", {}, clear=True):
+        main_mod.main(_args(["--tier", "2a"]))
+    assert "CUSTODOCE_STORES_FILTER" not in os.environ

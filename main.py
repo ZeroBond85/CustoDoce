@@ -26,6 +26,12 @@ def parse_args() -> Namespace:
     parser.add_argument("--finalize", action="store_true", help="Finalize-only mode: enrich + report + cleanup from DB (no collection)")
     parser.add_argument("--no-finalize", action="store_true", help="Skip finalize step (collection only)")
     parser.add_argument("--force", action="store_true", help="Force full scrape (skip freshness check)")
+    parser.add_argument(
+        "--stores-filter",
+        type=str,
+        default=None,
+        help="Filtrar coleta para lojas (case-insensitive, substring). Nomes separados por virgula.",
+    )
     return parser.parse_args()
 
 
@@ -251,6 +257,10 @@ def main(args: Namespace | None = None):
         if args.force:
             os.environ["CUSTODOCE_FORCE_SCRAPE"] = "1"
             logger.info("force_mode_enabled", msg="Freshness check bypassed for all stores")
+
+        if args.stores_filter:
+            os.environ["CUSTODOCE_STORES_FILTER"] = args.stores_filter
+            logger.info("stores_filter_enabled", filter=args.stores_filter)
 
         # ── Collection dispatch (filtered by --tier) ──
         collect_mode = args.tier is not None
