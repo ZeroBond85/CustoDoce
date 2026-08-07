@@ -1,6 +1,6 @@
 # `cache_manager` — API
 
-> Última atualização: 2026-08-07 01:23 UTC
+> Última atualização: 2026-08-07 02:03 UTC
 > Gerado por AST parsing dos serviços em `services/cache_manager.py`.
 
 ## Funções Públicas (8)

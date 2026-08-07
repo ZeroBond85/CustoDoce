@@ -139,6 +139,9 @@ def classify(status: int | None, body: str, headers: dict) -> tuple[str, str]:
         return "429", "rate-limit"
     if status == 503:
         return "503", "service-unavailable"
+    err = headers.get("err")
+    if err:
+        return f"http_{status}", err
     return f"http_{status}", ""
 
 
@@ -313,6 +316,42 @@ class Probe:
         if self.include_playwright:
             self.probe_playwright(category)
 
+    def run_carrefour_intelligent_search(self) -> None:
+        print("\n=== CARREFOUR INTELLIGENT SEARCH ===")
+        term = quote("leite condensado")
+        for url in (
+            f"{CARREFOUR_BASE}/_v/api/intelligent-search/product_search/{term}?from=0&to=49",
+            f"{CARREFOUR_BASE}/api/intelligent-search/product_search/{term}?from=0&to=49",
+        ):
+            self.probe_httpx(url)
+            self.probe_curl(url, "chrome124")
+
+    def run_wayback_tiendeo(self) -> None:
+        print("\n=== TIENDEO VIA WAYBACK MACHINE ===")
+        t0 = time.time()
+        try:
+            import httpx
+
+            with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+                avail = client.get(
+                    "https://archive.org/wayback/available",
+                    params={"url": "tiendeo.com.br/santos"},
+                )
+                if avail.status_code != 200:
+                    self.add("wayback", "archive.org/wayback/available", avail.status_code, avail.text, {}, time.time() - t0)
+                    return
+                data = avail.json()
+            snap = (data.get("archived_snapshots") or {}).get("closest") or {}
+            snap_url = snap.get("url")
+            if not snap_url:
+                self.add("wayback", "tiendeo.com.br/santos", avail.status_code, "", {"err": "sem snapshot"}, time.time() - t0)
+                return
+            self.add("wayback_discovery", "archive.org/wayback/available", 200, json.dumps(data), {}, time.time() - t0)
+            self.probe_httpx(snap_url)
+            self.probe_curl(snap_url, "chrome124")
+        except Exception as e:
+            self.add("wayback", "archive.org", None, "", {"err": str(e)}, time.time() - t0)
+
     def run_extra(self, url: str) -> None:
         print(f"\n=== EXTRA: {url} ===")
         self.probe_httpx(url)
@@ -356,6 +395,8 @@ def main() -> int:
     probe = Probe(include_playwright=args.playwright, out_file=args.json)
     probe.run_tiendeo()
     probe.run_carrefour()
+    probe.run_carrefour_intelligent_search()
+    probe.run_wayback_tiendeo()
     for url in args.urls:
         probe.run_extra(url)
     probe.save()
