@@ -1,0 +1,64 @@
+name: Anti-Bot Probe (Tiendeo & Carrefour)
+
+on:
+  workflow_dispatch:
+    inputs:
+      extra_urls:
+        description: 'URLs extras (opcional, 1 por linha)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: probe-antibot-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHONPATH: ${{ github.workspace }}
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14.6'
+          cache: 'pip'
+          cache-dependency-path: requirements-test.lock
+
+      - name: Instalar deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-test.lock
+
+      - name: Instalar Playwright chromium
+        run: |
+          python -m playwright install --with-deps chromium
+
+      - name: Rodar sonda
+        id: probe
+        env:
+          EXTRA_URLS: ${{ github.event.inputs.extra_urls }}
+        run: |
+          ARGS=(--json data/probe_results.json --playwright)
+          if [ -n "$EXTRA_URLS" ]; then
+            mapfile -t EXTRA < <(printf '%s\n' "$EXTRA_URLS" | grep -v '^$')
+            ARGS+=("${EXTRA[@]}")
+          fi
+          python scripts/test_ci_probe.py "${ARGS[@]}"
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Upload relatório
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: probe-results
+          path: |
+            data/probe_results.json
+            data/probe_screenshots/
+          if-no-files-found: ignore
