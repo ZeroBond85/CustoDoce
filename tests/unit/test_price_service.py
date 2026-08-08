@@ -178,6 +178,27 @@ def test_batch_upsert_prices_chunks_by_chunk_size(mock_supabase):
     assert mock_supabase.table().upsert.call_count == 3
 
 
+def test_batch_upsert_prices_deduplicates_same_key(mock_supabase):
+    """Regressão P0: ON CONFLICT DO UPDATE não pode afetar a mesma row 2x no
+    mesmo chunk. Duplicatas de (ingredient_id, store_id) com mesmo collected_at
+    devem ser deduplicadas mantendo o menor price_per_kg."""
+    mock_supabase.table().upsert.return_value.execute.return_value = MagicMock(data=[])
+    entries = [
+        _make_entry("ing1", "st1", 10.0),
+        _make_entry("ing1", "st1", 8.5),  # melhor preço
+        _make_entry("ing1", "st1", 12.0),
+        _make_entry("ing1", "st2", 5.0),  # store diferente, não dedup
+    ]
+    result = batch_upsert_prices(entries, chunk_size=10)
+
+    assert result["total"] == 2, "duplicatas devem ser colapsadas para 2 rows"
+    rows = mock_supabase.table().upsert.call_args.args[0]
+    assert len(rows) == 2
+    by_store = {r["store_id"]: r for r in rows}
+    assert by_store["st1"]["raw_price"] == 8.5, "deve manter o melhor (menor) preço"
+    assert by_store["st2"]["raw_price"] == 5.0
+
+
 def test_batch_upsert_prices_partial_failure(mock_supabase):
     """Chunk com erro persistente conta como failed e não derruba os demais."""
     # 1º chunk OK (retorna 2 rows), 2º chunk levanta exceção

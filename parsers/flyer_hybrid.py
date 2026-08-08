@@ -500,16 +500,6 @@ def _text_llm_providers() -> list[dict]:
                 "model": os.environ.get("OPENROUTER_MODEL", "openrouter/free"),
             }
         )
-    gh = os.environ.get("GH_MODELS_TOKEN", "")
-    if gh:
-        providers.append(
-            {
-                "name": "github_models",
-                "url": "https://models.inference.ai.azure.com/chat/completions",
-                "key": gh,
-                "model": "gpt-4o-mini",
-            }
-        )
     return providers
 
 

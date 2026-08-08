@@ -71,6 +71,9 @@ data/probe_results.json
 data/probe_screenshots/
 *.log
 
+# Output local de testes de scrape
+results_local.json
+
 # ML/model artifacts (rebuilt by `scripts/export_onnx.py`)
 data/embedding_cache/
 data/onnx_models/

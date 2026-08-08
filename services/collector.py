@@ -872,14 +872,27 @@ def _collect_flyers(
     return all_flyers
 
 
+def _is_pdf_flyer_published(store: Store, weekday: str) -> bool:
+    """True se o flyer deve ser coletado hoje (publish_day) OU se force está ativo.
+
+    `CUSTODOCE_FORCE_SCRAPE=1` (flag --force do main.py) sobrescreve o filtro de
+    publish_day para PDFs — sem isso, lojas de atacado são puladas em dias não
+    programados e a coleta manual full não os coleta.
+    """
+    if os.environ.get("CUSTODOCE_FORCE_SCRAPE") == "1":
+        return True
+    pd = store.get("publish_day") or "wednesday"
+    days = [pd] if isinstance(pd, str) else list(pd or [])
+    return weekday in days or weekday == "thursday"
+
+
 def collect_tier1_pdfs(ingredients: list[Ingredient]) -> list[PriceEntry]:
     today = date.today()
     weekday = today.strftime("%A").lower()
-    stores = []
-    for s in [x for x in load_stores() if x.get("tier") == 1 and x.get("type") == "pdf_flyer"]:
-        pd = s.get("publish_day") or "wednesday"
-        if weekday in (pd if isinstance(pd, str) else [pd]) or weekday == "thursday":
-            stores.append(s)
+    stores = [
+        s for s in load_stores()
+        if s.get("tier") == 1 and s.get("type") == "pdf_flyer" and _is_pdf_flyer_published(s, weekday)
+    ]
     return _collect_prices(stores, FlyerScraper, ingredients, "PDF")
 
 

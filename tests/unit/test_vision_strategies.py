@@ -138,11 +138,11 @@ class TestVisionChain:
     def test_get_vision_chain_returns_list(self):
         chain = get_vision_chain()
         assert isinstance(chain, list)
-        assert len(chain) == 5
+        assert len(chain) == 4
 
-    def test_chain_order_gemini_nvidia_github_openrouter_tesseract(self):
+    def test_chain_order_gemini_nvidia_openrouter_tesseract(self):
         names = [s.provider_name for s in get_vision_chain()]
-        assert names == ["gemini", "nvidia", "github_models", "openrouter", "tesseract_ocr"]
+        assert names == ["gemini", "nvidia", "openrouter", "tesseract_ocr"]
 
     def test_chain_marks_has_fallback_except_last(self):
         chain = get_vision_chain()
@@ -184,15 +184,14 @@ class TestExtractProductsViaVision:
             result = extract_products_via_vision(b"fake image")
             assert result is None
 
-    def test_nvidia_succeeds_when_gemini_and_github_skip(self, monkeypatch):
+    def test_nvidia_succeeds_when_gemini_and_openrouter_skip(self, monkeypatch):
         """NVIDIA (2o na chain) e a primeira opcao viavel quando Gemini e
-        GitHubModels sao pulados por falta de config."""
+        OpenRouter sao pulados por falta de config."""
         reset_vision_chain()
-        monkeypatch.setenv("OPENROUTER_API_KEY", "k")
+        monkeypatch.setenv("OPENROUTER_API_KEY", "")
         monkeypatch.setenv("NVIDIA_API_KEY", "n")
         monkeypatch.setenv("GOOGLE_API_KEY", "")
         monkeypatch.setenv("GITHUB_TOKEN", "")
-        monkeypatch.setenv("GH_MODELS_TOKEN", "")
         monkeypatch.setattr("parsers.vision_strategies.time.sleep", lambda *_: None)
 
         nvidia_client = MagicMock()
@@ -216,7 +215,6 @@ class TestExtractProductsViaVision:
         monkeypatch.setenv("NVIDIA_API_KEY", "")
         monkeypatch.setenv("GOOGLE_API_KEY", "")
         monkeypatch.setenv("GITHUB_TOKEN", "")
-        monkeypatch.setenv("GH_MODELS_TOKEN", "")
         monkeypatch.setenv("VISION_FAIL_FAST_ON_429", "1")
         monkeypatch.setattr("parsers.vision_strategies.time.sleep", lambda *_: None)
 

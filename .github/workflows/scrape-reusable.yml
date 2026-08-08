@@ -47,8 +47,6 @@ on:
         required: false
       DEEPSEEK_API_KEY:
         required: false
-      GH_MODELS_TOKEN:
-        required: false
       SMTP_HOST:
         required: false
       SMTP_PORT:
@@ -249,7 +247,6 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          GH_MODELS_TOKEN: ${{ secrets.GH_MODELS_TOKEN }}
           CI_JOB_START: ${{ env.CI_JOB_START }}
       - name: Check time budget for scraping
         run: python scripts/check_time_budget.py --timeout-minutes 120 --label "scrape-tier-${{ matrix.tier }}"
@@ -324,7 +321,6 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          GH_MODELS_TOKEN: ${{ secrets.GH_MODELS_TOKEN }}
           CI_JOB_START: ${{ env.CI_JOB_START }}
       - name: Check time budget for macOS scraping
         run: python scripts/check_time_budget.py --timeout-minutes 35 --label "scrape-macos"
@@ -375,7 +371,6 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          GH_MODELS_TOKEN: ${{ secrets.GH_MODELS_TOKEN }}
           CI_JOB_START: ${{ env.CI_JOB_START }}
       - name: Commit prices_latest.json
         run: python scripts/commit_prices.py

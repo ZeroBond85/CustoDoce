@@ -165,6 +165,62 @@ def test_filter_by_env_stores_mixed_inclusion_then_exclusion():
         assert collector._filter_by_env_stores(stores) == []
 
 
+def test_is_pdf_flyer_published_normal_days():
+    with patch.dict(os.environ, {}, clear=True):
+        assert collector._is_pdf_flyer_published({"publish_day": "wednesday"}, "wednesday") is True
+        assert collector._is_pdf_flyer_published({"publish_day": "wednesday"}, "monday") is False
+        # Thursday é sempre coberto (fallback de coleta).
+        assert collector._is_pdf_flyer_published({"publish_day": "sunday"}, "thursday") is True
+        # publish_day ausente → default wednesday.
+        assert collector._is_pdf_flyer_published({}, "wednesday") is True
+        assert collector._is_pdf_flyer_published({}, "saturday") is False
+        # publish_day como lista.
+        assert collector._is_pdf_flyer_published({"publish_day": ["tuesday", "friday"]}, "friday") is True
+        assert collector._is_pdf_flyer_published({"publish_day": ["tuesday", "friday"]}, "monday") is False
+
+
+def test_is_pdf_flyer_published_force_overrides():
+    """Regressão P0: --force (CUSTODOCE_FORCE_SCRAPE=1) deve coletar PDFs
+    mesmo fora do publish_day (Assaí/Atacadão/Mercadão pulados em dias não
+    programados)."""
+    store = {"publish_day": "wednesday"}
+    with patch.dict(os.environ, {"CUSTODOCE_FORCE_SCRAPE": "1"}):
+        assert collector._is_pdf_flyer_published(store, "saturday") is True
+        assert collector._is_pdf_flyer_published(store, "monday") is True
+
+
+def test_collect_tier1_pdfs_force_includes_all_pdf_stores():
+    """--force deve incluir TODOS os pdf_flyer stores, mesmo fora do publish_day."""
+    stores = [
+        {"name": "Assaí Atacadista", "tier": 1, "type": "pdf_flyer", "publish_day": "wednesday"},
+        {"name": "Atacadão", "tier": 1, "type": "pdf_flyer", "publish_day": "thursday"},
+        {"name": "Mercadão Atacadista", "tier": 1, "type": "pdf_flyer", "publish_day": "friday"},
+    ]
+    with patch.dict(os.environ, {"CUSTODOCE_FORCE_SCRAPE": "1"}), \
+         patch.object(collector, "load_stores", return_value=stores), \
+         patch.object(collector, "_collect_prices", return_value=[]) as mock_coll:
+        collector.collect_tier1_pdfs([])
+    called_stores = mock_coll.call_args[0][0]
+    assert [s["name"] for s in called_stores] == ["Assaí Atacadista", "Atacadão", "Mercadão Atacadista"]
+
+
+def test_collect_tier1_pdfs_normal_day_filters():
+    """Sem force, só lojas com publish_day hoje (ou quinta) entram."""
+    stores = [
+        {"name": "Assaí Atacadista", "tier": 1, "type": "pdf_flyer", "publish_day": "wednesday"},
+        {"name": "Atacadão", "tier": 1, "type": "pdf_flyer", "publish_day": "thursday"},
+        {"name": "Mercadão Atacadista", "tier": 1, "type": "pdf_flyer", "publish_day": "friday"},
+    ]
+    fake_date = type("FakeDate", (), {"today": staticmethod(lambda: __import__("datetime").date(2026, 8, 5))})
+    with patch.dict(os.environ, {}, clear=True), \
+         patch.object(collector, "load_stores", return_value=stores), \
+         patch.object(collector, "date", fake_date), \
+         patch.object(collector, "_collect_prices", return_value=[]) as mock_coll:
+        collector.collect_tier1_pdfs([])
+    called_stores = mock_coll.call_args[0][0]
+    assert [s["name"] for s in called_stores] == ["Assaí Atacadista"]
+
+
 def test_collect_tier1_api_flyers_routes_products_as_prices():
     """Regressão scrape 29582782313: produtos extraídos por vision (name+price,
     SEM image_url) das lojas api_flyer (Max/Roldão) eram roteados pelo pipeline de
