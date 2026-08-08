@@ -1,4 +1,6 @@
 # SCRAPER FULL ANALYSIS REPORT — 2026-08-08
+> Última atualização: 2026-08-08 02:56 UTC
+
 ## First-Run Simulation (prices + review_queue truncated)
 
 > **UPDATE (2026-08-08 pós-fix):** P0s resolvidos — (1) batch_upsert_prices dedup em
