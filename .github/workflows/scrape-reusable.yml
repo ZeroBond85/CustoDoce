@@ -272,7 +272,12 @@ jobs:
           cache-dependency-path: requirements-prod.lock
 
       - name: Install dependencies
-        run: pip install -r requirements-prod.lock
+        run: |
+          # O lock pina torch==X.Y.Z+cpu (existe so p/ linux/win). O runner
+          # macos-latest e arm64 e nao ha wheel +cpu p/ macOS — troca o sufixo
+          # +cpu pela versao plain (torch-2.13.0-...macosx_14_0_arm64.whl).
+          sed -E 's/^(torch==[0-9.]+)\+[0-9a-zA-Z.]+/\1/' requirements-prod.lock > /tmp/requirements-macos.lock
+          pip install -r /tmp/requirements-macos.lock
       - name: Install system deps (tesseract, poppler, playwright)
         run: |
           brew install tesseract poppler

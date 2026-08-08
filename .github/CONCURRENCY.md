@@ -1,5 +1,5 @@
 # CONCURRENCY.md — Regras de Concorrência para Workflows
-> Última atualização: 2026-08-06 22:55 UTC
+> Última atualização: 2026-08-08 02:56 UTC
 
 ## Objetivo
 Evitar que múltiplos jobs concorrentes tentem fazer push em `prices_latest.json` ou executem scraping simultaneamente, causando conflitos ou duplicação de trabalho.

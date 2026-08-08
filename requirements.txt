@@ -2,12 +2,11 @@ pdfplumber>=0.11,<1.1
 rapidfuzz
 python-telegram-bot>=20.0,<23.0
 pyyaml>=6.0
-jsonschema
-openpyxl>=3.1.2
+openpyxl==3.1.5
 pandas>=1.0,<4.0
 python-dotenv
 supabase>=2.0,<5.0
-streamlit==1.59.0
+streamlit==1.61.1
 plotly>=6.0,<7.0
 httpx>=0.28,<1.0
 selectolax
@@ -16,7 +15,6 @@ pdf2image
 PyJWT
 sentence-transformers>=3.0.1
 scikit-learn>=1.5,<2.0
-groq>=0.10
 curl_cffi>=0.15,<1.0
 optimum
 requests>=2.34
@@ -54,5 +52,5 @@ joblib>=1.5
 pyarrow==24.0.0
 
 # charset-normalizer: PINADO porque 3.4.8 está YANKED do PyPI (yanked warning em CI).
-# Usar 3.4.7 (última versão válida) até que uma versão >=3.4.9 seja publicada.
-charset-normalizer==3.4.7
+# 3.4.9 já publicada e válida (não yanked) — pin fixa a mais recente estável.
+charset-normalizer==3.4.9
