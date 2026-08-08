@@ -27,10 +27,14 @@ def _detect_promotion(raw_product: str, raw_unit: str) -> bool:
 
 def upsert_price(price_entry: PriceEntry) -> dict[str, Any]:
     client = get_service_client()
-    now = datetime.now(UTC)
+    collected_at = price_entry.get("collected_at", date.today().isoformat())
+    try:
+        collected_dt = datetime.fromisoformat(collected_at.replace("Z", "+00:00"))
+    except Exception:
+        collected_dt = datetime.now(UTC)
     valid_until = price_entry.get("valid_until")
     if valid_until is None or not isinstance(valid_until, str):
-        valid_until = (date.today() + timedelta(days=7)).isoformat()
+        valid_until = (collected_dt.date() + timedelta(days=7)).isoformat()
 
     is_promo = price_entry.get("is_promotion")
     if is_promo is None:
@@ -47,11 +51,11 @@ def upsert_price(price_entry: PriceEntry) -> dict[str, Any]:
         "p_raw_product": price_entry["raw_product"],
         "p_raw_price": float(price_entry["raw_price"]),
         "p_raw_unit": price_entry.get("raw_unit", ""),
-        "p_collected_at": date.today().isoformat(),
-        "p_valid_from": price_entry.get("valid_from", date.today().isoformat()),
+        "p_collected_at": collected_at,
+        "p_valid_from": price_entry.get("valid_from", collected_at),
         "p_valid_until": valid_until,
         "p_validity_raw": price_entry.get("validity_raw", ""),
-        "p_collected_weekday": _weekday_pt(now),
+        "p_collected_weekday": _weekday_pt(collected_dt),
         "p_is_promotion": is_promo,
         "p_tier": price_entry.get("tier"),
         "p_confidence": float(price_entry.get("confidence", 1.0)),
