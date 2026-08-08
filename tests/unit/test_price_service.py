@@ -2,7 +2,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from services.price_service import _detect_promotion, cleanup_old_prices, search_prices, upsert_price
+from services.price_service import (
+    _detect_promotion,
+    batch_upsert_prices,
+    cleanup_old_prices,
+    search_prices,
+    upsert_price,
+)
 
 
 @pytest.fixture
@@ -121,3 +127,87 @@ def test_cleanup_old_prices_logging(mock_supabase, deleted_count, expected_log_a
     with patch("services.maintenance_service._check_cleanup_alert") as mock_alert:
         cleanup_old_prices(90)
         mock_alert.assert_called_once_with("cleanup_old_prices", deleted_count)
+
+
+def _make_entry(ing_id, store_id, raw_price, product="Leite Condensado Moça 395g"):
+    return {
+        "ingredient_id": ing_id,
+        "store_id": store_id,
+        "raw_product": product,
+        "raw_price": raw_price,
+        "raw_unit": "395g",
+        "source": "automated",
+    }
+
+
+def test_batch_upsert_prices_empty():
+    with patch("services.price_repository.get_service_client") as mock_get:
+        result = batch_upsert_prices([])
+    assert result == {"total": 0, "inserted": 0, "failed": 0}
+    mock_get.assert_not_called()
+
+
+def test_batch_upsert_prices_single_chunk(mock_supabase):
+    """Batch flushes N entries em UMA chamada table.upsert (não 1 request por produto)."""
+    mock_supabase.table().upsert.return_value.execute.return_value = MagicMock(
+        data=[{"ingredient_id": "a"}, {"ingredient_id": "b"}]
+    )
+    entries = [
+        _make_entry("ing1", "st1", 10.0),
+        _make_entry("ing1", "st2", 12.5),
+    ]
+    result = batch_upsert_prices(entries)
+
+    assert result == {"total": 2, "inserted": 2, "failed": 0}
+    # Uma única chamada upsert com os 2 rows
+    assert mock_supabase.table().upsert.call_count == 1
+    rows = mock_supabase.table().upsert.call_args.args[0]
+    assert isinstance(rows, list) and len(rows) == 2
+    assert rows[0]["ingredient_id"] == "ing1"
+    assert rows[0]["store_id"] == "st1"
+    assert rows[1]["store_id"] == "st2"
+
+
+def test_batch_upsert_prices_chunks_by_chunk_size(mock_supabase):
+    """Chunk_size=2 → 5 entries viram 3 chamadas upsert."""
+    mock_supabase.table().upsert.return_value.execute.return_value = MagicMock(data=[])
+    entries = [_make_entry(f"ing{i}", f"st{i}", float(i)) for i in range(5)]
+    result = batch_upsert_prices(entries, chunk_size=2)
+
+    assert result == {"total": 5, "inserted": 0, "failed": 0}
+    assert mock_supabase.table().upsert.call_count == 3
+
+
+def test_batch_upsert_prices_partial_failure(mock_supabase):
+    """Chunk com erro persistente conta como failed e não derruba os demais."""
+    # 1º chunk OK (retorna 2 rows), 2º chunk levanta exceção
+    calls = {"n": 0}
+
+    def _side_effect(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return MagicMock(data=[{"ingredient_id": "a"}, {"ingredient_id": "b"}])
+        raise RuntimeError("DB down")
+
+    mock_supabase.table().upsert.return_value.execute.side_effect = _side_effect
+    entries = [_make_entry(f"ing{i}", f"st{i}", float(i)) for i in range(5)]
+    result = batch_upsert_prices(entries, chunk_size=2)
+
+    assert result["total"] == 5
+    assert result["inserted"] == 2
+    assert result["failed"] == 3
+
+
+def test_batch_upsert_prices_preserves_build_row_logic(mock_supabase):
+    """Rows do batch devem ter os campos default do fallback unitário (brand, valid_until, weekday)."""
+    mock_supabase.table().upsert.return_value.execute.return_value = MagicMock(data=[])
+    entry = _make_entry("ing1", "st1", 10.0)
+    batch_upsert_prices([entry])
+
+    rows = mock_supabase.table().upsert.call_args.args[0]
+    row = rows[0]
+    assert row["brand"] == "Desconhecido"
+    assert row["confidence"] == 1.0
+    assert row["collected_weekday"] in ("Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom")
+    assert row["valid_until"] >= row["valid_from"]
+    assert row["source"] == "automated"

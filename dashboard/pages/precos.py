@@ -7,7 +7,7 @@ from services.dashboard_queries import (
     extract_pun,
     get_active_ingredients,
     get_all_stores,
-    get_latest_prices_cached,
+    get_prices_for_ingredient_cached,
 )
 
 
@@ -59,21 +59,23 @@ def render_precos():
 
     _push_query_params()
 
+    # Filtro server-side por ingrediente + tier (evita baixar 5000 preços de
+    # todos os ingredientes para mostrar um): search_prices usa PostgREST com
+    # .eq() no DB. O filtro de loja é barato em memória (dataset já reduzido).
     with st.spinner("Carregando preços…"):
-        prices = get_latest_prices_cached(valid_only=True, limit=5000)
+        prices = get_prices_for_ingredient_cached(
+            selected_ingredient,
+            valid_only=True,
+            tier=None if tier_filter == "Todos" else tier_filter,
+        )
 
     df = pd.DataFrame(prices)
     if df.empty:
         st.info("Nenhum preço encontrado.")
         return
 
-    df = df[df["ingredient_id"] == selected_ingredient]
-
     if selected_store != "Todas":
         df = df[df["store_name"] == selected_store]
-
-    if tier_filter != "Todos":
-        df = df[df["tier"] == tier_filter]
 
     df["price_per_kg"] = df.apply(extract_ppk, axis=1)
     df["price_per_un"] = df.apply(extract_pun, axis=1)

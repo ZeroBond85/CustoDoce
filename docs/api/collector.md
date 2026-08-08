@@ -1,6 +1,6 @@
 # `collector` — API
 
-> Última atualização: 2026-08-08 03:01 UTC
+> Última atualização: 2026-08-08 14:34 UTC
 > Gerado por AST parsing dos serviços em `services/collector.py`.
 
 ## Funções Públicas (19)
@@ -43,5 +43,5 @@ Coleta lojas api_flyer (Max/Roldão/Tenda) pelo pipeline de PREÇOS.
 
 ### process_ocr_queue()
 
-### process_price_match(store: Store, product_text: str, raw_price: float, raw_unit: str, ingredients: list[Ingredient], validity_raw: str, brand: str, image_url: str, source_url: str)
+### process_price_match(store: Store, product_text: str, raw_price: float, raw_unit: str, ingredients: list[Ingredient], validity_raw: str, brand: str, image_url: str, source_url: str, batch_entries: list[PriceEntry] | None)
 

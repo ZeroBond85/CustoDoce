@@ -1,6 +1,6 @@
 # `selector_resolver` — API
 
-> Última atualização: 2026-08-08 03:01 UTC
+> Última atualização: 2026-08-08 14:34 UTC
 > Gerado por AST parsing dos serviços em `services/selector_resolver.py`.
 
 ## Funções Públicas (3)

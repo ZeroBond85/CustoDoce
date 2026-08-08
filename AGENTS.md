@@ -122,19 +122,21 @@ CustoDoce/
 ## Fluxo de Coleta (GitHub Actions scrape.yml)
 
 ```
-main.py → sync_store_fields() → para cada loja ativa:
+main.py → sync_store_fields() → para cada loja ativa (matriz [1, 2a, 3]):
   Tier 1 (PDF): build_url → HEAD (ETag) → download → MD5 cache → pdfplumber → OCR fallback
-  Tier 2a (VTEX): GET api/products/search?ft= → parse JSON
-  Tier 3 (site): GET /busca?q= → selectolax CSS selectors
+  Tier 2a (VTEX): GET api/products/search?ft= → parse JSON (early-exit vtex_max_results)
+  Tier 3 (site): GET /busca?q= → selectolax CSS selectors (Playwright c/ route blocking p/ recursos pesados)
   Todos → process_price_match():
     → match_ingredient() [exact → alias → word_subset → fuzzy RapidFuzz ≥80%]
-    → se ≥80%: upsert_price_rpc()
+    → se ≥80%: batch_upsert_prices() (chunks de 50 via upsert_price_rpc/table)
     → se 55-79%: semantic_matcher blend (RapidFuzz 0.6 + embeddings 0.4)
     → se 65-80%: llm_classifier (Groq)
     → se <55%: review_queue
   Fim: enrich_prices() [Isolation Forest] → commit prices_latest.json → email report
   1º do mês: release GitHub com snapshot .json.gz
 ```
+
+Tier 2b (Atacado Físico SP) não roda na matriz automate — importação manual via planilha.
 
 ## Matcher (parsers/matcher.py)
 
@@ -230,7 +232,7 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 
 | Métrica | Valor |
 |---------|-------|
-| pytest (unit + schema, no slow) | 1350 passing |
+| pytest (unit + schema, no slow) | 1397 passing (unit: 1305, schema: 94) |
 | pytest (integration) | 113 passing |
 | pytest (diagnostics, slow) | 4 passing |
 | Schema manifest | 17 tabelas/views com types, not_null, defaults, constraints |
@@ -336,3 +338,9 @@ Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarbal
 
 ### SMTP
 - Credenciais Gmail verificadas e válidas (app password funcional).
+
+## Sprint 17 — Otimização de Performance (2026-08-08)
+- `services/price_repository.py`: `batch_upsert_prices()` (chunks 50, retry transitório `_is_transient_net_err`); `process_price_match(batch_entries=...)`; `_scrape_store` acumula e flushes em lote.
+- `services/dashboard_queries.py`: helpers single-pass `_coverage_from_prices`/`_kpis_from_prices`/`_promotions_from_prices` (1 query de 5000 preços); `get_prices_for_ingredient_cached(tier=...)`; páginas `precos/insights/visao_geral/fontes` reutilizam.
+- Cache híbrido: `dashboard_cache` (config estática: st.cache_data+lru_cache) e `dashboard_data_cache` (preços: st.cache_data) com `_CACHE_REGISTRY`; `clear_all_caches()` limpa ambos.
+- Scrapers: `vtex_max_results` (early-exit VTEX), `block_resources` (Playwright route blocking image/font/media), `browse_url_timeout` (thread daemon, teto real).

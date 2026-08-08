@@ -8,10 +8,11 @@ import streamlit as st
 
 from dashboard.components.ui import info_box, inject_css
 from services.dashboard_queries import (
-    get_active_promotions,
-    get_coverage_by_ingredient,
+    _coverage_from_prices,
+    _kpis_from_prices,
+    _promotions_from_prices,
     get_cross_ingredient_ranking_cached,
-    get_dashboard_kpis,
+    get_latest_prices_cached,
     get_longitudinal_winners_cached,
 )
 
@@ -21,7 +22,13 @@ def render_visao_geral():
 
     st.title("Visão Geral")
 
-    kpis = get_dashboard_kpis()
+    # UMA query de preços de 5000 rows, reutilizada em KPIs + promoções +
+    # cobertura (antes eram 3 queries idênticas). Cache em @st.cache_data evita
+    # re-query entre interações.
+    with st.spinner("Carregando preços…"):
+        prices = get_latest_prices_cached(valid_only=True, limit=5000)
+
+    kpis = _kpis_from_prices(prices)
 
     # Sprint 8: KPI row uses .cd-kpi-row class for mobile responsiveness
     # (1 column @ ≤640px, 2 cols @ ≤768px, 4 cols on desktop).
@@ -41,8 +48,7 @@ def render_visao_geral():
 
     # Promoções ativas
     st.subheader("Promoções Ativas")
-    with st.spinner("Buscando promoções ativas…"):
-        promos = get_active_promotions()
+    promos = _promotions_from_prices(prices)
     if promos:
         df = pd.DataFrame(promos)
         st.dataframe(
@@ -55,8 +61,7 @@ def render_visao_geral():
 
     # Cobertura por ingrediente
     st.subheader("Cobertura por Ingrediente")
-    with st.spinner("Calculando cobertura…"):
-        coverage = get_coverage_by_ingredient()
+    coverage = _coverage_from_prices(prices)
     if coverage:
         df = pd.DataFrame(coverage)
         df = df.rename(

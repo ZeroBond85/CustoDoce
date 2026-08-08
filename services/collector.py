@@ -202,6 +202,7 @@ def process_price_match(
     brand: str = "",
     image_url: str = "",
     source_url: str = "",
+    batch_entries: list[PriceEntry] | None = None,
 ) -> PriceEntry | None:
     keywords = _get_ingredient_keywords(ingredients)
     if not has_ingredient_keyword(product_text, keywords):
@@ -212,6 +213,18 @@ def process_price_match(
             return None
 
     ingredient, score, match_type = match_ingredient(product_text, ingredients)
+
+    def _persist(entry: PriceEntry) -> PriceEntry | None:
+        """Persiste individualmente ou acumula para batch upsert (caller flushes)."""
+        if batch_entries is not None:
+            batch_entries.append(entry)
+            return entry
+        try:
+            upsert_price(entry)
+        except Exception as e_upsert:
+            logger.warning("[%s] upsert_price failed for product, skipping: %s", store.get("name", "?"), e_upsert)
+            return None
+        return entry
 
     if ingredient and score >= 80.0:
         entry = build_product_entry(
@@ -224,12 +237,7 @@ def process_price_match(
             validity_raw=validity_raw,
             brand=brand,
         )
-        try:
-            upsert_price(entry)
-        except Exception as e_upsert:
-            logger.warning("[%s] upsert_price failed for product, skipping: %s", store.get("name", "?"), e_upsert)
-            return None
-        return entry
+        return _persist(entry)
 
     semantic_score = 0.0
     combined = score / 100.0
@@ -257,12 +265,7 @@ def process_price_match(
                 validity_raw=validity_raw,
                 brand=brand,
             )
-            try:
-                upsert_price(entry)
-            except Exception as e_upsert:
-                logger.warning("[%s] upsert_price failed for product (combined>=0.80), skipping: %s", store.get("name", "?"), e_upsert)
-                return None
-            return entry
+            return _persist(entry)
 
         if 0.70 <= combined < 0.80 and os.environ.get("GROQ_API_KEY"):
             from services.config import get_feature
@@ -288,12 +291,7 @@ def process_price_match(
                         validity_raw=validity_raw,
                         brand=brand,
                     )
-                    try:
-                        upsert_price(entry)
-                    except Exception as e_upsert:
-                        logger.warning("[%s] upsert_price failed for product (llm), skipping: %s", store.get("name", "?"), e_upsert)
-                        return None
-                    return entry
+                    return _persist(entry)
 
     from services.config import get_feature
 
@@ -658,6 +656,7 @@ def _scrape_store(
 
         matched = 0
         entries: list[PriceEntry] = []
+        batch_entries: list[PriceEntry] = []
         for prod in raw_products:
             if post_process:
                 entry = post_process(store, prod, ingredients)
@@ -671,10 +670,17 @@ def _scrape_store(
                     validity_raw=prod.get("validity_raw", ""),
                     brand=prod.get("brand", ""),
                     source_url=prod.get("source_url", ""),
+                    batch_entries=batch_entries,
                 )
             if entry:
                 matched += 1
                 entries.append(entry)
+
+        if batch_entries:
+            with suppress(Exception):
+                from services.price_service import batch_upsert_prices
+
+                batch_upsert_prices(batch_entries)
 
         logger.info("[%s] %d products, %d matched", store_name, len(raw_products), matched)
         LAST_RUN_STATS[store_name] = {"extracted": len(raw_products), "matched": matched}

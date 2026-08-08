@@ -125,3 +125,33 @@ def test_shopify_json_non_shopify_falls_back_to_browse():
     # Nao deve chamar o ramo shopify; apenas garantir instanciacao ok.
     assert sc.shopify_json is False
     sc.close()
+
+
+def test_fetch_browse_thread_isolation_timeout_returns_none():
+    """Thread isolation: teto de parede estoura e retorna None sem travar."""
+    from scrapers.website_scraper import WebsiteScraper
+
+    sc = WebsiteScraper({**_chefon_config(), "browse_url_timeout": 0.05})
+    # Stub que trava: se o request rodasse inline travaria o teste.
+    sc._fetch_browse_raw = lambda url: _sleep_forever()
+    result = sc.fetch_browse("https://chefon.com.br/collections/all")
+    assert result is None  # teto estourou, retorna None
+    sc.close()
+
+
+def _sleep_forever():
+    import time as _time
+
+    _time.sleep(30)
+    return "<html/>"
+
+
+def test_fetch_browse_returns_content_within_timeout():
+    """Sem timeout: retorna o HTML normalmente."""
+    from scrapers.website_scraper import WebsiteScraper
+
+    sc = WebsiteScraper({**_chefon_config(), "browse_url_timeout": 5})
+    sc._fetch_browse_raw = lambda url: "<html><body>produtos</body></html>"
+    result = sc.fetch_browse("https://chefon.com.br/collections/all")
+    assert result == "<html><body>produtos</body></html>"
+    sc.close()

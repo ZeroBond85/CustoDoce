@@ -68,20 +68,31 @@ class WebsiteScraper(BaseWebScraper):
         return resp.text
 
     def fetch_browse(self, url: str) -> str | None:
-        """Busca com teto de parede por URL (anti-travamento em Cloudflare/WAF)."""
-        from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+        """Busca com teto de parede por URL (anti-travamento em Cloudflare/WAF).
+
+        Thread isolation: o request roda numa thread daemon dedicada. Se o
+        teto de parede estourar, o caller retorna imediatamente sem bloquear
+        (o ``with ThreadPoolExecutor`` original travava no shutdown(wait=True)
+        quando a requisicao ficava pendurada).
+        """
+        import threading
 
         if self.browse_url_timeout and self.browse_url_timeout > 0:
-            with ThreadPoolExecutor(max_workers=1) as ex:
-                fut = ex.submit(self._fetch_browse_raw, url)
-                try:
-                    return fut.result(timeout=self.browse_url_timeout)
-                except FuturesTimeout:
-                    logger.warning(
-                        "[%s] browse %s estourou teto de %ds (Cloudflare/WAF?) — ignorado",
-                        self.name, url, int(self.browse_url_timeout),
-                    )
-                    return None
+            holder: dict[str, str | None] = {}
+
+            def _run():
+                holder["value"] = self._fetch_browse_raw(url)
+
+            worker = threading.Thread(target=_run, daemon=True)
+            worker.start()
+            worker.join(timeout=self.browse_url_timeout)
+            if worker.is_alive():
+                logger.warning(
+                    "[%s] browse %s estourou teto de %ds (Cloudflare/WAF?) — ignorado",
+                    self.name, url, int(self.browse_url_timeout),
+                )
+                return None
+            return holder.get("value")
         return self._fetch_browse_raw(url)
 
     def run(self, ingredients: list[dict]) -> list[dict]:

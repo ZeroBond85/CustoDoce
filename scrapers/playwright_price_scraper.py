@@ -23,6 +23,35 @@ class PlaywrightPriceScraper(BaseWebScraper):
         # process_price_match filters by ingredient.
         self.browse_urls = list(store_config.get("browse_urls", []) or [])
         self.selectors = resolve_selectors(store_config)
+        # Route interception: bloqueia recursos pesados (imagem/fonte/mídia)
+        # para acelerar o carregamento. O parser usa o DOM HTML, então o
+        # download de assets visuais é desperdício de banda/tempo.
+        self.block_resources = store_config.get("block_resources", True)
+
+    # ── Route interception ────────────────────────────────────────────
+    _HEAVY_RESOURCE_TYPES = ("image", "font", "media", "stylesheet", "texttrack")
+
+    def _setup_route_blocking(self, context) -> None:
+        """Bloqueia download de recursos pesados via ``context.route``.
+
+        Os filtros de produtos são extraídos do DOM (selectolax) após o
+        ``domcontentloaded``; imagens/fontes/CSS não afetam a estrutura do
+        HTML e consomem banda de CI. Bloqueá-los corta o tempo de navegação
+        em até ~50% em e-commerce pesado.
+        """
+        if not self.block_resources:
+            return
+        blocked = self._HEAVY_RESOURCE_TYPES
+
+        async def _abort_heavy(route):
+            rtype = getattr(route.request, "resource_type", None) or ""
+            if rtype in blocked:
+                await route.abort()
+            else:
+                await route.continue_()
+
+        with contextlib.suppress(Exception):
+            context.route("**/*", _abort_heavy)
 
     def run(self, ingredients: list[dict]) -> list[dict]:
         return asyncio.run(self._run_async(ingredients))
@@ -37,6 +66,7 @@ class PlaywrightPriceScraper(BaseWebScraper):
                 "Chrome/125.0.0.0 Safari/537.36"
             )
         )
+        self._setup_route_blocking(context)
         try:
             if self.browse_urls:
                 logger.info("[%s] browse mode: %d category URLs (asyncio.gather paralelo)", self.name, len(self.browse_urls))

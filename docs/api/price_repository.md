@@ -1,9 +1,13 @@
 # `price_repository` — API
 
-> Última atualização: 2026-08-08 03:01 UTC
+> Última atualização: 2026-08-08 14:34 UTC
 > Gerado por AST parsing dos serviços em `services/price_repository.py`.
 
-## Funções Públicas (4)
+## Funções Públicas (5)
+
+### batch_upsert_prices(price_entries: list[PriceEntry], chunk_size: int)
+
+Upsert em lote de preços na tabela `prices` via único `table.upsert`.
 
 ### get_latest_prices(valid_only: bool, limit: int)
 

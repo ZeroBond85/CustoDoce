@@ -4,6 +4,15 @@
 
 ### Added
 
+#### Sprint de Otimização de Performance — batch upsert, dashboard N+1, cache híbrido, scrapers
+- **Fase 0 (Workflow)**: Tier 2b removido da matriz automate do `scrape-reusable.yml`; teste de YAML normaliza `[1, 2a, 3]` para str (YAML parseia ints).
+- **Fase 1 (Batch upsert)**: `_build_price_row()` extraído + `batch_upsert_prices()` em `services/price_repository.py` (chunks de 50, retry em erro transitório via `_is_transient_net_err`); `process_price_match()` ganhou param `batch_entries`; `_scrape_store()` acumula e faz flush em lote — elimina 1 upsert RPC/produto.
+- **Fase 2 (Dashboard N+1)**: `get_coverage_by_ingredient`/`get_dashboard_kpis`/`get_active_promotions` refatorados para single-pass via helpers `_coverage_from_prices`/`_kpis_from_prices`/`_promotions_from_prices` (1 query de 5000 preços); `precos.py` usa `get_prices_for_ingredient_cached` (filtro server-side) que agora aceita `tier`; `insights.py`/`visao_geral.py`/`fontes.py` reutilizam preços já carregados.
+- **Fase 3 (Cache híbrido)**: decorators `dashboard_cache` (config estática: st.cache_data + lru_cache) e `dashboard_data_cache` (preços dinâmicos: st.cache_data, sem cache fora) com `_CACHE_REGISTRY`; `clear_all_caches()` limpa ambos + `st.cache_data.clear()`.
+- **Fase 4 (Scrapers)**: VTEX early-exit via config `vtex_max_results`; Playwright route blocking (`block_resources`, default True, aborta image/font/media/stylesheet); Website `fetch_browse` thread isolation — substitui `ThreadPoolExecutor` (que travava no `shutdown(wait=True)`) por thread daemon com teto de parede real.
+- **Testes**: +17 testes (batch, cache, early-exit, route blocking, thread isolation). Suite unit+schema: **1397 passing**; ruff e mypy limpos.
+- **Docs**: sync_docs regenerou `docs/api/collector.md`, `dashboard_queries.md`, `price_repository.md` (+novas funções e assinaturas).
+
 #### MD Auto-Compress — compressão inteligente de documentação (Sprint 14)
 - **`scripts/md_auto_compress.py`**: 677 linhas — parse de seções, scorer com 6 pesos, dedup semântico (rapidfuzz ≥0.85), archive de seções frias com rollback reversível, compress pipeline (dry-run/apply)
 - **`config/scoring_config.yaml`**: pesos calibrados: keep_marker=999, cross_doc_ref=10, test_ref=8, code_ref=6, workflow_ref=6, docs_ref=3, dated_anchor=5, age_months=-1, no_evidence_penalty=-3; threshold archive_candidate=-3

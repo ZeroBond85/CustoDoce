@@ -8,8 +8,9 @@ import streamlit as st
 
 from dashboard.components.ui import inject_css
 from services.dashboard_queries import (
-    get_active_promotions,
-    get_coverage_by_ingredient,
+    _coverage_from_prices,
+    _promotions_from_prices,
+    get_latest_prices_cached,
     get_stores_with_frequencies,
 )
 
@@ -19,10 +20,13 @@ def render_fontes():
 
     st.title("Fontes de Dados")
 
+    # Uma query de preços reutilizada em cobertura + promoções.
+    with st.spinner("Carregando preços…"):
+        prices = get_latest_prices_cached(valid_only=True, limit=5000)
+
     # Cobertura por ingrediente
     st.subheader("Cobertura por Ingrediente")
-    with st.spinner("Calculando cobertura…"):
-        coverage = get_coverage_by_ingredient()
+    coverage = _coverage_from_prices(prices)
     if coverage:
         df = pd.DataFrame(coverage)
         df = df.rename(
@@ -50,8 +54,7 @@ def render_fontes():
 
     # Promoções ativas
     st.subheader("Promoções Ativas")
-    with st.spinner("Buscando promoções…"):
-        promos = get_active_promotions()
+    promos = _promotions_from_prices(prices)
     if promos:
         df = pd.DataFrame(promos)
         st.dataframe(

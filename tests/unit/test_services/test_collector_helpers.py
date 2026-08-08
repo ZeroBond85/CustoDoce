@@ -61,6 +61,36 @@ def test_process_price_match_no_keyword_returns_none():
     mock_up.assert_not_called()
 
 
+def test_process_price_match_batch_buffer_skips_single_upsert():
+    """batch_entries presente → entry acumula no buffer e upsert_price NÃO é chamado.
+
+    O caller (collector) faz flush via batch_upsert_prices depois do loop —
+    elimina 1 HTTP round-trip por produto no scrape em massa.
+    """
+    store = MOCK_STORES[0]
+    buffer = []
+    with patch.object(collector, "upsert_price") as mock_up:
+        entry = collector.process_price_match(
+            store, "Leite Condensado Moça 395g", 10.5, "395g", MOCK_INGREDIENTS,
+            batch_entries=buffer,
+        )
+    assert entry is not None
+    assert len(buffer) == 1, "entry deveria acumular no buffer de batch"
+    assert buffer[0]["ingredient_id"] == "Leite Condensado"
+    mock_up.assert_not_called(), "batch path não deve chamar upsert_price unitário"
+
+
+def test_process_price_match_batch_buffer_keeps_single_upsert_by_default():
+    """Sem batch_entries (default None) → comportamento legacy: upsert_price unitário."""
+    store = MOCK_STORES[0]
+    with patch.object(collector, "upsert_price") as mock_up:
+        entry = collector.process_price_match(
+            store, "Leite Condensado Moça 395g", 10.5, "395g", MOCK_INGREDIENTS
+        )
+    assert entry is not None
+    mock_up.assert_called_once()
+
+
 def test_should_skip_store_bypassed_by_force_env():
     """Regressão: CUSTODOCE_FORCE_SCRAPE=1 força coleta full sem tocar no DB.
 

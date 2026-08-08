@@ -63,18 +63,34 @@ def test_scrape_callers_have_no_steps_when_using_reusable():
 
 
 def test_scrape_reusable_has_required_jobs():
-    """Garante que scrape-reusable.yml tem todos os jobs esperados: setup, scrape, enrich, commit, notify, cleanup."""
+    """Garante que scrape-reusable.yml tem os jobs esperados.
+
+    Sprint de otimização free-tier: os jobs enrich/commit/notify/cleanup foram
+    consolidados em um único `finalize_and_commit` (economiza ~3x setup de
+    ambiente por execução). `scrape` não executa o tier 2b (sem coleta
+    automatizada).
+    """
     workflow = _load_workflow("scrape-reusable.yml")
     jobs = workflow.get("jobs", {}) or {}
-    required = {"setup", "scrape", "enrich", "commit", "notify", "cleanup"}
+    required = {"setup", "scrape", "scrape-macos", "finalize_and_commit"}
     missing = required - set(jobs.keys())
     assert not missing, f"scrape-reusable.yml está sem jobs obrigatórios: {missing}"
+    legacy = {"enrich", "commit", "notify", "cleanup"} & set(jobs.keys())
+    assert not legacy, (
+        f"scrape-reusable.yml ainda tem jobs legados consolidados: {legacy}. "
+        "Use 'finalize_and_commit' (enrich + commit + notify + cleanup)."
+    )
+    # Matriz de tiers: 2b (atacado físico manual) NÃO roda automatizado.
+    tiers = workflow["jobs"]["scrape"].get("strategy", {}).get("matrix", {}).get("tier", [])
+    tiers_norm = {str(t) for t in tiers}
+    assert "2b" not in tiers_norm, "Tier 2b (manual) não deve estar na matriz automatizada do scrape"
+    assert tiers_norm == {"1", "2a", "3"}, f"Matriz scrape deve ser [1, 2a, 3], got {tiers}"
 
 
 def test_scrape_jobs_have_time_budget_check():
     """Garante que jobs críticos do scrape-reusable têm check_time_budget para evitar estouro de minutos."""
     workflow = _load_workflow("scrape-reusable.yml")
-    jobs_with_time_budget = {"scrape", "enrich", "commit", "notify", "cleanup"}
+    jobs_with_time_budget = {"scrape", "scrape-macos", "finalize_and_commit"}
     for job_id in jobs_with_time_budget:
         if job_id not in workflow.get("jobs", {}):
             continue
@@ -137,15 +153,23 @@ def test_pull_request_workflows_have_pr_guard():
 
 
 def test_cleaners_have_release_lock_step():
-    """Garante que o job cleanup do scrape-reusable libera o lock distribuído."""
+    """Garante que o job consolidado finalize_and_commit libera o lock distribuído.
+
+    O release do lock (com `if: always()`) é o último step do job final, para
+    que um crash em enrich/commit não trave scrapes futuros.
+    """
     workflow = _load_workflow("scrape-reusable.yml")
-    cleanup = workflow["jobs"].get("cleanup")
-    assert cleanup is not None, "Job 'cleanup' ausente em scrape-reusable.yml"
-    steps = cleanup.get("steps", []) or []
+    final = workflow["jobs"].get("finalize_and_commit")
+    assert final is not None, "Job 'finalize_and_commit' ausente em scrape-reusable.yml"
+    steps = final.get("steps", []) or []
     has_release = any(
         "scrape_lock.py release" in str(s.get("run", "")) for s in steps
     )
-    assert has_release, "Job 'cleanup' deve liberar o lock via 'python scripts/scrape_lock.py release'"
+    assert has_release, "Job 'finalize_and_commit' deve liberar o lock via 'python scripts/scrape_lock.py release'"
+    release_step = next(s for s in steps if "scrape_lock.py release" in str(s.get("run", "")))
+    assert release_step.get("if") == "always()", (
+        "Step de release do lock deve ter 'if: always()' para não travar scrapes futuros"
+    )
 
 
 def test_no_bash_github_conclusion_in_notify_steps():

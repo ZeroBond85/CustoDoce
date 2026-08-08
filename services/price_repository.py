@@ -69,30 +69,7 @@ def upsert_price(price_entry: PriceEntry) -> dict[str, Any]:
         return {}
     except Exception as e_rpc:
         logger.warning("upsert_price RPC failed, trying table fallback: %s", e_rpc)
-        today = date.today().isoformat()
-        ingredient_id = price_entry["ingredient_id"]
-        store_id = price_entry["store_id"]
-        data = {
-            "ingredient_id": ingredient_id,
-            "store_id": store_id,
-            "source": price_entry.get("source", "automated"),
-            "store_name": price_entry.get("store_name", ""),
-            "raw_product": price_entry["raw_product"],
-            "raw_price": price_entry["raw_price"],
-            "raw_unit": price_entry.get("raw_unit", ""),
-            "collected_at": today,
-            "valid_from": price_entry.get("valid_from", today),
-            "valid_until": valid_until,
-            "validity_raw": price_entry.get("validity_raw", ""),
-            "collected_weekday": _weekday_pt(now),
-            "is_promotion": is_promo,
-            "tier": price_entry.get("tier"),
-            "confidence": price_entry.get("confidence", 1.0),
-            "normalized": price_entry.get("normalized"),
-            "city": price_entry.get("city"),
-            "logistics": price_entry.get("logistics"),
-            "brand": price_entry.get("brand", "Desconhecido"),
-        }
+        data = _build_price_row(price_entry)
         # [Errno 11] Resource temporarily unavailable = exaustão transitória de
         # recurso do PostgREST sob pressão do scrape. Retry com backoff antes de
         # desistir — evita perder preços coletados por ruído de rede.
@@ -102,6 +79,44 @@ def upsert_price(price_entry: PriceEntry) -> dict[str, Any]:
         except Exception as e_fallback:
             logger.error("upsert_price fallback failed: %s", e_fallback)
             raise e_fallback
+
+
+def _build_price_row(price_entry: PriceEntry) -> dict[str, Any]:
+    """Converte um PriceEntry no formato da tabela `prices` (fallback/batch).
+
+    Centraliza a transformação entry → row para que o upsert unitário (fallback)
+    e o batch upsert usem EXATAMENTE a mesma lógica (validação de promoção,
+    valid_until default, weekday). Qualquer divergência aqui gera inconsistência
+    entre os dois caminhos de escrita.
+    """
+    today = date.today().isoformat()
+    valid_until = price_entry.get("valid_until")
+    if valid_until is None or not isinstance(valid_until, str):
+        valid_until = (date.today() + timedelta(days=7)).isoformat()
+    is_promo = price_entry.get("is_promotion")
+    if is_promo is None:
+        is_promo = _detect_promotion(price_entry.get("raw_product", ""), price_entry.get("raw_unit", ""))
+    return {
+        "ingredient_id": price_entry["ingredient_id"],
+        "store_id": price_entry["store_id"],
+        "source": price_entry.get("source", "automated"),
+        "store_name": price_entry.get("store_name", ""),
+        "raw_product": price_entry["raw_product"],
+        "raw_price": price_entry["raw_price"],
+        "raw_unit": price_entry.get("raw_unit", ""),
+        "collected_at": today,
+        "valid_from": price_entry.get("valid_from", today),
+        "valid_until": valid_until,
+        "validity_raw": price_entry.get("validity_raw", ""),
+        "collected_weekday": _weekday_pt(datetime.now(UTC)),
+        "is_promotion": is_promo,
+        "tier": price_entry.get("tier"),
+        "confidence": float(price_entry.get("confidence", 1.0)),
+        "normalized": price_entry.get("normalized"),
+        "city": price_entry.get("city"),
+        "logistics": price_entry.get("logistics"),
+        "brand": price_entry.get("brand", "Desconhecido"),
+    }
 
 
 def _is_transient_net_err(exc: Exception) -> bool:
@@ -212,3 +227,41 @@ def get_price_history(ingredient_canonical: str, days: int = 30, valid_only: boo
     cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
     result = query.gte("collected_at", cutoff).order("collected_at", desc=True).execute()
     return result.data if result.data else []
+
+
+def batch_upsert_prices(price_entries: list[PriceEntry], chunk_size: int = 50) -> dict[str, int]:
+    """Upsert em lote de preços na tabela `prices` via único `table.upsert`.
+
+    Substitui N chamadas HTTP unitárias por ~N/chunk_size chamadas em batch —
+    elimina o gargalo de round-trips do scrape em massa (Centro de Custo: o
+    `upsert_price` unitário dispara 1 request RPC + 1 fallback por produto).
+
+    O batch usa a MESMA lógica de `_build_price_row()` do fallback unitário e o
+    mesmo `ON CONFLICT (ingredient_id, store_id, collected_at)`. O trigger
+    `trg_price_history` dispara por row em qualquer INSERT/UPDATE — histórico
+    preservado. `price_per_kg` é generated column derivada de `normalized`.
+
+    Retorna {"total": ..., "inserted": ..., "failed": ...}. Em erro transitório
+    de rede cada chunk tem retry com backoff; erro persistente conta como failed
+    (não derruba o pipeline — o caller loga e segue).
+    """
+    if not price_entries:
+        return {"total": 0, "inserted": 0, "failed": 0}
+    client = get_service_client()
+    rows = [_build_price_row(e) for e in price_entries]
+    inserted = 0
+    failed = 0
+    for i in range(0, len(rows), chunk_size):
+        chunk = rows[i : i + chunk_size]
+        try:
+            result = _upsert_price_table_with_retry(client, chunk)
+            data = result.data if isinstance(result.data, list) else []
+            inserted += len(data) if data else 0
+        except Exception as exc:  # noqa: BLE001 - erro de rede/recurso já com retry interno
+            failed += len(chunk)
+            logger.warning("batch_upsert_prices chunk failed (%d rows): %s", len(chunk), exc)
+    logger.info(
+        "batch_upsert_prices: %d total, %d inserted, %d failed (%d chunks)",
+        len(rows), inserted, failed, (len(rows) + chunk_size - 1) // chunk_size,
+    )
+    return {"total": len(rows), "inserted": inserted, "failed": failed}

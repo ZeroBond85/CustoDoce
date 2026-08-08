@@ -1,9 +1,9 @@
 # `dashboard_queries` — API
 
-> Última atualização: 2026-08-08 02:58 UTC
+> Última atualização: 2026-08-08 14:34 UTC
 > Gerado por AST parsing dos serviços em `services/dashboard_queries.py`.
 
-## Funções Públicas (45)
+## Funções Públicas (48)
 
 ### approve_review_item_cached(item_id: str, ingredient_id: str, brand_override: str)
 
@@ -33,7 +33,17 @@ Approve a store registry entry and populate store_units.
 
 ### clear_all_caches()
 
-Clear all LRU caches - useful after data mutations.
+Clear all caches - useful after data mutations.
+
+### dashboard_cache(ttl: int | None, maxsize: int)
+
+Decorator: @st.cache_data(ttl=...) dentro do Streamlit; lru_cache fora.
+
+### dashboard_data_cache(ttl: int | None)
+
+Decorator para dados DINÂMICOS (preços): st.cache_data no runtime, sem cache fora.
+
+### decorator(func)
 
 ### extract_ppk(row: dict)
 
@@ -89,7 +99,7 @@ Get latest prices using materialized view.
 
 ### get_price_trends_cached(ingredient: str, days: int)
 
-### get_prices_for_ingredient_cached(ingredient: str, valid_only: bool)
+### get_prices_for_ingredient_cached(ingredient: str, valid_only: bool, tier: int | None)
 
 Get prices for an ingredient using the new server-side sorting.
 

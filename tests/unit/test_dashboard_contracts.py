@@ -1,6 +1,8 @@
 from unittest.mock import MagicMock, patch
 
 from services.dashboard_queries import (
+    _streamlit_runtime_active,
+    clear_all_caches,
     get_active_promotions,
     get_coverage_by_ingredient,
     get_dashboard_kpis,
@@ -70,3 +72,18 @@ def test_get_scraper_health_dashboard_contract(mock_get_supabase):
         assert expected_keys.issubset(set(item.keys()))
         emoji_ok = "🟢" in item["status_label"] or "🟡" in item["status_label"] or "🔴" in item["status_label"]
         assert emoji_ok, f"expected status emoji in label, got {item['status_label']}"
+
+
+def test_streamlit_runtime_detection_false_without_runtime():
+    """Fora de um runtime Streamlit (scripts/telegram/testes) cache é local.
+
+    A detecção não pode levantar exceção nem afirmar que há runtime — garante
+    que o decorator híbrido cai no fallback lru_cache/identidade.
+    """
+    assert _streamlit_runtime_active() is False
+
+
+@patch("services.dashboard_queries._streamlit_runtime_active", return_value=False)
+def test_clear_all_caches_local_does_not_raise(mock_runtime):
+    """clear_all_caches fora do Streamlit percorre o registro sem exceção."""
+    clear_all_caches()  # não deve levantar

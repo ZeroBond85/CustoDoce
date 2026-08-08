@@ -6,6 +6,7 @@ from services import maintenance_service, price_analytics, price_repository, rec
 
 # --- Price Repository ---
 upsert_price = price_repository.upsert_price
+batch_upsert_prices = price_repository.batch_upsert_prices
 search_prices = price_repository.search_prices
 
 

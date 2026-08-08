@@ -12,6 +12,10 @@ class VtexScraper(BaseWebScraper):
             store_config.get("api_endpoint") or f"{self.base_url}/api/catalog_system/pub/products/search"
         )
         self._dns_resolved = False
+        # Early-exit: para de paginar ao atingir este teto de resultados
+        # (0 = sem limite). Evita buscar 10 páginas de 50 quando a primeira
+        # já contém os produtos que serão filtrados pelo matcher.
+        self.max_results = int(store_config.get("vtex_max_results", 0) or 0)
 
     def _search_and_parse(self, ing: dict) -> list[dict]:
         ing_name = ing.get("canonical_name", "?")
@@ -44,11 +48,15 @@ class VtexScraper(BaseWebScraper):
     def _fetch_products(
         self, query: str, page_size: int = 50, max_pages: int = 10, timeout_total: int = 30
     ) -> list[dict]:
-        """Busca produtos com paginação. Loga progresso periodicamente."""
+        """Busca produtos com paginação. Loga progresso periodicamente.
+
+        Early-exit: para de paginar quando ``self.max_results`` é atingido ou
+        quando uma página retorna vazio (fim do catálogo).
+        """
         import time as _time
         from urllib.parse import quote
 
-        all_results = []
+        all_results: list[dict] = []
         page = 1
         start = _time.time()
         last_log = start
@@ -79,6 +87,12 @@ class VtexScraper(BaseWebScraper):
                     )
                     last_log = now
                 if len(data) < page_size:
+                    break
+                if self.max_results and len(all_results) >= self.max_results:
+                    logger.info(
+                        "[%s] Early-exit '%s' em %d páginas (%d resultados >= max %d)",
+                        self.name, query, page, len(all_results), self.max_results,
+                    )
                     break
                 page += 1
                 if self.rate_limit > 0:

@@ -4,6 +4,7 @@ Extracted from admin/app.py to separate query logic from UI.
 All functions use cached Supabase clients for performance.
 """
 
+from contextlib import suppress
 from datetime import UTC, datetime
 from functools import lru_cache
 
@@ -34,11 +35,93 @@ from services.price_service import (
 from services.supabase_client import get_supabase
 
 # ============================================================
+# Cache híbrido: @st.cache_data em runtime Streamlit, fallback local fora dele
+# ============================================================
+
+
+def _streamlit_runtime_active() -> bool:
+    """True se este processo roda DENTRO de um runtime Streamlit (script do dashboard).
+
+    Em scripts/telegram/testes unitários o Streamlit pode estar instalado mas sem
+    runtime ativo (``st.runtime.exists() is False``). Nesses casos o cache local
+    (lru_cache/thread-safe) é usado — comportamento anterior preservado.
+    """
+    try:
+        import streamlit as st
+
+        if getattr(st, "runtime", None) is not None:
+            return bool(st.runtime.exists())
+    except Exception:  # noqa: BLE001 - streamlit ausente/falho => fallback local
+        logger.debug("Streamlit runtime check falhou — fallback para cache local")
+    return False
+
+
+# Registro das funções cacheadas para clear_all_caches() percorrer ambos os tipos.
+_CACHE_REGISTRY: list[object] = []
+
+
+def _register(fn: object) -> None:
+    if fn not in _CACHE_REGISTRY:
+        _CACHE_REGISTRY.append(fn)
+
+
+def dashboard_cache(ttl: int | None = None, maxsize: int = 1):
+    """Decorator: @st.cache_data(ttl=...) dentro do Streamlit; lru_cache fora.
+
+    O dashboard roda em processo Streamlit persistente onde ``@lru_cache`` nunca
+    expira (preços viram stale para sempre) e não é limpo pelo botão "Limpar
+    Cache" (``st.cache_data.clear()`` em layout.py). ``@st.cache_data`` resolve
+    TTL + limpeza global. Fora do runtime cai em ``lru_cache`` — scripts,
+    telegram e testes unitários mantêm o comportamento atual.
+    """
+    def decorator(func):
+        if _streamlit_runtime_active():
+            import streamlit as st
+
+            cached = st.cache_data(ttl=ttl)(func)
+            _register(cached)
+            return cached
+        cached = lru_cache(maxsize=maxsize)(func)
+        _register(cached)
+        return cached
+
+    return decorator
+
+
+def dashboard_data_cache(ttl: int | None = None):
+    """Decorator para dados DINÂMICOS (preços): st.cache_data no runtime, sem cache fora.
+
+    Diferente de ``dashboard_cache`` (config estática), dados de preço NÃO podem
+    ter cache local em scripts/testes: o mock/patch do Supabase mudaria e o
+    lru_cache devolveria resultado velho. Aqui, fora do Streamlit o decorator é
+    identidade (sem cache); dentro, ``st.cache_data`` com TTL.
+    """
+    def decorator(func):
+        if _streamlit_runtime_active():
+            import streamlit as st
+
+            cached = st.cache_data(ttl=ttl)(func)
+            _register(cached)
+            return cached
+        return func
+
+    return decorator
+
+
+def _clear_cached_functions() -> None:
+    """Limpa cache de todas as funções registradas (lru_cache e st.cache_data)."""
+    for fn in _CACHE_REGISTRY:
+        clear = getattr(fn, "cache_clear", None)
+        if callable(clear):
+            with suppress(Exception):
+                clear()
+
+# ============================================================
 # Cached Data Loaders
 # ============================================================
 
 
-@lru_cache(maxsize=1)
+@dashboard_cache(ttl=3600)
 def load_ingredients_yaml():
     import yaml
 
@@ -47,7 +130,7 @@ def load_ingredients_yaml():
     return data.get("ingredients", [])
 
 
-@lru_cache(maxsize=1)
+@dashboard_cache(ttl=3600)
 def load_stores_yaml():
     import yaml
 
@@ -56,52 +139,52 @@ def load_stores_yaml():
     return data.get("stores", [])
 
 
-@lru_cache(maxsize=1)
+@dashboard_cache(ttl=300)
 def cached_get_all_stores(include_inactive=False):
     return get_all_stores(include_inactive)
 
 
-@lru_cache(maxsize=1)
+@dashboard_cache(ttl=300)
 def cached_get_all_ingredients(include_inactive=False):
     return get_all_ingredients(include_inactive)
 
 
-@lru_cache(maxsize=1)
+@dashboard_cache(ttl=300)
 def cached_get_all_schedules(include_disabled=False):
     return get_all_schedules(include_disabled)
 
 
-@lru_cache(maxsize=1)
+@dashboard_cache(ttl=300)
 def cached_get_all_recipients(include_inactive=False):
     return get_all_recipients(include_inactive)
 
 
-@lru_cache(maxsize=1)
+@dashboard_cache(ttl=300)
 def cached_get_all_alert_rules(include_disabled=False):
     return get_all_alert_rules(include_disabled)
 
 
-@lru_cache(maxsize=1)
+@dashboard_cache(ttl=300)
 def cached_get_all_feature_flags():
     return get_all_feature_flags()
 
 
-@lru_cache(maxsize=1)
+@dashboard_cache(ttl=300)
 def cached_get_active_ingredients():
     return get_active_ingredients()
 
 
-@lru_cache(maxsize=1)
+@dashboard_cache(ttl=300)
 def cached_get_enabled_schedules():
     return get_enabled_schedules()
 
 
-@lru_cache(maxsize=1)
+@dashboard_cache(ttl=300)
 def cached_get_active_recipients(channel=None):
     return get_active_recipients(channel)
 
 
-@lru_cache(maxsize=1)
+@dashboard_cache(ttl=300)
 def cached_get_enabled_alert_rules(trigger=None):
     return get_enabled_alert_rules(trigger)
 
@@ -111,33 +194,45 @@ def cached_get_enabled_alert_rules(trigger=None):
 # ============================================================
 
 
-def get_prices_for_ingredient_cached(ingredient: str, valid_only: bool = True):
-    """Get prices for an ingredient using the new server-side sorting."""
-    return search_prices(ingredient, sort_by="price_per_kg", sort_order="asc", valid_only=valid_only)
+@dashboard_data_cache(ttl=600)
+def get_prices_for_ingredient_cached(ingredient: str, valid_only: bool = True, tier: int | None = None):
+    """Get prices for an ingredient using the new server-side sorting.
+
+    Filtra por ingrediente (e tier, quando informado) no PostgREST — o dashboard
+    não baixa mais 5000 preços de todos os ingredientes para mostrar um só.
+    """
+    return search_prices(
+        ingredient, sort_by="price_per_kg", sort_order="asc", valid_only=valid_only, tier=tier
+    )
 
 
+@dashboard_data_cache(ttl=600)
 def get_latest_prices_cached(valid_only: bool = True, limit: int = 2000):
     """Get latest prices using materialized view."""
     return get_all_current_prices(valid_only=valid_only, limit=limit)
 
 
+@dashboard_data_cache(ttl=600)
 def get_price_history_cached(ingredient: str, days: int = 30, valid_only: bool = False):
     return get_price_history(ingredient, days, valid_only)
 
 
+@dashboard_data_cache(ttl=600)
 def get_longitudinal_winners_cached(days: int = 90):
     return get_longitudinal_winners(days)
 
 
+@dashboard_data_cache(ttl=600)
 def get_price_trends_cached(ingredient: str, days: int = 90):
     return get_price_trends(ingredient, days)
 
 
+@dashboard_data_cache(ttl=600)
 def get_cross_ingredient_ranking_cached(days: int = 90):
     return get_cross_ingredient_ranking(days)
 
 
-@lru_cache(maxsize=128)
+@dashboard_cache(maxsize=128)
 def get_cheapest_prices_cached(ingredient: str, top_n: int = 3):
     return get_cheapest_prices(ingredient, top_n)
 
@@ -229,6 +324,11 @@ def get_recent_flyers_cached(days: int = 7, source: str | None = None):
 def get_dashboard_kpis():
     """Calculate KPIs for dashboard overview."""
     prices = get_latest_prices_cached(valid_only=True, limit=5000)
+    return _kpis_from_prices(prices)
+
+
+def _kpis_from_prices(prices):
+    """KPIs a partir de preços já carregados — dashboard reusa 1 query de 5000."""
     if not prices:
         return {
             "total_prices": 0,
@@ -240,52 +340,84 @@ def get_dashboard_kpis():
     ingredients = {p.get("ingredient_id", "") for p in prices}
     stores = {p.get("store_id", "") for p in prices}
 
-    valid_ppk = [_safe_ppk(p) for p in prices if _safe_ppk(p) > 0]
+    # Single-pass: _safe_ppk chamado 1x por item (antes 2x no filter+listcomp).
+    total_ppk = 0.0
+    valid_count = 0
+    for p in prices:
+        ppk = _safe_ppk(p)
+        if ppk > 0:
+            total_ppk += ppk
+            valid_count += 1
 
     return {
         "total_prices": len(prices),
         "ingredients_covered": len(ingredients),
         "stores_active": len(stores),
-        "avg_price_per_kg": sum(valid_ppk) / len(valid_ppk) if valid_ppk else 0,
+        "avg_price_per_kg": total_ppk / valid_count if valid_count else 0,
     }
 
 
 def get_coverage_by_ingredient():
-    """Get coverage statistics per ingredient."""
+    """Get coverage statistics per ingredient.
+
+    Single-pass O(N) sobre os preços — evita o loop O(N²) anterior
+    (um `filter` sobre a lista inteira por ingrediente) que degradava
+    com ~5000 preços × 23 ingredientes.
+    """
     prices = get_latest_prices_cached(valid_only=True, limit=5000)
+    return _coverage_from_prices(prices)
+
+
+def _coverage_from_prices(prices):
+    """Computa cobertura por ingrediente a partir de preços já carregados.
+
+    Expor a versão com preços prontos permite que o dashboard faça UMA query
+    de preços e reutilize o resultado em cobertura + outliers + ofertas (em vez
+    de N queries de 5000 rows). Semântica idêntica à versão com query interna.
+    """
     if not prices:
         return []
 
     from collections import defaultdict
 
-    coverage = defaultdict(lambda: {"stores": set(), "prices": 0, "min_ppk": float("inf"), "avg_ppk": 0})
-
+    # Passo único: agrega por ingrediente sem re-scan da lista.
+    by_ing = defaultdict(lambda: {"stores": set(), "prices": 0, "ppk_sum": 0.0, "ppk_count": 0, "min_ppk": float("inf")})
     for p in prices:
         ing = p.get("ingredient_id", "")
         store = p.get("store_id", "")
         ppk = _safe_ppk(p)
-
-        coverage[ing]["stores"].add(store)
-        coverage[ing]["prices"] += 1
+        rec = by_ing[ing]
+        rec["stores"].add(store)
+        rec["prices"] += 1
         if ppk > 0:
-            coverage[ing]["min_ppk"] = min(coverage[ing]["min_ppk"], ppk)
+            rec["ppk_sum"] += ppk
+            rec["ppk_count"] += 1
+            rec["min_ppk"] = min(rec["min_ppk"], ppk)
 
-    # Calculate averages
-    for ing, data in coverage.items():
-        ing_prices = [p for p in prices if p.get("ingredient_id") == ing]
-        valid_ppk = [_safe_ppk(p) for p in ing_prices if _safe_ppk(p) > 0]
-        data["avg_ppk"] = sum(valid_ppk) / len(valid_ppk) if valid_ppk else 0
-        data["store_count"] = len(data["stores"])
-        data["stores"] = list(data["stores"])
-
-    return [{"ingredient": k, **v} for k, v in sorted(coverage.items())]
+    coverage = []
+    for ing, data in by_ing.items():
+        coverage.append(
+            {
+                "ingredient": ing,
+                "stores": list(data["stores"]),
+                "store_count": len(data["stores"]),
+                "prices": data["prices"],
+                "min_ppk": data["min_ppk"] if data["ppk_count"] else 0,
+                "avg_ppk": data["ppk_sum"] / data["ppk_count"] if data["ppk_count"] else 0,
+            }
+        )
+    return sorted(coverage, key=lambda x: x["ingredient"])
 
 
 def get_active_promotions():
     """Get currently active promotions."""
     prices = get_latest_prices_cached(valid_only=True, limit=5000)
-    promos = [p for p in prices if p.get("is_promotion")]
-    return promos
+    return _promotions_from_prices(prices)
+
+
+def _promotions_from_prices(prices):
+    """Promoções ativas a partir de preços já carregados (sem 2ª query)."""
+    return [p for p in prices if p.get("is_promotion")]
 
 
 # ============================================================
@@ -714,17 +846,15 @@ def extract_pun(row: dict) -> float:
 
 
 def clear_all_caches():
-    """Clear all LRU caches - useful after data mutations."""
-    load_ingredients_yaml.cache_clear()
-    load_stores_yaml.cache_clear()
-    cached_get_all_stores.cache_clear()
-    cached_get_all_ingredients.cache_clear()
-    cached_get_all_schedules.cache_clear()
-    cached_get_all_recipients.cache_clear()
-    cached_get_all_alert_rules.cache_clear()
-    cached_get_all_feature_flags.cache_clear()
-    cached_get_active_ingredients.cache_clear()
-    get_cheapest_prices_cached.cache_clear()
-    cached_get_enabled_schedules.cache_clear()
-    cached_get_active_recipients.cache_clear()
-    cached_get_enabled_alert_rules.cache_clear()
+    """Clear all caches - useful after data mutations.
+
+    Percorre o registro de funções cacheadas (híbrido lru_cache/st.cache_data)
+    e, em runtime Streamlit, também limpa o ``st.cache_data`` global — o botão
+    "Limpar Cache" (layout.py) e a página Diagnóstico confiam nisso.
+    """
+    _clear_cached_functions()
+    if _streamlit_runtime_active():
+        import streamlit as st
+
+        with suppress(Exception):
+            st.cache_data.clear()

@@ -7,7 +7,7 @@ import plotly.express as px
 import streamlit as st
 
 from services.dashboard_queries import (
-    get_coverage_by_ingredient,
+    _coverage_from_prices,
     get_latest_prices_cached,
 )
 
@@ -33,7 +33,8 @@ def render_insights():
         return
 
     st.subheader("Cobertura e Preço Médio por Ingrediente")
-    coverage = get_coverage_by_ingredient()
+    # Reutiliza os preços já carregados acima — evita 2ª query de 5000 rows.
+    coverage = _coverage_from_prices(prices)
 
     if coverage:
         df_cov = pd.DataFrame(coverage)
