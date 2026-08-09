@@ -1,5 +1,7 @@
 # CustoDoce - Análise Completa de UX & Plano de Testes
 
+> Última atualização: 2026-08-08 12:00 UTC
+
 **Data**: 2026-08-08 | **Versão**: 1.0 | **Sprint**: 17 (Pós-Otimização Performance)
 
 ---
