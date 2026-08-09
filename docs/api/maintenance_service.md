@@ -1,6 +1,6 @@
 # `maintenance_service` — API
 
-> Última atualização: 2026-08-09 19:30 UTC
+> Última atualização: 2026-08-09 19:39 UTC
 > Gerado por AST parsing dos serviços em `services/maintenance_service.py`.
 
 ## Funções Públicas (6)
