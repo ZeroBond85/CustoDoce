@@ -170,10 +170,15 @@ class TestDbCleanup:
             _retry_supabase(client.table("stores").delete().eq("id", store_id))
 
     def test_cleanup_old_prices(self, real_supabase):
-        """Valida cleanup_old_prices(retention_days)."""
+        """Valida cleanup_old_prices(retention_days) SEM afetar dados de produção.
+
+        Usa store_id_filter para escopar a limpeza ao store de teste — as funcoes
+        cleanup sao GLOBAIS por padrao (ver LESSONS: perda de dados reais em CI)."""
         store_id, store_name = self._setup_test_data(real_supabase, include_flyers=False)
         try:
-            _retry_supabase(real_supabase.rpc("cleanup_old_prices", {"retention_days": 30}))
+            _retry_supabase(
+                real_supabase.rpc("cleanup_old_prices", {"retention_days": 30, "store_id_filter": store_id})
+            )
 
             res = _retry_supabase(real_supabase.table("prices").select("raw_product").eq("ingredient_id", self.TEST_ING))
             products = [r["raw_product"] for r in res.data]
@@ -184,10 +189,12 @@ class TestDbCleanup:
             self._cleanup_test_data(real_supabase, store_id, store_name)
 
     def test_cleanup_old_logs(self, real_supabase):
-        """Valida cleanup_old_logs(retention_days)."""
+        """Valida cleanup_old_logs(retention_days) escopado ao store de teste."""
         store_id, store_name = self._setup_test_data(real_supabase, include_flyers=False)
         try:
-            _retry_supabase(real_supabase.rpc("cleanup_old_logs", {"retention_days": 30}))
+            _retry_supabase(
+                real_supabase.rpc("cleanup_old_logs", {"retention_days": 30, "store_name_filter": store_name})
+            )
 
             res = _retry_supabase(real_supabase.table("scraping_logs").select("started_at").eq("store_name", store_name))
             today_limit = datetime.now(UTC) - timedelta(days=30)
@@ -199,10 +206,12 @@ class TestDbCleanup:
             self._cleanup_test_data(real_supabase, store_id, store_name)
 
     def test_cleanup_old_flyers(self, real_supabase):
-        """Valida cleanup_old_flyers_all(retention_days)."""
+        """Valida cleanup_old_flyers_all(retention_days) escopado ao store de teste."""
         store_id, store_name = self._setup_test_data(real_supabase, include_flyers=True)
         try:
-            _retry_supabase(real_supabase.rpc("cleanup_old_flyers_all", {"retention_days": 30}))
+            _retry_supabase(
+                real_supabase.rpc("cleanup_old_flyers_all", {"retention_days": 30, "store_name_filter": store_name})
+            )
 
             res = _retry_supabase(real_supabase.table("flyers").select("collected_at").eq("store_name", store_name))
             today_limit = datetime.now(UTC) - timedelta(days=30)

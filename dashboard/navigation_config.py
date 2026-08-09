@@ -48,7 +48,6 @@ PAGE_FUNCTIONS: dict[str, Callable] = {
     "insights": render_insights,
     "lojas": render_lojas,
     "lojas_pendentes": render_lojas_pendentes,
-    "lojas_registro": render_lojas_pendentes,
     "ingredientes": render_ingredientes,
     "alertas": render_alertas,
     "scrapers": render_scrapers,
@@ -82,7 +81,6 @@ MENU_GROUPS: dict[str, list[tuple[str, str, str]]] = {
     "📦 Cadastros": [
         ("Lojas", "🏪", "lojas"),
         ("Lojas Pendentes", "🕵️", "lojas_pendentes"),
-        ("Registro de Lojas", "📋", "lojas_registro"),
         ("Ingredientes", "🛒", "ingredientes"),
     ],
     "🤖 Operações": [

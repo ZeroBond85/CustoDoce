@@ -54,7 +54,7 @@ DECLARE
     v_store_id TEXT;
 BEGIN
     SELECT * INTO v_registry
-    FROM store_registry
+    FROM public.store_registry
     WHERE id = p_registry_id AND status = 'approved';
 
     IF NOT FOUND THEN
@@ -63,19 +63,19 @@ BEGIN
 
     -- If already matched to existing store, just mark merged and update address
     IF v_registry.matched_store_id IS NOT NULL THEN
-        UPDATE stores
-        SET address = COALESCE(NULLIF(v_registry.address, ''), stores.address),
-            neighborhood = COALESCE(NULLIF(v_registry.neighborhood, ''), stores.neighborhood),
-            phone = COALESCE(NULLIF(v_registry.phone, ''), stores.phone)
+        UPDATE public.stores
+        SET address = COALESCE(NULLIF(v_registry.address, ''), public.stores.address),
+            neighborhood = COALESCE(NULLIF(v_registry.neighborhood, ''), public.stores.neighborhood),
+            phone = COALESCE(NULLIF(v_registry.phone, ''), public.stores.phone)
         WHERE id = v_registry.matched_store_id;
-        UPDATE store_registry
+        UPDATE public.store_registry
         SET status = 'merged', updated_at = now()
         WHERE id = p_registry_id;
         RETURN;
     END IF;
 
     -- Insert new store with address data
-    INSERT INTO stores (
+    INSERT INTO public.stores (
         name, tier, type, logistics, city, zone, coverage,
         collection_method, address, neighborhood, phone,
         config, source
@@ -88,7 +88,7 @@ BEGIN
     )
     RETURNING id INTO v_store_id;
 
-    UPDATE store_registry
+    UPDATE public.store_registry
     SET status = 'merged', matched_store_id = v_store_id, updated_at = now()
     WHERE id = p_registry_id;
 END;
@@ -102,7 +102,7 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
-    INSERT INTO store_registry (
+    INSERT INTO public.store_registry (
         name, normalized_name, tier, type, logistics,
         city, coverage, collection_method, source, status,
         region
@@ -119,19 +119,20 @@ BEGIN
         'auto',
         'pending_review',
         f.region
-    FROM flyers f
+    FROM public.flyers f
     WHERE NOT EXISTS (
-        SELECT 1 FROM stores s
+        SELECT 1 FROM public.stores s
         WHERE upper(regexp_replace(s.name, '[^A-Z0-9 ]', '', 'g'))
             = upper(regexp_replace(f.store_name, '[^A-Z0-9 ]', '', 'g'))
     )
     AND NOT EXISTS (
-        SELECT 1 FROM store_registry r
+        SELECT 1 FROM public.store_registry r
         WHERE r.status IN ('pending_review', 'approved')
         AND r.normalized_name
             = upper(regexp_replace(f.store_name, '[^A-Z0-9 ]', '', 'g'))
     )
     AND f.store_name IS NOT NULL
-    AND f.store_name != '';
+    AND f.store_name != ''
+    ON CONFLICT (normalized_name) WHERE status IN ('pending_review', 'approved') DO NOTHING;
 END;
 $$;

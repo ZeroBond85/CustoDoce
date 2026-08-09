@@ -3,7 +3,10 @@ Price Repository - Raw DB access for prices and price history.
 """
 
 from datetime import UTC, date, datetime, timedelta
+from contextlib import suppress
 from typing import Any
+import json
+import re
 import time
 
 from services.logger import logger
@@ -17,8 +20,6 @@ def _weekday_pt(dt: datetime) -> str:
 
 
 def _detect_promotion(raw_product: str, raw_unit: str) -> bool:
-    import re
-
     text = f"{raw_product} {raw_unit}".lower()
     keywords = ["promo", "oferta", "promocao", "desconto", r"\d+%\s*off"]
     return any(re.search(k, text) for k in keywords)
@@ -26,10 +27,14 @@ def _detect_promotion(raw_product: str, raw_unit: str) -> bool:
 
 def upsert_price(price_entry: PriceEntry) -> dict[str, Any]:
     client = get_service_client()
-    now = datetime.now(UTC)
+    collected_at = price_entry.get("collected_at", date.today().isoformat())
+    try:
+        collected_dt = datetime.fromisoformat(collected_at.replace("Z", "+00:00"))
+    except Exception:
+        collected_dt = datetime.now(UTC)
     valid_until = price_entry.get("valid_until")
     if valid_until is None or not isinstance(valid_until, str):
-        valid_until = (date.today() + timedelta(days=7)).isoformat()
+        valid_until = (collected_dt.date() + timedelta(days=7)).isoformat()
 
     is_promo = price_entry.get("is_promotion")
     if is_promo is None:
@@ -46,11 +51,11 @@ def upsert_price(price_entry: PriceEntry) -> dict[str, Any]:
         "p_raw_product": price_entry["raw_product"],
         "p_raw_price": float(price_entry["raw_price"]),
         "p_raw_unit": price_entry.get("raw_unit", ""),
-        "p_collected_at": date.today().isoformat(),
-        "p_valid_from": price_entry.get("valid_from", date.today().isoformat()),
+        "p_collected_at": collected_at,
+        "p_valid_from": price_entry.get("valid_from", collected_at),
         "p_valid_until": valid_until,
         "p_validity_raw": price_entry.get("validity_raw", ""),
-        "p_collected_weekday": _weekday_pt(now),
+        "p_collected_weekday": _weekday_pt(collected_dt),
         "p_is_promotion": is_promo,
         "p_tier": price_entry.get("tier"),
         "p_confidence": float(price_entry.get("confidence", 1.0)),
@@ -229,6 +234,59 @@ def get_price_history(ingredient_canonical: str, days: int = 30, valid_only: boo
     return result.data if result.data else []
 
 
+def _extract_price_per_kg(row: dict) -> float:
+    """Menor custo por kg da row (normalized.price_per_kg > estimativa raw)."""
+    norm = row.get("normalized")
+    if isinstance(norm, dict):
+        price_per_kg = norm.get("price_per_kg")
+        if price_per_kg is not None:
+            return float(price_per_kg)
+    elif isinstance(norm, str):
+        with suppress(Exception):
+            price_per_kg = json.loads(norm).get("price_per_kg")
+            if price_per_kg is not None:
+                return float(price_per_kg)
+    try:
+        raw_price = float(row["raw_price"])
+        raw_unit = row.get("raw_unit", "")
+        m = re.search(r"(\d+)\s*x\s*([\d,.]+)\s*(kg|g)", raw_unit, re.I)
+        if m:
+            qty = int(m.group(1))
+            weight = float(m.group(2).replace(",", "."))
+            unit = m.group(3).lower()
+            total_kg = qty * (weight if unit == "kg" else weight / 1000)
+        else:
+            m2 = re.search(r"([\d,.]+)\s*(kg|g)", raw_unit, re.I)
+            if m2:
+                weight = float(m2.group(1).replace(",", "."))
+                unit = m2.group(2).lower()
+                total_kg = weight if unit == "kg" else weight / 1000
+            else:
+                total_kg = 1.0
+        if total_kg > 0:
+            return raw_price / total_kg
+    except (ValueError, TypeError, ZeroDivisionError):
+        logger.debug("fallback price_per_kg estimate failed for row %s", row.get("ingredient_id"))
+    return float("inf")
+
+
+def _deduplicate_price_rows(rows: list[dict]) -> list[dict]:
+    """Remove duplicatas por (ingredient_id, store_id, collected_at), mantendo o melhor preço.
+
+    Melhor = menor price_per_kg (calculado de normalized.price_per_kg se disponível,
+    senão raw_price / total_kg estimado). Sem dedup, o mesmo chunk levava a
+    "ON CONFLICT DO UPDATE command cannot affect row a second time" (erro 21000).
+    """
+    seen: dict[tuple, dict] = {}
+    for row in rows:
+        key = (row["ingredient_id"], row["store_id"], row["collected_at"])
+        price_per_kg = _extract_price_per_kg(row)
+        best = seen.get(key)
+        if best is None or price_per_kg < _extract_price_per_kg(best):
+            seen[key] = row
+    return list(seen.values())
+
+
 def batch_upsert_prices(price_entries: list[PriceEntry], chunk_size: int = 50) -> dict[str, int]:
     """Upsert em lote de preços na tabela `prices` via único `table.upsert`.
 
@@ -241,6 +299,10 @@ def batch_upsert_prices(price_entries: list[PriceEntry], chunk_size: int = 50) -
     `trg_price_history` dispara por row em qualquer INSERT/UPDATE — histórico
     preservado. `price_per_kg` é generated column derivada de `normalized`.
 
+    **NOVO**: Deduplica entradas por (ingredient_id, store_id, collected_at) antes
+    do upsert, mantendo o menor price_per_kg — evita erro "ON CONFLICT DO UPDATE
+    command cannot affect row a second time".
+
     Retorna {"total": ..., "inserted": ..., "failed": ...}. Em erro transitório
     de rede cada chunk tem retry com backoff; erro persistente conta como failed
     (não derruba o pipeline — o caller loga e segue).
@@ -249,6 +311,8 @@ def batch_upsert_prices(price_entries: list[PriceEntry], chunk_size: int = 50) -
         return {"total": 0, "inserted": 0, "failed": 0}
     client = get_service_client()
     rows = [_build_price_row(e) for e in price_entries]
+    # Deduplica por chave única do upsert
+    rows = _deduplicate_price_rows(rows)
     inserted = 0
     failed = 0
     for i in range(0, len(rows), chunk_size):
@@ -261,7 +325,7 @@ def batch_upsert_prices(price_entries: list[PriceEntry], chunk_size: int = 50) -
             failed += len(chunk)
             logger.warning("batch_upsert_prices chunk failed (%d rows): %s", len(chunk), exc)
     logger.info(
-        "batch_upsert_prices: %d total, %d inserted, %d failed (%d chunks)",
-        len(rows), inserted, failed, (len(rows) + chunk_size - 1) // chunk_size,
+        "batch_upsert_prices: %d total, %d inserted, %d failed (%d chunks) [deduped from %d]",
+        len(rows), inserted, failed, (len(rows) + chunk_size - 1) // chunk_size, len(price_entries),
     )
     return {"total": len(rows), "inserted": inserted, "failed": failed}

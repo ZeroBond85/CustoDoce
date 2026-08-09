@@ -1,9 +1,9 @@
 # `dashboard_queries` — API
 
-> Última atualização: 2026-08-08 14:34 UTC
+> Última atualização: 2026-08-09 16:03 UTC
 > Gerado por AST parsing dos serviços em `services/dashboard_queries.py`.
 
-## Funções Públicas (48)
+## Funções Públicas (49)
 
 ### approve_review_item_cached(item_id: str, ingredient_id: str, brand_override: str)
 
@@ -44,6 +44,10 @@ Decorator: @st.cache_data(ttl=...) dentro do Streamlit; lru_cache fora.
 Decorator para dados DINÂMICOS (preços): st.cache_data no runtime, sem cache fora.
 
 ### decorator(func)
+
+### detect_outliers_cached(days: int)
+
+Detect price outliers using DB-side RPC (z-score > 2 per ingredient).
 
 ### extract_ppk(row: dict)
 

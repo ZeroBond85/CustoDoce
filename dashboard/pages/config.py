@@ -10,10 +10,8 @@ from services.config import reload as reload_config
 from services.config_db import (
     get_all_alert_rules,
     get_all_feature_flags,
-    get_all_recipients,
     upsert_alert_rule,
     upsert_feature_flag,
-    upsert_recipient,
 )
 
 
@@ -22,7 +20,7 @@ def render_config():
 
     st.title("Configuração do Sistema")
 
-    tabs = st.tabs(["🚩 Feature Flags", "📧 Alert Rules", "📬 Destinatários", "🔄 Recarregar Config"])
+    tabs = st.tabs(["🚩 Feature Flags", "📧 Alert Rules", "🔄 Recarregar Config"])
 
     st.info(
         "💡 As variáveis de ambiente (.env) são gerenciadas pelo Streamlit Cloud Secrets ou GitHub Actions Secrets. "
@@ -38,11 +36,7 @@ def render_config():
         st.subheader("Regras de Alerta")
         _render_alert_rules_tab()
 
-    with tabs[2]:  # Recipients
-        st.subheader("Destinatários de Alertas")
-        _render_recipients_tab()
-
-    with tabs[3]:  # Reload
+    with tabs[2]:  # Reload
         _render_reload_tab()
 
 
@@ -170,53 +164,6 @@ def _render_alert_rules_tab() -> None:
             else:
                 upsert_alert_rule({"name": name, "trigger": trigger, "threshold": threshold, "enabled": enabled})
                 st.success("Regra criada!")
-                st.rerun()
-
-
-def _render_recipients_tab() -> None:
-    recipients = get_all_recipients()
-
-    if recipients:
-        with st.form("recipients_batch_form"):
-            st.markdown("Edite cada destinatário e clique **Salvar Tudo** para persistir.")
-            new_states: dict[int, dict] = {}
-            for r in recipients:
-                st.markdown(f"**{r['name']}** — `{r['channel']}`: `{r.get('target', r.get('address', ''))}`")
-                enabled = st.checkbox(
-                    "Ativo",
-                    value=r.get("enabled", True),
-                    key=f"rec_en_{r['id']}",
-                )
-                new_states[r["id"]] = {**r, "enabled": enabled}
-                st.divider()
-
-            if st.form_submit_button("💾 Salvar Tudo", type="primary"):
-                failures: list[str] = []
-                for _id, payload in new_states.items():
-                    try:
-                        upsert_recipient(payload)
-                    except Exception as exc:  # noqa: BLE001
-                        failures.append(f"{payload.get('name')}: {exc}")
-                if failures:
-                    st.error("Falhas ao salvar:")
-                    for f in failures:
-                        st.write(f"- {f}")
-                else:
-                    st.success(f"{len(new_states)} destinatário(s) atualizados.")
-                    st.rerun()
-
-    st.divider()
-    with st.form("new_recipient"):
-        name = st.text_input("Nome")
-        channel = st.selectbox("Canal", ["email", "telegram"])
-        address = st.text_input("Endereço (email ou chat_id)")
-        enabled = st.checkbox("Ativo", value=True)
-        if st.form_submit_button("Adicionar"):
-            if not name.strip() or not address.strip():
-                st.error("Nome e endereço são obrigatórios")
-            else:
-                upsert_recipient({"name": name, "channel": channel, "target": address, "enabled": enabled})
-                st.success("Destinatário adicionado!")
                 st.rerun()
 
 

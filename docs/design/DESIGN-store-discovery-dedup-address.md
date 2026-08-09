@@ -1,5 +1,5 @@
 # Design: Store Discovery + Dedup + Address + OCR Tier 3
-> Última atualização: 2026-08-08 02:56 UTC
+> Última atualização: 2026-08-09 16:03 UTC
 
 > **Contexto:** Tier 3 (Tiendeo, Kimbino, Portafolhetos) já coleta flyers com `store_name` e `image_url`. Mas: (1) lojas novas não são descobertas, (2) lojas com nome variante duplicam, (3) endereço das lojas não é capturado, (4) OCR dos flyers não extrai produtos → preços.
 

@@ -845,6 +845,28 @@ def extract_pun(row: dict) -> float:
     return 0.0
 
 
+@dashboard_data_cache(ttl=300)
+def detect_outliers_cached(days: int = 90):
+    """Detect price outliers using DB-side RPC (z-score > 2 per ingredient).
+
+    Replaces frontend Python loop with database computation for performance.
+    Uses the detect_price_outliers RPC function (migration 013).
+
+    Args:
+        days: Lookback window in days (default 90)
+
+    Returns:
+        List of dicts with ingredient_id, store_name, raw_product, ppk, zscore
+    """
+    client = get_supabase()
+    try:
+        result = client.rpc("detect_price_outliers", {"p_days": days}).execute()
+        return result.data or []
+    except Exception as e:
+        logger.warning(f"Outlier detection RPC failed, falling back to empty: {e}")
+        return []
+
+
 def clear_all_caches():
     """Clear all caches - useful after data mutations.
 

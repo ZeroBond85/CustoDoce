@@ -40,12 +40,21 @@ TABLE_ORDER = [
 
 
 def load_backup(filepath: str) -> dict:
-    """Load and validate backup JSON."""
+    """Load and validate backup JSON.
+
+    Aceita dois formatos:
+    - rpc_backup.py: {"data": {tabela: rows}, "schema": {...}}
+    - legado: {tabela: rows} direto na raiz
+    """
     with gzip.open(filepath, "rt", encoding="utf-8") as f:
         data = json.load(f)
 
     if not isinstance(data, dict):
         raise ValueError("Backup root must be a JSON object with table names as keys")
+
+    # Formato do rpc_backup.py — extrai o bloco "data"
+    if "data" in data and isinstance(data.get("data"), dict):
+        data = data["data"]
 
     missing = [t for t in TABLE_ORDER if t not in data]
     if missing:

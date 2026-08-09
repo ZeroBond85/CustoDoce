@@ -5,6 +5,7 @@ Dashboard Page: Store Registry Review
 import streamlit as st
 
 from dashboard.components.ui import inject_css
+from services.config_db import upsert_store
 from services.dashboard_queries import (
     approve_store_registry_cached,
     get_store_registry_approved_cached,
@@ -107,7 +108,25 @@ def render_lojas_pendentes():
                                 st.error("Erro ao casar")
 
                     if st.button("➕ Criar Nova Loja", key=f"create_{store['id']}"):
-                        st.info("Funcionalidade: Criar nova loja no config + aprovar")
+                        new_store = {
+                            "name": store["name"],
+                            "tier": store.get("tier", 2),
+                            "scraper": "manual",
+                            "city": store.get("city", "Santos"),
+                            "active": True,
+                            "source": "portal",
+                            "base_url": "",
+                            "selectors": {},
+                        }
+                        result = upsert_store(new_store)
+                        if result:
+                            if approve_store_registry_cached(store["id"]):
+                                st.success(f"Loja '{store['name']}' criada e aprovada!")
+                                st.rerun()
+                            else:
+                                st.error("Loja criada, mas erro ao aprovar registro")
+                        else:
+                            st.error("Erro ao criar loja")
 
                     if st.button("❌ Rejeitar", key=f"reject_new_{store['id']}"):
                         if reject_store_registry_cached(store["id"]):

@@ -511,59 +511,6 @@ def _ocr_text_to_products(raw_text: str) -> list[dict]:
     return products
 
 
-class GitHubModelsVisionStrategy(VisionStrategy):
-    """GitHub Models — GPT-4o com visao via Azure AI (gratuito, OpenAI-compat).
-
-    Requer GH_MODELS_TOKEN (NÃO GITHUB_TOKEN — o token auto do Actions não tem
-    escopo models/copilot). Rate limit: ~10 RPM, 50-150 RPD no free tier.
-    """
-
-    provider_name = "github_models"
-    timeout = 15.0
-    min_interval = 6.0  # ~10 RPM
-
-    def __init__(self):
-        super().__init__()
-        self._api_key = os.environ.get("GH_MODELS_TOKEN", "")
-        self._url = "https://models.inference.ai.azure.com/chat/completions"
-        self.model = "gpt-4o"
-
-    @property
-    def api_key(self) -> str:
-        return self._api_key
-
-    @property
-    def url(self) -> str:
-        return self._url
-
-    def _get_payload(self, image_bytes: bytes) -> dict:
-        b64 = self._encode_image(image_bytes)
-        return {
-            "model": self.model,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": _VISION_PROMPT},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
-                    ],
-                }
-            ],
-            "temperature": 0.1,
-            "max_tokens": 4000,
-            "response_format": {"type": "json_object"},
-        }
-
-    def _get_headers(self) -> dict:
-        return {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-
-    def _parse_response(self, content: str) -> VisionResult | None:
-        return _safe_parse(content)
-
-
 class GeminiVisionStrategy(VisionStrategy):
     """Google Gemini API — visao gratuita via Gemini 2.5 Flash.
 
@@ -689,13 +636,11 @@ def get_vision_chain() -> list[VisionStrategy]:
     """
     # Gemini (gratis, visao, rapido, ~0.5s fail se 429): melhor qualidade free.
     # NVIDIA (2.7s, llama-3.2-11b-vision): mais rapido dos working, qualidade boa.
-    # GitHub Models (4.5s, GPT-4o): melhor qualidade absoluta, mas mais lento.
     # OpenRouter (0.1s fail se 429, gemma-4): fallback free.
     # Tesseract OCR local: ultimo recurso antes do extract_products().
     chain: list[VisionStrategy] = [
         GeminiVisionStrategy(),
         NvidiaVisionStrategy(),
-        GitHubModelsVisionStrategy(),
         OpenRouterVisionStrategy(),
         TesseractVisionStrategy(),
     ]

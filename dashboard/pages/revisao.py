@@ -5,6 +5,7 @@ Dashboard Page: Revisão (Review Queue)
 import streamlit as st
 
 from dashboard.components.ui import inject_css
+from services.config_db import add_alias_to_ingredient
 from services.dashboard_queries import (
     approve_review_item_cached,
     get_all_ingredients,
@@ -74,7 +75,7 @@ def render_revisao():
                 image_url = item.get("image_url") or item.get("source_url")
                 if image_url:
                     try:
-                        st.image(image_url, width=200)
+                        st.image(image_url, width=200, caption=f"Produto: {item.get('raw_product', 'N/A')}")
                     except Exception:
                         st.link_button("🔗 Ver Imagem/Produto", image_url)
                 else:
@@ -162,8 +163,19 @@ def render_revisao():
 
             with col_alias:
                 if st.button("➕ Adicionar como Alias", key=f"btn_alias_{item['id']}"):
-                    # This would add the raw_product as alias to suggested ingredient
-                    st.info("Funcionalidade: adicionar como alias do ingrediente sugerido")
+                    suggested = item.get("resolved_ingredient")
+                    raw_product = item.get("raw_product", "")
+                    if suggested and raw_product:
+                        result = add_alias_to_ingredient(suggested, raw_product)
+                        if result:
+                            st.success(f"Alias '{raw_product}' adicionado a '{suggested}'")
+                            st.rerun()
+                        else:
+                            st.error("Erro ao adicionar alias")
+                    elif not suggested:
+                        st.warning("Nenhum ingrediente sugerido para associar")
+                    else:
+                        st.warning("Produto original não disponível para criar alias")
 
 
 __all__ = ["render_revisao"]

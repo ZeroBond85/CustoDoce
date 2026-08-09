@@ -5,6 +5,7 @@ Sem mocks. Requer SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY no .env
 
 import os
 import sys
+from contextlib import suppress
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -23,12 +24,19 @@ from supabase import create_client
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 SKIP_REASON = "SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY não configurados"
+CI_SKIP_REASON = "Flaky em CI (trigger/estado DB) — passa local"
 
 
 def db():
     if not SUPABASE_URL or not SUPABASE_KEY:
         pytest.skip(SKIP_REASON)
     return create_client(SUPABASE_URL, SUPABASE_KEY)
+
+
+def _skip_if_ci():
+    """Pula testes flaky conhecidos em CI (GITHUB_ACTIONS=true)."""
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        pytest.skip(CI_SKIP_REASON)
 
 
 class TestDBReal:
@@ -124,23 +132,47 @@ class TestDBReal:
     def test_d2_7_trigger_price_history(self):
         """Insert em prices → row em price_history (trigger ON CONFLICT)"""
         c = db()
+        import uuid
         from datetime import date
 
+        store_id = f"_test_d2_7_{uuid.uuid4().hex[:8]}"
         today = date.today().isoformat()
-        test_row = c.table("prices").select("ingredient_id,store_id,collected_at").limit(1).execute()
-        if not test_row.data:
-            pytest.skip("Nenhum price para testar trigger")
-        p = test_row.data[0]
-        history = (
-            c.table("price_history")
-            .select("id")
-            .eq("ingredient_id", p["ingredient_id"])
-            .eq("store_id", p["store_id"])
-            .eq("collected_at", p["collected_at"])
-            .limit(1)
-            .execute()
-        )
-        assert len(history.data) > 0, "D2.7: Trigger não criou row em price_history"
+        params = {
+            "p_ingredient_id": "Leite Condensado Integral",
+            "p_store_id": store_id,
+            "p_collected_at": today,
+            "p_raw_price": 12.34,
+            "p_raw_product": f"test_d2_7_{store_id}",
+            "p_raw_unit": "395g",
+            "p_source": "manual",
+            "p_store_name": store_id,
+            "p_brand": "",
+            "p_city": "",
+            "p_collected_weekday": "",
+            "p_confidence": 0.95,
+            "p_is_promotion": False,
+            "p_logistics": "pickup_local",
+            "p_normalized": None,
+            "p_tier": 2,
+            "p_valid_from": None,
+            "p_valid_until": None,
+            "p_validity_raw": "",
+        }
+        try:
+            c.rpc("upsert_price_rpc", params).execute()
+            history = (
+                c.table("price_history")
+                .select("id")
+                .eq("store_id", store_id)
+                .limit(1)
+                .execute()
+            )
+            assert len(history.data) > 0, "D2.7: Trigger não criou row em price_history"
+        finally:
+            # Cleanup — só a store de teste, nunca afeta dados reais
+            for table in ("prices", "price_history"):
+                with suppress(Exception):
+                    c.table(table).delete().eq("store_id", store_id).execute()
 
     def test_d2_8_cleanup_flyers_all(self):
         """cleanup_old_flyers_all(180) executa sem erro"""
@@ -158,6 +190,29 @@ class TestDBReal:
             r = c.rpc("cleanup_resolved_review_items", {"retention_days": 30}).execute()
         except Exception as e:
             pytest.skip(f"cleanup_resolved_review_items não disponível: {e}")
+
+    def test_d2_11_outlier_rpc_runs(self):
+        """Regressão LESSONS #95: detect_price_outliers executa sem erro de relation.
+
+        Com `SET search_path = ''` e tabela não qualificada, o RPC falhava com
+        ``relation "prices" does not exist`` (42P01). O fix qualifica public.prices.
+        """
+        c = db()
+        result = c.rpc("detect_price_outliers", {"p_days": 90}).execute()
+        assert result.data is not None, "detect_price_outliers deve retornar lista"
+
+    def test_d2_12_discover_stores_idempotent(self):
+        """Regressão LESSONS #95: discover_stores_from_flyers roda sem crash e é idempotente.
+
+        Antes: relation "store_registry" does not exist (search_path=''). Depois do fix,
+        deve executar sem erro mesmo se rodado 2x (ON CONFLICT DO NOTHING).
+        """
+        c = db()
+        try:
+            c.rpc("discover_stores_from_flyers", {}).execute()
+            c.rpc("discover_stores_from_flyers", {}).execute()  # 2ª chamada = idempotência
+        except Exception as e:
+            pytest.fail(f"discover_stores_from_flyers falhou: {e}")
 
     def test_d2_10_query_timing(self):
         """Consultas críticas retornam em < 2s"""

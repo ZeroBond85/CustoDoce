@@ -45,13 +45,15 @@ CREATE POLICY "service_role_delete"
 -- granted by default, but we revoke explicitly to be safe.
 REVOKE ALL ON FUNCTION cleanup_old_prices(int) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION cleanup_old_flyers_all(int) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION cleanup_old_prices(int, text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION cleanup_old_flyers_all(int, text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION cleanup_resolved_review_items(int) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION cleanup_old_logs(int) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION cleanup_old_logs(int, text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION cleanup_old_llm_cache(int) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION cleanup_scraper_health_log(int) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION cleanup_old_prices(int) TO service_role;
-GRANT EXECUTE ON FUNCTION cleanup_old_flyers_all(int) TO service_role;
+GRANT EXECUTE ON FUNCTION cleanup_old_prices(int, text) TO service_role;
+GRANT EXECUTE ON FUNCTION cleanup_old_flyers_all(int, text) TO service_role;
 GRANT EXECUTE ON FUNCTION cleanup_resolved_review_items(int) TO service_role;
-GRANT EXECUTE ON FUNCTION cleanup_old_logs(int) TO service_role;
+GRANT EXECUTE ON FUNCTION cleanup_old_logs(int, text) TO service_role;
 GRANT EXECUTE ON FUNCTION cleanup_old_llm_cache(int) TO service_role;
 GRANT EXECUTE ON FUNCTION cleanup_scraper_health_log(int) TO service_role;

@@ -32,6 +32,28 @@ ALL_TABLES = [
     "scraping_logs",
 ]
 
+# Supabase REST retorna no maximo PAGE_SIZE rows por request — sem paginacao
+# os backups truncavam silenciosamente (ex.: prices 136.992 -> 1000). Ver LESSONS.
+PAGE_SIZE = 1000
+
+
+def fetch_all(s, table: str) -> list:
+    """Busca TODAS as rows de uma tabela com paginacao via .range().
+
+    Supabase REST limita o retorno por request; o primeiro request nao informa
+    o total, entao pagina-se sequencialmente ate vir um batch vazio.
+    """
+    rows: list = []
+    offset = 0
+    while True:
+        r = s.table(table).select("*").range(offset, offset + PAGE_SIZE - 1).execute()
+        batch = r.data if r.data is not None else []
+        rows.extend(batch)
+        if len(batch) < PAGE_SIZE:
+            break
+        offset += PAGE_SIZE
+    return rows
+
 
 def run_backup(include_schema: bool = False):
     url = os.environ["SUPABASE_URL"]
@@ -42,7 +64,7 @@ def run_backup(include_schema: bool = False):
 
     for t in ALL_TABLES:
         try:
-            data = s.table(t).select("*").execute().data
+            data = fetch_all(s, t)
             backup["data"][t] = data if data is not None else []
             print(f"  {t}: {len(data) if data else 0} rows")
         except Exception as e:
@@ -143,6 +165,10 @@ def run_backup(include_schema: bool = False):
         with open(gh_output, "a") as f:
             f.write(f"filename={fn}\n")
             f.write(f"timestamp={ts}\n")
+            counts = {t: len(backup["data"].get(t, [])) for t in ALL_TABLES}
+            f.write("counts_json=" + json.dumps(counts) + "\n")
+            min_critical = min(counts.get(t, 0) for t in ("prices", "price_history", "stores", "ingredients"))
+            f.write(f"min_critical_count={min_critical}\n")
 
     return fn
 

@@ -521,16 +521,23 @@ create policy "anon_read" on alert_rules for select using (true);
 create policy "anon_read" on feature_flags for select using (true);
 
 -- ============================================================
--- PHASE 4: Cleanup function (TTL)
+-- PHASE 4: Cleanup functions (TTL, com escopo por store)
 -- ============================================================
 
-CREATE OR REPLACE FUNCTION cleanup_old_prices(retention_days int DEFAULT 90)
+CREATE OR REPLACE FUNCTION cleanup_old_prices(
+    retention_days int DEFAULT 90,
+    store_id_filter text DEFAULT NULL
+)
 RETURNS void
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    DELETE FROM price_history WHERE collected_at < now() - (retention_days || ' days')::interval;
-    DELETE FROM prices WHERE collected_at < now() - (retention_days || ' days')::interval;
+    DELETE FROM price_history
+     WHERE collected_at < now() - (retention_days || ' days')::interval
+       AND (store_id_filter IS NULL OR store_id = store_id_filter);
+    DELETE FROM prices
+     WHERE collected_at < now() - (retention_days || ' days')::interval
+       AND (store_id_filter IS NULL OR store_id = store_id_filter);
 END;
 $$;
 
@@ -918,12 +925,17 @@ CREATE INDEX IF NOT EXISTS idx_ingredients_active_name
 -- ============================================================
 
 -- 1. Cleanup ALL flyers (not just failed OCR) older than retention_days
-CREATE OR REPLACE FUNCTION cleanup_old_flyers_all(retention_days int DEFAULT 180)
+CREATE OR REPLACE FUNCTION cleanup_old_flyers_all(
+    retention_days int DEFAULT 180,
+    store_name_filter text DEFAULT NULL
+)
 RETURNS void
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    DELETE FROM flyers WHERE collected_at < now() - (retention_days || ' days')::interval;
+    DELETE FROM flyers
+     WHERE collected_at < now() - (retention_days || ' days')::interval
+       AND (store_name_filter IS NULL OR store_name = store_name_filter);
 END;
 $$;
 
@@ -971,12 +983,17 @@ END;
 $$;
 
 -- 3. cleanup_old_logs — TTL for scraping_logs
-CREATE OR REPLACE FUNCTION cleanup_old_logs(retention_days int DEFAULT 30)
+CREATE OR REPLACE FUNCTION cleanup_old_logs(
+    retention_days int DEFAULT 30,
+    store_name_filter text DEFAULT NULL
+)
 RETURNS void
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    DELETE FROM scraping_logs WHERE started_at < now() - (retention_days || ' days')::interval;
+    DELETE FROM scraping_logs
+     WHERE started_at < now() - (retention_days || ' days')::interval
+       AND (store_name_filter IS NULL OR store_name = store_name_filter);
 END;
 $$;
 
@@ -1400,6 +1417,16 @@ CREATE INDEX IF NOT EXISTS idx_scrape_requests_user ON scrape_requests(user_id);
 
 
 -- ============================================================
+-- PHASE 21: add promoted_at column to store_registry (008_store_registry_promoted_at.sql)
+-- ============================================================
+-- Migration 008: Add promoted_at column to store_registry
+-- Tracks when a store was promoted from discovery to approved.
+
+ALTER TABLE store_registry ADD COLUMN IF NOT EXISTS promoted_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_store_registry_promoted_at ON store_registry(promoted_at);
+
+
+-- ============================================================
 -- PHASE 24: Store Registry table + RPC functions (009_store_registry.sql)
 -- ============================================================
 -- supabase/009_store_registry.sql
@@ -1616,14 +1643,16 @@ CREATE POLICY "service_role_delete"
 -- granted by default, but we revoke explicitly to be safe.
 REVOKE ALL ON FUNCTION cleanup_old_prices(int) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION cleanup_old_flyers_all(int) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION cleanup_old_prices(int, text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION cleanup_old_flyers_all(int, text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION cleanup_resolved_review_items(int) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION cleanup_old_logs(int) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION cleanup_old_logs(int, text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION cleanup_old_llm_cache(int) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION cleanup_scraper_health_log(int) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION cleanup_old_prices(int) TO service_role;
-GRANT EXECUTE ON FUNCTION cleanup_old_flyers_all(int) TO service_role;
+GRANT EXECUTE ON FUNCTION cleanup_old_prices(int, text) TO service_role;
+GRANT EXECUTE ON FUNCTION cleanup_old_flyers_all(int, text) TO service_role;
 GRANT EXECUTE ON FUNCTION cleanup_resolved_review_items(int) TO service_role;
-GRANT EXECUTE ON FUNCTION cleanup_old_logs(int) TO service_role;
+GRANT EXECUTE ON FUNCTION cleanup_old_logs(int, text) TO service_role;
 GRANT EXECUTE ON FUNCTION cleanup_old_llm_cache(int) TO service_role;
 GRANT EXECUTE ON FUNCTION cleanup_scraper_health_log(int) TO service_role;
 
@@ -1698,7 +1727,7 @@ DECLARE
     v_store_id TEXT;
 BEGIN
     SELECT * INTO v_registry
-    FROM store_registry
+    FROM public.store_registry
     WHERE id = p_registry_id AND status = 'approved';
 
     IF NOT FOUND THEN
@@ -1707,19 +1736,19 @@ BEGIN
 
     -- If already matched to existing store, just mark merged and update address
     IF v_registry.matched_store_id IS NOT NULL THEN
-        UPDATE stores
-        SET address = COALESCE(NULLIF(v_registry.address, ''), stores.address),
-            neighborhood = COALESCE(NULLIF(v_registry.neighborhood, ''), stores.neighborhood),
-            phone = COALESCE(NULLIF(v_registry.phone, ''), stores.phone)
+        UPDATE public.stores
+        SET address = COALESCE(NULLIF(v_registry.address, ''), public.stores.address),
+            neighborhood = COALESCE(NULLIF(v_registry.neighborhood, ''), public.stores.neighborhood),
+            phone = COALESCE(NULLIF(v_registry.phone, ''), public.stores.phone)
         WHERE id = v_registry.matched_store_id;
-        UPDATE store_registry
+        UPDATE public.store_registry
         SET status = 'merged', updated_at = now()
         WHERE id = p_registry_id;
         RETURN;
     END IF;
 
     -- Insert new store with address data
-    INSERT INTO stores (
+    INSERT INTO public.stores (
         name, tier, type, logistics, city, zone, coverage,
         collection_method, address, neighborhood, phone,
         config, source
@@ -1732,7 +1761,7 @@ BEGIN
     )
     RETURNING id INTO v_store_id;
 
-    UPDATE store_registry
+    UPDATE public.store_registry
     SET status = 'merged', matched_store_id = v_store_id, updated_at = now()
     WHERE id = p_registry_id;
 END;
@@ -1746,7 +1775,7 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
-    INSERT INTO store_registry (
+    INSERT INTO public.store_registry (
         name, normalized_name, tier, type, logistics,
         city, coverage, collection_method, source, status,
         region
@@ -1763,19 +1792,73 @@ BEGIN
         'auto',
         'pending_review',
         f.region
-    FROM flyers f
+    FROM public.flyers f
     WHERE NOT EXISTS (
-        SELECT 1 FROM stores s
+        SELECT 1 FROM public.stores s
         WHERE upper(regexp_replace(s.name, '[^A-Z0-9 ]', '', 'g'))
             = upper(regexp_replace(f.store_name, '[^A-Z0-9 ]', '', 'g'))
     )
     AND NOT EXISTS (
-        SELECT 1 FROM store_registry r
+        SELECT 1 FROM public.store_registry r
         WHERE r.status IN ('pending_review', 'approved')
         AND r.normalized_name
             = upper(regexp_replace(f.store_name, '[^A-Z0-9 ]', '', 'g'))
     )
     AND f.store_name IS NOT NULL
-    AND f.store_name != '';
+    AND f.store_name != ''
+    ON CONFLICT (normalized_name) WHERE status IN ('pending_review', 'approved') DO NOTHING;
+END;
+$$;
+
+
+-- ============================================================
+-- PHASE 29: Outlier detection RPC (013_detect_price_outliers.sql)
+-- ============================================================
+-- ============================================================
+-- OUTLIER DETECTION RPC (for Insights page performance)
+-- ============================================================
+-- Detects price outliers using z-score > 2 per ingredient
+-- Replaces frontend Python loop with DB-side computation
+CREATE OR REPLACE FUNCTION detect_price_outliers(p_days INTEGER DEFAULT 90)
+RETURNS TABLE (
+    ingredient_id TEXT,
+    store_name TEXT,
+    raw_product TEXT,
+    ppk NUMERIC,
+    zscore NUMERIC
+) LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT * FROM (
+        WITH stats AS (
+            SELECT 
+                p.ingredient_id,
+                AVG(p.price_per_kg) AS mean_ppk,
+                STDDEV(p.price_per_kg) AS std_ppk
+            FROM public.prices p
+            WHERE p.collected_at >= NOW() - INTERVAL '1 day' * p_days
+              AND p.price_per_kg > 0
+            GROUP BY p.ingredient_id
+            HAVING STDDEV(p.price_per_kg) > 0
+        ),
+        outliers AS (
+            SELECT 
+                p.ingredient_id,
+                p.store_name,
+                p.raw_product,
+                p.price_per_kg AS ppk,
+                (p.price_per_kg - s.mean_ppk) / s.std_ppk AS zscore
+            FROM public.prices p
+            JOIN stats s ON p.ingredient_id = s.ingredient_id
+            WHERE p.collected_at >= NOW() - INTERVAL '1 day' * p_days
+              AND p.price_per_kg > 0
+              AND ABS((p.price_per_kg - s.mean_ppk) / s.std_ppk) > 2
+        )
+        SELECT * FROM outliers
+    ) o
+    ORDER BY ABS(o.zscore) DESC;
 END;
 $$;

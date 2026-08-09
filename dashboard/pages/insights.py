@@ -8,6 +8,7 @@ import streamlit as st
 
 from services.dashboard_queries import (
     _coverage_from_prices,
+    detect_outliers_cached,
     get_latest_prices_cached,
 )
 
@@ -64,34 +65,21 @@ def render_insights():
 
     st.divider()
 
-    # Outliers
+    # Outliers - usando RPC no banco (z-score > 2)
     st.subheader("Outliers de Preço (Desvio Padrão > 2)")
-    if prices:
-        df = pd.DataFrame(prices)
-        df["ppk"] = df.apply(_safe_ppk, axis=1)
-        df = df[df["ppk"] > 0]
+    with st.spinner("Detectando outliers…"):
+        outliers = detect_outliers_cached(90)
 
-        # Group by ingredient
-        outliers = []
-        for _ing, group in df.groupby("ingredient_id"):
-            mean = group["ppk"].mean()
-            std = group["ppk"].std()
-            if std > 0:
-                group["zscore"] = (group["ppk"] - mean) / std
-                out = group[group["zscore"].abs() > 2]
-                if not out.empty:
-                    outliers.append(out)
-
-        if outliers:
-            df_out = pd.concat(outliers)
-            st.dataframe(
-                df_out[["ingredient_id", "store_name", "raw_product", "ppk", "zscore"]].sort_values(
-                    "zscore", key=abs, ascending=False
-                ),
-                use_container_width=True,
-            )
-        else:
-            st.info("Nenhum outlier detectado.")
+    if outliers:
+        df_out = pd.DataFrame(outliers)
+        st.dataframe(
+            df_out[["ingredient_id", "store_name", "raw_product", "ppk", "zscore"]].sort_values(
+                "zscore", key=abs, ascending=False
+            ),
+            use_container_width=True,
+        )
+    else:
+        st.info("Nenhum outlier detectado.")
 
     st.divider()
 

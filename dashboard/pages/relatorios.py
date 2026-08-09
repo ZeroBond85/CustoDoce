@@ -137,15 +137,19 @@ def render_relatorios():
         st.subheader("Preview do Relatório")
 
         if "report_html" in st.session_state:
+            st.markdown('<div aria-label="Relatório CustoDoce - Preview" role="region">', unsafe_allow_html=True)
             st.components.v1.html(
                 st.session_state["report_html"],
                 height=600,
                 scrolling=True,
             )
+            st.markdown('</div>', unsafe_allow_html=True)
         else:
             with st.spinner("Gerando preview..."):
                 html = build_daily_report_html()
+            st.markdown('<div aria-label="Relatório CustoDoce - Preview" role="region">', unsafe_allow_html=True)
             st.components.v1.html(html, height=600, scrolling=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
     with tabs[2]:  # Testar
         st.subheader("Testar Envio")

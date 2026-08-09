@@ -109,18 +109,28 @@ def generate_consolidated() -> str:
         )
         gen.append(cleaned)
 
-    # ─── 4. Cleanup function ─────────────────────────────────────
+    # ─── 4. Cleanup functions (scoped) ──────────────────────────
+    # Scoped versions: store_id_filter / store_name_filter opcionais (NULL = global).
+    # Evita overloads: usar UNICA definicao (com escopo). Antigas de 1 arg foram
+    # substituidas — ver migration 014_scoped_cleanup.sql.
     gen.append("\n-- ============================================================")
-    gen.append("-- PHASE 4: Cleanup function (TTL)")
+    gen.append("-- PHASE 4: Cleanup functions (TTL, com escopo por store)")
     gen.append("-- ============================================================")
     gen.append("""
-CREATE OR REPLACE FUNCTION cleanup_old_prices(retention_days int DEFAULT 90)
+CREATE OR REPLACE FUNCTION cleanup_old_prices(
+    retention_days int DEFAULT 90,
+    store_id_filter text DEFAULT NULL
+)
 RETURNS void
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    DELETE FROM price_history WHERE collected_at < now() - (retention_days || ' days')::interval;
-    DELETE FROM prices WHERE collected_at < now() - (retention_days || ' days')::interval;
+    DELETE FROM price_history
+     WHERE collected_at < now() - (retention_days || ' days')::interval
+       AND (store_id_filter IS NULL OR store_id = store_id_filter);
+    DELETE FROM prices
+     WHERE collected_at < now() - (retention_days || ' days')::interval
+       AND (store_id_filter IS NULL OR store_id = store_id_filter);
 END;
 $$;
 """)
@@ -527,12 +537,17 @@ CREATE INDEX IF NOT EXISTS idx_ingredients_active_name
 -- ============================================================
 
 -- 1. Cleanup ALL flyers (not just failed OCR) older than retention_days
-CREATE OR REPLACE FUNCTION cleanup_old_flyers_all(retention_days int DEFAULT 180)
+CREATE OR REPLACE FUNCTION cleanup_old_flyers_all(
+    retention_days int DEFAULT 180,
+    store_name_filter text DEFAULT NULL
+)
 RETURNS void
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    DELETE FROM flyers WHERE collected_at < now() - (retention_days || ' days')::interval;
+    DELETE FROM flyers
+     WHERE collected_at < now() - (retention_days || ' days')::interval
+       AND (store_name_filter IS NULL OR store_name = store_name_filter);
 END;
 $$;
 
@@ -582,12 +597,17 @@ END;
 $$;
 
 -- 3. cleanup_old_logs — TTL for scraping_logs
-CREATE OR REPLACE FUNCTION cleanup_old_logs(retention_days int DEFAULT 30)
+CREATE OR REPLACE FUNCTION cleanup_old_logs(
+    retention_days int DEFAULT 30,
+    store_name_filter text DEFAULT NULL
+)
 RETURNS void
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    DELETE FROM scraping_logs WHERE started_at < now() - (retention_days || ' days')::interval;
+    DELETE FROM scraping_logs
+     WHERE started_at < now() - (retention_days || ' days')::interval
+       AND (store_name_filter IS NULL OR store_name = store_name_filter);
 END;
 $$;
 """)
@@ -721,6 +741,14 @@ END $$;
         gen.append("-- PHASE 28: Store addresses + units + flyer address (012_store_address.sql)")
         gen.append("-- ============================================================")
         gen.append(store_addr_path.read_text(encoding="utf-8"))
+
+    # ─── PHASE 29: Outlier detection RPC for Insights page ─────────────
+    outlier_rpc_path = REPO_ROOT / "supabase" / "migrations" / "013_detect_price_outliers.sql"
+    if outlier_rpc_path.exists():
+        gen.append("\n-- ============================================================")
+        gen.append("-- PHASE 29: Outlier detection RPC (013_detect_price_outliers.sql)")
+        gen.append("-- ============================================================")
+        gen.append(outlier_rpc_path.read_text(encoding="utf-8"))
 
     return "\n".join(gen)
 

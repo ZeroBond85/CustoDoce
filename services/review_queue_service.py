@@ -92,7 +92,7 @@ def approve_review_item(item_id: str, ingredient_id: str, brand_override: str = 
         from rapidfuzz import fuzz
 
         all_ing = get_all_ingredients()
-        best_score = 0
+        best_score: float = 0.0
         best_ing = None
         norm_input = _normalize_text(ingredient_id)
         for ing in all_ing:
@@ -135,6 +135,7 @@ def approve_review_item(item_id: str, ingredient_id: str, brand_override: str = 
         "brand": brand_override or item.data.get("brand", ""),
         "city": item.data.get("city", ""),
         "logistics": "pickup_local",
+        "collected_at": item.data.get("collected_at"),
     }
 
     if store_id:

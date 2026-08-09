@@ -59,7 +59,7 @@ def render_flyers():
         with cols[idx % 4], st.container():
             if flyer.get("image_url"):
                 try:
-                    st.image(flyer["image_url"], use_container_width=True)
+                    st.image(flyer["image_url"], use_container_width=True, caption=f"{flyer.get('store_name', 'N/A')} - {str(flyer.get('collected_at', 'N/A'))[:10]}")
                 except Exception:
                     st.caption("Erro ao carregar imagem")
             else:
@@ -84,7 +84,7 @@ def render_flyers():
             with col1:
                 if detail.get("image_url"):
                     try:
-                        st.image(detail["image_url"])
+                        st.image(detail["image_url"], caption=f"{detail.get('store_name', 'N/A')} - {detail.get('collected_at', 'N/A')}")
                     except Exception:
                         st.caption("Erro ao carregar imagem completa")
 

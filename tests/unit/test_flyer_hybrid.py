@@ -197,7 +197,7 @@ class TestToProducts:
 
 class TestResolveNames:
     def _clear_keys(self, monkeypatch):
-        for k in ("GROQ_API_KEY", "OPENROUTER_API_KEY", "GH_MODELS_TOKEN", "GITHUB_TOKEN"):
+        for k in ("GROQ_API_KEY", "OPENROUTER_API_KEY", "GITHUB_TOKEN"):
             monkeypatch.delenv(k, raising=False)
 
     def test_empty_blocks_returns_empty(self):

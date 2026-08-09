@@ -129,3 +129,56 @@ def test_get_coverage_summary_pct():
     assert summary["fresh"] == 1
     assert summary["stale"] == 1
     assert summary["coverage_pct"] == 50.0
+
+
+def test_detect_outliers_cached_calls_rpc():
+    """Regressão: detect_outliers_cached chama o RPC detect_price_outliers e devolve data.
+
+    Substitui o loop Python no frontend (insights.py) por computação no banco.
+    """
+    expected = [
+        {
+            "ingredient_id": "Leite Condensado",
+            "store_name": "Loja X",
+            "raw_product": "Leite 395g",
+            "ppk": 42.0,
+            "zscore": 3.1,
+        }
+    ]
+    class _RpcResult:
+        def __init__(self, data):
+            self.data = data
+
+        def execute(self):
+            return self
+
+    class _RpcCall:
+        def __init__(self, data):
+            self._data = data
+
+        def execute(self):
+            return _RpcResult(self._data)
+
+    class _Client:
+        def __init__(self, data):
+            self._data = data
+
+        def rpc(self, name, params):
+            assert name == "detect_price_outliers"
+            assert params == {"p_days": 90}
+            return _RpcCall(self._data)
+
+    with patch.object(dashboard_queries, "get_supabase", return_value=_Client(expected)):
+        out = dashboard_queries.detect_outliers_cached(90)
+    assert out == expected
+
+
+def test_detect_outliers_cached_fallback_on_error():
+    """Regressão: falha do RPC não derruba a página Insights — retorna []."""
+    class _ErrClient:
+        def rpc(self, name, params):
+            raise RuntimeError("RPC down")
+
+    with patch.object(dashboard_queries, "get_supabase", return_value=_ErrClient()):
+        out = dashboard_queries.detect_outliers_cached(90)
+    assert out == []

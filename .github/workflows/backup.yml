@@ -64,6 +64,15 @@ jobs:
         env:
           CI_JOB_START: ${{ env.CI_JOB_START }}
 
+      - name: Validate backup completeness (guarda perda de dados)
+        run: |
+          MIN=$(echo "${{ steps.backup.outputs.min_critical_count }}" | xargs)
+          if [ -z "$MIN" ] || [ "$MIN" -lt 100 ]; then
+            echo "::error::Backup com contagens criticas suspeitas (min_critical_count=$MIN). Possivel perda de dados. Review antes de publicar."
+            exit 1
+          fi
+          echo "min_critical_count=$MIN — OK"
+
       - name: Generate SHA256 checksum
         run: sha256sum "${{ steps.backup.outputs.filename }}" > "${{ steps.backup.outputs.filename }}.sha256"
         if: steps.backup.outputs.filename != ''

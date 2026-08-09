@@ -26,6 +26,19 @@ def test_pip_audit_returns_no_vulnerabilities() -> None:
     out = (result.stdout or "") + (result.stderr or "")
     if "No known vulnerabilities found" in out:
         return
+    # Flakiness de rede do OSV API (ex.: WSL sem rota p/ api.osv.dev) NÃO é
+    # vulnerabilidade — é exceção de rede (AGENTS.md regra 11). O CI (ci.yml)
+    # também tolera falha de coleta de dependência via warning.
+    network_markers = (
+        "ConnectionError",
+        "Network is unreachable",
+        "Max retries exceeded",
+        "Failed to establish a new connection",
+        "connection refused",
+        "timed out",
+    )
+    if any(m.lower() in out.lower() for m in network_markers):
+        pytest.skip(f"OSV API inacessível (flakiness de rede) — audit não executou:\n{out[-400:]}")
     pytest.fail(
         f"pip-audit encontrou vulns:\n{out[:2000]}\n\n"
         f"Atualize deps ou adicione GHSA ao --ignore-vulnerability de ci.yml."

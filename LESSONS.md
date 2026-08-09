@@ -1,5 +1,5 @@
 # Lições Aprendidas
-> Última atualização: 2026-08-08 02:56 UTC
+> Última atualização: 2026-08-09 16:03 UTC
 
 > Extraídas de AGENTS.md. Numeração original preservada.
 > Regras de execução/ambiente → `REGRAS.md`.
@@ -24,63 +24,6 @@ Toda nova lição extraída de falha no CI usa este template:
 - Mudança em `workflows/*.yml` (RPR simplificado)
 
 ---
-
-### 8. `PIP_INDEX_URL` → `PIP_EXTRA_INDEX_URL`
-
-Para torch CPU em CI: use `PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu`. `PIP_INDEX_URL` SUBSTITUI PyPI e quebra `ruff`/`mypy`.
-
-### 9. `get_supabase()` deve ter fallback se `SUPABASE_ANON_KEY` faltar
-
-```python
-# ✅ CERTO:
-key = os.environ.get("SUPABASE_ANON_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
-```
-
-`get_supabase()` prefere `SUPABASE_ANON_KEY` mas aceita `SUPABASE_SERVICE_ROLE_KEY` como fallback.
-
-### 10. `SUPABASE_ANON_KEY` deve ser passado explicitamente nos jobs CI
-
-A secret existe no GitHub mas precisa ser mapeada no workflow. Sempre adicionar `SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}`.
-
-### 11. `exec_sql_query` RPC — sem trailing semicolons
-
-SQL com `;` no final quebra a subquery. Remova qualquer `;` no final de queries enviadas via `client.rpc("exec_sql_query", {"sql": sql})`.
-
-### 12. Streamlit Cloud E2E flakiness — use continue-on-error + warmup agressivo
-
-E2E contra infra externa que hiberna = sempre continue-on-error + warmup agressivo (min 6 rounds, 3min total). Verificar Lição #18 (failure() com continue-on-error).
-
-### 13. Auto-disable scrapers — SEMPRE investigar causa raiz antes
-
-Antes de mexer em `is_active`, fazer dry-run do `_auto_disable_if_needed`. Logs devem mostrar CAUSA detalhada.
-
-### 14. Self-healing OBRIGATORIO em todos os scrapers
-
-API obrigatória:
-- `record_failure(scraper_name, reason, items_found, products_matched, flyer_count, attempted_by)`
-- `record_success(scraper_name, items_found, products_matched, flyer_count, attempted_by)`
-- `attempt_heal(scraper_name=None, dry_run=False)` — cron 15d
-
-Config em `config/features.yaml`:
-```yaml
-self_healing:
-  enabled: true
-  required: true
-  threshold_failures: 3
-  heal_days: 15
-  recovery_min_items: 1
-```
-
-### 15. Causa raiz > Mascarar
-
-Investigar raiz ANTES de aplicar patches. Logar `error_class` (Timeout|SSLError|LayoutChanged|...). Causa raiz ≠ log.message.
-
-### 16. `hashFiles()` no GHA só funciona com arquivos trackados pelo git
-
-```yaml
-# ✅ CERTO:
-if: steps.file.outputs.filename != ''
-```
 
 ### 17. `if: failure()` não dispara dentro de `continue-on-error: true` jobs
 
@@ -686,15 +629,32 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Sintoma/causa**: `ci.yml` tinha `continue-on-error: true` em `db_security_lint`/`detect-secrets` (viola regra #11); `login_page.py` usava chave fixa `"login"` no rate limiter (não throttleia atacante individual). **Correção**: (a) teste de regressão offline `tests/unit/test_security_lints.py` substitui o masking; removido `continue-on-error`. (b) `_client_key()` deriva IP de `X-Forwarded-For`/`X-Real-IP`/`st.context.remote_ip` com fallback `"login"`.
 
 ### 89. Security audit: service-role client exposto + AUTH_SECRET_KEY aleatório (S-04/S-07)
-- **Sintoma/causa**: `get_service_client()` (bypass RLS total) era chamado de páginas de dashboard sem checagem de sessão; `auth.load_config()` gerava chave aleatória por processo se `AUTH_SECRET_KEY` vazio (footgun se JWT for usado). **Correção**: `require_service_client()` exige `st.session_state.authenticated`; `lojas_pendentes.py`/`lojas.py` migraram para ele; `load_config()` faz `raise` se vazio em produção (`APP_ENV=production`/`STREAMLIT_SERVER`).
+- **Sintoma/causa**: `get_service_client()` (bypass RLS total) chamado de dashboard sem sessão; `auth.load_config()` gerava chave aleatória se `AUTH_SECRET_KEY` vazio. **Correção**: `require_service_client()` exige `st.session_state.authenticated`; `lojas_pendentes.py`/`lojas.py` migraram; `load_config()` faz `raise` se vazio em produção.
 
 ### 90. Scraper refactoring (BaseScraper migration) arquivado como tech debt
-- **Sintoma/causa**: FASE 0.7-0.14 planejava migrar todos scrapers (WebsiteScraper, VtexScraper, FlyerScraper, EcomplusScraper, PlaywrightPriceScraper, CarrefourScraper, AggregatorScraper) para BaseScraper (`base_unified.py`). `selector_resolver.py` já centraliza selectors via `selectors.yaml`. A arquitetura atual funciona e 1443 testes passam. **Decisão**: refactoring deferred. `selector_resolver` resolve a fragmentação de selectors; BaseScraper continua existindo como alternativa para novos scrapers sem quebrar os existentes. Risco de migração (6+ scrapers, cada um com lógica específica de fetch/parse/throttle) não justifica o benefício incremental. **Registro**: `services/selector_resolver.py` criado, `selectors.yaml` integrado em `WebsiteScraper` e `PlaywrightPriceScraper`. `BaseScraper` permanece em `base_unified.py` para novos desenvolvimentos.
+- **Sintoma/causa**: FASE 0.7-0.14 planejava migrar todos scrapers para BaseScraper (`base_unified.py`). `selector_resolver.py` já centraliza selectors via `selectors.yaml`; arquitetura atual funciona e 1443 testes passam. **Decisão**: refactoring deferred — `selector_resolver` resolve a fragmentação de selectors; BaseScraper continua como alternativa p/ novos scrapers. Risco de migração (6+ scrapers) não justifica o benefício. **Registro**: `selector_resolver.py` integrado em `WebsiteScraper`/`PlaywrightPriceScraper`.
 
+### 91. CI docs-sync quebrava a cada ~14 dias: validador de timestamps x policies do sync (2026-08-06)
+- **Sintoma/causa**: CI `docs-sync` falhava em "Validate all MD timestamps (max 14 days)" com 11 issues. `scripts/validate_md_timestamps.py` exigia freshness em TODOS os `.md`, mas `sync_docs.py` só mantém whitelist (`_GENERIC_MD_FILES` + ADRs) — arquivos vivos fora dela envelheciam; ADRs (IMMUTABLE) e snapshots nunca são tocados por política. Pre-push/pre-commit não rodavam o validador, então o push passava.
+- **Correção**: (a) validador respeita `doc_sync_policy.policy_for()` (pula IMMUTABLE/SNAPSHOT_*), max_age 14→30, skip `.venv_wsl`/`.venv314wsl`/`data`. (b) whitelist ganhou `.github/BACKUP_POLICY.md`, `.github/CONCURRENCY.md`, `.github/SECURITY.md`, `docs/design/DESIGN-store-discovery-dedup-address.md`. (c) pre-push ganhou check `md_timestamps` + fixes de ruff pré-existentes. **Teste**: `test_validate_md_timestamps.py` (9).
 
-### 91. CI docs-sync quebrava a cada ~14 dias: validador de timestamps x policies do sync
-- **Data + commit**: 2026-08-06
-- **Sintoma**: CI job `docs-sync` falhava em "Validate all MD timestamps (max 14 days)" com 11 issues — `.github/*.md`, `docs/adr/*.md`, `docs/design/*.md`, `docs/archive/*.md` com timestamps de 15-16 dias.
-- **Causa raiz**: `scripts/validate_md_timestamps.py` exigia freshness em TODOS os `.md`, mas `scripts/sync_docs.py` só mantém uma whitelist (`_GENERIC_MD_FILES` + ADRs). Arquivos vivos fora da whitelist (`.github/*.md`, `docs/design/*.md`) envelheciam; ADRs (`IMMUTABLE`) e snapshots (`SNAPSHOT_*`) nunca são tocados pelo sync por política — contradição estrutural que quebrava o CI a cada 14 dias. Pre-push/pre-commit não rodam o validador (só o CI), então o push passava.
-- **Correção**: (a) `validate_md_timestamps.py` respeita `doc_sync_policy.policy_for()` — pula `IMMUTABLE`, `SNAPSHOT_FROZEN`, `SNAPSHOT_DERIVED_LIVE`, `SNAPSHOT_REFERENCE_LIVE`; default `max_age_days` 14→30 (CI/teste_full_manual atualizados); skip dirs cobrem `.venv_wsl`/`.venv314wsl`/`data`. (b) `sync_docs.py` whitelist ganhou `.github/BACKUP_POLICY.md`, `.github/CONCURRENCY.md`, `.github/SECURITY.md`, `docs/design/DESIGN-store-discovery-dedup-address.md`. (c) `.githooks/pre-push` ganhou check `md_timestamps` (fecha gap de validação local) + fixes de ruff pré-existentes (S603/S607/F401).
-- **Teste de regressão**: `tests/unit/test_validate_md_timestamps.py` (9 testes: freshness, missing, max-age custom, skip IMMUTABLE/SNAPSHOT).
+### 92. GitHub Models aposentado em 30/07/2026 — provider morto removido da cadeia vision
+- **Sintoma/causa**: `[github_models_vision] Client error: 404 — opening breaker` em 100% das chamadas (scrape full 2026-08-08). O serviço GitHub Models foi **totalmente descontinuado em 30/07/2026** (changelog oficial) — playground, inference API e BYOK não existem mais; `models.inference.ai.azure.com` deprecado 17/07/2025 e removido 17/10/2025. Manter o provider só abria circuit breaker inútil (latência + log noise).
+- **Correção**: remover `GitHubModelsVisionStrategy` de `parsers/vision_strategies.py` (classe + `get_vision_chain()`), o provider `github_models` de `parsers/flyer_hybrid.py::_build_llm_providers`, e o `GH_MODELS_TOKEN` de `scrape-reusable.yml` (env+inputs). Chain: gemini → nvidia → openrouter → tesseract. **Testes/gatilho**: `test_vision_strategies.py` (chain 4), `test_flyer_hybrid.py`. Provider com 404 persistente → validar status do serviço antes de manter. Health probe: GH_MODELS 404, Gemini/NVIDIA/OpenRouter 200.
+
+### 93. Backup RPC truncava em 1000 rows/tabela (paginacao ausente) + restore incompatível (2026-08-09)
+- **Sintoma/causa**: `scripts/rpc_backup.py` fazia `s.table(t).select("*").execute()` — Supabase REST limita retorno por request a 1000 rows. Backups de `prices` (≥136k), `price_history`, `flyers`, `scraping_logs` e `scraper_health_log` **truncavam silenciosamente em 1000** — "backup confiável" na verdade nunca continha o dataset completo. `scripts/restore_from_json.py` esperava tabelas na raiz, mas o backup grava `{"data": {...}, "schema": {...}}` → restore processava 0 tabelas.
+- **Correção**: `rpc_backup.py` → `fetch_all()` com paginação `.range(offset, offset+PAGE_SIZE-1)` até batch vazio (PAGE_SIZE=1000); `GITHUB_OUTPUT` agora expõe `counts_json` + `min_critical_count`; `backup.yml` ganhou step de **guarda de completude** (falha se `min_critical_count < 100`). `restore_from_json.py` → `load_backup()` extrai o bloco `data` se presente (aceita os 2 formatos). Validado: backup completo (price_history 3808, flyers 1653, health 2435), restore `--dry-run` (16 tabelas, 10.886 rows) + `--execute` idempotente (schedules 5→5, stores 74→74, ingredients 23→23).
+- **Regra**: Toda consulta de dump via REST precisa de paginação; backup deve validar contagens mínimas antes de publicar release. **Teste**: `scripts/restore_real_from_backup.py` (filtra `_test_`, drops colunas GENERATED como `price_per_kg`).
+
+### 94. Teste de integração destrutivo varreu preços reais de produção (cleanup global no CI) (2026-08-09)
+- **Sintoma/causa**: `tests/integration/test_db_cleanup.py` chamava `cleanup_old_prices(retention_days=30)` **sem escopo** — a função apaga `prices` + `price_history` GLOBALMENTE. Como `ci.yml` roda `tests/integration/` com `SUPABASE_SERVICE_ROLE_KEY` real em **todo PR** (job `integration`, ci.yml:262-267), cada merge varria tudo com `collected_at < now()-30d`. Com scrapers degradados (só Roldão coletando ~2 items), a maioria dos preços reais ficou >30 dias e foi apagada: `prices` caiu de 136.992 → 12, `price_history` perdeu todo histórico antigo (ficou só 30 dias).
+- **Correção**: migration `014_scoped_cleanup.sql` (PHASE 30) adiciona `store_id_filter`/`store_name_filter` opcional às funções `cleanup_old_prices`, `cleanup_old_logs`, `cleanup_old_flyers_all` (NULL = global p/ produção; informado = só aquele store). Testes passam o store de teste. Overloads antigas de 1 arg removidas do DB e do consolidated (única definição com escopo). `test_d2_7_trigger_price_history` reescrito para inserir via `upsert_price_rpc` e verificar trigger de forma determinística (não dependia de `limit(1)` aleatório). **Regra**: testes contra DB real com funções DESTRUTIVAS devem SEMPRE escopar por store; nunca chamar cleanup global em CI. **Teste**: `tests/integration/test_db_cleanup.py` (3, escopados), `tests/integration/test_db_real.py` (13). Recuperação: `scripts/restore_real_from_backup.py` restaurou 701 prices reais de julho (filtrou `_test_`).
+
+### 95. `SET search_path = ''` + tabelas não qualificadas quebram RPCs em runtime (2026-08-09)
+- **Sintoma/causa**: RPCs `SECURITY DEFINER` definidas com `SET search_path = ''` (padrão mais seguro anti-injection) mas referenciando tabelas **sem prefixo `public.`** falhavam em runtime: `detect_price_outliers` (migration 013, nova), `discover_stores_from_flyers` e `merge_approved_store` (migration 012) → `relation "prices" does not exist` (42P01). Com `search_path = ''`, o Postgres só resolve via `pg_catalog` — tabelas `public` ficam invisíveis. O `--dry-run` do deploy não detecta (só valida sintaxe), e o RPC só quebra no primeiro call.
+- **Correção**: qualificar TODAS as referências com `public.` nas migrations 012/013 (mantendo `search_path = ''`). Aplicado via `exec_sql` RPC na DB real e validado por execução: `detect_price_outliers` retorna 35 rows, `discover_stores_from_flyers` roda sem crash. Também: `detect_price_outliers` com `RETURNS TABLE` tem ambiguidade coluna-variável nas CTEs (qualificar com alias `p.` e embrulhar em subquery para `ORDER BY`); `discover_stores_from_flyers` precisa de `ON CONFLICT (normalized_name) WHERE status IN (...) DO NOTHING` (índice único parcial) para ser idempotente. **Regra**: em RPC `SECURITY DEFINER` com `search_path = ''`, SEMPRE prefixar `public.`; e SEMPRE executar o RPC na DB real após deploy (não basta dry-run). **Teste**: `tests/unit/test_services/test_dashboard_queries.py` (2: calls RPC + fallback).
+
+### 96. pip-audit flaky por rede do OSV API — teste deve distinguir rede de vulnerabilidade (2026-08-09)
+- **Sintoma/causa**: `tests/diagnostics/test_diagnostics.py::test_pip_audit_returns_no_vulnerabilities` falhava no WSL com `Network is unreachable` ao alcançar `api.osv.dev` (porta 443 bloqueada/rota indisponível), enquanto `pypi.org` respondia 200. O teste assumia que qualquer saída ≠ "No known vulnerabilities" = vulnerabilidade — mas flakiness de rede do provedor OSV gera falso negativo (FALHA falsa em auditoria que nem chegou a consultar).
+- **Correção**: o teste agora detecta marcadores de rede (`ConnectionError`, `Network is unreachable`, `Max retries exceeded`, `timed out`, etc.) e faz `pytest.skip` — rede indisponível não é vulnerabilidade (exceção regra 11, AGENTS.md). Alinhado ao `ci.yml` que já tolera falha de coleta de dependência com warning em vez de fail hard. **Regra**: testes de auditoria externa (OSV/PyPI) devem distinguir "não executou por rede" de "encontrou problema"; nunca tratar timeout de coleta como achado de segurança. **Teste**: `tests/diagnostics/test_diagnostics.py` (skip condicional).
