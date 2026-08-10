@@ -4,5 +4,9 @@ bandit>=1.8
 pip-audit>=2.9
 detect-secrets>=1.5
 
+# Qualidade SQL — migrations quality gate (locks/index) + SQL syntax lint
+squawk-cli==2.62.0
+sqlfluff>=3,<4
+
 markdown-it-py>=3.0
 pytest==9.0.3

@@ -236,9 +236,23 @@ def _check_no_windows_only_packages() -> list[str]:
         for pkg in WINDOWS_ONLY_PACKAGES:
             for line in content.splitlines():
                 stripped = line.strip()
-                if stripped.startswith(f"{pkg}==") and "\\" not in stripped:
-                    found.append(stripped)
-                    break
+                if not (stripped.startswith(f"{pkg}==") and "\\" not in stripped):
+                    continue
+                # Um pacote "Windows-only" pode ser dependência UNIVERSAL de um
+                # pacote de qualidade SQL (ex.: colorama via sqlfluff declara
+                # `colorama>=0.3` sem marker de plataforma). Nesse caso ele é
+                # legitimo em lock Linux e nao indica pip-compile no Windows.
+                # Verificamos as linhas "via <pkg>" logo abaixo do pacote.
+                lines = content.splitlines()
+                idx = lines.index(line)
+                via_sources = " ".join(
+                    ln.strip() for ln in lines[idx + 1 : idx + 6]
+                    if ln.strip().startswith("# via")
+                )
+                if pkg == "colorama" and "sqlfluff" in via_sources:
+                    continue
+                found.append(stripped)
+                break
         if found:
             errors.append(
                 f"{lf.name} contem pacotes Windows-only: {', '.join(found)}. "

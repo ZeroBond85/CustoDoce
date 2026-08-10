@@ -1,0 +1,28 @@
+# Squawk — migrations quality gate.
+# Foco: BREAKING CHANGES e problemas reais de schema. As regras de "boa prática"
+# (timeouts, bigint vs int, concurrent index creation) são ruído para este
+# projeto: as migrations rodam em horário de pouca carga (cron 2x/dia) e o
+# schema já usa SERIAL em tabelas legadas aplicadas em PROD há muito tempo.
+#
+# Regras ativas por default do squawk (não listadas aqui) incluem as de
+# breaking change: drop-column, alter-type-enum, rename-column, etc.
+# O CI falha em qualquer erro/aviso destas regras restantes.
+
+pg_version = "15.0"
+assume_in_transaction = true
+
+# consolidated_migration.sql é GERADO (concatenado) — não é lintado. Seu
+# `ALTER MATERIALIZED VIEW ... ENABLE ROW LEVEL SECURITY` não é parseado
+# pelo squawk (limitação do parser), gerando syntax-error falso.
+excluded_paths = [
+    "supabase/consolidated_migration.sql",
+]
+
+excluded_rules = [
+    "require-lock-timeout",
+    "require-statement-timeout",
+    "prefer-bigint-over-int",
+    "prefer-robust-stmts",
+    "require-concurrent-index-creation",
+    "prefer-identity",
+]

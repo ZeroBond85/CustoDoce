@@ -1,0 +1,7 @@
+# Arquivos SQL legados já aplicados em PROD — fora do lint de qualidade.
+# O seed.sql tem aliasing implícito (AL01/AL03) herdado do schema original;
+# reformatar não traz ganho. Migrations novas (supabase/migrations/*) e os
+# SQL versionados em supabase/*.sql são lintados normalmente.
+supabase_sql/seed.sql
+supabase_sql/migration_vigencia.sql
+supabase/consolidated_migration.sql

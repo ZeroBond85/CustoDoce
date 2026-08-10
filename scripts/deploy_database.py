@@ -24,6 +24,16 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 def generate_consolidated() -> str:
     gen = []
 
+    # ─── 0. Migration ledger (018_init_migrations_ledger.sql) ────
+    # Criada primeiro para que o bootstrap (validate_migrations.py --bootstrap)
+    # registre 001..017 retroativamente e detecte drift de migrations futuras.
+    ledger_path = REPO_ROOT / "supabase" / "migrations" / "018_init_migrations_ledger.sql"
+    if ledger_path.exists():
+        gen.append("-- ============================================================")
+        gen.append("-- PHASE 0: Migration ledger (018_init_migrations_ledger.sql)")
+        gen.append("-- ============================================================")
+        gen.append(ledger_path.read_text(encoding="utf-8"))
+
     # ─── 1. seed.sql — Core tables ───────────────────────────────
     gen.append("-- ============================================================")
     gen.append("-- PHASE 1: Core tables (seed.sql)")
@@ -750,6 +760,27 @@ END $$;
         gen.append("-- ============================================================")
         gen.append(outlier_rpc_path.read_text(encoding="utf-8"))
 
+    security_path = REPO_ROOT / "supabase" / "migrations" / "015_security_hardening.sql"
+    if security_path.exists():
+        gen.append("\n-- ============================================================")
+        gen.append("-- PHASE 30: Security hardening (015_security_hardening.sql)")
+        gen.append("-- ============================================================")
+        gen.append(security_path.read_text(encoding="utf-8"))
+
+    drop_anon_path = REPO_ROOT / "supabase" / "migrations" / "016_drop_anon_insert.sql"
+    if drop_anon_path.exists():
+        gen.append("\n-- ============================================================")
+        gen.append("-- PHASE 31: Drop anon_insert on scrape_requests (016_drop_anon_insert.sql)")
+        gen.append("-- ============================================================")
+        gen.append(drop_anon_path.read_text(encoding="utf-8"))
+
+    restore_anon_path = REPO_ROOT / "supabase" / "migrations" / "017_restore_anon_read.sql"
+    if restore_anon_path.exists():
+        gen.append("\n-- ============================================================")
+        gen.append("-- PHASE 32: Restore anon read (017_restore_anon_read.sql)")
+        gen.append("-- ============================================================")
+        gen.append(restore_anon_path.read_text(encoding="utf-8"))
+
     return "\n".join(gen)
 
 
@@ -995,6 +1026,22 @@ $$ LANGUAGE plpgsql;
             print(f"  WARN: could not verify trigger via REST API: {e}")
 
         print("\nMigration complete.")
+        # AGENTS.md regra #18 (4): validar pós-aplicação — conferir que o ledger
+        # de migrations está consistente (ordem, checksums, sem drift).
+        try:
+            import subprocess
+
+            rc = subprocess.run(
+                [sys.executable, str(REPO_ROOT / "scripts" / "validate_migrations.py")],
+                capture_output=True,
+                text=True,
+                cwd=str(REPO_ROOT),
+            )
+            print(rc.stdout)
+            if rc.returncode != 0:
+                print("WARN: validate_migrations.py reportou divergências (veja acima)")
+        except Exception as e:
+            print(f"WARN: validate_migrations.py não executou: {e}")
         return
 
     # Default: print to stdout

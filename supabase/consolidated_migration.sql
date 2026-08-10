@@ -1,4 +1,32 @@
 -- ============================================================
+-- PHASE 0: Migration ledger (018_init_migrations_ledger.sql)
+-- ============================================================
+-- ============================================================
+-- MIGRATION LEDGER: rastreia cada migration aplicada no banco.
+-- ============================================================
+-- Objetivo: detectar drift entre o que está no disco (supabase/migrations/)
+-- e o que foi de fato aplicado em PROD. O script scripts/validate_migrations.py
+-- compara SHA-256 do arquivo local com o checksum gravado aqui.
+--
+-- Criada ANTES de todas as outras phases no consolidated_migration.sql
+-- (PHASE 0) para que o bootstrap (Fase E) possa registrar 001..017
+-- retroativamente. Writes são service_role-only.
+
+CREATE TABLE IF NOT EXISTS public.schema_migrations (
+    version   TEXT PRIMARY KEY,
+    name      TEXT NOT NULL,
+    checksum  TEXT NOT NULL,
+    applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.schema_migrations ENABLE ROW LEVEL SECURITY;
+
+-- Service role (e quem tem a chave service) pode ler/escrever o ledger.
+DROP POLICY IF EXISTS "schema_migrations_service_all" ON public.schema_migrations;
+CREATE POLICY "schema_migrations_service_all" ON public.schema_migrations
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+-- ============================================================
 -- PHASE 1: Core tables (seed.sql)
 -- ============================================================
 -- Supabase Schema for CustoDoce
@@ -1862,3 +1890,184 @@ BEGIN
     ORDER BY ABS(o.zscore) DESC;
 END;
 $$;
+
+-- ============================================================
+-- PHASE 30: Security hardening (015_security_hardening.sql)
+-- ============================================================
+-- ============================================================
+-- SECURITY HARDENING (Sprint 2 - Security Audit Fixes)
+-- ============================================================
+
+-- 1. Enable RLS on store_units (was missing)
+ALTER TABLE public.store_units ENABLE ROW LEVEL SECURITY;
+
+-- Policy: authenticated users can read active store units
+CREATE POLICY "store_units_read_active" ON public.store_units
+    FOR SELECT
+    TO authenticated
+    USING (is_active = true);
+
+-- Policy: service role can do everything (for sync scripts)
+CREATE POLICY "store_units_service_all" ON public.store_units
+    FOR ALL
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
+
+-- 2. Fix SECURITY DEFINER functions - add search_path restriction
+ALTER FUNCTION public.discover_stores_from_flyers() SET search_path = '';
+ALTER FUNCTION public.merge_approved_store() SET search_path = '';
+
+-- 3. Fix permissive policies - replace 'true' with explicit role checks
+-- Public read tables: replace 'true' with 'auth.role() IN (''anon'', ''authenticated'')'
+
+DROP POLICY IF EXISTS "anon_read" ON public.alert_recipients;
+CREATE POLICY "alert_recipients_read_auth" ON public.alert_recipients
+    FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "anon_read" ON public.alert_rules;
+CREATE POLICY "alert_rules_read_auth" ON public.alert_rules
+    FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "anon_read" ON public.feature_flags;
+CREATE POLICY "feature_flags_read_auth" ON public.feature_flags
+    FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "Enable read for all users" ON public.flyers;
+CREATE POLICY "flyers_read_public" ON public.flyers
+    FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "anon_read" ON public.ingredients;
+CREATE POLICY "ingredients_read_public" ON public.ingredients
+    FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "anon_read" ON public.llm_match_cache;
+CREATE POLICY "llm_match_cache_read_auth" ON public.llm_match_cache
+    FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "Enable read for all users" ON public.price_history;
+CREATE POLICY "price_history_read_public" ON public.price_history
+    FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "Enable read for all users" ON public.prices;
+CREATE POLICY "prices_read_public" ON public.prices
+    FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "anon_read" ON public.recipe_items;
+CREATE POLICY "recipe_items_read_public" ON public.recipe_items
+    FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "anon_read" ON public.recipes;
+CREATE POLICY "recipes_read_public" ON public.recipes
+    FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "Enable read for all users" ON public.review_queue;
+CREATE POLICY "review_queue_read_auth" ON public.review_queue
+    FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "anon_read" ON public.schedules;
+CREATE POLICY "schedules_read_auth" ON public.schedules
+    FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "anon_read" ON public.scrape_frequencies;
+CREATE POLICY "scrape_frequencies_read_auth" ON public.scrape_frequencies
+    FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "anon_read" ON public.scrape_requests;
+DROP POLICY IF EXISTS "service_role_all" ON public.scrape_requests;
+DROP POLICY IF EXISTS "service_role_delete" ON public.scrape_requests;
+CREATE POLICY "scrape_requests_read_auth" ON public.scrape_requests
+    FOR SELECT TO authenticated USING (true);
+CREATE POLICY "scrape_requests_service_all" ON public.scrape_requests
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "anon_read" ON public.scraper_health_log;
+CREATE POLICY "scraper_health_log_read_auth" ON public.scraper_health_log
+    FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "Enable read for all users" ON public.scraping_logs;
+CREATE POLICY "scraping_logs_read_auth" ON public.scraping_logs
+    FOR SELECT TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "anon_read" ON public.store_registry;
+DROP POLICY IF EXISTS "service_role_all" ON public.store_registry;
+CREATE POLICY "store_registry_read_public" ON public.store_registry
+    FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "store_registry_service_all" ON public.store_registry
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Enable read for all users" ON public.stores;
+DROP POLICY IF EXISTS "anon_read" ON public.stores;
+CREATE POLICY "stores_read_public" ON public.stores
+    FOR SELECT TO anon, authenticated USING (true);
+
+
+
+-- ============================================================
+-- PHASE 31: Drop anon_insert on scrape_requests (016_drop_anon_insert.sql)
+-- ============================================================
+-- ============================================================
+-- SECURITY: drop anon_insert on scrape_requests (F-01 follow-up)
+-- ============================================================
+-- The Telegram bot inserts scrape requests via the service_role
+-- client (telegram_bot/handlers.py -> get_service_client()), so
+-- anon never needs INSERT on scrape_requests. The WITH CHECK (true)
+-- policy allowed any anonymous caller to write arbitrary rows.
+--
+-- Removing it closes the last permissive-write policy for
+-- non-service roles (db_security_lint --quick).
+
+DROP POLICY IF EXISTS "anon_insert" ON public.scrape_requests;
+
+
+-- ============================================================
+-- PHASE 32: Restore anon read (017_restore_anon_read.sql)
+-- ============================================================
+-- ============================================================
+-- SECURITY: restore anon read for app/dashboard tables (FIX 015)
+-- ============================================================
+-- Migration 015 narrowed read policies to `authenticated` on tables
+-- that the Streamlit dashboard and backend services read via the
+-- PUBLIC anon key (get_supabase() prefers SUPABASE_ANON_KEY). This
+-- broke anon reads: the dashboard is a private app but has no Supabase
+-- Auth JWT flow — all reads go through the anon key.
+--
+-- Restore read to `anon, authenticated` (public read) while keeping
+-- writes service_role-only. The security linter (db_security_lint.py)
+-- only flags WRITE policies with USING/WITH CHECK (true) for
+-- non-service roles, so public-read SELECT policies are compliant.
+--
+-- Tables NOT read via anon key (llm_match_cache, scraper_health_log)
+-- keep their authenticated-only read policy.
+
+DROP POLICY IF EXISTS "alert_recipients_read_auth" ON public.alert_recipients;
+CREATE POLICY "alert_recipients_read_public" ON public.alert_recipients
+    FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "alert_rules_read_auth" ON public.alert_rules;
+CREATE POLICY "alert_rules_read_public" ON public.alert_rules
+    FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "feature_flags_read_auth" ON public.feature_flags;
+CREATE POLICY "feature_flags_read_public" ON public.feature_flags
+    FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "schedules_read_auth" ON public.schedules;
+CREATE POLICY "schedules_read_public" ON public.schedules
+    FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "scrape_frequencies_read_auth" ON public.scrape_frequencies;
+CREATE POLICY "scrape_frequencies_read_public" ON public.scrape_frequencies
+    FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "scraping_logs_read_auth" ON public.scraping_logs;
+CREATE POLICY "scraping_logs_read_public" ON public.scraping_logs
+    FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "review_queue_read_auth" ON public.review_queue;
+CREATE POLICY "review_queue_read_public" ON public.review_queue
+    FOR SELECT TO anon, authenticated USING (true);
+
+DROP POLICY IF EXISTS "scrape_requests_read_auth" ON public.scrape_requests;
+CREATE POLICY "scrape_requests_read_public" ON public.scrape_requests
+    FOR SELECT TO anon, authenticated USING (true);
