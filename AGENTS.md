@@ -306,7 +306,6 @@ Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarbal
 ## Flyer OCR — Clustering Espacial + Layout Adaptativo (Sprint 15)
 
 ### Novos Parâmetros (Env Vars)
-
 | Variável | Default | Descrição |
 |----------|---------|-----------|
 | `FLYER_USE_LAYOUT_ADAPTATION` | `1` | Liga auto-detecção de layout (1/0) |
@@ -316,7 +315,6 @@ Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarbal
 | `FLYER_BLOCK_DY_ABOVE` | `320` | Janela vertical acima base (px) |
 | `FLYER_BLOCK_DY_BELOW` | `40` | Janela vertical abaixo base (px) |
 | `FLYER_BLOCK_MAX_TEXTS` | `6` | Max textos por bloco |
-
 ### Novos Arquivos
 - `parsers/flyer_layout_analyzer.py` — Analisa layout, gera params adaptativos, persiste aprendizado
 - `config/flyer_learned_params.json` — Parâmetros aprendidos por store/tipo (auto-gerado)
@@ -337,17 +335,16 @@ Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarbal
 - **Solução**: `vision_timeout_seconds: 600` + `max_concurrency=2` no `extract_flyer_products()`.
 
 ### Roldão/Tenda — Falso positivo de saúde
-- **Problema**: OCR vazio (cache hit, flyer já processado) chamava `report_failure()`, incrementando contagem de falhas consecutivas e disparando alertas.
-- **Solução**: Removeu `report_failure()` quando OCR retorna vazio. Caller (`_collect_prices`) já chama `record_success()` com 0 items. Cache hit não é erro.
+- **Problema**: OCR vazio (cache hit) chamava `report_failure()`, disparando alertas.
+- **Solução**: Removeu `report_failure()` em OCR vazio; `_collect_prices` chama `record_success(0)`. Cache hit não é erro.
 
 ### Bezerra Embalagens / Promotons
-- Removidos do pipeline: `UPDATE stores SET is_active=false` no Supabase DB.
+- Removidos: `UPDATE stores SET is_active=false` no Supabase DB.
 
 ### SMTP
-- Credenciais Gmail verificadas e válidas (app password funcional).
+- Credenciais Gmail válidas (app password).
 
 ## Sprint 17 — Otimização de Performance (2026-08-08)
-- `services/price_repository.py`: `batch_upsert_prices()` (chunks 50, retry transitório `_is_transient_net_err`); `process_price_match(batch_entries=...)`; `_scrape_store` acumula e flushes em lote.
-- `services/dashboard_queries.py`: helpers single-pass `_coverage_from_prices`/`_kpis_from_prices`/`_promotions_from_prices` (1 query de 5000 preços); `get_prices_for_ingredient_cached(tier=...)`; páginas `precos/insights/visao_geral/fontes` reutilizam.
-- Cache híbrido: `dashboard_cache` (config estática: st.cache_data+lru_cache) e `dashboard_data_cache` (preços: st.cache_data) com `_CACHE_REGISTRY`; `clear_all_caches()` limpa ambos.
-- Scrapers: `vtex_max_results` (early-exit VTEX), `block_resources` (Playwright route blocking image/font/media), `browse_url_timeout` (thread daemon, teto real).
+- `price_repository.py`: `batch_upsert_prices()` (chunks 50, retry); `process_price_match(batch_entries=...)`; flush em lote.
+- `dashboard_queries.py`: helpers single-pass (1 query 5k preços); `get_prices_for_ingredient_cached(tier=...)`; cache híbrido (`dashboard_cache` + `dashboard_data_cache` com `_CACHE_REGISTRY`); `clear_all_caches()`.
+- Scrapers: `vtex_max_results`, `block_resources`, `browse_url_timeout`.
