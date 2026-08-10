@@ -97,6 +97,7 @@ data/store_backups/
 # Backups / dumps / SQL loose files
 *.sql
 !supabase/*.sql
+!supabase/migrations/*.sql
 backup_*.sql
 *_prod_*.sql
 *_staging_*.sql
