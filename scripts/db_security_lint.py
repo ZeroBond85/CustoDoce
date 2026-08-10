@@ -52,15 +52,16 @@ def check_rls():
     permissive = rpc("""
         SELECT schemaname, tablename, policyname, permissive, cmd, qual, with_check
         FROM pg_policies
-        WHERE (qual LIKE '%true%' OR with_check LIKE '%true%')
-          AND schemaname = 'public'
-          AND qual NOT LIKE '%auth.role()%'
+        WHERE schemaname = 'public'
+          AND (qual = 'true' OR with_check = 'true')
+          AND cmd IN ('INSERT', 'UPDATE', 'DELETE', 'ALL')
+          AND NOT (roles && ARRAY['service_role']::name[])
         ORDER BY tablename, policyname
     """)
     if permissive:
         fail(f"Policies permissivas: {len(permissive)}")
         for p in permissive[:5]:
-            info(f"  {p['tablename']}.{p['policyname']}: {p.get('qual','')[:80]}")
+            info(f"  {p['tablename']}.{p['policyname']}: {str(p.get('qual') or p.get('with_check') or '')[:80]}")
     else:
         ok("Nenhuma policy com USING/WITH CHECK (true) sem auth.role() guard")
 
@@ -91,6 +92,10 @@ def check_rpc():
         WHERE n.nspname = 'public'
           AND p.prosecdef = true
           AND p.proname NOT IN ('exec_sql', 'exec_sql_query', 'upsert_price_rpc')
+          AND NOT EXISTS (
+              SELECT 1 FROM unnest(p.proconfig) cfg
+              WHERE cfg LIKE 'search_path=%'
+          )
     """)
     if secdef_no_restrict:
         fail(f"SECURITY DEFINER sem restricao: {[f['proname'] for f in secdef_no_restrict]}")

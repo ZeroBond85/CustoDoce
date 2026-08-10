@@ -1,5 +1,7 @@
 # Security Audit Report — CustoDoce (2026-08-09)
 
+> Última atualização: 2026-08-10 02:30 UTC
+
 **Branch:** `security/audit-2026-08`  
 **Base:** `master` (6328ea4)  
 **Auditor:** OpenCode Security Agent  
