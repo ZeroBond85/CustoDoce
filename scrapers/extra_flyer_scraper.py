@@ -1,8 +1,10 @@
 import json
 import re
+import time
 from datetime import UTC, datetime, timedelta
 
 import httpx
+from services.url_guard import make_safe_client
 
 from parsers.unit_extractor import extract_unit as _extract_unit
 from services.logger import logger
@@ -155,7 +157,13 @@ class ExtraFlyerScraper:
     def __init__(self, store: dict):
         self.store = store
         self.store_name = store.get("name", "Extra Folheteria")
-        self._http = httpx.Client(timeout=30, follow_redirects=True)
+        self._http = make_safe_client(timeout=30, follow_redirects=True)
+        # Rate limit por store_config (default 1 req/s)
+        self.rate_limit = float(store.get("rate_limit", 1.0))
+
+    def _throttle(self):
+        if self.rate_limit > 0:
+            time.sleep(self.rate_limit)
 
     def __enter__(self):
         return self
@@ -176,6 +184,7 @@ class ExtraFlyerScraper:
         return date_str  # fallback
 
     def _fetch_campanhas(self) -> dict | None:
+        self._throttle()
         resp = self._http.get(CAMPANHAS_URL)
         resp.raise_for_status()
         text = resp.text
@@ -252,6 +261,7 @@ class ExtraFlyerScraper:
         base = base.rstrip("/")
         book_url = f"{base}/files/search/book_config.js"
         try:
+            self._throttle()
             resp = self._http.get(book_url, timeout=15)
             resp.raise_for_status()
         except httpx.HTTPStatusError as e:

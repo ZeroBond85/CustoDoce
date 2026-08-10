@@ -1,5 +1,5 @@
 # Lições Aprendidas
-> Última atualização: 2026-08-09 16:03 UTC
+> Última atualização: 2026-08-10 17:09 UTC
 
 > Extraídas de AGENTS.md. Numeração original preservada.
 > Regras de execução/ambiente → `REGRAS.md`.
@@ -658,3 +658,4 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 ### 96. pip-audit flaky por rede do OSV API — teste deve distinguir rede de vulnerabilidade (2026-08-09)
 - **Sintoma/causa**: `tests/diagnostics/test_diagnostics.py::test_pip_audit_returns_no_vulnerabilities` falhava no WSL com `Network is unreachable` ao alcançar `api.osv.dev` (porta 443 bloqueada/rota indisponível), enquanto `pypi.org` respondia 200. O teste assumia que qualquer saída ≠ "No known vulnerabilities" = vulnerabilidade — mas flakiness de rede do provedor OSV gera falso negativo (FALHA falsa em auditoria que nem chegou a consultar).
 - **Correção**: o teste agora detecta marcadores de rede (`ConnectionError`, `Network is unreachable`, `Max retries exceeded`, `timed out`, etc.) e faz `pytest.skip` — rede indisponível não é vulnerabilidade (exceção regra 11, AGENTS.md). Alinhado ao `ci.yml` que já tolera falha de coleta de dependência com warning em vez de fail hard. **Regra**: testes de auditoria externa (OSV/PyPI) devem distinguir "não executou por rede" de "encontrou problema"; nunca tratar timeout de coleta como achado de segurança. **Teste**: `tests/diagnostics/test_diagnostics.py` (skip condicional).
+

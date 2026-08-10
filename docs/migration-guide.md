@@ -1,5 +1,5 @@
 # Guia de Migração e Manutenção do Banco de Dados
-> Última atualização: 2026-08-09 16:03 UTC
+> Última atualização: 2026-08-10 17:09 UTC
 
 Este documento descreve como aplicar alterações no schema do banco de dados Supabase e como validar a integridade dos dados.
 

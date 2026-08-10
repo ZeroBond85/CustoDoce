@@ -1,3 +1,10 @@
+from __future__ import annotations
+
+import httpx
+import ipaddress
+import socket
+import urllib.parse
+
 """SSRF guard for URLs fetched server-side from untrusted/DB sources.
 
 Flyer image URLs are stored in the `flyers` table by external aggregator
@@ -18,18 +25,8 @@ httpx-secure, duckduckgo-mcp):
    metadata 169.254.169.254 and 169.254.170.2), CGNAT 100.64.0.0/10,
    NAT64 64:ff9b::/96, 6to4 2002::/16, multicast, reserved, IPv6 ULA/link-local.
 5. Per-redirect re-validation — `make_safe_client()` injects an httpx event
-   hook that runs every redirect hop back through the guard (CVE-2026-35459
-   class of bug).
 
-http (non-TLS) is permitted for allowlisted hosts only (many flyer images are
-served over http). The public-IP check still applies.
 """
-
-from __future__ import annotations
-
-import ipaddress
-import socket
-import urllib.parse
 
 # Domains that are legitimate flyer/image hosts. Expand as needed.
 # These are PUBLIC e-commerce/aggregator hosts whose images we fetch server-side.
@@ -202,7 +199,7 @@ def validate_redirect_target(url: str) -> None:
     raise httpx.UnsupportedProtocol(f"SSRF guard: blocked redirect to {url}")
 
 
-def make_safe_client(**client_kwargs) -> object:
+def make_safe_client(**client_kwargs) -> httpx.Client:
     """Build an httpx.Client that re-validates every redirect hop (SSRF-safe).
 
     Usage::
@@ -215,7 +212,6 @@ def make_safe_client(**client_kwargs) -> object:
     if it is not allowlisted / publicly routable, closing the CVE-2026-35459
     class of redirect-based SSRF.
     """
-    import httpx
 
     def _on_response(response: httpx.Response) -> None:
         if response.next_request is None:

@@ -3,8 +3,8 @@ from abc import ABC, abstractmethod
 from urllib.parse import quote
 
 import httpx
-
 from services.logger import logger
+from services.url_guard import make_safe_client
 
 
 def _retry_with_backoff(max_retries: int = 3, base_delay: float = 1.0, max_delay: float = 30.0):
@@ -123,6 +123,7 @@ DEFAULT_SELECTORS: dict = {
 class BaseWebScraper(ABC):
     DEFAULT_RATE_LIMIT = 1.0
     DEFAULT_MAX_RETRIES = 3
+    DEFAULT_MAX_RESPONSE_SIZE = 10 * 1024 * 1024  # 10 MB
 
     def __init__(self, store_config: dict, rate_limit: float | None = None, max_retries: int | None = None):
         self.store = store_config
@@ -130,6 +131,7 @@ class BaseWebScraper(ABC):
         self.base_url = (store_config.get("base_url") or "").rstrip("/")
         self.rate_limit = rate_limit or store_config.get("rate_limit", self.DEFAULT_RATE_LIMIT)
         self.max_retries = max_retries or store_config.get("max_retries", self.DEFAULT_MAX_RETRIES)
+        self.max_response_size = store_config.get("max_response_size", self.DEFAULT_MAX_RESPONSE_SIZE)
 
         # Headers customizáveis por store
         custom_headers = store_config.get("headers", {})
@@ -192,7 +194,7 @@ class BaseWebScraper(ABC):
             write=float(to.get("write", 10.0)),
         )
 
-        self._http = httpx.Client(
+        self._http = make_safe_client(
             timeout=self._http_timeout,
             follow_redirects=True,
             headers=headers,
@@ -261,15 +263,26 @@ class BaseWebScraper(ABC):
         search_url = self.store.get("search_url", "").format(query=quote(query))
         if not search_url:
             return None
+        self._throttle()
         resp = self._http.get(search_url)
         resp.raise_for_status()
+        self._check_response_size(resp)
         return resp.text
 
     @_retry_with_backoff(max_retries=3, base_delay=1.0, max_delay=30.0)
     def fetch_json(self, url: str, params: dict | None = None) -> dict | list | None:
+        self._throttle()
         resp = self._http.get(url, params=params)
         resp.raise_for_status()
+        self._check_response_size(resp)
         return resp.json()
+
+    def _check_response_size(self, resp: httpx.Response) -> None:
+        cl = resp.headers.get("content-length")
+        if cl and int(cl) > self.max_response_size:
+            raise ValueError(
+                f"Response too large: {cl} bytes > max {self.max_response_size} bytes"
+            )
 
     def _throttle(self):
         if self.rate_limit > 0:

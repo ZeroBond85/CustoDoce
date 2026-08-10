@@ -1,5 +1,5 @@
 # REGRAS.md — Ambiente, Hooks, Comandos
-> Última atualização: 2026-08-09 16:03 UTC
+> Última atualização: 2026-08-10 17:09 UTC
 
 > Ambiente de execução, hooks de git, comandos de rotina e configurações obrigatórias.
 > Extraído de AGENTS.md original (seções "Ambiente", "Pre-commit/pre-push hooks", "OpenCode Skills Strategy").

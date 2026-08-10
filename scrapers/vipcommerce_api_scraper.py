@@ -15,6 +15,7 @@ o scraper devolve todos os produtos crus dos departamentos escolhidos.
 
 from __future__ import annotations
 
+import os
 from urllib.parse import urlparse
 
 from parsers.unit_extractor import extract_unit
@@ -51,7 +52,9 @@ class VipCommerceApiScraper(BaseWebScraper):
         self.org_id = str(store_config.get("vip_org_id", "")).strip()
         self.filial_id = str(store_config.get("vip_filial_id", "1")).strip()
         self.cd_id = str(store_config.get("vip_cd_id", "1")).strip()
-        self.login_key = store_config.get("vip_login_key", "")
+        # Segredo fora do repositório: env var VIP_LOGIN_KEY tem prioridade;
+        # fallback para a config (DB/YAML) preserva compatibilidade/transição.
+        self.login_key = os.environ.get("VIP_LOGIN_KEY") or store_config.get("vip_login_key", "")
         self.login_username = store_config.get("vip_login_username", "loja")
         self.dept_keywords = [k.lower() for k in (store_config.get("vip_dept_keywords") or DEFAULT_DEPT_KEYWORDS)]
         self.max_pages_per_dept = int(store_config.get("vip_max_pages_per_dept", 15))
@@ -111,7 +114,9 @@ class VipCommerceApiScraper(BaseWebScraper):
             return False
         token = data.get("data") if isinstance(data, dict) else None
         if not token or not isinstance(token, str):
-            logger.error("[%s] VipCommerce login sem token: %s", self.name, str(data)[:120])
+            # Sanitize: não logar token mesmo em erro
+            safe_data = {k: v for k, v in data.items() if k != "data"} if isinstance(data, dict) else data
+            logger.error("[%s] VipCommerce login sem token: %s", self.name, str(safe_data)[:120])
             return False
         self._token = token
         return True

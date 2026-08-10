@@ -1,6 +1,6 @@
 # `dns_resolver` — API
 
-> Última atualização: 2026-08-09 20:23 UTC
+> Última atualização: 2026-08-10 17:09 UTC
 > Gerado por AST parsing dos serviços em `services/dns_resolver.py`.
 
 ## Funções Públicas (2)
