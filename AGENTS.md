@@ -5,7 +5,7 @@
 ## Regras Mandatórias (Top)
 
 1. **Schema contracts**: `config/agents_schema.yaml` define o que entra aqui. CI valida.
-2. **Mocks derivam do schema manifest**: `config/schema_manifest.json` (gerado offline do SQL) é a fonte única. Mocks em `tests/unit/fixtures/mock_data.py` devem passar 97 checks (nomes, types, not_null, defaults, FKs, enums, jsonb). CI valida em todo PR no job `lint`.
+2. **Mocks derivam do schema manifest**: `config/schema_manifest.json` (gerado offline do SQL) é a fonte única. Mocks em `tests/unit/fixtures/mock_data.py` devem passar 121 checks (nomes, types, not_null, defaults, FKs, enums, jsonb). CI valida em todo PR no job `lint`.
 3. **Padrão de Testes**: Novo código = novos testes (`test_<modulo>.py`); testes com Supabase real devem usar `@pytest.mark.integration`.
 4. **`exec_sql_query` RPC (porta 443), NUNCA `psycopg2`**: GH Actions bloqueia 5432.
 5. **<55% vai pra review_queue**: `match_type`, `match_reason`, brand, top3 candidatos.
@@ -31,6 +31,13 @@
 16. **Ambiente WSL: Python 3.14.6 NATIVO (sem miniconda)**: O WSL roda Python 3.14.6 compilado de tarball oficial em `/usr/local/bin/python3.14` (não o 3.13 do `/usr/bin` que é do apt/dpkg). `python`/`python3` do usuário apontam via `~/bin` symlinks para 3.14.6. **Miniconda removido** (`~/miniconda3` apagado, bloco conda do `.bashrc` limpo). Hooks: `pre-commit` usa `PY=/usr/local/bin/python3.14` + `GIT=/usr/bin/git` e **falha com `exit 1` fora do WSL**; `pre-push` tem shebang `#!/usr/bin/env python3.14` e `_resolve_python()` prioriza `/usr/local/bin/python3.14` (fallback: `.venv314`). Credenciais: `gh` nativo autenticado, token em `~/.config/gh/hosts.yml` (perm 600, **nunca** `/tmp`); `gh auth setup-git` configura credential helper nativo. Todos os hooks em **LF** (`sed -i 's/\r//g'`; `s/\r$//` NÃO funciona no sed Debian WSL). `sync_docs.py _strict_audit()` pula `docs/changelog.md` (contadores históricos são intencionais). (Ver `REGRAS.md` §Pre-push, §Ambiente)
 17. **`.gitattributes` cobre TODOS os hooks com `eol=lf` (mandatório)**: Hooks em `.githooks/` NÃO têm extensão (ex.: `pre-push`, `pre-commit`) e o `core.autocrlf=true` do Windows converte LF→CRLF no check-out — o WSL lê o C: montado cru e o shebang `#!/usr/bin/env python3.14\r` quebra (`env: 'python3.14\r': No such file`). **Regra**: `.gitattributes` DEVE listar `.githooks/*` e `.git/hooks/*` com `eol=lf` (assim como `*.py`, `*.yaml`, etc.). Toda nova extensão de hook/arquivo-texto-sem-extensão DEVE ser coberta. Omitir = lacuna que trava push em WSL (visto 2026-07-19: `pre-push` com CRLF barrando delete de branches). (Ver `LESSONS.md` #82, `REGRAS.md` §Line Endings)
 
+18. **Migrations — fluxo correto + validação pós-aplicação**: Toda alteração em SQL/funções/triggers DEVE seguir este fluxo — não improvisar conexão direta:
+    1. **Adicionar em `scripts/deploy_database.py::generate_consolidated()`** (ver regra #8) e criar arquivo em `supabase/migrations/NNN_<desc>.sql`.
+    2. **`python scripts/deploy_database.py --dry-run`** → conferir plano. Sem sucesso → corrigir antes de aplicar.
+    3. **`python scripts/deploy_database.py --execute`** → path primário é `exec_sql`/`exec_sql_query` RPC (porta 443). O `--allow-psycopg2` (porta 5432/6543 direta) é LEGACY e só deve ser usado se (a) o RPC rejeitar a instrução (ex.: DDL que só aceita SELECT) E (b) roda em WSL/Linux (nunca Windows) com `SUPABASE_DB_PASSWORD` no `.env`. O script tenta `db.<proj>.supabase.co:5432` e depois `aws-0-us-west-1.pooler.supabase.co:6543` com fallback. Se TODOS falharem → colar SQL no Supabase SQL Editor.
+    4. **VALIDAR PÓS-APLICAÇÃO (obrigatório, não pular)**: rodar verificação real contra a base (ex.: `scripts/db_security_lint.py --full`, `scripts/validate_db_schema.py`, ou `SELECT` via `exec_sql_query`) confirmando que a mudança está ATIVA. "Aplicou sem erro" ≠ "aplicou de verdade" — conferir o resultado.
+    5. **Erros de conexão 5432 (IPv6 `Network is unreachable` / `Name or service not known` no pooler)**: são esperados no fallback e NÃO indicam falha — o script continua para o próximo endpoint. Se nem RPC nem psycopg2 conectarem → SQL Editor manual.
+    Ver `scripts/deploy_database.py` linhas 858-929 para o fluxo completo.
 ## Sobre
 
 Busca e comparação de preços de ingredientes para confeitaria. Foco na Baixada Santista (Santos, São Vicente, Praia Grande, Mongaguá, Itanhaém, Peruíbe, Guarujá) e São Paulo Capital (Centro, Sul, Leste, Oeste, Norte). Infraestrutura 100% gratuita.
@@ -236,7 +243,7 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 | pytest (integration) | 113 passing |
 | pytest (diagnostics, slow) | 4 passing |
 | Schema manifest | 17 tabelas/views com types, not_null, defaults, constraints |
-| Mock validation tests | 97 parametrizados (colunas, tipos, not_null, FKs, CHECK, jsonb) |
+| Mock validation tests | 121 parametrizados (colunas, tipos, not_null, FKs, CHECK, jsonb) |
 | AGENTS.md | ~338 linhas (Sprint 16) |
 | LESSONS.md | 79 lições |
 | REGRAS.md | Ambiente + hooks + comandos |
@@ -299,7 +306,6 @@ Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarbal
 ## Flyer OCR — Clustering Espacial + Layout Adaptativo (Sprint 15)
 
 ### Novos Parâmetros (Env Vars)
-
 | Variável | Default | Descrição |
 |----------|---------|-----------|
 | `FLYER_USE_LAYOUT_ADAPTATION` | `1` | Liga auto-detecção de layout (1/0) |
@@ -309,7 +315,6 @@ Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarbal
 | `FLYER_BLOCK_DY_ABOVE` | `320` | Janela vertical acima base (px) |
 | `FLYER_BLOCK_DY_BELOW` | `40` | Janela vertical abaixo base (px) |
 | `FLYER_BLOCK_MAX_TEXTS` | `6` | Max textos por bloco |
-
 ### Novos Arquivos
 - `parsers/flyer_layout_analyzer.py` — Analisa layout, gera params adaptativos, persiste aprendizado
 - `config/flyer_learned_params.json` — Parâmetros aprendidos por store/tipo (auto-gerado)
@@ -330,17 +335,16 @@ Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarbal
 - **Solução**: `vision_timeout_seconds: 600` + `max_concurrency=2` no `extract_flyer_products()`.
 
 ### Roldão/Tenda — Falso positivo de saúde
-- **Problema**: OCR vazio (cache hit, flyer já processado) chamava `report_failure()`, incrementando contagem de falhas consecutivas e disparando alertas.
-- **Solução**: Removeu `report_failure()` quando OCR retorna vazio. Caller (`_collect_prices`) já chama `record_success()` com 0 items. Cache hit não é erro.
+- **Problema**: OCR vazio (cache hit) chamava `report_failure()`, disparando alertas.
+- **Solução**: Removeu `report_failure()` em OCR vazio; `_collect_prices` chama `record_success(0)`. Cache hit não é erro.
 
 ### Bezerra Embalagens / Promotons
-- Removidos do pipeline: `UPDATE stores SET is_active=false` no Supabase DB.
+- Removidos: `UPDATE stores SET is_active=false` no Supabase DB.
 
 ### SMTP
-- Credenciais Gmail verificadas e válidas (app password funcional).
+- Credenciais Gmail válidas (app password).
 
 ## Sprint 17 — Otimização de Performance (2026-08-08)
-- `services/price_repository.py`: `batch_upsert_prices()` (chunks 50, retry transitório `_is_transient_net_err`); `process_price_match(batch_entries=...)`; `_scrape_store` acumula e flushes em lote.
-- `services/dashboard_queries.py`: helpers single-pass `_coverage_from_prices`/`_kpis_from_prices`/`_promotions_from_prices` (1 query de 5000 preços); `get_prices_for_ingredient_cached(tier=...)`; páginas `precos/insights/visao_geral/fontes` reutilizam.
-- Cache híbrido: `dashboard_cache` (config estática: st.cache_data+lru_cache) e `dashboard_data_cache` (preços: st.cache_data) com `_CACHE_REGISTRY`; `clear_all_caches()` limpa ambos.
-- Scrapers: `vtex_max_results` (early-exit VTEX), `block_resources` (Playwright route blocking image/font/media), `browse_url_timeout` (thread daemon, teto real).
+- `price_repository.py`: `batch_upsert_prices()` (chunks 50, retry); `process_price_match(batch_entries=...)`; flush em lote.
+- `dashboard_queries.py`: helpers single-pass (1 query 5k preços); `get_prices_for_ingredient_cached(tier=...)`; cache híbrido (`dashboard_cache` + `dashboard_data_cache` com `_CACHE_REGISTRY`); `clear_all_caches()`.
+- Scrapers: `vtex_max_results`, `block_resources`, `browse_url_timeout`.

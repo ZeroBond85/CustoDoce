@@ -1,0 +1,11 @@
+[sqlfluff]
+dialect = postgres
+# Só regras de QUALIDADE. As regras puramente cosméticas de layout/case
+# (espaçamento, indentação, case de keywords/functions, quoting) são excluídas
+# porque o schema legado (seed.sql + consolidated_migration.sql) já está
+# aplicado em PROD — reformatá-lo geraria churn sem ganho. O gate do CI deve
+# pegar bugs reais (ambiguidade, aliasing, referências), não estilo.
+exclude_rules = LT01, LT02, LT04, LT05, LT09, LT12, LT14, CP01, CP02, CP03, CP04, CP05, RF05, RF06
+
+[sqlfluff:indentation]
+indent_unit = space

@@ -45,6 +45,10 @@ cffi==2.1.1
     # via
     #   cryptography
     #   curl-cffi
+chardet==7.5.1
+    # via
+    #   diff-cover
+    #   sqlfluff
 charset-normalizer==3.4.9
     # via
     #   -r requirements-prod.in
@@ -53,8 +57,11 @@ charset-normalizer==3.4.9
 click==8.4.2
     # via
     #   huggingface-hub
+    #   sqlfluff
     #   streamlit
     #   uvicorn
+colorama==0.4.6
+    # via sqlfluff
 colorlog==6.12.0
     # via rapidocr
 cryptography==50.0.0
@@ -73,6 +80,8 @@ deprecation==2.1.0
     #   storage3
 detect-secrets==1.5.0
     # via -r requirements-dev.in
+diff-cover==10.5.0
+    # via sqlfluff
 et-xmlfile==2.0.0
     # via openpyxl
 filelock==3.32.2
@@ -133,7 +142,9 @@ itsdangerous==2.2.0
 jinja2==3.1.6
     # via
     #   altair
+    #   diff-cover
     #   pydeck
+    #   sqlfluff
     #   torch
 joblib==1.5.3
     # via
@@ -172,7 +183,7 @@ narwhals==2.24.0
     #   scikit-learn
 networkx==3.6.1
     # via torch
-numpy==2.5.1
+numpy==2.5.2
     # via
     #   -r requirements-prod.in
     #   onnxruntime
@@ -227,7 +238,9 @@ pandas==3.0.5
     #   -r requirements-prod.in
     #   streamlit
 pathspec==1.1.1
-    # via mypy
+    # via
+    #   mypy
+    #   sqlfluff
 pdf2image==1.17.0
     # via -r requirements-prod.in
 pdfminer-six==20260107
@@ -249,11 +262,15 @@ pip-audit==2.10.1
 pip-requirements-parser==32.0.1
     # via pip-audit
 platformdirs==4.11.0
-    # via pip-audit
+    # via
+    #   pip-audit
+    #   sqlfluff
 plotly==6.9.0
     # via -r requirements-prod.in
 pluggy==1.6.0
-    # via pytest
+    # via
+    #   diff-cover
+    #   pytest
 postgrest==2.31.0
     # via supabase
 propcache==0.5.2
@@ -284,6 +301,7 @@ pydeck==0.9.3
     # via streamlit
 pygments==2.20.0
     # via
+    #   diff-cover
     #   pytest
     #   rich
 pyjwt[crypto]==2.13.0
@@ -297,7 +315,9 @@ pypdfium2==5.12.1
 pytesseract==0.3.13
     # via -r requirements-prod.in
 pytest==9.0.3
-    # via -r requirements-dev.in
+    # via
+    #   -r requirements-dev.in
+    #   sqlfluff
 python-dateutil==2.9.0.post0
     # via pandas
 python-dotenv==1.2.2
@@ -314,6 +334,7 @@ pyyaml==6.0.3
     #   huggingface-hub
     #   omegaconf
     #   rapidocr
+    #   sqlfluff
     #   transformers
 rapidfuzz==3.14.5
     # via -r requirements-prod.in
@@ -326,7 +347,9 @@ referencing==0.37.0
     #   jsonschema
     #   jsonschema-specifications
 regex==2026.7.19
-    # via transformers
+    # via
+    #   sqlfluff
+    #   transformers
 requests==2.34.2
     # via
     #   -r requirements-prod.in
@@ -370,6 +393,10 @@ six==1.17.0
     #   rapidocr
 sortedcontainers==2.4.0
     # via cyclonedx-python-lib
+sqlfluff==3.4.0
+    # via -r requirements-dev.in
+squawk-cli==2.62.0
+    # via -r requirements-dev.in
 starlette==1.3.1
     # via streamlit
 stevedore==5.9.0
@@ -390,6 +417,8 @@ supabase-functions==2.31.0
     # via supabase
 sympy==1.14.0
     # via torch
+tblib==3.2.2
+    # via sqlfluff
 tenacity==9.1.4
     # via streamlit
 threadpoolctl==3.6.0
@@ -413,8 +442,9 @@ tqdm==4.70.0
     #   huggingface-hub
     #   rapidocr
     #   sentence-transformers
+    #   sqlfluff
     #   transformers
-transformers==5.14.1
+transformers==5.15.0
     # via
     #   -r requirements-prod.in
     #   optimum
@@ -436,7 +466,7 @@ typing-extensions==4.16.0
     #   streamlit
     #   torch
     #   typing-inspection
-typing-inspection==0.4.2
+typing-inspection==0.4.3
     # via pydantic
 urllib3==2.7.0
     # via requests
@@ -458,5 +488,5 @@ yarl==1.24.5
 # The following packages are considered to be unsafe in a requirements file:
 pip==26.2.1
     # via pip-api
-setuptools==83.0.0
+setuptools==84.0.0
     # via torch

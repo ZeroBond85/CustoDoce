@@ -533,6 +533,134 @@ MOCK_ALERT_RECIPIENTS: list[dict[str, Any]] = [
     },
 ]
 
+# ─── LLM Match Cache ────────────────────────────────────────────────────────
+
+MOCK_LLM_MATCH_CACHE: list[dict[str, Any]] = [
+    {
+        "id": "llm-cache-001",
+        "product_raw_name": "LEITE CONDENSADO MOÇA 395G",
+        "brand": "Moça",
+        "ingredient_id": "ing-001",
+        "match_decision": {"matched": True, "confidence": 0.97, "match_type": "exato"},
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+    },
+    {
+        "id": "llm-cache-002",
+        "product_raw_name": "CREME DE LEITE NESTLÉ 200G",
+        "brand": "Nestlé",
+        "ingredient_id": "ing-002",
+        "match_decision": {"matched": True, "confidence": 0.95, "match_type": "exato"},
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+    },
+]
+
+# ─── Scrape Requests ────────────────────────────────────────────────────────
+
+MOCK_SCRAPE_REQUESTS: list[dict[str, Any]] = [
+    {
+        "id": 1,
+        "user_id": "user-001",
+        "store_id": "store-001",
+        "status": "pending",
+        "created_at": "2026-01-01T00:00:00Z",
+        "processed_at": None,
+    },
+    {
+        "id": 2,
+        "user_id": "user-001",
+        "store_id": "store-002",
+        "status": "completed",
+        "created_at": "2026-01-01T00:00:00Z",
+        "processed_at": "2026-01-01T01:00:00Z",
+    },
+]
+
+# ─── Store Registry ─────────────────────────────────────────────────────────
+
+MOCK_STORE_REGISTRY: list[dict[str, Any]] = [
+    {
+        "id": "sr-001",
+        "name": "Assaí Atacadista",
+        "normalized_name": "assai atacadista",
+        "tier": 1,
+        "type": "atacadista",
+        "logistics": "pickup_local",
+        "city": "Santos",
+        "zone": "Baixada Santista",
+        "coverage": "regional",
+        "collection_method": "pdf",
+        "source": "auto",
+        "status": "approved",
+        "match_score": 0.98,
+        "matched_store_id": "store-001",
+        "config": {"region": "bs"},
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "reviewed_at": "2026-01-01T00:00:00Z",
+        "reviewed_by": "admin",
+        "promoted_at": None,
+        "address": "",
+        "neighborhood": "",
+        "phone": "",
+        "address_confidence": 0.0,
+        "discovery_source": "flyer",
+        "region": "Baixada Santista",
+    },
+    {
+        "id": "sr-002",
+        "name": "Tenda Atacado",
+        "normalized_name": "tenda atacado",
+        "tier": 1,
+        "type": "atacadista",
+        "logistics": "pickup_local",
+        "city": "São Vicente",
+        "zone": "Baixada Santista",
+        "coverage": "regional",
+        "collection_method": "pdf",
+        "source": "auto",
+        "status": "pending_review",
+        "match_score": 0.0,
+        "matched_store_id": None,
+        "config": {},
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "reviewed_at": None,
+        "reviewed_by": None,
+        "promoted_at": None,
+        "address": "",
+        "neighborhood": "",
+        "phone": "",
+        "address_confidence": 0.0,
+        "discovery_source": "manual",
+        "region": "Baixada Santista",
+    },
+]
+
+# ─── Store Units ────────────────────────────────────────────────────────────
+
+MOCK_STORE_UNITS: list[dict[str, Any]] = [
+    {
+        "id": "su-001",
+        "store_id": "store-001",
+        "unit_name": "Assaí Santos",
+        "address": "Av. Ana Costa, 500",
+        "neighborhood": "Boqueirão",
+        "city": "Santos",
+        "state": "SP",
+        "zipcode": "11060-000",
+        "phone": "",
+        "latitude": -23.9618,
+        "longitude": -46.3322,
+        "source": "auto",
+        "confidence": 1.0,
+        "is_active": True,
+        "collected_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+    },
+]
+
 # ─── Helpers ────────────────────────────────────────────────────────────────
 
 
