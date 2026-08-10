@@ -42,6 +42,20 @@ def test_login_missing_config_fails():
     assert scraper._login() is False
 
 
+def test_login_key_from_env_has_priority(store_config, monkeypatch):
+    """VIP_LOGIN_KEY (env) deve sobrepor a config do repositório."""
+    monkeypatch.setenv("VIP_LOGIN_KEY", "env-secret-key")
+    scraper = VipCommerceApiScraper(store_config)
+    assert scraper.login_key == "env-secret-key"
+
+
+def test_login_key_falls_back_to_config_without_env(store_config, monkeypatch):
+    """Sem env var, usa o valor do store_config (compatibilidade)."""
+    monkeypatch.delenv("VIP_LOGIN_KEY", raising=False)
+    scraper = VipCommerceApiScraper(store_config)
+    assert scraper.login_key == "abc123"
+
+
 def test_select_departments_filters_by_keyword(store_config):
     scraper = VipCommerceApiScraper(store_config)
     scraper._token = "JWT"

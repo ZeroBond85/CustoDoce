@@ -11,6 +11,7 @@ Schema: see AGENTS.md §Estrutura de Diretórios and config/stores.yaml.
 """
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -118,7 +119,12 @@ def validate_store(store: dict, existing_names: set[str]) -> list[str]:
         errors.append(f"'url_type' must be one of {sorted(VALID_URL_TYPES)}")
 
     if stype == "vipcommerce_api":
-        vip_required = ["vip_domain", "vip_api_base", "vip_org_id", "vip_filial_id", "vip_cd_id", "vip_login_key"]
+        vip_required = ["vip_domain", "vip_api_base", "vip_org_id", "vip_filial_id", "vip_cd_id"]
+        # O login key é segredo: NUNCA deve ir para stores.yaml. Se a env
+        # VIP_LOGIN_KEY não estiver definida, exigimos o campo vazio como
+        # placeholder (o scraper cai no env em runtime).
+        if "VIP_LOGIN_KEY" not in os.environ and "vip_login_key" not in store:
+            errors.append("'vip_login_key' is required for type=vipcommerce_api (ou defina a env VIP_LOGIN_KEY)")
         for field in vip_required:
             if field not in store:
                 errors.append(f"'{field}' is required for type=vipcommerce_api")

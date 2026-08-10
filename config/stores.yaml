@@ -69,7 +69,8 @@ stores:
     vip_org_id: "67"
     vip_filial_id: "1"
     vip_cd_id: "15"
-    vip_login_key: "df072f85df9bf7dd71b6811c34bdbaa4f219d98775b56cff9dfa5f8ca1bf8469"
+    # Key de login da API VipCommerce. Nunca versionar: vem da env VIP_LOGIN_KEY.
+    vip_login_key: ""
     vip_max_pages_per_dept: 6
     rate_limit: 0
     regions:
@@ -142,7 +143,6 @@ stores:
     collection_method: "automated"
     scraper: "roldao_api_scraper"
     priority: 6
-    verify_ssl: false
 
   # ============================================================================
   # TIER 1B - PDF DIRETO SP CAPITAL (Atacadistas com filial em SP)
@@ -364,7 +364,8 @@ stores:
     vip_org_id: "216"
     vip_filial_id: "1"
     vip_cd_id: "20"
-    vip_login_key: "df072f85df9bf7dd71b6811c34bdbaa4f219d98775b56cff9dfa5f8ca1bf8469"
+    # Key de login da API VipCommerce. Nunca versionar: vem da env VIP_LOGIN_KEY.
+    vip_login_key: ""
     vip_mode: "search"
     vip_max_pages_per_search: 1
     rate_limit: 0

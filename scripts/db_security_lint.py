@@ -23,7 +23,7 @@ from services.supabase_client import get_service_client
 def rpc(sql: str) -> list[dict]:
     client = get_service_client()
     sql = sql.strip().rstrip(";")
-    res = client.rpc("exec_sql_query", {"sql": sql})
+    res = client.rpc("exec_sql_query", {"sql": sql}).execute()
     if hasattr(res, "error") and res.error:
         print(f"  [RPC ERROR] {res.error}")
         return []
