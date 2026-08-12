@@ -25,6 +25,15 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 # Garante que a raiz do projeto esteja no sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+# Evita o warning "Proactor event loop does not implement add_reader" no Windows
+# (pytest-asyncio cria o loop sob Proactor e precisa de add_reader). A policy
+# selector é a correção documentada e funciona também em Linux sem efeito colateral.
+import asyncio
+import platform
+
+if platform.system() == "Windows":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 
 # ── Helpers ─────────────────────────────────────────────────────
 def _has_real_db() -> bool:

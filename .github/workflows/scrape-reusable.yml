@@ -193,7 +193,7 @@ jobs:
           else
             FILTER="-Tiendeo,-Carrefour"
           fi
-          ulimit -n 65536 && python main.py --tier ${{ matrix.tier }} --no-finalize --mode ${{ inputs.mode }} ${{ inputs.dry_run && '--dry-run' || '' }} ${{ inputs.force && '--force' || '' }} --stores-filter "$FILTER" 2>&1 | tee "$LOG"
+          ulimit -n 65536 && python main.py --tier ${{ matrix.tier }} --no-finalize --mode ${{ inputs.mode }} ${{ inputs.dry_run && '--dry-run' || '' }} ${{ inputs.force && '--force' || '' }} --stores-filter="$FILTER" 2>&1 | tee "$LOG"
 
           # ── Só falha em CRASH real (Python traceback) ──
           # [error] level de logs de self-healing (TIMEOUT, falha de loja individual)
