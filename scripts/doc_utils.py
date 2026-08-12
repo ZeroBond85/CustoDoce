@@ -390,27 +390,86 @@ def read_frontmatter(path: Path) -> tuple[dict, str]:
     return fm, m.group("body")
 
 
+_TEST_DIRS = ["tests/unit", "tests/schema", "tests/integration", "tests/e2e", "tests/real"]
+
+
+def _git_head_short(root: Path) -> str:
+    """Julgo curto do HEAD (fallback '' se fora de git)."""
+    import subprocess
+
+    try:
+        r = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        return r.stdout.strip() if r.returncode == 0 else ""
+    except Exception:
+        return ""
+
+
+def _tests_dirty(root: Path) -> bool:
+    """True se tests/ tem modificacao nao commitada (invalida cache).
+
+    Critico em WSL (drives montados) onde mtime pode divergir entre
+    Windows e Linux. Barata: ~50ms de git status --porcelain.
+    """
+    import subprocess
+
+    try:
+        r = subprocess.run(
+            ["git", "status", "--porcelain", "--", "tests/"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return bool(r.stdout.strip()) if r.returncode == 0 else True
+    except Exception:
+        return True
+
+
 def _hash_test_state(root: Path) -> str:
-    """Hash do estado dos diretórios tests/ (mtime + file count) para cache."""
+    """Hash do estado dos diretórios tests/ para cache.
+
+    Combina file count + soma de mtime + soma de bytes + git HEAD curto.
+    A soma de mtime/bytes sozinha pode colidir entre checkouts (mtime não
+    preservado em alguns filesystems); o HEAD curto quebra essa colisão.
+    """
     import hashlib
 
     h = hashlib.md5(usedforsecurity=False)
-    dirs = ["tests/unit", "tests/schema", "tests/integration", "tests/e2e", "tests/real"]
     total_mtime = 0
+    total_bytes = 0
     total_files = 0
-    for rel in dirs:
+    for rel in _TEST_DIRS:
         d = root / rel
         if not d.exists():
             continue
         for f in sorted(d.rglob("*.py")):
-            total_mtime += int(f.stat().st_mtime)
+            try:
+                st = f.stat()
+            except OSError:
+                continue
+            total_mtime += int(st.st_mtime)
+            total_bytes += int(st.st_size)
             total_files += 1
-    h.update(f"{total_mtime}:{total_files}".encode())
+    head = _git_head_short(root)
+    h.update(f"{total_mtime}:{total_bytes}:{total_files}:{head}".encode())
     return h.hexdigest()
 
 
 def count_tests_cached(root: Path, pytest_func) -> dict[str, int]:
-    """Cache de test counts: rerun pytest só se tests/ mudou."""
+    """Cache de test counts: rerun pytest só se tests/ mudou.
+
+    Segurança anti-staleness (camadas):
+      1. Hash de estado robusto (count + mtime + bytes + git HEAD).
+      2. Rejeita cache se `tests/` estiver com mudanças não commitadas
+         (_tests_dirty) — impossível servir número obsoleto após edição.
+      3. Sanity check `expected_min` (proteção contra hash colidido).
+    """
     import json
     import tempfile
 
@@ -419,6 +478,9 @@ def count_tests_cached(root: Path, pytest_func) -> dict[str, int]:
     cache_file = cache_dir / "test_counts.json"
 
     state_hash = _hash_test_state(root)
+    # Freshness real-time: se tests/ tem edição não commitada, força recompute
+    # independentemente do hash (cobre edições same-mtime/same-size).
+    dirty = _tests_dirty(root)
 
     # Under test execution the callable is mocked per-test; serving a shared
     # on-disk cache would cross-contaminate test cases (one mock's result
@@ -431,11 +493,9 @@ def count_tests_cached(root: Path, pytest_func) -> dict[str, int]:
             except (json.JSONDecodeError, OSError):
                 cached = {}
 
-        if cached.get("hash") == state_hash:
+        if not dirty and cached.get("hash") == state_hash:
             cached_counts = cached.get("counts", {})
             # Sanity check: cache nao pode ter menos que 20% do esperado.
-            # WSL as vezes tem mtime hash divergente entre Windows e Linux,
-            # retornando cache obsoleto com valores como unit=2 (real ~1258).
             expected_min = {"unit": 800, "schema": 50, "integration": 50}
             sane = all(
                 cached_counts.get(k, 0) >= v
@@ -451,6 +511,54 @@ def count_tests_cached(root: Path, pytest_func) -> dict[str, int]:
         encoding="utf-8",
     )
     return counts
+
+
+def count_tests_full_cached(root: Path, pytest_func) -> dict[str, dict]:
+    """Cache de contagens COMPLETAS por dir (pytest_total + my_count).
+
+    Mesma robustez do count_tests_cached (hash robusto + _tests_dirty +
+    sanity check), mas armazena o full record:
+        {label: {"pytest_total": int, "my_count": int}}
+
+    Permite que sync_docs compartilhe UMA coleta (paralela) entre o
+    agente de contagem (_count_tests) e o drift check (_check_drift) —
+    eliminando re-execucoes de pytest --collect-only entre os dois.
+    """
+    import json
+    import tempfile
+
+    cache_dir = Path(tempfile.gettempdir()) / "custodoce_sync"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_file = cache_dir / "test_counts_full.json"
+
+    state_hash = _hash_test_state(root)
+    dirty = _tests_dirty(root)
+
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        cached = {}
+        if cache_file.exists():
+            try:
+                cached = json.loads(cache_file.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                cached = {}
+
+        if not dirty and cached.get("hash") == state_hash:
+            cached_full = cached.get("full", {})
+            expected_min = {"unit": 800, "schema": 50, "integration": 50}
+            sane = all(
+                cached_full.get(k, {}).get("my_count", 0) >= v
+                for k, v in expected_min.items()
+            )
+            if sane:
+                return cached_full
+            # Cache invalido: ignora e regera
+
+    full = pytest_func()
+    cache_file.write_text(
+        json.dumps({"hash": state_hash, "full": full}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    return full
 
 
 def write_frontmatter(path: Path, fm: dict, body: str) -> None:

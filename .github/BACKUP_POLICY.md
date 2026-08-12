@@ -1,5 +1,5 @@
 # BACKUP_POLICY.md — Política de Backup e Restauração
-> Última atualização: 2026-08-10 17:09 UTC
+> Última atualização: 2026-08-12 14:22 UTC
 
 ## Objetivo
 Definir uma política clara para backups do banco de dados Supabase, garantindo integridade, retenção e restauração automática para testes.

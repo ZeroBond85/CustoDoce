@@ -66,6 +66,11 @@ def _resolve_python() -> str:
 
 THIS_PYTHON = _resolve_python()
 
+SKIP_CI_LOCAL = os.getenv("SKIP_CI_LOCAL", "0") == "1"
+SKIP_SCHEMA_MOCKS = os.getenv("SKIP_SCHEMA_MOCKS", "0") == "1"
+SKIP_SYNC_DOCS = os.getenv("SKIP_SYNC_DOCS", "0") == "1"
+SKIP_MD_TIMESTAMPS = os.getenv("SKIP_MD_TIMESTAMPS", "0") == "1"
+
 
 def run(
     cmd: list[str],
@@ -282,16 +287,21 @@ def check_md_timestamps() -> tuple[str, subprocess.CompletedProcess]:
 PARALLEL_CHECKS = [
     check_audit_secrets,
     check_agents_tool,
-    check_ci_local,
     check_validate_query_columns,
     check_audit_df_columns,
-    check_schema_mocks,
     check_environment_parity,
     check_line_endings,
     check_gitattributes_hooks,
-    check_sync_docs,
-    check_md_timestamps,
 ]
+
+if not SKIP_CI_LOCAL:
+    PARALLEL_CHECKS.append(check_ci_local)
+if not SKIP_SCHEMA_MOCKS:
+    PARALLEL_CHECKS.append(check_schema_mocks)
+if not SKIP_SYNC_DOCS:
+    PARALLEL_CHECKS.append(check_sync_docs)
+if not SKIP_MD_TIMESTAMPS:
+    PARALLEL_CHECKS.append(check_md_timestamps)
 
 
 def main() -> int:
