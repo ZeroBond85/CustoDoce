@@ -23,6 +23,23 @@ GIT="/usr/bin/git"
 STAGED=$("$GIT" diff --cached --name-only --diff-filter=ACM 2>/dev/null || true)
 
 # ----------------------------------------------------------------
+# SKIP VARS (opt-in, default = TUDO roda). Emergencia/hotfix apenas.
+# Toda skip printa [AVISO] para ficar auditavel.
+#   CUSTODOCE_SKIP_SYNC_DOCS=1  -> pula layer 2 (DOC SYNC auto-apply)
+#   CUSTODOCE_SKIP_MD_COMPRESS=1-> pula layer 5.5 (MD AUTO-COMPRESS)
+# NOTA: layer 6 (SKILL DRIFT) é INCONDICIONAL — espelha o CI docs-sync
+# e nunca pode ser pulada (evita docs de skills desatualizadas).
+# ----------------------------------------------------------------
+SKIP_SYNC_DOCS="${CUSTODOCE_SKIP_SYNC_DOCS:-0}"
+SKIP_MD_COMPRESS="${CUSTODOCE_SKIP_MD_COMPRESS:-0}"
+if [ "$SKIP_SYNC_DOCS" = "1" ]; then
+  echo "[AVISO] CUSTODOCE_SKIP_SYNC_DOCS=1 - pulando DOC SYNC (layer 2). Pre-push/CI ainda validam." >&2
+fi
+if [ "$SKIP_MD_COMPRESS" = "1" ]; then
+  echo "[AVISO] CUSTODOCE_SKIP_MD_COMPRESS=1 - pulando MD AUTO-COMPRESS (layer 5.5)." >&2
+fi
+
+# ----------------------------------------------------------------
 # AMBIENTE OBRIGATÓRIO: WSL com Python/git NATIVO do sistema.
 # O projeto exige que o commit/push rode no WSL (regra 15 do AGENTS.md).
 # Se não for WSL, o hook FAILA claramente — não tenta Windows Python
@@ -163,26 +180,31 @@ if echo "${STAGED:-}" | grep -qE "$CODE_PATTERNS"; then
     echo "Arquivos de codigo staged:"
     echo "$STAGED" | grep -E "$CODE_PATTERNS"
     echo ""
-    echo "[INFO] Rodando sync_docs.py para atualizar docs..."
 
-    if [ -n "$PY" ] && [ -f "scripts/sync_docs.py" ]; then
-      SYNC_OUTPUT=$("$PY" scripts/sync_docs.py 2>&1) || true
-      echo "$SYNC_OUTPUT"
+    if [ "$SKIP_SYNC_DOCS" = "1" ]; then
+      echo "[AVISO] CUSTODOCE_SKIP_SYNC_DOCS=1 - DOC SYNC pulado (docs serao sincronizadas no pre-push)."
     else
-      echo "[WARN] scripts/sync_docs.py nao encontrado ou Python indisponivel"
-    fi
+      echo "[INFO] Rodando sync_docs.py para atualizar docs..."
 
-    # Auto-stage docs modified by sync_docs
-    CHANGED=$("$GIT" diff --name-only 2>/dev/null || true)
-    if [ -n "$CHANGED" ]; then
-      echo ""
-      echo "📝 Auto-stageando docs:"
-      echo "$CHANGED" | sed 's/^/  - /'
-      echo "$CHANGED" | while IFS= read -r f; do
-        "$GIT" add "$f" || true
-      done
-    else
-      echo "[OK] Nenhum arquivo modificado pelo sync_docs"
+      if [ -n "$PY" ] && [ -f "scripts/sync_docs.py" ]; then
+        SYNC_OUTPUT=$("$PY" scripts/sync_docs.py 2>&1) || true
+        echo "$SYNC_OUTPUT"
+      else
+        echo "[WARN] scripts/sync_docs.py nao encontrado ou Python indisponivel"
+      fi
+
+      # Auto-stage docs modified by sync_docs
+      CHANGED=$("$GIT" diff --name-only 2>/dev/null || true)
+      if [ -n "$CHANGED" ]; then
+        echo ""
+        echo "📝 Auto-stageando docs:"
+        echo "$CHANGED" | sed 's/^/  - /'
+        echo "$CHANGED" | while IFS= read -r f; do
+          "$GIT" add "$f" || true
+        done
+      else
+        echo "[OK] Nenhum arquivo modificado pelo sync_docs"
+      fi
     fi
 
     # Interactive mode: oferece cancelamento antes de continuar
@@ -275,15 +297,23 @@ fi
 # ----------------------------------------------------------------
 if echo "${STAGED:-}" | grep -qiE '(LESSONS|REGRAS)\.md$'; then
   if [ -n "$PY" ] && [ -f "scripts/md_auto_compress.py" ] && [ -f "config/scoring_config.yaml" ]; then
-    MD_COMPRESS_OUT=$("$PY" scripts/md_auto_compress.py compress --dry-run 2>&1) || true
-    if echo "$MD_COMPRESS_OUT" | grep -qE "(archived|candidate|🗄️|archive)"; then
-      echo ""
-      echo "📦 [AVISO] MD Auto-Compress detectou secoes candidatas a archive:"
-      echo "$MD_COMPRESS_OUT" | grep -E "(archived|candidate|🗄️|archive|score=)" | head -10
-      echo ""
-      echo "Para auto-arquivar: python scripts/md_auto_compress.py compress --apply"
-      echo "Ou 'git commit --no-verify' para pular (NAO recomendado)"
-      echo ""
+    if [ "$SKIP_MD_COMPRESS" = "1" ]; then
+      echo "[AVISO] CUSTODOCE_SKIP_MD_COMPRESS=1 - MD AUTO-COMPRESS pulado."
+    else
+      # CLI correta: --dry-run --target <file> (compress/--apply NAO sao
+      # argumentos aceitos; args invalidos retornam rc=2 silencioso = no-op).
+      # Para aplicar DE VERDADE: --auto-yes (dry_run default = True).
+      TARGET_MD=$(echo "$STAGED" | grep -oiE '(LESSONS|REGRAS)\.md$' | head -1 || echo "LESSONS.md")
+      MD_COMPRESS_OUT=$("$PY" scripts/md_auto_compress.py --dry-run --target "$TARGET_MD" 2>&1) || true
+      if echo "$MD_COMPRESS_OUT" | grep -qE "(archived|candidate|🗄️|archive)"; then
+        echo ""
+        echo "📦 [AVISO] MD Auto-Compress detectou secoes candidatas a archive:"
+        echo "$MD_COMPRESS_OUT" | grep -E "(archived|candidate|🗄️|archive|score=)" | head -10
+        echo ""
+        echo "Para auto-arquivar: python scripts/md_auto_compress.py --auto-yes --target '$TARGET_MD'"
+        echo "Ou 'git commit --no-verify' para pular (NAO recomendado)"
+        echo ""
+      fi
     fi
   fi
 fi

@@ -30,6 +30,7 @@ V2 features (embedded from sync_docs_v2):
 from __future__ import annotations
 
 import argparse
+import concurrent.futures as cf
 import json
 import os
 import re
@@ -50,7 +51,7 @@ sys.path.insert(0, str(_ROOT))
 
 from scripts.doc_utils import (  # noqa: E402
     check_counters_against_truth,
-    count_tests_cached,
+    count_tests_full_cached,
     extract_counters_cited,
     generate_api_md,
     inject_timestamp,
@@ -76,70 +77,34 @@ _FAIL = "FAIL"
 # ═══════════════════════════════════════════════════════════════════
 
 
-def _count_tests() -> dict:
-    """Count tests by category using pytest --collect-only (com cache)."""
-
-    def _run():
-        import subprocess
-
-        result = {}
-        sync_pat = re.compile(r"<Function\s+test_")
-        async_pat = re.compile(r"<Coroutine\s+test_")
-
-        for test_path, label in [
-            ("tests/unit", "unit"),
-            ("tests/schema", "schema"),
-            ("tests/integration", "integration"),
-            ("tests/e2e", "e2e"),
-            ("tests/real", "real"),
-        ]:
-            full_path = _ROOT / test_path
-            if not full_path.exists():
-                continue
-            try:
-                proc = subprocess.run(
-                    [
-                        sys.executable,
-                        "-m",
-                        "pytest",
-                        str(full_path),
-                        "--collect-only",
-                        "--co",
-                        "--no-header",
-                    ],
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    timeout=60,
-                    cwd=str(_ROOT),
-                )
-                sync_count = len(sync_pat.findall(proc.stdout))
-                async_count = len(async_pat.findall(proc.stdout))
-                result[label] = sync_count + async_count
-            except Exception:
-                result[label] = 0
-        return result
-
-    return count_tests_cached(_ROOT, _run)
+_TEST_DIRS = [
+    ("tests/unit", "unit"),
+    ("tests/schema", "schema"),
+    ("tests/integration", "integration"),
+    ("tests/e2e", "e2e"),
+    ("tests/real", "real"),
+]
 
 
-def _extract_actual_test_count(test_path: str) -> tuple[int, int]:
-    """Get pytest's reported total + delta vs my count.
+def _pytest_collect_one(test_path: str) -> dict:
+    """pytest --collect-only de um diretório (subprocess IDÊNTICO ao legado).
 
-    Returns (pytest_total, my_count). Used by --check drift detection.
+    Retorna {"pytest_total": int, "my_count": int}.
     """
     import subprocess
 
+    full_path = _ROOT / test_path
+    if not full_path.exists():
+        return {"pytest_total": 0, "my_count": 0}
     try:
         proc = subprocess.run(
             [
                 sys.executable,
                 "-m",
                 "pytest",
-                str(test_path),
+                str(full_path),
                 "--collect-only",
-                "--co",  # print <Function>/<Coroutine> markup for regex
+                "--co",
                 "--no-header",
             ],
             capture_output=True,
@@ -149,46 +114,67 @@ def _extract_actual_test_count(test_path: str) -> tuple[int, int]:
             timeout=60,
             cwd=str(_ROOT),
         )
-        # pytest output: "722 tests collected in 5.19s"
-        # usa literal "tests" — se pytest mudar para "items", atualizar
-        m = re.search(r"(\d+)\s+tests?\s+collected", proc.stdout)
-        pytest_total = int(m.group(1)) if m else 0
-        sync_count = len(re.findall(r"<Function\s+test_", proc.stdout))
-        async_count = len(re.findall(r"<Coroutine\s+test_", proc.stdout))
-        my_count = sync_count + async_count
-        return (pytest_total, my_count)
     except Exception:
-        return (0, 0)
+        return {"pytest_total": 0, "my_count": 0}
+    m = re.search(r"(\d+)\s+tests?\s+collected", proc.stdout)
+    pytest_total = int(m.group(1)) if m else 0
+    sync_count = len(re.findall(r"<Function\s+test_", proc.stdout))
+    async_count = len(re.findall(r"<Coroutine\s+test_", proc.stdout))
+    return {"pytest_total": pytest_total, "my_count": sync_count + async_count}
+
+
+def _collect_all_counts() -> dict[str, dict]:
+    """Coleta contagens de todos os dirs em PARALELO (ThreadPoolExecutor).
+
+    Comandos e regex idênticos ao legado serial — só a CONCORRÊNCIA muda,
+    então o resultado por dir é bit-a-bit igual. Reduz wall-clock de
+    ~soma das 5 chamadas para ~max (a maior delas).
+    """
+    results: dict[str, dict] = {}
+    futures: list[tuple[cf.Future, str]] = []
+
+    with cf.ThreadPoolExecutor(max_workers=len(_TEST_DIRS)) as ex:
+        for test_path, label in _TEST_DIRS:
+            if not (_ROOT / test_path).exists():
+                continue
+            futures.append((ex.submit(_pytest_collect_one, test_path), label))
+        for fut, label in futures:
+            try:
+                results[label] = fut.result() or {"pytest_total": 0, "my_count": 0}
+            except Exception:
+                results[label] = {"pytest_total": 0, "my_count": 0}
+    return results
+
+
+def _count_tests() -> dict:
+    """Contagem por categoria (unit/schema/...) usando a coleta CACHEADA.
+
+    Deriva apenas my_count do full record compartilhado — sem re-pytest.
+    Inclui somente diretórios que existem (mesma semântica do legado).
+    """
+
+    full = count_tests_full_cached(_ROOT, _collect_all_counts)
+    return {
+        label: rec.get("my_count", 0)
+        for label, rec in full.items()
+    }
 
 
 def _check_drift() -> list[str]:
-    """Detect drift between pytest's reported total and our sync_docs count.
+    """Detecta drift entre pytest's reported total e our sync_docs count.
+
+    Reusa a MESMA coleção cacheada de _count_tests (full record com
+    pytest_total + my_count por dir). Antes rodava pytest DE NOVO (5 dirs
+    frescos); agora compartilha UMA coleta paralela, mantendo a semântica
+    exata do comparativo (basta expedição + ±5 de tolerância).
 
     Returns list of drift messages. Empty = no drift.
-
-    Sources of truth compared:
-        - my_count (regex count from fresh pytest --collect-only, ground truth)
-        - pytest's "X tests collected" line (for reference)
-
-    Drift triggers a --check failure to keep AGENTS.md truthful (Sprint 4).
-    Cache de _count_tests() as vezes retorna valores obsoletos no WSL
-    (mtime hash diverge entre Windows e Linux). Por isso usamos my_count
-    (sempre fresco) como fonte primaria, nao o cache.
     """
     drift_msgs = []
-    for test_path, label in [
-        ("tests/unit", "unit"),
-        ("tests/schema", "schema"),
-        ("tests/integration", "integration"),
-        ("tests/e2e", "e2e"),
-        ("tests/real", "real"),
-    ]:
-        full = _ROOT / test_path
-        if not full.exists():
-            continue
-        pytest_total, my_count = _extract_actual_test_count(test_path)
-        # my_count e SEMPRE fresco (mesma chamada pytest que pytest_total).
-        # Cache de _count_tests() pode estar obsoleto — ignoramos sync_expected.
+    full = count_tests_full_cached(_ROOT, _collect_all_counts)
+    for label, rec in full.items():
+        pytest_total = rec.get("pytest_total", 0)
+        my_count = rec.get("my_count", 0)
         sync_expected = my_count
         # Pytest's "X tests collected" may count parametrized cases twice
         # (once as Function, once indirectly). Allow within ±5 tolerance.

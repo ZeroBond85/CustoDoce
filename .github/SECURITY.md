@@ -1,5 +1,5 @@
 # SECURITY.md — Política de Segurança para Pull Requests
-> Última atualização: 2026-08-10 17:09 UTC
+> Última atualização: 2026-08-12 14:22 UTC
 
 ## Objetivo
 Garantir que nenhum Pull Request com vulnerabilidades críticas ou altas seja mergeado, reduzindo a janela de risco de exposição de CVEs de 30 dias para 0.
