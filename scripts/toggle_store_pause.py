@@ -34,7 +34,7 @@ def main() -> int:
             continue
         sid = rows.data[0]["id"]
         client.table("scrape_frequencies").upsert(
-            {"store_id": sid, "enabled": enabled}
+            {"store_id": sid, "enabled": enabled}, on_conflict="store_id"
         ).execute()
         print(f"  {name}: enabled={enabled}")
     return 0
