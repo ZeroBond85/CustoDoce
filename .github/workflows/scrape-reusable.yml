@@ -67,6 +67,8 @@ on:
         required: false
       CF_API_TOKEN:
         required: false
+      GH_PAT:
+        required: false
   workflow_dispatch:
     inputs:
       mode:
