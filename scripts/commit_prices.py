@@ -100,6 +100,12 @@ def main():
     # GITHUB_TOKEN padrao sofre 403. Embute o token na URL (unico metodo
     # confiavel via PAT) e faz scrub no log p/ nao vazar. [security audit]
     remote = f"https://x-access-token:{token}@github.com/{repo}.git"
+    # O runner do GitHub Actions injeta o GITHUB_TOKEN via
+    # `http.https://github.com/.extraheader`, que SOBRESCREVE o token embutido
+    # na URL (o header leva precedencia sobre as credenciais da URL). Isso faz
+    # o push autenticar como github-actions[bot] -> 403. Removemos o extraheader
+    # (local) para forcar o uso do GH_PAT embutido na URL. [fix 403 actions]
+    _git(["config", "--local", "http.https://github.com/.extraheader", ""])
     r = _git(["push", remote, f"HEAD:refs/heads/{branch}"], capture=True)
     if r.returncode != 0:
         safe = remote.replace(token, "***")
