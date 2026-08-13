@@ -354,7 +354,7 @@ jobs:
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - name: Enrich + report + cleanup (finalize, runs once)
-        run: python main.py --finalize
+        run: python main.py --finalize ${{ inputs.dry_run && '--dry-run' || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

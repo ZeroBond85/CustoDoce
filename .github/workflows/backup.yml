@@ -67,8 +67,9 @@ jobs:
       - name: Validate backup completeness (guarda perda de dados)
         run: |
           MIN=$(echo "${{ steps.backup.outputs.min_critical_count }}" | xargs)
-          if [ -z "$MIN" ] || [ "$MIN" -lt 100 ]; then
-            echo "::error::Backup com contagens criticas suspeitas (min_critical_count=$MIN). Possivel perda de dados. Review antes de publicar."
+          VIOL=$(echo "${{ steps.backup.outputs.critical_violations }}" | xargs)
+          if [ -n "$VIOL" ] && [ "$VIOL" != "none" ]; then
+            echo "::error::Backup com tabelas criticas abaixo do minimo: $VIOL. Possivel perda de dados. Review antes de publicar."
             exit 1
           fi
           echo "min_critical_count=$MIN — OK"

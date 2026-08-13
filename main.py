@@ -5,6 +5,7 @@ Coordinates collection, cleaning, intelligence, and reporting.
 
 import json
 import os
+import threading
 from argparse import ArgumentParser, Namespace
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -151,6 +152,33 @@ def _pull_from_db() -> list[dict]:
         return []
 
 
+def _run_with_timeout(fn, timeout: int, label: str):
+    """Roda fn num thread daemon e aborta o espero apos `timeout`s.
+
+    Nao mata o thread (nao e seguro), mas libera o finalize para concluir
+    e soltar o scrape lock mesmo se fn travar/lento (ex.: N+1 queries ou
+    notificacoes externas sob carga).
+    """
+    holder: dict = {}
+
+    def _target():
+        try:
+            holder["value"] = fn()
+        except Exception as e:  # noqa: BLE001
+            holder["error"] = str(e)
+
+    t = threading.Thread(target=_target, daemon=True)
+    t.start()
+    t.join(timeout)
+    if t.is_alive():
+        logger.warning("timeout_ignored", label=label, timeout=timeout)
+        return None
+    if "error" in holder:
+        logger.warning("error_ignored", label=label, error=holder["error"])
+        return None
+    return holder.get("value")
+
+
 def _finalize(all_products: list[dict], ingredients: list, args: Namespace) -> None:
     """Enrich + snapshot + report + cleanup. Runs once per scrape run."""
     try:
@@ -215,11 +243,12 @@ def _finalize(all_products: list[dict], ingredients: list, args: Namespace) -> N
         except Exception as e:
             logger.warning("cleanup_review_queue_error", error=str(e))
 
-        # FASE 6: Proactive Alerts (só em modo real)
+        # FASE 6: Proactive Alerts (só em modo real) — com timeout p/ nao
+        # travar o finalize (e o scrape lock) sob carga de N+1 queries/notify.
         try:
             from services import alert_service
 
-            alert_service.process_proactive_alerts()
+            _run_with_timeout(alert_service.process_proactive_alerts, 300, "process_proactive_alerts")
         except Exception as e:
             logger.error("proactive_alerts_failed", error=str(e))
     else:
