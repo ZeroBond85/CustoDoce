@@ -81,6 +81,12 @@ def main():
     print(f"Commit: {msg}")
 
     token = os.environ.get("GH_PAT") or os.environ.get("GITHUB_TOKEN", "")
+    token_source = (
+        "GH_PAT"
+        if os.environ.get("GH_PAT")
+        else ("GITHUB_TOKEN" if os.environ.get("GITHUB_TOKEN") else "nenhum")
+    )
+    print(f"Token de push: {token_source}")
     repo = os.environ.get("GITHUB_REPOSITORY") or _detect_repo_from_git() or ""
     ref = os.environ.get("GITHUB_REF", "HEAD")
     branch = _branch_from_ref(ref)

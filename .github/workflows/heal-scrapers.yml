@@ -19,3 +19,4 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       VIP_LOGIN_KEY: ${{ secrets.VIP_LOGIN_KEY }}
+      GH_PAT: ${{ secrets.GH_PAT }}
