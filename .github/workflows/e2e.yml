@@ -114,7 +114,7 @@ jobs:
   e2e-cloud:
     needs: [e2e-local]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     concurrency:
       group: e2e-cloud-${{ github.ref }}
       cancel-in-progress: true
@@ -140,7 +140,7 @@ jobs:
         run: python -m playwright install chromium --with-deps
 
       - name: Warmup Streamlit Cloud (Playwright)
-        run: python scripts/warmup_streamlit.py https://custodoce.streamlit.app '' 4
+        run: python scripts/warmup_streamlit.py https://custodoce.streamlit.app '' 6
         env:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
 
