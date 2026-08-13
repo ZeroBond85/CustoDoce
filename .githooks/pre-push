@@ -153,14 +153,15 @@ def check_schema_mocks() -> tuple[str, subprocess.CompletedProcess]:
 
 
 def check_sync_docs() -> tuple[str, subprocess.CompletedProcess]:
-    """Self-healing sync pipeline.
+    """Self-healing sync pipeline com auto-commit (Design A).
 
     A. Roda ``--check --strict`` (gate truthful).
     B. Se OK: retorna (sync_docs, ok).
-    C. Se FAIL: aplica ``python scripts/sync_docs.py`` (``LIVE``, ``TIMESTAMP``,
-       ``AUTO``, ``TIMESTAMP_PROTECTED``, ``SNAPSHOT_REFERENCE_LIVE``).
+    C. Se FAIL: aplica ``python scripts/sync_docs.py --sync`` (v1 + v2, conteúdo).
        ``IMMUTABLE`` (ADRs) e ``SNAPSHOT_FROZEN`` são blindados.
-    D. Re-rodado ``--check --strict`` por segurança. Se ainda falha, abortar.
+    D. Valida invariants; ``git add`` dos .md elegíveis; re-roda ``--check --strict``.
+       - Se ainda falha: ``git reset --soft HEAD`` (desfaz stage) + aborta.
+       - Se passa: ``git commit`` dos docs (auto-sync) -> push inclui o commit.
 
     Invariantes protegidos (abort pre-push):
       - Arquivo em ``IMMUTABLE`` (docs/adr/) tocado pelo apply.
@@ -184,7 +185,7 @@ def check_sync_docs() -> tuple[str, subprocess.CompletedProcess]:
         file=sys.stderr,
     )
 
-    fix = run([THIS_PYTHON, "scripts/sync_docs.py"])
+    fix = run([THIS_PYTHON, "scripts/sync_docs.py", "--sync"])
     if fix.returncode != 0:
         print("  [sync_docs] live apply falhou — abortando pre-push", file=sys.stderr)
         return "sync_docs", fix
@@ -269,6 +270,46 @@ def check_sync_docs() -> tuple[str, subprocess.CompletedProcess]:
             sep="\n",
             file=sys.stderr,
         )
+        # Desfaz o stage para não deixar a tree suja sem commit
+        # (em pre-push a tree estava limpa; só nossos adds são desfeitos).
+        subprocess.run(  # noqa: S603
+            ["git", "reset", "--soft", "HEAD"],  # noqa: S607
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        return "sync_docs", rev
+
+    # Self-heal OK e re-check passou: comita os docs para o push incluí-los.
+    if eligible_to_add:
+        _limit = 25
+        _listed = eligible_to_add[:_limit]
+        _body = "\n".join(f"- {p}" for p in _listed)
+        if len(eligible_to_add) > _limit:
+            _body += f"\n- (+{len(eligible_to_add) - _limit} mais)"
+        commit_msg = (
+            "docs: auto-sync via pre-push\n\n"
+            f"Arquivos sincronizados por sync_docs.py --sync ({len(eligible_to_add)}):\n"
+            f"{_body}"
+        )
+        commit = subprocess.run(  # noqa: S603
+            ["git", "commit", "-m", commit_msg],  # noqa: S607
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+        if commit.returncode != 0:
+            print("  [sync_docs] git commit auto-sync falhou — abortando", file=sys.stderr)
+            print(commit.stderr, file=sys.stderr)
+            return "sync_docs", subprocess.CompletedProcess(
+                args=[], returncode=2, stdout="", stderr=commit.stderr
+            )
+        print("  [sync_docs] docs auto-comitados (push incluirá o commit).", file=sys.stderr)
+
     return "sync_docs", rev
 
 

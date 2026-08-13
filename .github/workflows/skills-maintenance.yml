@@ -54,6 +54,11 @@ jobs:
         env:
           CI_JOB_START: ${{ env.CI_JOB_START }}
         run: python scripts/skills_maintenance.py --full
+      - name: Refresh doc timestamps (keep freshness < 30d)
+        if: github.event_name == 'schedule'
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+        run: python scripts/sync_docs.py --sync --touch-timestamps
       - name: Check time budget for skills maintenance (scheduled)
         run: python scripts/check_time_budget.py --timeout-minutes 60 --label "skills-maintenance-scheduled"
         env:

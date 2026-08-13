@@ -223,7 +223,7 @@ def _check_skills_sync() -> list[str]:
     return issues
 
 
-def _sync_skills_md(state: dict | None = None, dry_run: bool = False) -> list[str]:
+def _sync_skills_md(state: dict | None = None, dry_run: bool = False, touch_timestamps: bool = False) -> list[str]:
     """Gera docs/skills.md a partir do disco + APPROVED_SKILLS + categorias.
 
     Usa SKILL_CATEGORIES de skills_maintenance.py como override de categoria.
@@ -345,10 +345,11 @@ def _sync_skills_md(state: dict | None = None, dry_run: bool = False) -> list[st
             changes.append("docs/skills.md created")
         else:
             changes.append("docs/skills.md regenerated (content changed)")
-    else:
+    elif touch_timestamps:
         # Apenas atualizar timestamp sem marcar como mudança
         _SKILLS_DOC.write_text(_build_skills_content(now_iso), encoding="utf-8")
         changes.append("docs/skills.md unchanged (timestamp refreshed)")
+    # else: conteúdo inalterado e sem refresh de timestamp — não toca o arquivo
 
     return changes
 
@@ -622,7 +623,7 @@ _GENERIC_MD_FILES: list[str] = [
 ]
 
 
-def _update_archive_md(state: dict, dry_run: bool = False) -> list[str]:
+def _update_archive_md(state: dict, dry_run: bool = False, touch_timestamps: bool = False) -> list[str]:
     """Atualiza docs/archive/*.md respeitando policy per-doc.
 
     - SNAPSHOT_FROZEN: bypass total (nunca toca).
@@ -671,7 +672,7 @@ def _update_archive_md(state: dict, dry_run: bool = False) -> list[str]:
         cited = extract_counters_cited(content)
         truth_with_rel = {**state, "rel_path": str(rel)}
         warnings = check_counters_against_truth(cited, truth_with_rel)
-        new_content = inject_timestamp(content, label="revisão")
+        new_content = inject_timestamp(content, label="revisão") if touch_timestamps else content
         if new_content == content and not warnings:
             continue
         if dry_run:
@@ -679,17 +680,19 @@ def _update_archive_md(state: dict, dry_run: bool = False) -> list[str]:
             for w in warnings:
                 changes.append(f"    [WARN] {w}")
         else:
-            md_file.write_text(new_content, encoding="utf-8")
-            changes.append(f"  {rel}: timestamp updated")
+            if new_content != content:
+                md_file.write_text(new_content, encoding="utf-8")
+            changes.append(
+                f"  {rel}: timestamp updated" if new_content != content else f"  {rel}: verified"
+            )
             for w in warnings:
                 changes.append(f"    [WARN] {w}")
 
     return changes
 
 
-def _update_readme_md(state: dict, dry_run: bool = False) -> list[str]:
+def _update_readme_md(state: dict, dry_run: bool = False, touch_timestamps: bool = False) -> list[str]:
     """Atualiza README.md com badges dinâmicos e timestamp."""
-    from scripts.doc_utils import is_timestamp_fresh
 
     changes: list[str] = []
     tc = state["test_counts"]
@@ -699,8 +702,6 @@ def _update_readme_md(state: dict, dry_run: bool = False) -> list[str]:
     pages_count = state["pages_count"]
 
     content = _README.read_text(encoding="utf-8")
-    if is_timestamp_fresh(content):
-        return changes
 
     new_content = content
     new_content = re.sub(
@@ -718,27 +719,28 @@ def _update_readme_md(state: dict, dry_run: bool = False) -> list[str]:
         f"\\g<1>{pages_count}.{unit}.{schema}\\2",
         new_content,
     )
-    new_content = inject_timestamp(new_content)
+    if touch_timestamps:
+        new_content = inject_timestamp(new_content)
 
     if new_content != content:
         if dry_run:
             changes.append("  Would update README.md")
         else:
             _README.write_text(new_content, encoding="utf-8")
-            changes.append("  README.md: badges + timestamp updated")
+            if touch_timestamps:
+                changes.append("  README.md: badges + timestamp updated")
+            else:
+                changes.append("  README.md: badges updated")
     return changes
 
 
-def _update_rules_md(state: dict, dry_run: bool = False) -> list[str]:
+def _update_rules_md(state: dict, dry_run: bool = False, touch_timestamps: bool = False) -> list[str]:
     """Atualiza REGRAS.md com Python version, hooks layers, comandos."""
-    from scripts.doc_utils import is_timestamp_fresh
 
     changes: list[str] = []
     if not _REGRAS.exists():
         return changes
     content = _REGRAS.read_text(encoding="utf-8")
-    if is_timestamp_fresh(content):
-        return changes
 
     new_content = content
     new_content = re.sub(
@@ -746,21 +748,27 @@ def _update_rules_md(state: dict, dry_run: bool = False) -> list[str]:
         r"\g<1>3.14\g<2>",
         new_content,
     )
-    new_content = inject_timestamp(new_content)
+    if touch_timestamps:
+        new_content = inject_timestamp(new_content)
 
     if new_content != content:
         if dry_run:
             changes.append("  Would update REGRAS.md")
         else:
             _REGRAS.write_text(new_content, encoding="utf-8")
-            changes.append("  REGRAS.md: Python version + timestamp updated")
+            if touch_timestamps:
+                changes.append("  REGRAS.md: Python version + timestamp updated")
+            else:
+                changes.append("  REGRAS.md: Python version updated")
     return changes
 
 
-def _generate_api_docs(state: dict, dry_run: bool = False) -> list[str]:
+def _generate_api_docs(state: dict, dry_run: bool = False, touch_timestamps: bool = False) -> list[str]:
     """Gera docs/api/*.md a partir de AST dos services/*.py.
 
-    Sobrescreve arquivos existentes — source of truth é o código.
+    Source of truth é o código. Idempotente: reescreve apenas se o CONTEÚDO
+    (ignorando a linha de timestamp) mudou, ou se ``touch_timestamps=True``
+    (força refresh do timestamp).
     """
     changes: list[str] = []
     api = parse_services_ast(_SERVICES_DIR)
@@ -774,15 +782,22 @@ def _generate_api_docs(state: dict, dry_run: bool = False) -> list[str]:
         md_content = generate_api_md(module_name, funcs)
         dest = _DOCS_API / f"{module_name}.md"
 
+        existing = dest.read_text(encoding="utf-8") if dest.exists() else ""
+        existing_no_ts = _strip_timestamp_line(existing)
+        new_no_ts = _strip_timestamp_line(md_content)
+        content_changed = existing_no_ts != new_no_ts
+
         if dry_run:
-            existing = dest.read_text(encoding="utf-8") if dest.exists() else ""
-            existing_no_ts = _strip_timestamp_line(existing)
-            new_no_ts = _strip_timestamp_line(md_content)
-            if existing_no_ts != new_no_ts:
+            if content_changed:
                 changes.append(f"  Would regenerate docs/api/{module_name}.md ({len(funcs)} funcs)")
         else:
-            dest.write_text(md_content, encoding="utf-8")
-            changes.append(f"  docs/api/{module_name}.md: {len(funcs)} funcs generated")
+            if content_changed or touch_timestamps:
+                dest.write_text(md_content, encoding="utf-8")
+                if content_changed:
+                    changes.append(f"  docs/api/{module_name}.md: {len(funcs)} funcs generated")
+                else:
+                    changes.append(f"  docs/api/{module_name}.md: timestamp refreshed")
+            # else: idempotente — não toca o arquivo
 
     return changes
 
@@ -796,7 +811,7 @@ def _strip_timestamp_line(content: str) -> str:
     )
 
 
-def _update_generic_md(state: dict, dry_run: bool = False) -> list[str]:
+def _update_generic_md(state: dict, dry_run: bool = False, touch_timestamps: bool = False) -> list[str]:
     """Atualiza timestamp em todos os .md que não têm updater específico.
 
     Respeita `policy_for()` por arquivo:
@@ -817,9 +832,9 @@ def _update_generic_md(state: dict, dry_run: bool = False) -> list[str]:
                 changes.append(f"  [SKIP-IMMUTABLE] {adr_file.relative_to(_ROOT)}: ADR nunca tocado por sync")
                 continue
             content = adr_file.read_text(encoding="utf-8")
-            if is_timestamp_fresh(content):
+            if is_timestamp_fresh(content) and not touch_timestamps:
                 continue
-            new_content = inject_timestamp(content, label="revisão")
+            new_content = inject_timestamp(content, label="revisão") if touch_timestamps else content
             if new_content != content:
                 rel = adr_file.relative_to(_ROOT)
                 if dry_run:
@@ -835,9 +850,9 @@ def _update_generic_md(state: dict, dry_run: bool = False) -> list[str]:
         if not md_file.exists():
             continue
         content = md_file.read_text(encoding="utf-8")
-        if is_timestamp_fresh(content):
+        if is_timestamp_fresh(content) and not touch_timestamps:
             continue
-        new_content = inject_timestamp(content)
+        new_content = inject_timestamp(content) if touch_timestamps else content
         if new_content != content:
             if dry_run:
                 changes.append(f"  Would update {rel_path}")
@@ -988,7 +1003,7 @@ def _check_dirty_invariants() -> list[str]:
     return issues
 
 
-def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, experimental: bool = False) -> bool:
+def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, experimental: bool = False, touch_timestamps: bool = False) -> bool:
     """
     Main sync logic. Returns True if in sync, False if out of sync.
 
@@ -1057,14 +1072,14 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, e
         print("  (dry-run, skipped)")
 
     print("\nSyncing docs/skills.md...")
-    skill_md_changes = _sync_skills_md(state, dry_run=dry_run)
+    skill_md_changes = _sync_skills_md(state, dry_run=dry_run, touch_timestamps=touch_timestamps)
     for c in skill_md_changes:
         print(f"  {c}")
     if dry_run and any("Would" in c for c in skill_md_changes):
         issues.append("[AUTO] docs/skills.md drift")
 
     print("\nUpdating docs/archive/ (Raio X - policy-driven)...")
-    archive_changes = _update_archive_md(state, dry_run=dry_run)
+    archive_changes = _update_archive_md(state, dry_run=dry_run, touch_timestamps=touch_timestamps)
     for c in archive_changes:
         print(f"  {c}")
     if dry_run:
@@ -1076,21 +1091,21 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, e
         print("  [NOTE] SNAPSHOT_DERIVED_LIVE permanece — regeneração é manual")
 
     print("\nUpdating README.md...")
-    readme_changes = _update_readme_md(state, dry_run=dry_run)
+    readme_changes = _update_readme_md(state, dry_run=dry_run, touch_timestamps=touch_timestamps)
     for c in readme_changes:
         print(f"  {c}")
     if dry_run and readme_changes:
         issues.append("[LIVE] README.md drift (badges/contadores)")
 
     print("\nUpdating REGRAS.md...")
-    rules_changes = _update_rules_md(state, dry_run=dry_run)
+    rules_changes = _update_rules_md(state, dry_run=dry_run, touch_timestamps=touch_timestamps)
     for c in rules_changes:
         print(f"  {c}")
     if dry_run and rules_changes:
         issues.append("[LIVE] REGRAS.md drift")
 
     print("\nGenerating API docs (AST from services/)...")
-    api_changes = _generate_api_docs(state, dry_run=dry_run)
+    api_changes = _generate_api_docs(state, dry_run=dry_run, touch_timestamps=touch_timestamps)
     for c in api_changes:
         print(f"  {c}")
     if dry_run:
@@ -1099,7 +1114,7 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, e
             issues.append(f"[AUTO] {api_count} docs/api/*.md precisam regenerar")
 
     print("\nUpdating generic .md files (timestamps)...")
-    generic_changes = _update_generic_md(state, dry_run=dry_run)
+    generic_changes = _update_generic_md(state, dry_run=dry_run, touch_timestamps=touch_timestamps)
     for c in generic_changes:
         print(f"  {c}")
     if dry_run:
@@ -1490,6 +1505,11 @@ def main():
     parser.add_argument(
         "--experimental", action="store_true", help="Use v2 classifier for strict audit instead of hardcoded skip set"
     )
+    parser.add_argument(
+        "--touch-timestamps",
+        action="store_true",
+        help="Force timestamp refresh on --sync (default: --sync updates content only, no timestamp)",
+    )
     parser.add_argument("--analyze", action="store_true", help="Classify stale refs via heading hierarchy (v2)")
     parser.add_argument("--sync", action="store_true", help="Auto-update CURRENT blocks with truth values (v2)")
     parser.add_argument("--dump-truth", action="store_true", help="Print truth JSON and exit")
@@ -1509,9 +1529,10 @@ def main():
         # AND v2 (CURRENT blocks in arbitrary docs). Historically #sync# only
         # invoked #_v2_run_sync() which left READMEs/timestamps stale.
         if not args.dry_run:
-            print("=== v1 sync (README/REGRAS/AGENTS/API/timestamps) ===")
+            print("=== v1 sync (README/REGRAS/AGENTS/API, conteúdo) ===")
             v1_in_sync = run_sync(
-                dry_run=False, check=False, strict=False, experimental=False
+                dry_run=False, check=False, strict=False, experimental=False,
+                touch_timestamps=args.touch_timestamps,
             )
             print()
         changes, findings = _v2_run_sync(dry_run=args.dry_run)
@@ -1530,7 +1551,7 @@ def main():
         print(json.dumps(truth, ensure_ascii=False, indent=2, default=str))
         return
 
-    in_sync = run_sync(dry_run=args.dry_run, check=args.check, strict=args.strict, experimental=args.experimental)
+    in_sync = run_sync(dry_run=args.dry_run, check=args.check, strict=args.strict, experimental=args.experimental, touch_timestamps=args.touch_timestamps)
 
     if args.check and not in_sync:
         print("\n::error::Documentation is out of sync. Run 'python scripts/sync_docs.py' to update.")

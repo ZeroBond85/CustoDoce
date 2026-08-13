@@ -1,6 +1,6 @@
 # `types` — API
 
-> Última atualização: 2026-08-13 01:10 UTC
+> Última atualização: 2026-08-13 01:28 UTC
 > Gerado por AST parsing dos serviços em `services/types.py`.
 
 ## Funções Públicas (2)
