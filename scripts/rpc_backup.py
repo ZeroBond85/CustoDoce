@@ -167,8 +167,19 @@ def run_backup(include_schema: bool = False):
             f.write(f"timestamp={ts}\n")
             counts = {t: len(backup["data"].get(t, [])) for t in ALL_TABLES}
             f.write("counts_json=" + json.dumps(counts) + "\n")
-            min_critical = min(counts.get(t, 0) for t in ("prices", "price_history", "stores", "ingredients"))
+            # Thresholds per tabela: tabelas de referencia (ingredients, stores) sao
+            # pequenas e estaveis e nao devem ditar o piso; tabelas de volume
+            # (prices, price_history) indicam perda de dados quando caem muito.
+            CRITICAL_MIN = {
+                "prices": 50,
+                "price_history": 100,
+                "stores": 10,
+                "ingredients": 20,
+            }
+            violated = [t for t in CRITICAL_MIN if counts.get(t, 0) < CRITICAL_MIN[t]]
+            min_critical = min(counts.get(t, 0) for t in CRITICAL_MIN)
             f.write(f"min_critical_count={min_critical}\n")
+            f.write(f"critical_violations={','.join(violated) if violated else 'none'}\n")
 
     return fn
 

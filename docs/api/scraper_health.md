@@ -1,6 +1,6 @@
 # `scraper_health` — API
 
-> Última atualização: 2026-08-12 22:54 UTC
+> Última atualização: 2026-08-13 01:09 UTC
 > Gerado por AST parsing dos serviços em `services/scraper_health.py`.
 
 ## Funções Públicas (8)

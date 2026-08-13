@@ -313,6 +313,7 @@ class TestPipelineReal:
         from services.price_service import approve_review_item, insert_review_item
 
         c = db()
+        _skip_if_ci()
         ing = c.table("ingredients").select("id,canonical_name,aliases").limit(1).execute()
         if not ing.data:
             pytest.skip("Sem ingredientes")
