@@ -380,6 +380,7 @@ jobs:
         run: python scripts/commit_prices.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_PAT: ${{ secrets.GH_PAT }}
       - name: Check time budget for finalize + commit
         run: python scripts/check_time_budget.py --timeout-minutes 25 --label "finalize-commit"
         env:
