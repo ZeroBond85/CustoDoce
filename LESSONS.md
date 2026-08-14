@@ -664,3 +664,11 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Correção**: `docs-sync` agora instala `requirements-test.lock` (igual aos jobs unit/integration/e2e), restaurando a paridade de coleta (AGENTS #10). A coleta de `e2e` só importa o módulo playwright (não precisa baixar browsers).
 - **Regra**: todo job de CI que dispara `pytest --collect-only` (direto ou via `sync_docs`) deve instalar `requirements-test.lock`, nunca só `dev.lock`. **Teste**: `tests/unit/test_validate_mocks_against_manifest.py` + `ci.yml` docs-sync usa `requirements-test.lock`.
 
+### 98. Snapshot prices_latest.json intencionalmente trackeado quebra teste de arquivos operacionais (2026-08-14)
+
+- **Data + commit**: 2026-08-14 (fix commit_prices #3/#44/#45)
+- **Sintoma**: `tests/unit/test_ci_infrastructure.py::test_no_operational_files_tracked` falha após o push do snapshot funcionar: `AssertionError: Arquivos operacionais estão no repo (deveriam estar no .gitignore): ['data/prices_latest.json']` (CI do PR #46).
+- **Causa raiz**: `scripts/commit_prices.py` faz `git add --force data/prices_latest.json` no finalize do scrape. Enquanto o push dava 403 (`GITHUB_TOKEN` sem write em master), o arquivo nunca entrava no repo → o teste passava. Ao corrigir o push (GH_PAT wired + extraheader neutralizado + secret válido), o snapshot é commitado em master → agora o arquivo é trackeado → o teste de "operacionais não trackeados" quebra. Era uma contradição de design latente entre o teste e o commit_prices.
+- **Correção**: `tests/unit/test_ci_infrastructure.py` — remover `data/prices_latest.json` da lista `operational` (é snapshot público de preços intencionalmente commitado, não leak de cache/secret).
+- **Teste de regressão**: `tests/unit/test_ci_infrastructure.py::test_no_operational_files_tracked` (passa com snapshot trackeado).
+

@@ -123,9 +123,10 @@ def test_githooks_have_valid_shebang() -> None:
 
 def test_no_operational_files_tracked() -> None:
     """Arquivos operacionais (data/trackers, caches) não devem estar trackeados."""
+    # data/prices_latest.json é intencionalmente trackeado como snapshot público
+    # de preços (commit_prices.py faz git add --force no finalize do scrape).
     operational = [
         "data/cleanup_track.json",
-        "data/prices_latest.json",
         "data/llm_cache.db",
         "scripts/diagnose.py",
     ]
