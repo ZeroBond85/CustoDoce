@@ -25,6 +25,15 @@ def _get_app_frame(page):
     return page
 
 
+def _sidebar_ready(app):
+    """Sidebar aparece como <a> (st.navigation) ou <button> (legacy)."""
+    btn = app.locator("button:has-text('Visão Geral')")
+    if btn.count() > 0 and btn.first.is_visible():
+        return True
+    link = app.locator('[data-testid="stSidebar"] a').filter(has_text="Visão Geral")
+    return link.count() > 0 and link.first.is_visible()
+
+
 def warmup(
     url: str,
     password: str | None = None,
@@ -75,6 +84,27 @@ def warmup(
                 else:
                     _trace("no password gate found")
 
+                # Segunda camada: login in-app (dashboard/login_page.py) fica
+                # visivel apos o gate do Streamlit Cloud ate autenticar.
+                for _ in range(10):
+                    app = _get_app_frame(page)
+                    pw2 = app.locator("input[type='password']").first
+                    if pw2.count() > 0 and pw2.is_visible():
+                        _trace("in-app login detected, logging in...")
+                        user2 = app.locator('input[aria-label*="Usuario"], input[placeholder="admin"]').first
+                        if user2.count() > 0:
+                            user2.fill("admin")
+                        pw2.fill(pw)
+                        entrar2 = app.locator("button:has-text('Entrar')")
+                        if entrar2.count() > 0:
+                            entrar2.first.click()
+                            page.wait_for_timeout(3000)
+                            page.wait_for_load_state("domcontentloaded", timeout=_NETWORK_IDLE_TIMEOUT)
+                            page.wait_for_timeout(3000)
+                            app = _get_app_frame(page)
+                        break
+                    time.sleep(2)
+
                 for _ in range(45):
                     sleep_dialog = app.locator("text=gone to sleep")
                     if sleep_dialog.count() > 0 and sleep_dialog.first.is_visible():
@@ -89,8 +119,7 @@ def warmup(
                         break
 
                     app = _get_app_frame(page)
-                    btn = app.locator("button:has-text('Visão Geral')")
-                    if btn.count() > 0 and btn.first.is_visible():
+                    if _sidebar_ready(app):
                         _trace("sidebar pronta!")
                         browser.close()
                         return
@@ -99,8 +128,7 @@ def warmup(
                     _trace("app nao respondeu (sidebar nao apareceu)")
 
                 app = _get_app_frame(page)
-                btn = app.locator("button:has-text('Visão Geral')")
-                if btn.count() > 0 and btn.first.is_visible():
+                if _sidebar_ready(app):
                     _trace("sidebar pronta (final check)!")
                     browser.close()
                     return
