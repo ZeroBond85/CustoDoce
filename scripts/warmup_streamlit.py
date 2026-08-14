@@ -75,7 +75,7 @@ def warmup(
                 else:
                     _trace("no password gate found")
 
-                for _ in range(15):
+                for _ in range(45):
                     sleep_dialog = app.locator("text=gone to sleep")
                     if sleep_dialog.count() > 0 and sleep_dialog.first.is_visible():
                         _trace("app hibernando, acordando...")
