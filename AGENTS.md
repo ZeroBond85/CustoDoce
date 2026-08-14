@@ -108,7 +108,7 @@ CustoDoce/
 ├── requirements.lock       # = requirements-test.lock (backward compat)
 ├── requirements.txt        # = requirements-prod.in (pip-audit source)
 ├── AGENTS.md          # ← este arquivo (vivo, ~340 linhas)
-├── LESSONS.md         # 81 lições aprendidas
+├── LESSONS.md         # 85 lições aprendidas
 └── REGRAS.md          # Ambiente, hooks, comandos
 ```
 
@@ -239,16 +239,16 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 
 | Métrica | Valor |
 |---------|-------|
-| pytest (unit + schema, no slow) | 1400 passing (unit: 1306, schema: 94) |
+| pytest (unit + schema, no slow) | 1403 passing (unit: 1309, schema: 94) |
 | pytest (integration) | 115 passing |
 | pytest (diagnostics, slow) | 4 passing |
 | Schema manifest | 17 tabelas/views com types, not_null, defaults, constraints |
 | Mock validation tests | 121 parametrizados (colunas, tipos, not_null, FKs, CHECK, jsonb) |
-| AGENTS.md | ~338 linhas (Sprint 16) |
-| LESSONS.md | 81 lições |
+| AGENTS.md | ~350+ linhas (Sprint 16 + docs gaps) |
+| LESSONS.md | 85 lições |
 | REGRAS.md | Ambiente + hooks + comandos |
 | CI lint/type/test | ✅ Todos verdes (Python 3.14.6) |
-| E2E (cloud) | ⏳ Mensal (Playwright) |
+| E2E (cloud) | ✅ Validade (run 31806929724) |
 | Python local (Windows) | 3.14.6 (`.venv314`) |
 | Python CI (GitHub Actions) | 3.14.6 (`PYTHON_VERSION=3.14.6`) |
 | Python WSL | 3.14.6 (nativo `/usr/local/bin/python3.14`, sem conda) |
@@ -298,7 +298,7 @@ Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarbal
 
 ## Documentação Relacionada
 
-- `LESSONS.md` — 81 lições (CI, mocks, schema, scrapers, monitoração, segurança)
+- `LESSONS.md` — 85 lições (CI, mocks, schema, scrapers, monitoração, segurança)
 - `REGRAS.md` — Ambiente, hooks, comandos, arquitetura
 - `docs/skills.md` — Skills OpenCode (globais + overlays locais)
 - `docs/changelog.md` — Histórico por fase/sprint; `config/agents_schema.yaml` — Schema deste arquivo

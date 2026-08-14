@@ -673,3 +673,48 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Correção**: `tests/unit/test_ci_infrastructure.py` — remover `data/prices_latest.json` da lista `operational` (é snapshot público de preços intencionalmente commitado, não leak de cache/secret).
 - **Teste de regressão**: `tests/unit/test_ci_infrastructure.py::test_no_operational_files_tracked` (passa com snapshot trackeado).
 
+
+### 99. Streamlit Cloud tem 2 camadas de auth (gate + in-app) e sidebar st.navigation usa `<a>` (2026-08-14)
+- **Data + commit**: 2026-08-14 (warmup_streamlit #48, PR #48)
+- **Sintoma**: e2e-cloud `Warmup Streamlit Cloud` falhava 6×225s com `sidebar nao apareceu` — título carregava (`CustoDoce - Painel de Preços`), mas `button:has-text('Visão Geral')` nunca aparecia (run 31802508113).
+- **Causa raiz**: 
+  1. App tem **2 camadas de auth**: (a) gate Streamlit Cloud (`input[type=password]` + "Entrar") e (b) login in-app (`dashboard/login_page.py` — `render_login()` com usuário/senha/2FA). O `warmup_streamlit.py` só fazia a camada 1.
+  2. Sidebar renderizada por `st.navigation` (novo React SPA) usa links `<a data-testid="stSidebar">` — **não** `<button>`. O seletor antigo `button:has-text('Visão Geral')` nunca matchava.
+- **Correção** (`scripts/warmup_streamlit.py`):
+  - Após gate, polla 2º `input[type=password]` (login in-app), preenche `admin` + senha, clica "Entrar" (espelha `test_e2e_real.login_to_app`).
+  - Novo `_sidebar_ready(app)` aceita `button:has-text('Visão Geral')` **OU** `[data-testid="stSidebar"] a` filtrando "Visão Geral".
+  - Retry 3x mantido para transientes.
+- **Teste de regressão**: `tests/unit/test_warmup_streamlit.py::TestSidebarReady::test_sidebar_link` (mock locator `<a>` visível → True).
+- **Regra**: warmup/playwright em apps Streamlit Cloud deve lidar com **todas** camadas de auth + seletores tanto `button` (legacy) quanto `<a>` (st.navigation).
+
+### 100. Action `xiaotianxt/bypass-cloudflare` (v2.1.0) flaky por `jq: Cannot iterate over null` — remover se redundante (2026-08-14)
+- **Data + commit**: 2026-08-14 (scrape-reusable.yml #49)
+- **Sintoma**: heal-scrapers mensal (2026-08-01, run 30678984825) abortava no step `Bypass Cloudflare` com `jq: error: Cannot iterate over null` → setup falhava → todos tiers pulados.
+- **Causa raiz**: `xiaotianxt/bypass-cloudflare-for-github-action@v2.1.0` (latest) chama CF API para whitelist IP do runner; resposta ocasional sem `.result[]` (rate-limit/transient) → jq falha. Action é **latest sem correção** para este bug.
+- **Contexto**: Chefon (`cloudflare: true` em stores.yaml) já usa `shopify_curl_cffi: true` (Sprint 16, PR #31) com impersonação TLS Chrome120 → whitelist de zona CF redundante.
+- **Correção**: Removidos **dois** steps "Bypass Cloudflare" (setup + scrape) do `scrape-reusable.yml` (PR #49). Flag `cloudflare: true` em stores.yaml é só marcador (nenhum código a lê).
+- **Teste**: 14 testes de workflow passam + validação com run completo de scrape (Chefon 0 erros).
+- **Regra**: actions de terceiros sem manutenção ativa + bug conhecido + workaround nativo (curl_cffi) = **remover**, não contornar.
+
+### 101. Colisão de sessões paralelas: usar stash + worktree isolado (2026-08-14)
+- **Data + commit**: 2026-08-14 (branch `feature/docs-curation-consolidation` ativa + fix branches paralelos)
+- **Sintoma**: commit no `fix/deploy-check-smtp` falhou com `cannot lock ref 'HEAD': is at 52ed876 but expected 0050742` — outra sessão estava committando na `feature/docs-curation-consolidation` (HEAD movido) durante meu push.
+- **Causa raiz**: duas sessões no mesmo working tree (AGENTS.md #13: "Nunca misturar state de múltiplas sessões"). Sessão alheia committou `feat(docs): audit_mds.py...` absorvendo meus arquivos F3 no commit `9e4785b`.
+- **Correção**:
+  1. `git stash push -m "wip: docs-curation-consolidation"` preservou trabalho alheio.
+  2. `git worktree add /tmp/cd-f3 fix/deploy-check-smtp origin/master` → tree limpo isolado.
+  3. `git checkout stash@{0} -- scripts/deploy_check.py tests/unit/test_deploy_check.py` restaurou só meus arquivos.
+  4. Commit/push via WSL no worktree → PR #47 → CI verde.
+  5. Mesmo pattern para F2 (worktree cd-warmup) e F4 (worktree cd-cf).
+- **Regra**: sessões paralelas = `git stash` do trabalho alheio + `git worktree` para branch isolado. Nunca `git checkout` + `git add` no tree sujo.
+
+### 102. SMTP deploy_check: porta 465 usa SMTP_SSL (TLS implícito), 587 precisa re-EHLO pós-STARTTLS (2026-08-14)
+- **Data + commit**: 2026-08-14 (scripts/deploy_check.py #47)
+- **Sintoma**: `teste_full_manual` `[FAIL] SMTP envio — Connection unexpectedly closed` (0.34s, run 31652205818).
+- **Causa raiz**: `scripts/deploy_check.py::test_smtp` usava `SMTP + STARTTLS` sem tratar porta 465 (TLS implícito exige `SMTP_SSL`) **e** sem re-EHLO após `starttls()` (RFC 3207 + Gmail exige). `services/email_service.py` (produção) já fazia isso corretamente.
+- **Correção** (`scripts/deploy_check.py::test_smtp`):
+  - `if port == 465: SMTP_SSL(...) else: SMTP + ehlo + starttls + ehlo + login`
+  - Retry 3× com backoff (transientes de rede/Gmail IP).
+  - Timeout 20s.
+- **Testes**: +4 unit (`test_smtp_ssl_port_465`, `test_smtp_retries_then_succeeds`, `test_smtp_raises_after_retries`, `test_smtp_missing_creds_raises`).
+- **Regra**: toda chamada SMTP deve espelhar `services/email_service.py` (porta 465 → SSL implícito; 587 → STARTTLS + re-EHLO + retry).
