@@ -698,23 +698,3 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 
 ### 101. Colisão de sessões paralelas: usar stash + worktree isolado (2026-08-14)
 - **Data + commit**: 2026-08-14 (branch `feature/docs-curation-consolidation` ativa + fix branches paralelos)
-- **Sintoma**: commit no `fix/deploy-check-smtp` falhou com `cannot lock ref 'HEAD': is at 52ed876 but expected 0050742` — outra sessão estava committando na `feature/docs-curation-consolidation` (HEAD movido) durante meu push.
-- **Causa raiz**: duas sessões no mesmo working tree (AGENTS.md #13: "Nunca misturar state de múltiplas sessões"). Sessão alheia committou `feat(docs): audit_mds.py...` absorvendo meus arquivos F3 no commit `9e4785b`.
-- **Correção**:
-  1. `git stash push -m "wip: docs-curation-consolidation"` preservou trabalho alheio.
-  2. `git worktree add /tmp/cd-f3 fix/deploy-check-smtp origin/master` → tree limpo isolado.
-  3. `git checkout stash@{0} -- scripts/deploy_check.py tests/unit/test_deploy_check.py` restaurou só meus arquivos.
-  4. Commit/push via WSL no worktree → PR #47 → CI verde.
-  5. Mesmo pattern para F2 (worktree cd-warmup) e F4 (worktree cd-cf).
-- **Regra**: sessões paralelas = `git stash` do trabalho alheio + `git worktree` para branch isolado. Nunca `git checkout` + `git add` no tree sujo.
-
-### 102. SMTP deploy_check: porta 465 usa SMTP_SSL (TLS implícito), 587 precisa re-EHLO pós-STARTTLS (2026-08-14)
-- **Data + commit**: 2026-08-14 (scripts/deploy_check.py #47)
-- **Sintoma**: `teste_full_manual` `[FAIL] SMTP envio — Connection unexpectedly closed` (0.34s, run 31652205818).
-- **Causa raiz**: `scripts/deploy_check.py::test_smtp` usava `SMTP + STARTTLS` sem tratar porta 465 (TLS implícito exige `SMTP_SSL`) **e** sem re-EHLO após `starttls()` (RFC 3207 + Gmail exige). `services/email_service.py` (produção) já fazia isso corretamente.
-- **Correção** (`scripts/deploy_check.py::test_smtp`):
-  - `if port == 465: SMTP_SSL(...) else: SMTP + ehlo + starttls + ehlo + login`
-  - Retry 3× com backoff (transientes de rede/Gmail IP).
-  - Timeout 20s.
-- **Testes**: +4 unit (`test_smtp_ssl_port_465`, `test_smtp_retries_then_succeeds`, `test_smtp_raises_after_retries`, `test_smtp_missing_creds_raises`).
-- **Regra**: toda chamada SMTP deve espelhar `services/email_service.py` (porta 465 → SSL implícito; 587 → STARTTLS + re-EHLO + retry).

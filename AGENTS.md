@@ -31,6 +31,8 @@
 16. **Ambiente WSL: Python 3.14.6 NATIVO (sem miniconda)**: O WSL roda Python 3.14.6 compilado de tarball oficial em `/usr/local/bin/python3.14` (não o 3.13 do `/usr/bin` que é do apt/dpkg). `python`/`python3` do usuário apontam via `~/bin` symlinks para 3.14.6. **Miniconda removido** (`~/miniconda3` apagado, bloco conda do `.bashrc` limpo). Hooks: `pre-commit` usa `PY=/usr/local/bin/python3.14` + `GIT=/usr/bin/git` e **falha com `exit 1` fora do WSL**; `pre-push` tem shebang `#!/usr/bin/env python3.14` e `_resolve_python()` prioriza `/usr/local/bin/python3.14` (fallback: `.venv314`). Credenciais: `gh` nativo autenticado, token em `~/.config/gh/hosts.yml` (perm 600, **nunca** `/tmp`); `gh auth setup-git` configura credential helper nativo. Todos os hooks em **LF** (`sed -i 's/\r//g'`; `s/\r$//` NÃO funciona no sed Debian WSL). `sync_docs.py _strict_audit()` pula `docs/changelog.md` (contadores históricos são intencionais). (Ver `REGRAS.md` §Pre-push, §Ambiente)
 17. **`.gitattributes` cobre TODOS os hooks com `eol=lf` (mandatório)**: Hooks em `.githooks/` NÃO têm extensão (ex.: `pre-push`, `pre-commit`) e o `core.autocrlf=true` do Windows converte LF→CRLF no check-out — o WSL lê o C: montado cru e o shebang `#!/usr/bin/env python3.14\r` quebra (`env: 'python3.14\r': No such file`). **Regra**: `.gitattributes` DEVE listar `.githooks/*` e `.git/hooks/*` com `eol=lf` (assim como `*.py`, `*.yaml`, etc.). Toda nova extensão de hook/arquivo-texto-sem-extensão DEVE ser coberta. Omitir = lacuna que trava push em WSL (visto 2026-07-19: `pre-push` com CRLF barrando delete de branches). (Ver `LESSONS.md` #82, `REGRAS.md` §Line Endings)
 
+**Referência WSL completa:** [`docs/wsl-environment.md`](docs/wsl-environment.md) — comandos validados, Python 3.14.6 nativo, gh CLI, git, paths, regras de ouro.
+
 18. **Migrations — fluxo correto + validação pós-aplicação**: Toda alteração em SQL/funções/triggers DEVE seguir este fluxo — não improvisar conexão direta:
     1. **Adicionar em `scripts/deploy_database.py::generate_consolidated()`** (ver regra #8) e criar arquivo em `supabase/migrations/NNN_<desc>.sql`.
     2. **`python scripts/deploy_database.py --dry-run`** → conferir plano. Sem sucesso → corrigir antes de aplicar.
@@ -346,5 +348,3 @@ Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarbal
 
 ## Sprint 17 — Otimização de Performance (2026-08-08)
 - `price_repository.py`: `batch_upsert_prices()` (chunks 50, retry); `process_price_match(batch_entries=...)`; flush em lote.
-- `dashboard_queries.py`: helpers single-pass (1 query 5k preços); `get_prices_for_ingredient_cached(tier=...)`; cache híbrido (`dashboard_cache` + `dashboard_data_cache` com `_CACHE_REGISTRY`); `clear_all_caches()`.
-- Scrapers: `vtex_max_results`, `block_resources`, `browse_url_timeout`.

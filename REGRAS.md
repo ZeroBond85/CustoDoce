@@ -37,6 +37,8 @@ git add docs/ && git commit              # pre-commit feliz
 **Exceção:** Edição manual via `edit` tool no Windows é segura — a tool usa LF preservando o existente.
 
 ### ⚠️ Lei do Ambiente (Anti-Fricção)
+
+**Referência completa WSL:** [`docs/wsl-environment.md`](docs/wsl-environment.md) — comandos validados, paths, Python 3.14.6 nativo, gh CLI, git, regras de ouro.
 1. **Proibido "Misturar" Shells**: Não execute `wsl bash -c '...'` para tarefas que podem rodar em Python no Windows. Use WSL apenas para dependências de SO.
 2. **Isolamento de Paths**:
    - Windows $\rightarrow$ `C:\Zerobond\Code\CustoDoce`
