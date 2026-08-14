@@ -1,23 +1,34 @@
 # Normalize line endings to LF for all text files
 * text=auto
 
-# Explicit EOL for cross-platform consistency
-*.py     eol=lf
-*.md     eol=lf
-*.yaml   eol=lf
-*.yml    eol=lf
-*.toml   eol=lf
-*.json   eol=lf
-*.sh     eol=lf
-*.bash   eol=lf
-*.ini    eol=lf
-*.cfg    eol=lf
-*.txt    eol=lf
-*.lock   eol=lf
+# Explicit EOL for cross-platform consistency - all tracked text files
+*.py       eol=lf
+*.md       eol=lf
+*.sql      eol=lf
+*.yml      eol=lf
+*.yaml     eol=lf
+*.json     eol=lf
+*.txt      eol=lf
+*.toml     eol=lf
+*.in       eol=lf
+*.sh       eol=lf
+*.ini      eol=lf
+*.jsonl    eol=lf
+*.jsonc    eol=lf
+*.css      eol=lf
+*.baseline eol=lf
+*.example  eol=lf
+Makefile   eol=lf
+.gitignore eol=lf
+.gitattributes eol=lf
 
 # Git hooks (no extension) — must be LF on disk (WSL reads C: mount raw)
 .githooks/*  eol=lf
 .git/hooks/* eol=lf
+
+# Config files without extension
+sqlfluffignore eol=lf
+sqlfluff eol=lf
 
 # Binary files (no normalization)
 *.png  binary
@@ -32,3 +43,6 @@
 *.onnx binary
 *.pt   binary
 *.bin  binary
+*.whl  binary
+*.lock binary
+*.rst  binary
