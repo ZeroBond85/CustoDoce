@@ -32,6 +32,9 @@ filterwarnings = [
     "ignore:.*iscoroutinefunction.*:DeprecationWarning:pytest_asyncio",
     "ignore:.*get_event_loop_policy.*:DeprecationWarning:pytest_asyncio",
     "ignore:.*set_event_loop_policy.*:DeprecationWarning:pytest_asyncio",
+    # curl_cffi em Windows: Proactor loop não tem add_reader (policy selector já
+    # aplicada no tests/conftest.py). Warning residual do curl_cffi.aio — ruído.
+    "ignore:Proactor event loop does not implement add_reader:UserWarning:curl_cffi.aio",
 ]
 
 [tool.ruff]

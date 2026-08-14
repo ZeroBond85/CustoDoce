@@ -115,6 +115,8 @@ _COUNTER_ALLOW: set[tuple[str, int, str]] = {
     # README.md — sprints históricos (18 páginas no Sprint 7-9; 1274 testes no 10.5)
     ("README.md", 18, "páginas"),
     ("README.md", 1274, "testes"),
+    # README.md — "1597 testes" é o TOTAL GERAL (unit+schema+e2e+real), não unit+schema
+    ("README.md", 1597, "testes"),
     # docs/contributing.md — referência histórica de 483 testes
     ("docs/contributing.md", 483, "testes"),
     # tests/README.md — descreve arquivos específicos, não o total do repo
