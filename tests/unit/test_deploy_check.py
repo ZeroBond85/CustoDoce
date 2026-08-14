@@ -146,3 +146,67 @@ class TestSMTPCheck:
         with pytest.raises(ValueError, match="SMTP_USER"):
             from scripts.deploy_check import test_smtp
             test_smtp()
+
+    @patch("time.sleep")
+    @patch("smtplib.SMTP")
+    def test_smtp_ssl_port_465(self, mock_smtp, mock_sleep):
+        os.environ["SMTP_HOST"] = "smtp.test.com"
+        os.environ["SMTP_USER"] = "user"
+        os.environ["SMTP_PASSWORD"] = "pass"
+        os.environ["SMTP_FROM"] = "from@test.com"
+        os.environ["ALERT_EMAIL_TO"] = "to@test.com"
+        os.environ["SMTP_PORT"] = "465"
+        try:
+            from scripts.deploy_check import test_smtp
+            with patch("smtplib.SMTP_SSL") as mock_ssl:
+                test_smtp()
+            mock_ssl.assert_called_once()
+            mock_smtp.assert_not_called()
+            instance = mock_ssl.return_value.__enter__.return_value
+            instance.login.assert_called_once()
+            instance.send_message.assert_called_once()
+        finally:
+            for k in ["SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM", "ALERT_EMAIL_TO", "SMTP_PORT"]:
+                os.environ.pop(k, None)
+
+    @patch("time.sleep")
+    @patch("smtplib.SMTP")
+    def test_smtp_retries_then_succeeds(self, mock_smtp, mock_sleep):
+        os.environ["SMTP_HOST"] = "smtp.test.com"
+        os.environ["SMTP_USER"] = "user"
+        os.environ["SMTP_PASSWORD"] = "pass"
+        os.environ["SMTP_FROM"] = "from@test.com"
+        os.environ["ALERT_EMAIL_TO"] = "to@test.com"
+        os.environ["SMTP_PORT"] = "587"
+        try:
+            from scripts.deploy_check import test_smtp
+            instance = mock_smtp.return_value.__enter__.return_value
+            instance.starttls.side_effect = [OSError("Connection unexpectedly closed"), None]
+            test_smtp()
+            assert mock_smtp.call_count == 2
+            assert mock_sleep.call_count == 1
+            instance.send_message.assert_called_once()
+        finally:
+            for k in ["SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM", "ALERT_EMAIL_TO", "SMTP_PORT"]:
+                os.environ.pop(k, None)
+
+    @patch("time.sleep")
+    @patch("smtplib.SMTP")
+    def test_smtp_raises_after_retries(self, mock_smtp, mock_sleep):
+        os.environ["SMTP_HOST"] = "smtp.test.com"
+        os.environ["SMTP_USER"] = "user"
+        os.environ["SMTP_PASSWORD"] = "pass"
+        os.environ["SMTP_FROM"] = "from@test.com"
+        os.environ["ALERT_EMAIL_TO"] = "to@test.com"
+        os.environ["SMTP_PORT"] = "587"
+        try:
+            from scripts.deploy_check import test_smtp
+            instance = mock_smtp.return_value.__enter__.return_value
+            instance.starttls.side_effect = OSError("Connection unexpectedly closed")
+            with pytest.raises(OSError, match="Connection unexpectedly closed"):
+                test_smtp()
+            assert mock_smtp.call_count == 3
+            assert mock_sleep.call_count == 2
+        finally:
+            for k in ["SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD", "SMTP_FROM", "ALERT_EMAIL_TO", "SMTP_PORT"]:
+                os.environ.pop(k, None)
