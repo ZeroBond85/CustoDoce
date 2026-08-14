@@ -107,18 +107,39 @@ def test_smtp():
     if not user or not password or not email_to:
         raise ValueError("SMTP_USER/GMAIL_USER, SMTP_PASSWORD/GMAIL_APP_PASSWORD ou ALERT_EMAIL_TO nao configurados")
     import smtplib
+    import time
     from email.message import EmailMessage
 
     msg = EmailMessage()
-    msg.set_content("🚀 CustoDoce — Deploy check OK")
+    msg.set_content("CustoDoce - Deploy check OK")
     msg["Subject"] = "CustoDoce - Deploy Check"
     msg["From"] = f"CustoDoce <{from_addr}>"
     msg["To"] = email_to
-    with smtplib.SMTP(host, port, timeout=15) as server:
-        server.ehlo()
-        server.starttls()
-        server.login(user, password)
-        server.send_message(msg)
+
+    # Espelha services/email_service.py (que funciona em producao): porta 465
+    # usa SMTP_SSL (TLS implicito); 587 usa STARTTLS com re-EHLO apos o handshake
+    # (RFC 3207 — o Gmail fecha a conexao sem o re-EHLO). Retry cobre fechamento
+    # transitorio de rede do runner (ex.: Gmail rejeitando IP de datacenter).
+    last_err = None
+    for attempt in range(3):
+        try:
+            if port == 465:
+                with smtplib.SMTP_SSL(host, port, timeout=20) as server:
+                    server.login(user, password)
+                    server.send_message(msg)
+            else:
+                with smtplib.SMTP(host, port, timeout=20) as server:
+                    server.ehlo()
+                    server.starttls()
+                    server.ehlo()
+                    server.login(user, password)
+                    server.send_message(msg)
+            return
+        except Exception as e:
+            last_err = e
+            if attempt < 2:
+                time.sleep(2 * (attempt + 1))
+    raise last_err
 
 
 def test_scraper_health():
