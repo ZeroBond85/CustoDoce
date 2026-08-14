@@ -42,7 +42,7 @@ Output:
 ```
 === Skills Status ===
 SKILLS_DIR: .opencode/skills/
-TOTAL: 33 skills
+TOTAL: 35 skills
 
 [OK] project-context-primer (03/07/2026)
 [WARN] streamlit (30/06/2026) - 3 days old

@@ -117,6 +117,8 @@ _COUNTER_ALLOW: set[tuple[str, int, str]] = {
     ("README.md", 1274, "testes"),
     # README.md — "1597 testes" é o TOTAL GERAL (unit+schema+e2e+real), não unit+schema
     ("README.md", 1597, "testes"),
+    # README.md — "1606 testes" total geral atual (unit 1306 + schema 94 + integration 115 + e2e 85 + real 6)
+    ("README.md", 1606, "testes"),
     # docs/contributing.md — referência histórica de 483 testes
     ("docs/contributing.md", 483, "testes"),
     # tests/README.md — descreve arquivos específicos, não o total do repo
@@ -125,10 +127,11 @@ _COUNTER_ALLOW: set[tuple[str, int, str]] = {
     ("tests/README.md", 25, "testes"),
     ("tests/README.md", 102, "testes"),
     # AGENTS.md — Status Atual usa coletados reais do pytest
-    # (1068 = unit+schema efetivos; 113 = integration). O checker só conhece
-    # unit/schema/total, então esses são allowlistados como verdades legítimas.
-    ("AGENTS.md", 1068, "testes"),
-    ("AGENTS.md", 113, "testes"),
+    # (1068 era unit+schema antigo — hoje 1400 total; 113 era integration — hoje 115).
+    # O checker só conhece unit/schema/total, então esses são allowlistados como
+    # verdades legítimas (integration/diagnostics são separados do total).
+    ("AGENTS.md", 115, "testes"),
+    ("AGENTS.md", 4, "testes"),
 }
 
 

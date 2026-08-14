@@ -1,23 +1,32 @@
 ---
 name: github-actions
-description: "extends global github-actions with the 7 CustoDoce workflows + free-tier budget."
+description: "extends global github-actions with the 16 CustoDoce workflows + free-tier budget."
 ---
 
 # github-actions — CustoDoce overlay
 
-Universal GitHub Actions patterns (triggers, jobs, caching, matrices, secret handling, reusable workflows, antipatterns) are in `~/.config/opencode/skills/github-actions/SKILL.md`. This overlay documents CustoDoce's specific 7-workflow setup.
+Universal GitHub Actions patterns (triggers, jobs, caching, matrices, secret handling, reusable workflows, antipatterns) are in `~/.config/opencode/skills/github-actions/SKILL.md`. This overlay documents CustoDoce's specific 16-workflow setup.
 
-## The 7 workflows
+## The 16 workflows
 
 | File | Trigger | Purpose | Minutes/run (avg) |
 |------|---------|---------|--------------------|
 | `scrape.yml` | Cron 2×/day + workflow_dispatch | Collect + normalize + upsert prices | ~8 |
-| `ci.yml` | PR + push to main | Lint → Typecheck → unit → integration → deploy-check | ~6 |
+| `scrape-reusable.yml` | Called by `scrape.yml`/`on_demand_scrape.yml` | Reusable scraper body (per-tier) | ~6 |
+| `ci.yml` | PR + push to `master` | Lint → Typecheck → unit → integration → deploy-check | ~6 |
+| `ci-e2e-only.yml` | workflow_dispatch | E2E smoke only (fast) | ~10 |
 | `e2e.yml` | Biweekly schedule (cron) | Playwright e2e + visual regression | ~60 |
-| `backup.yml` | Weekly cron (Sunday 02:00 UTC) | `pg_dump` to release artifact | ~3 |
+| `backup.yml` | Weekly cron (Sunday) | RPC backup (`rpc_backup.py`) to release artifact | ~3 |
 | `restore-test.yml` | Monthly cron (1st) | Restore backup to ephemeral service, smoke test | ~10 |
-| `deploy-staging.yml` | Push to `develop` branch | Sync prod schema/data → staging | ~12 |
 | `on_demand_scrape.yml` | workflow_dispatch | Manual scraper trigger for one store | ~2 |
+| `heal-scrapers.yml` | Cron 15d | Self-healing of failed scrapers | ~4 |
+| `skills-maintenance.yml` | Monthly cron (1st) | Skills check/validate | ~3 |
+| `dependency-audit.yml` | Monthly cron (1st) | pip-audit + deptry + licenses | ~5 |
+| `bench-ocr.yml` | workflow_dispatch | OCR benchmark | ~10 |
+| `probe-antibot.yml` | workflow_dispatch | Antibot probe | ~5 |
+| `sanitize-check.yml` | workflow_dispatch | Sanitize check | ~3 |
+| `test_store_recovery.yml` | workflow_dispatch | Store recovery test | ~5 |
+| `teste_full_manual.yml` | workflow_dispatch | Full manual test suite | ~55 |
 
 ## Free-tier math (2000 min/month)
 - Scrape: 2 runs/day × 8 min × 30 days = **480 min**

@@ -55,8 +55,9 @@ No seu repositório GitHub, vá em **Settings $\rightarrow$ Secrets and variable
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase | Chave `service_role secret` |
 | `TELEGRAM_TOKEN` | BotFather | Token do Bot |
 | `TELEGRAM_CHAT_ID` | userinfobot | Seu ID de usuário |
-| `GMAIL_USER` | Gmail | Seu endereço de email |
-| `GMAIL_APP_PASSWORD` | Gmail | Senha de App (16 chars) |
+| `SMTP_HOST` | Gmail | Host SMTP (`smtp.gmail.com` default) |
+| `SMTP_USER` (ou `GMAIL_USER`) | Gmail | Seu endereço de email |
+| `SMTP_PASSWORD` (ou `GMAIL_APP_PASSWORD`) | Gmail | Senha de App (16 chars) |
 | `ALERT_EMAIL_TO` | Gmail | Email que receberá os relatórios |
 | `GROQ_API_KEY` | Groq | Chave para o LLM Classifier |
 | `GH_PAT` | GitHub | Token de Acesso Pessoal (escopo `repo`) |
@@ -65,7 +66,7 @@ No seu repositório GitHub, vá em **Settings $\rightarrow$ Secrets and variable
 1. Conecte sua conta GitHub ao Streamlit Cloud.
 2. Clique em **"New App"** $\rightarrow$ Selecione o repositório `CustoDoce`.
 3. Configurações:
-   - Branch: `main`
+   - Branch: `master`
    - Main file path: `admin/app.py`
 4. Em **Settings $\rightarrow$ Secrets**, cole o seguinte formato TOML:
    ```toml

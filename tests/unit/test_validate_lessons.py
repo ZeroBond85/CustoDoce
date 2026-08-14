@@ -70,12 +70,15 @@ def _regras_correct() -> str:
     1.7 DETECT-SECRETS
     1.8 RUFF LINT
     2. DOC SYNC
+    2.5 DOC SYNC --STRICT
     3. SIZE GUARD
     4. DOC WATCHDOG
     5. AGENTS SCHEMA
+    5.5 MD AUTO-COMPRESS
     6. SKILL DRIFT
     7. RESIDUE GUARD
     8. CRLF GUARD
+    9. WINDOWS-ONLY PACKAGES GUARD
     """)
 
 

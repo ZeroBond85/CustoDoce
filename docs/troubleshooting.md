@@ -150,7 +150,7 @@ SELECT conname, pg_get_constraintdef(oid)
 FROM pg_constraint
 WHERE conname LIKE '%price%';
 ```
-Se existir constraint extra, ajustar o RPC em `supabase/functions/upsert_price_rpc/`.
+Se existir constraint extra, ajustar o RPC `upsert_price_rpc` em `supabase/consolidated_migration.sql` (via `scripts/deploy_database.py::generate_consolidated()`, ver AGENTS.md regra 18).
 
 ---
 

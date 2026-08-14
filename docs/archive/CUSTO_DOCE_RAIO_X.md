@@ -1,20 +1,10 @@
 ---
 doc_type: snapshot
 slug: custo_doce_raio_x
-<<<<<<< Updated upstream
-current_version: 0.0.27
+current_version: 0.0.28
 truth_at:
-<<<<<<< Updated upstream
-  tests_total: 1019
-=======
-  tests_total: 1041
->>>>>>> Stashed changes
-=======
-current_version: 0.0.25
-truth_at:
-  tests_total: 1042
->>>>>>> Stashed changes
-  pages_count: 20
+  tests_total: 1400
+  pages_count: 21
   python_version: 3.14.6
 ---
 # 🍬 CUSTO DOCE RAIO-X
@@ -28,15 +18,7 @@ truth_at:
 | **Nome** | CustoDoce — Busca e comparação de preços de ingredientes para confeitaria |
 | **Público** | Confeiteiros profissionais/amadores — Baixada Santista + SP Capital |
 | **Stack** | Python 3.14.6 (era 3.12) (runtime.txt + CI + mypy) + Streamlit + Supabase (PostgreSQL) + GitHub Actions |
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-| **Nota** | **9.3/10** (atualizado 2026-07-06; era 9.0/10 em 30/06) — Schema manifest rico, 97 parametrized tests de validação, test_services decomposto em 20 módulos (era 13), 1019 tests (era 729) passing. 0 erros/warnings/skips. |
-=======
-| **Nota** | **9.3/10** (atualizado 2026-07-06; era 9.0/10 em 30/06) — Schema manifest rico, 97 parametrized tests de validação, test_services decomposto em 20 módulos (era 13), 1041 tests (era 729) passing. 0 erros/warnings/skips. |
->>>>>>> Stashed changes
-=======
-| **Nota** | **9.3/10** (atualizado 2026-07-06; era 9.0/10 em 30/06) — Schema manifest rico, 97 parametrized tests de validação, test_services decomposto em 20 módulos (era 13), 1042 tests (era 729) passing. 0 erros/warnings/skips. |
->>>>>>> Stashed changes
+| **Nota** | **9.3/10** (atualizado 2026-07-06; era 9.0/10 em 30/06) — Schema manifest rico, 97 parametrized tests de validação, test_services decomposto em 21 módulos (era 13), 1400 tests (era 729) passing. 0 erros/warnings/skips. |
 | **Risco** | 🟢 BAIXO (era 🟡 MÉDIO-RESIDUAL em v3) |
 | **Recomendação** | ✅ MANTER E EXPANDIR |
 

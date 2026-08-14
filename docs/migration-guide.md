@@ -7,7 +7,7 @@ Este documento descreve como aplicar alterações no schema do banco de dados Su
 
 Para garantir que o banco de dados esteja sempre sincronizado com o código, siga este fluxo:
 
-1. **Modificação**: Altere o arquivo `supabase/seed.sql` ou crie um novo arquivo de migração em `supabase/` (ex: `002_add_column.sql`).
+1. **Modificação**: Altere o SQL em `scripts/deploy_database.py::generate_consolidated()` e crie um novo arquivo de migração em `supabase/migrations/NNN_<desc>.sql` (ver AGENTS.md regra 18).
 2. **Dry-Run**: Execute o script de deploy em modo de simulação para validar a sintaxe SQL:
    ```bash
    python scripts/deploy_database.py --dry-run
@@ -55,7 +55,7 @@ Como o Supabase não possui migrações versionadas nativamente via código (est
 
 ### Recuperação de Desastres
 1. **Backup**: O sistema realiza dumps semanais via GitHub Actions (ver `docs/adr/005-free-tier-limits.md`).
-2. **Restore**: Para restaurar, utilize o comando `psql` ou o SQL Editor do Supabase para importar o dump `.sql` mais recente.
+2. **Restore**: Para restaurar, utilize o Supabase SQL Editor (colar o dump `.sql`) ou `scripts/restore_from_json.py` para backups JSON do `rpc_backup.py`.
 
 ---
 

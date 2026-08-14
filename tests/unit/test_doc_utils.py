@@ -18,7 +18,7 @@ from scripts.doc_utils import (
 )
 
 
-def _truth(rel_path: str = "", unit: int = 976, schema: int = 94, pages: int = 21) -> dict:
+def _truth(rel_path: str = "", unit: int = 1400, schema: int = 94, pages: int = 21) -> dict:
     return {
         "rel_path": rel_path,
         "test_counts": {"unit": unit, "schema": schema},
@@ -53,7 +53,7 @@ def test_dissonant_test_count_warns():
 
 
 def test_real_test_counts_silent():
-    cited = [(976, "testes"), (94, "testes"), (1070, "testes")]
+    cited = [(1400, "testes"), (94, "testes"), (1494, "testes")]
     warns = check_counters_against_truth(cited, _truth(rel_path="AGENTS.md"))
     assert not warns
 
@@ -89,7 +89,9 @@ def test_contributing_historical_allowed():
 
 
 def test_agents_status_actual_counts_allowed():
-    cited = [(1068, "testes"), (113, "testes")]
+    # AGENTS.md Status Atual: 1400 total (unit+schema) passa direto; 115 é
+    # integration (separado do total) e 4 diagnostics — ambos allowlistados.
+    cited = [(1400, "passing"), (115, "passing"), (4, "passing")]
     warns = check_counters_against_truth(cited, _truth(rel_path="AGENTS.md"))
     assert not warns
 

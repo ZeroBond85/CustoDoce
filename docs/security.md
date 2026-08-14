@@ -74,13 +74,17 @@ client.execute(f"SELECT * FROM prices WHERE store_id = '{store_id}'")
 
 ### LLM Input Sanitization
 
-Inputs para Groq API são sanitizados antes do envio:
+Inputs para a API LLM são controlados antes do envio:
 
 ```python
-# services/llm_classifier.py
-def _sanitize_input(text: str) -> str:
-    return text.encode("utf-8", errors="ignore")[:2000].decode("utf-8")
+# parsers/llm_classifier.py + parsers/llm_strategies.py
+# Cache SHA-256 antes de chamar provider (evita envio repetido de texto arbitrário)
+# max_tokens=200 limita a resposta; produto bruto entra apenas no prompt do match
+from parsers.llm_cache import get_cache, set_cache
+cached = get_cache(product_text)   # chave hash SHA-256, evita reenvio
 ```
+
+A sanitização primária é o **LLM Cache** (`parsers/llm_cache.py`, chave SHA-256): textos já classificados não reenviam à API. Não há `_sanitize_input()` no código — a descrição antiga foi removida por não corresponder à implementação real.
 
 ## Dependency Security
 

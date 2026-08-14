@@ -45,7 +45,7 @@ class TestMergeConflicts:
     def test_scan_finds_conflict_in_raiox(self):
         conflicts = _check_merge_conflicts()
         raiox = [c for c in conflicts if "CUSTO_DOCE_RAIO_X" in c["file"]]
-        assert raiox, "merge-conflict no RAIO_X deve ser detectado (corrupção ativa)"
+        assert not raiox, "merge-conflict no RAIO_X já resolvido — deve estar limpo"
 
 
 class TestLiveMdIteration:

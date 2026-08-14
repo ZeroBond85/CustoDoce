@@ -88,19 +88,22 @@ git config core.autocrlf false         # LF = LF (nao converte CRLF)
 git config core.fileMode false         # permissoes nao travam em Windows
 ```
 
-## Pre-commit Hook (`.githooks/pre-commit`) — 11 camadas
+## Pre-commit Hook (`.githooks/pre-commit`) — 14 camadas
 
 1. **SECRET GUARD**: BLOQUEIA chave de API em staged
 1.5 **GITIGNORE IMPORTS**: BLOQUEIA staged que importa itens gitignorados
 1.7 **DETECT-SECRETS**: BLOQUEIA se detect-secrets encontrar segredo
 1.8 **RUFF LINT**: BLOQUEIA se ruff encontrar erros em .py staged
 2. **DOC SYNC**: BLOQUEIA se código mudou sem docs (YES bypass / A auto-sync)
+2.5 **DOC SYNC --strict check**: AVISO se `sync_docs.py --check` falhar
 3. **SIZE GUARD**: BLOQUEIA arquivo >100MB staged (GitHub rejeita)
 4. **DOC WATCHDOG**: AVISO leve sobre outros docs
 5. **AGENTS SCHEMA**: BLOQUEIA se AGENTS.md não passar em `agents_tool.py --check` (valida schema + LESSONS.md + REGRAS.md)
+5.5 **MD AUTO-COMPRESS**: BLOQUEIA se MD staged tem seções candidatas a archive
 6. **SKILL DRIFT**: BLOQUEIA se `.opencode/skills/` mudou sem `sync_docs --check` alinhado
 7. **RESIDUE GUARD**: BLOQUEIA commit com artefatos de runtime no stage
 8. **CRLF GUARD**: BLOQUEIA arquivos texto com CRLF (previne churn de line-ending)
+9. **WINDOWS-ONLY PACKAGES GUARD**: BLOQUEIA commit de lock files com pacotes Windows-only (drift de plataforma)
 
 ## Pre-push Hook (`.githooks/pre-push`)
 
@@ -171,7 +174,7 @@ def _resolve_python() -> str:
 - **WSL**: `/usr/local/bin/python3.14` (Python 3.14.6 NATIVO — sem conda)
 - **macOS**: `/usr/local/bin/python3.14` (similar)
 
-Fallback `sys.executable` só ocorre se nenhum Python com deps existir — nesse caso o hook emite AVISO. CI: 9 workflows Python 3.14 (single source of truth).
+Fallback `sys.executable` só ocorre se nenhum Python com deps existir — nesse caso o hook emite AVISO. CI: 16 workflows Python 3.14 (single source of truth).
 
 Opt-in Unit Tests: `set CI_LOCAL_UNIT=1` (cmd) ou `$env:CI_LOCAL_UNIT="1"` (ps).
 

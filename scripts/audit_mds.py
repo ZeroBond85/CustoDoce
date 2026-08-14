@@ -46,7 +46,7 @@ _LAYER_PAT = re.compile(r"^# (?:Layer )?(\d+(?:\.\d+)?)(?:[.: ])", re.MULTILINE)
 _WORKFLOW_ALLOW: set[tuple[str, int]] = {
     ("README.md", 14),  # Sprint 5: "14 workflows auditados" (snapshot do momento)
 }
-_SKILLS_ALLOW: set[tuple[str, int]] = {}
+_SKILLS_ALLOW: set[tuple[str, int]] = set()
 
 
 def _truth() -> dict:
@@ -346,7 +346,7 @@ def _ensure_utf8() -> None:
 
     os.environ.setdefault("PYTHONIOENCODING", "utf-8")
     with contextlib.suppress(Exception):
-        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
 
 
 if __name__ == "__main__":

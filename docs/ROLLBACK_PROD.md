@@ -7,13 +7,12 @@
 ### 1. Database Restore
 If the database schema or data was corrupted:
 - **Action**: Restore the latest `.sql` dump created before validation.
-- **Command**: 
-  `psql -h db.[PROJECT].supabase.co -U postgres -d postgres < backup_prod_YYYYMMDD.sql`
+- **Command** (RPC porta 443, NUNCA psql/5432): execute o dump via Supabase SQL Editor (projeto → SQL Editor → colar conteúdo do `backup_prod_YYYYMMDD.sql`), ou `python scripts/restore_from_json.py --execute` para backups JSON do `rpc_backup.py`.
 
 ### 2. Config Revert
 If `stores.yaml` or `features.yaml` were accidentally modified:
 - **Action**: Revert using Git.
-- **Command**: `git checkout main -- config/features.yaml config/stores.yaml`
+- **Command**: `git checkout master -- config/features.yaml config/stores.yaml`
 
 ### 3. Cleanup Production Data
 If test data was accidentally inserted into `prices` or `price_history`:
