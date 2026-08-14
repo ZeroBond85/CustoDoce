@@ -1,4 +1,5 @@
 # WSL Environment - CustoDoce
+> Última revisão: 2026-08-14 21:58 UTC
 
 ## Configuração Validada (2026-08-14)
 
