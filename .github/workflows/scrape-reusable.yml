@@ -118,14 +118,6 @@ jobs:
         
       - name: Install dependencies
         run: pip install -r requirements-prod.lock
-      - name: Bypass Cloudflare for GitHub Actions (Chefon, Carrefour, etc)
-        uses: xiaotianxt/bypass-cloudflare-for-github-action@v2.1.0
-        with:
-          cf_account_id: ${{ secrets.CF_ACCOUNT_ID }}
-          cf_zone_id: ${{ secrets.CF_ZONE_ID }}
-          cf_api_token: ${{ secrets.CF_API_TOKEN }}
-          disable_bot_fight_mode: 'true'
-          bfm_propagation_delay: '15'
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - name: Sync stores
@@ -174,14 +166,6 @@ jobs:
           sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-por poppler-utils
           pip install playwright==1.61.0
           playwright install chromium
-      - name: Bypass Cloudflare for GitHub Actions (Chefon, Carrefour, etc)
-        uses: xiaotianxt/bypass-cloudflare-for-github-action@v2.1.0
-        with:
-          cf_account_id: ${{ secrets.CF_ACCOUNT_ID }}
-          cf_zone_id: ${{ secrets.CF_ZONE_ID }}
-          cf_api_token: ${{ secrets.CF_API_TOKEN }}
-          disable_bot_fight_mode: 'true'
-          bfm_propagation_delay: '15'
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - name: Run scraping for tier ${{ matrix.tier }}
