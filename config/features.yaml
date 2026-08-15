@@ -34,7 +34,7 @@ features:
     # LIGADO apenas se quiser validar matches "gray zone" com LLM.
     # Desligado: match 70-80% vai direto p/ review_queue sem LLM.
     # Requer GROQ_API_KEY/OPENROUTER_API_KEY. Cuidado: consome quota free-tier.
-    llm_classifier: false
+    llm_classifier: true
     # Caminho hibrido para encartes DENSOS (RapidOCR + reconstrucao geometrica
     # de preco + LLM-texto p/ nomes). Em flyers densos a vision-LLM retorna 0
     # produtos gastando 30-40s; o hibrido le as centenas de regioes via OCR e
@@ -46,6 +46,7 @@ features:
 
   matcher:
     threshold: 80
+    review_threshold: 0.70
     review_queue: true
 
   validity:

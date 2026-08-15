@@ -18,7 +18,7 @@ ingredients:
     aliases:
       - "Creme de Leite Nestlé"
       - "Creme de Leite Piracanjuba"
-    exclude_terms: ["recheio", "sabor", "preparado", "pronto", "mistura", "de coco", "coco", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato"]
+    exclude_terms: ["recheio", "sabor", "preparado", "pronto", "mistura", "de coco", "coco", "chocolate", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato"]
 
   - canonical: "Chocolate em Pó 50% Cacau"
     category: "chocolates"
@@ -44,7 +44,7 @@ ingredients:
       - "Leite Ninho Integral"
       - "Ninho Integral 400g"
       - "LEITE NINHO 1KG"
-    exclude_terms: ["desnatado", "semidesnatado", "zero", "light", "papel", "trufa", "gostosura", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato"]
+    exclude_terms: ["desnatado", "semidesnatado", "zero", "light", "papel", "trufa", "gostosura", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "castanha", "amendoim", "aveia", "soja", "arroz", "coco", "vegetal", "veg"]
 
   - canonical: "Granulado Ao Leite"
     category: "confeitos"
@@ -87,11 +87,12 @@ ingredients:
   - canonical: "Granulado Colorido"
     category: "confeitos"
     brands: ["Coloretti"]
-    search_terms: ["granulado colorido", "granulado color"]
+    search_terms: ["granulado colorido", "granulado color", "mil cores"]
     aliases:
       - "Granulado Colorido Coloretti"
       - "Granulado Colorido 500g"
-    exclude_terms: ["mistura", "preparado", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "pincel", "brinquedo", "festa", "doces", "saco"]
+      - "Granulado Crocante Mil Cores"
+    exclude_terms: ["mistura", "preparado", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "pincel", "brinquedo", "doces", "saco"]
 
   - canonical: "Coco Ralado Grosso sem Açúcar"
     category: "secos"
@@ -128,13 +129,14 @@ ingredients:
   - canonical: "Açúcar Cristal / Refinado"
     category: "acucares"
     brands: ["União", "Cisne", "Caramuru"]
-    search_terms: ["acucar cristal", "acucar refinado", "acucar branco", "acucar tipo 1"]
+    search_terms: ["acucar cristal", "acucar refinado", "acucar branco", "acucar tipo 1", "acucar granulado"]
     aliases:
       - "Açúcar Cristal União 1kg"
       - "Açúcar Cristal União 5kg"
       - "Açúcar Refinado União 1kg"
       - "Açúcar Refinado Cisne 1kg"
       - "Açúcar Tipo 1 1kg"
+      - "Açúcar Granulado União"
       - "ACUCAR CRISTAL UNIAO"
       - "ACUCAR REFINADO UNIAO"
     exclude_terms: ["mascavo", "confeiteiro", "po"]
@@ -177,10 +179,11 @@ ingredients:
   - canonical: "Micro Ball"
     category: "confeitos"
     brands: ["Mavalerio"]
-    search_terms: ["micro ball", "microball", "bolinha"]
+    search_terms: ["micro ball", "microball", "bolinha", "choco power ball"]
     aliases:
       - "Micro Ball Mavalerio"
       - "Micro Ball 500g"
+      - "Choco Power Ball Mavalerio"
       - "MICRO BALL MAVALERIO"
     exclude_terms: ["mistura", "preparado"]
 
@@ -206,7 +209,7 @@ ingredients:
       - "Gotas Brancas 1kg"
       - "Gotas Brancas"
       - "Gotas Branco"
-    exclude_terms: ["achocolatado", "bebida", "preparado"]
+    exclude_terms: ["achocolatado", "bebida", "preparado", "biscoito", "cookie", "bolacha", "wafer", "tortinha", "brownie", "pão", "pudim", "mousse", "sorvete", "picole"]
 
   - canonical: "Manteiga"
     category: "lacteos"
@@ -267,7 +270,7 @@ ingredients:
       - "Essência Baunilha 30ml"
       - "Essência de Baunilha Coza 30ml"
       - "Baunilha Líquida 30ml"
-    exclude_terms: ["artificial", "aroma", "essencia para"]
+    exclude_terms: ["artificial", "aroma", "essencia para", "cookie", "leite condensado", "chocolate", "morango", "coco", "doce de leite", "menta", "hortela", "limao", "laranja", "framboesa", "abacaxi", "uva"]
 
   - canonical: "Ovos"
     category: "ovos"
@@ -279,7 +282,7 @@ ingredients:
       - "Ovos Grandes 18 unidades"
       - "Ovos 30 Unidades"
       - "OVOS BRANCOS 30 UNIDADES"
-    exclude_terms: ["caipira", "orgânico", "enriquecido", "omega", "pasta", "líquido", "pascoa", "páscoa", "ovo de chocolate", "ovo de páscoa", "chocolate", "brigadeiro", "recheio", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato"]
+    exclude_terms: ["caipira", "orgânico", "enriquecido", "omega", "pasta", "líquido", "pó", "em po", "pascoa", "páscoa", "ovo de chocolate", "ovo de páscoa", "chocolate", "brigadeiro", "recheio", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "macarrão", "massa", "lasanha", "espaguete", "penne", "nhoque", "parafuso", "talharim"]
 
   - canonical: "Flor de Sal"
     category: "temperos"

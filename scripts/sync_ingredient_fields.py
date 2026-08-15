@@ -73,14 +73,11 @@ def main():
             dv = db.get(field) or []
             if set(yv) != set(dv):
                 pending.append((name, field, y))
-                break
-        else:
-            for field in _SYNC_MERGE:
-                yv = set(y.get(field, []))
-                dv = set(db.get(field) or [])
-                if not yv.issubset(dv):
-                    pending.append((name, field, y))
-                    break
+        for field in _SYNC_MERGE:
+            yv = set(y.get(field, []))
+            dv = set(db.get(field) or [])
+            if not yv.issubset(dv):
+                pending.append((name, field, y))
 
     print(f"Campos defasados encontrados: {len(pending)}")
     for name, field, y in pending:
