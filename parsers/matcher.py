@@ -4,6 +4,27 @@ from rapidfuzz import fuzz
 
 from services.types import Ingredient
 
+# Tokens de contexto NÃO-alimentar (embalagem, decoração, artesanato).
+# Usado como guard-rail extra: se o produto tem um destes tokens E o match é
+# por substring curta, rebaixa/bloqueia. Lista hardcoded (heurística fixa de
+# domínio — não é config de negócio).
+_PACKAGING_TOKENS = frozenset({
+    "papel", "caixa", "embalagem", "forma", "forminha", "folha", "chenille",
+    "pelúcia", "lembrancinha", "decorativo", "artesanato", "pincel",
+    "brinquedo", "festa", "saco", "cartinha", "blister", "haste",
+    "adereço", "enfeite", "topper", "marca texto", "caneca", "vela",
+})
+
+
+def has_packaging_tokens(product_text: str) -> bool:
+    """Retorna True se o produto contém tokens de contexto não-alimentar.
+
+    Heurística de domínio para FPs onde o ingrediente aparece como
+    descrição de cor/decoração ("Amarelo Manteiga", "Papel Granulado Branco").
+    """
+    product_lower = product_text.lower()
+    return any(t in product_lower for t in _PACKAGING_TOKENS)
+
 
 def extract_all_keywords(ingredients: list[Ingredient]) -> set:
     keywords = set()
@@ -61,11 +82,25 @@ def build_alias_list(ingredients: list[Ingredient]) -> list[tuple[str, str, list
     return alias_map
 
 
+def _is_short_term(term: str) -> bool:
+    """Termo muito curto (< 2 palavras OU < 8 chars) não pode gerar 'exato' em
+    qualquer posição — evita FPs como 'Amarelo Manteiga' (cor) → Manteiga
+    ou 'Ovos de Páscoa' (chocolate) → Ovos. Termos de 2+ palavras ("Leite
+    Condensado", "Granulado Branco") são substanciais e casam em qualquer posição."""
+    words = list(term.split())
+    return len(words) < 2 or len(term.strip()) < 8
+
+
 def match_exact(product_text: str, ingredient: Ingredient) -> bool:
     product_upper = product_text.upper()
     canonical_upper = ingredient["canonical_name"].upper()
 
     if canonical_upper in product_upper:
+        # Canonical curto ("Manteiga", "Ovos") só gera "exato" se aparecer no
+        # INÍCIO do nome do produto (padrão real de e-commerce) — evita FPs
+        # onde o termo é só um adjetivo/cor ("Pap Manteiga", "Ovos de Páscoa").
+        if _is_short_term(ingredient["canonical_name"]):
+            return product_upper.startswith(canonical_upper) or product_upper.startswith(canonical_upper + " ")
         return True
 
     for alias in ingredient.get("aliases", []):

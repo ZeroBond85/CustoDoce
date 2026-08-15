@@ -18,7 +18,7 @@ ingredients:
     aliases:
       - "Creme de Leite Nestlé"
       - "Creme de Leite Piracanjuba"
-    exclude_terms: ["recheio", "sabor", "preparado", "pronto", "mistura"]
+    exclude_terms: ["recheio", "sabor", "preparado", "pronto", "mistura", "de coco", "coco", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato"]
 
   - canonical: "Chocolate em Pó 50% Cacau"
     category: "chocolates"
@@ -32,7 +32,7 @@ ingredients:
       - "Chocolate em Pó 1kg"
       - "Cacau em Pó 50% 1kg"
       - "CHOCOLATE PO 50%"
-    exclude_terms: ["achocolatado", "bebida", "preparado", "cremoso", "barra"]
+    exclude_terms: ["achocolatado", "bebida", "preparado", "cremoso", "barra", "granulado", "blister", "brigadeiro", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "pincel", "brinquedo", "festa"]
 
   - canonical: "Leite em Pó Integral"
     category: "lacteos"
@@ -44,7 +44,7 @@ ingredients:
       - "Leite Ninho Integral"
       - "Ninho Integral 400g"
       - "LEITE NINHO 1KG"
-    exclude_terms: ["desnatado", "semidesnatado", "zero", "light"]
+    exclude_terms: ["desnatado", "semidesnatado", "zero", "light", "papel", "trufa", "gostosura", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato"]
 
   - canonical: "Granulado Ao Leite"
     category: "confeitos"
@@ -62,7 +62,7 @@ ingredients:
     aliases:
       - "Granulado Branco Melken"
       - "Granulado Branco 500g"
-    exclude_terms: ["mistura", "preparado", "bolo"]
+    exclude_terms: ["mistura", "preparado", "bolo", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "pincel", "brinquedo", "festa", "doces"]
 
   - canonical: "Granulado Meio Amargo"
     category: "confeitos"
@@ -91,7 +91,7 @@ ingredients:
     aliases:
       - "Granulado Colorido Coloretti"
       - "Granulado Colorido 500g"
-    exclude_terms: ["mistura", "preparado"]
+    exclude_terms: ["mistura", "preparado", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "pincel", "brinquedo", "festa", "doces", "saco"]
 
   - canonical: "Coco Ralado Grosso sem Açúcar"
     category: "secos"
@@ -158,7 +158,7 @@ ingredients:
       - "Chocolate em Pó Sicao 70%"
       - "Cacau em Pó 70%"
       - "CHOCOLATE PO 70% SICAO"
-    exclude_terms: ["achocolatado", "bebida", "preparado"]
+    exclude_terms: ["achocolatado", "bebida", "preparado", "granulado", "gotas", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato"]
 
   - canonical: "Farinha de Trigo"
     category: "farinhas"
@@ -217,7 +217,7 @@ ingredients:
       - "Manteiga Piracanjuba 500g"
       - "Manteiga com Sal 1kg"
       - "MANTEIGA AVIACAO"
-    exclude_terms: ["margarina", "creme vegetal", "light"]
+    exclude_terms: ["margarina", "creme vegetal", "light", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "pincel", "amarelo manteiga", "tons papel", "pap manteiga", "forminha"]
 
   - canonical: "Gotas de Chocolate Meio Amargo"
     category: "chocolates"
@@ -243,7 +243,7 @@ ingredients:
       - "Chocolate Meio Amargo 500g"
       - "Barra Chocolate Meio Amargo"
       - "CHOCOLATE MEIO AMARGO HARALD"
-    exclude_terms: ["achocolatado", "bebida", "preparado"]
+    exclude_terms: ["achocolatado", "bebida", "preparado", "folha", "papel", "caixa", "embalagem", "forma", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "barra de frutas", "ovo de pascoa", "ovos de pascoa"]
 
   - canonical: "Fermento Químico em Pó"
     category: "farinhas"
@@ -279,7 +279,7 @@ ingredients:
       - "Ovos Grandes 18 unidades"
       - "Ovos 30 Unidades"
       - "OVOS BRANCOS 30 UNIDADES"
-    exclude_terms: ["caipira", "orgânico", "enriquecido", "omega", "pasta", "líquido"]
+    exclude_terms: ["caipira", "orgânico", "enriquecido", "omega", "pasta", "líquido", "pascoa", "páscoa", "ovo de chocolate", "ovo de páscoa", "chocolate", "brigadeiro", "recheio", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato"]
 
   - canonical: "Flor de Sal"
     category: "temperos"
