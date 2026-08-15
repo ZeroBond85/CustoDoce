@@ -18,7 +18,7 @@ ingredients:
     aliases:
       - "Creme de Leite Nestlé"
       - "Creme de Leite Piracanjuba"
-    exclude_terms: ["recheio", "sabor", "preparado", "pronto", "mistura", "de coco", "coco", "chocolate", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato"]
+    exclude_terms: ["recheio", "sabor", "preparado", "pronto", "mistura", "de coco", "coco", "chocolate", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "biscoito", "cookie", "bolacha", "wafer"]
 
   - canonical: "Chocolate em Pó 50% Cacau"
     category: "chocolates"
@@ -32,7 +32,7 @@ ingredients:
       - "Chocolate em Pó 1kg"
       - "Cacau em Pó 50% 1kg"
       - "CHOCOLATE PO 50%"
-    exclude_terms: ["achocolatado", "bebida", "preparado", "cremoso", "barra", "granulado", "blister", "brigadeiro", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "pincel", "brinquedo", "festa"]
+    exclude_terms: ["achocolatado", "bebida", "preparado", "cremoso", "barra", "granulado", "blister", "brigadeiro", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "pincel", "brinquedo", "festa", "biscoito", "cookie", "bolacha", "wafer", "tortinha", "brownie", "pão"]
 
   - canonical: "Leite em Pó Integral"
     category: "lacteos"
@@ -53,7 +53,7 @@ ingredients:
     aliases:
       - "Granulado Ao Leite Melken"
       - "Granulado Leite 500g"
-    exclude_terms: ["mistura", "preparado", "bolo"]
+    exclude_terms: ["mistura", "preparado", "bolo", "biscoito", "cookie", "bolacha", "wafer", "tortinha", "brownie", "pão", "pudim", "mousse", "sorvete", "picole"]
 
   - canonical: "Granulado Branco"
     category: "confeitos"
@@ -62,7 +62,7 @@ ingredients:
     aliases:
       - "Granulado Branco Melken"
       - "Granulado Branco 500g"
-    exclude_terms: ["mistura", "preparado", "bolo", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "pincel", "brinquedo", "festa", "doces"]
+    exclude_terms: ["mistura", "preparado", "bolo", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "pincel", "brinquedo", "festa", "doces", "biscoito", "cookie", "bolacha", "wafer"]
 
   - canonical: "Granulado Meio Amargo"
     category: "confeitos"
@@ -71,7 +71,7 @@ ingredients:
     aliases:
       - "Granulado Meio Amargo Melken"
       - "Granulado Dark 500g"
-    exclude_terms: ["mistura", "preparado", "bolo"]
+    exclude_terms: ["mistura", "preparado", "bolo", "biscoito", "cookie", "bolacha", "wafer", "tortinha", "brownie", "pão", "pudim", "mousse", "sorvete", "picole"]
 
   - canonical: "Creme de Avelã"
     category: "pastas"
@@ -92,7 +92,7 @@ ingredients:
       - "Granulado Colorido Coloretti"
       - "Granulado Colorido 500g"
       - "Granulado Crocante Mil Cores"
-    exclude_terms: ["mistura", "preparado", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "pincel", "brinquedo", "doces", "saco"]
+    exclude_terms: ["mistura", "preparado", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "pincel", "brinquedo", "doces", "saco", "biscoito", "cookie", "bolacha", "wafer", "tortinha", "brownie", "pão", "pudim", "mousse", "sorvete", "picole"]
 
   - canonical: "Coco Ralado Grosso sem Açúcar"
     category: "secos"
@@ -113,7 +113,7 @@ ingredients:
       - "Chocolate Nobre Blend Harald"
       - "Nobre Blend 1kg"
       - "CHOCOLATE NOBRE BLEND HARALD"
-    exclude_terms: ["achocolatado", "bebida", "preparado"]
+    exclude_terms: ["achocolatado", "bebida", "preparado", "biscoito", "cookie", "bolacha", "wafer", "tortinha", "brownie", "pão", "pudim", "mousse", "sorvete", "picole"]
 
   - canonical: "Açúcar Mascavo"
     category: "acucares"
@@ -160,7 +160,7 @@ ingredients:
       - "Chocolate em Pó Sicao 70%"
       - "Cacau em Pó 70%"
       - "CHOCOLATE PO 70% SICAO"
-    exclude_terms: ["achocolatado", "bebida", "preparado", "granulado", "gotas", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato"]
+    exclude_terms: ["achocolatado", "bebida", "preparado", "granulado", "gotas", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "100%", "100", "cacau 100", "cacau 100%"]
 
   - canonical: "Farinha de Trigo"
     category: "farinhas"
@@ -174,7 +174,7 @@ ingredients:
       - "Farinha Alta Proteína"
       - "Farinha Tipo 1 1kg"
       - "FARINHA DE TRIGO DONA BENTA"
-    exclude_terms: ["mistura", "preparado", "bolo", "autocrescente"]
+    exclude_terms: ["mistura", "preparado", "bolo", "autocrescente", "chia", "linhaca", "linhaça", "aveia", "amendoim", "mandioca", "arroz", "milho", "coco", "sarraceno"]
 
   - canonical: "Micro Ball"
     category: "confeitos"
@@ -220,7 +220,7 @@ ingredients:
       - "Manteiga Piracanjuba 500g"
       - "Manteiga com Sal 1kg"
       - "MANTEIGA AVIACAO"
-    exclude_terms: ["margarina", "creme vegetal", "light", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "pincel", "amarelo manteiga", "tons papel", "pap manteiga", "forminha"]
+    exclude_terms: ["margarina", "creme vegetal", "light", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "pincel", "amarelo manteiga", "tons papel", "pap manteiga", "forminha", "azeite", "oleo", "gordura", "gordura vegetal", "pasta"]
 
   - canonical: "Gotas de Chocolate Meio Amargo"
     category: "chocolates"
@@ -235,7 +235,7 @@ ingredients:
       - "Gotas 70% Cacau"
       - "Gotas Meio Amargo 70%"
       - "Gotas 70% Melken"
-    exclude_terms: ["achocolatado", "bebida", "preparado"]
+    exclude_terms: ["achocolatado", "bebida", "preparado", "biscoito", "cookie", "bolacha", "wafer", "tortinha", "brownie", "pão", "pudim", "mousse", "sorvete", "picole"]
 
   - canonical: "Chocolate Meio Amargo em Barra"
     category: "chocolates"
@@ -246,7 +246,7 @@ ingredients:
       - "Chocolate Meio Amargo 500g"
       - "Barra Chocolate Meio Amargo"
       - "CHOCOLATE MEIO AMARGO HARALD"
-    exclude_terms: ["achocolatado", "bebida", "preparado", "folha", "papel", "caixa", "embalagem", "forma", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "barra de frutas", "ovo de pascoa", "ovos de pascoa"]
+    exclude_terms: ["achocolatado", "bebida", "preparado", "folha", "papel", "caixa", "embalagem", "forma", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "barra de frutas", "ovo de pascoa", "ovos de pascoa", "biscoito", "cookie", "bolacha", "wafer", "tortinha", "brownie", "pão", "pudim", "mousse", "sorvete", "picole"]
 
   - canonical: "Fermento Químico em Pó"
     category: "farinhas"
@@ -307,4 +307,4 @@ ingredients:
       - "Chunks Chocolate 70%"
       - "Chunks Chocolate Meio Amargo"
       - "Pedaços de Chocolate para Cookies"
-    exclude_terms: ["gotas", "achocolatado", "bebida", "preparado", "em pó", "cobertura", "barra", "ao leite", "cremoso", "blister"]
+    exclude_terms: ["gotas", "achocolatado", "bebida", "preparado", "em pó", "cobertura", "barra", "ao leite", "cremoso", "blister", "biscoito", "cookie", "bolacha", "wafer", "tortinha", "brownie", "pão", "pudim", "mousse", "sorvete", "picole"]

@@ -442,6 +442,10 @@ class WebsiteScraper(BaseWebScraper):
             name = self._extract_name(card)
             if not name:
                 continue
+            # Skip "Lançamento" placeholder products (Central do Confeiteiro)
+            if re.fullmatch(r"\s*lançamento\s*", name, re.IGNORECASE):
+                logger.debug("[%s] Skipping placeholder product: %r", self.name, name)
+                continue
             price = self._extract_price(card)
             if price is None:
                 continue
