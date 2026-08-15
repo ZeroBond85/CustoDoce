@@ -296,13 +296,12 @@ ingredients:
   - canonical: "Chocolate Chunks"
     category: "chocolates"
     brands: ["Harald", "Melken", "Sicao", "Callebaut"]
-    search_terms: ["chocolate chunks", "pedaços chocolate", "chocolate em pedaços", "chunks chocolate"]
+    search_terms: ["chocolate chunks", "chunks chocolate", "pedacos de chocolate", "chocolate em pedacos"]
     aliases:
       - "Chocolate Chunks Harald 1kg"
       - "Chocolate Chunks Melken 1kg"
-      - "Chocolate em Pedaços 1kg"
-      - "Chunks Chocolate 500g"
       - "CHOCOLATE CHUNKS HARALD"
-      - "Pedaços Chocolate Meio Amargo"
-      - "Pedaços Chocolate 70%"
-    exclude_terms: ["gotas", "achocolatado", "bebida", "preparado", "em pó", "cobertura"]
+      - "Chunks Chocolate 70%"
+      - "Chunks Chocolate Meio Amargo"
+      - "Pedaços de Chocolate para Cookies"
+    exclude_terms: ["gotas", "achocolatado", "bebida", "preparado", "em pó", "cobertura", "barra", "ao leite", "cremoso", "blister"]
