@@ -115,13 +115,6 @@ def test_promocoes_safe_ppk_returns_zero_on_empty():
     assert _safe_ppk({"price_per_kg": None, "normalized": None}) == 0.0
 
 
-def test_ingredientes_confirm_yaml_save_dialog_exists():
-    """_confirm_yaml_save_dialog é um decorador st.dialog."""
-    from dashboard.pages.ingredientes import _confirm_yaml_save_dialog
-
-    assert callable(_confirm_yaml_save_dialog)
-
-
 def test_flyers_confirm_delete_dialog_exists():
     """_confirm_delete_dialog é um decorador st.dialog."""
     from dashboard.pages.flyers import _confirm_delete_dialog

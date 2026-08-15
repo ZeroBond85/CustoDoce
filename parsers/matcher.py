@@ -1,4 +1,5 @@
 import re
+import unicodedata
 
 from rapidfuzz import fuzz
 
@@ -26,13 +27,26 @@ def has_packaging_tokens(product_text: str) -> bool:
     return any(t in product_lower for t in _PACKAGING_TOKENS)
 
 
+# Stopwords que não identificam ingrediente (não podem passar o keyword gate).
+# "COM"/"SEM"/"PARA"/"TIPO"/"SACO"/"LATA"/"POTE"/"MIX"/"TOP" etc. aparecem em
+# qualquer produto e deixariam feijão/arroz/sabonete passarem o gate.
+_KEYWORD_STOPWORDS = {
+    "DE", "DA", "DO", "EM", "COM", "SEM", "PARA", "TIPO", "TOP", "MIX",
+    "FOOD", "SACO", "LATA", "POTE", "CAIXA", "PACOTE", "EMBALAGEM", "FORM",
+    "FOLHA", "TIPOS", "SABORES", "TODOS", "VARIOS", "C", "UN", "CX", "PC",
+    "PT", "GR", "G", "KG", "ML", "UNIDADE", "UNIDADES", "BARRA", "TABLETE",
+}
+
+
 def extract_all_keywords(ingredients: list[Ingredient]) -> set:
     keywords = set()
     for ing in ingredients:
         for text in [ing.get("canonical_name", "")] + ing.get("aliases", []) + ing.get("search_terms", []):
             for w in text.split():
                 clean = re.sub(r"[^A-Z0-9]", "", w.upper())
-                if clean and len(clean) > 2:
+                # Ignora tokens com dígitos ("1KG", "500G", "12X395G") — tamanho
+                # não identifica ingrediente e deixaria qualquer produto passar.
+                if clean and len(clean) > 2 and not any(ch.isdigit() for ch in clean) and clean not in _KEYWORD_STOPWORDS:
                     keywords.add(clean)
     return keywords
 
@@ -91,24 +105,101 @@ def _is_short_term(term: str) -> bool:
     return len(words) < 2 or len(term.strip()) < 8
 
 
+def _deaccent(text: str) -> str:
+    """Remove acentos e normaliza para ASCII ('AÇÚCAR' → 'ACUCAR'). Permite que
+    aliases/search_terms sem acento casem com produtos acentuados e vice-versa
+    ('acucar granulado' em 'Açúcar Granulado Uniao Docucar 1kg')."""
+    return "".join(ch for ch in unicodedata.normalize("NFKD", text) if not unicodedata.combining(ch))
+
+
+def _term_at_word_boundary(product_upper: str, term_upper: str) -> bool:
+    """True se o termo aparece como PALAVRA inteira (não substring de palavra
+    maior). Evita FPs como search_term 'cl' (Creme de Leite) casando
+    'Chocolate CLassic' ou search_term 'baunilha' casando 'Baunilhado'.
+    Preserva matches legítimos de marcas/termos curtos ('ninho' em
+    'Leite em Pó Ninho 400g')."""
+    pattern = r"(?<![A-Z0-9])" + re.escape(term_upper) + r"(?![A-Z0-9])"
+    return re.search(pattern, product_upper) is not None
+
+
+def _token_coverage(product_clean: str, term_clean: str) -> float:
+    """Fração dos tokens do TERMO presentes no produto. Penaliza o flaw do
+    `token_set_ratio`: interseção de poucos tokens genéricos ('chocolate po'
+    vs produto que só contém 'chocolate') gera 86+ sem os tokens do termo
+    estarem de fato no produto."""
+    product_tokens = set(product_clean.split())
+    term_tokens = set(term_clean.split())
+    if not term_tokens:
+        return 0.0
+    return len(product_tokens & term_tokens) / len(term_tokens)
+
+
+_FUZZY_COVERAGE_PENALTY = 0.4
+# Termos de 1 palavra: token_set_ratio dá 100 se o token aparece em QUALQUER
+# posição ('Ovos' em 'Macarrão com Ovos'). Para esses, a cobertura deve ser
+# medida em relação ao PRODUTO: quantos tokens do produto o termo explica.
+# 'Macarrão ... Ovos 500g' → 1/5 = 0.2 → forte penalidade; 'Ovos brancos 30un'
+# → 1/3 = 0.33 → ainda penalizado, mas o match_exact (startswith) já resolve.
+_SINGLE_WORD_PRODUCT_COVERAGE = True
+
+
+def _penalize_score(score: float, product_clean: str, term_clean: str) -> float:
+    """Aplica penalidade de cobertura ao score fuzzy. coverage=1.0 → intacto;
+    coverage=0.0 → score*(1-penalty). Matches onde o termo compartilha só uma
+    fração dos tokens com o produto são rebaixados (vão para review_queue).
+
+    Para termos de 1 palavra, usa cobertura do PRODUTO (tokens do termo /
+    tokens do produto): 'Ovos' isolado dentro de 'Macarrão com Ovos' explica
+    fração mínima do produto → penalidade forte. token_set_ratio de termo
+    monopalavra é inútil (sempre 100 quando presente)."""
+    coverage = _token_coverage(product_clean, term_clean)
+    if _SINGLE_WORD_PRODUCT_COVERAGE and len(term_clean.split()) == 1:
+        product_tokens = set(product_clean.split())
+        term_tokens = set(term_clean.split())
+        if not product_tokens:
+            return score
+        coverage = len(product_tokens & term_tokens) / len(product_tokens)
+    return score * (1.0 - _FUZZY_COVERAGE_PENALTY * (1.0 - coverage))
+
+
 def match_exact(product_text: str, ingredient: Ingredient) -> bool:
     product_upper = product_text.upper()
     canonical_upper = ingredient["canonical_name"].upper()
+    # Versões sem acento para robustez a variações de acentuação no e-commerce
+    # ("Açúcar Granulado Uniao" casa com search_term "acucar granulado").
+    product_deac = _deaccent(product_upper)
+    canonical_deac = _deaccent(canonical_upper)
 
-    if canonical_upper in product_upper:
+    if canonical_upper in product_upper or canonical_deac in product_deac:
         # Canonical curto ("Manteiga", "Ovos") só gera "exato" se aparecer no
         # INÍCIO do nome do produto (padrão real de e-commerce) — evita FPs
         # onde o termo é só um adjetivo/cor ("Pap Manteiga", "Ovos de Páscoa").
         if _is_short_term(ingredient["canonical_name"]):
-            return product_upper.startswith(canonical_upper) or product_upper.startswith(canonical_upper + " ")
+            return product_upper.startswith(canonical_upper) or product_upper.startswith(
+                canonical_upper + " "
+            ) or product_deac.startswith(canonical_deac) or product_deac.startswith(canonical_deac + " ")
         return True
 
     for alias in ingredient.get("aliases", []):
-        if alias.upper() in product_upper:
+        alias_upper = alias.upper()
+        alias_deac = _deaccent(alias_upper)
+        if _is_short_term(alias):
+            if _term_at_word_boundary(product_upper, alias_upper) or _term_at_word_boundary(
+                product_deac, alias_deac
+            ):
+                return True
+        elif alias_upper in product_upper or alias_deac in product_deac:
             return True
 
     for search_term in ingredient.get("search_terms", []):
-        if search_term.upper() in product_upper:
+        term_upper = search_term.upper()
+        term_deac = _deaccent(term_upper)
+        if _is_short_term(search_term):
+            if _term_at_word_boundary(product_upper, term_upper) or _term_at_word_boundary(
+                product_deac, term_deac
+            ):
+                return True
+        elif term_upper in product_upper or term_deac in product_deac:
             return True
 
     # Check all words from canonical in product text
@@ -141,7 +232,7 @@ def match_ingredient(
 
         # fuzzy match on canonical
         canonical_clean = clean_text(ing["canonical_name"])
-        score = fuzz.token_set_ratio(product_clean, canonical_clean)
+        score = _penalize_score(fuzz.token_set_ratio(product_clean, canonical_clean), product_clean, canonical_clean)
         if score > best_score:
             best_score = score
             best_ingredient = ing
@@ -149,7 +240,7 @@ def match_ingredient(
 
         for alias in ing.get("aliases", []):
             alias_clean = clean_text(alias)
-            score = fuzz.token_set_ratio(product_clean, alias_clean)
+            score = _penalize_score(fuzz.token_set_ratio(product_clean, alias_clean), product_clean, alias_clean)
             if score > best_score:
                 best_score = score
                 best_ingredient = ing
@@ -157,7 +248,7 @@ def match_ingredient(
 
         for search_term in ing.get("search_terms", []):
             search_clean = clean_text(search_term)
-            score = fuzz.token_set_ratio(product_clean, search_clean)
+            score = _penalize_score(fuzz.token_set_ratio(product_clean, search_clean), product_clean, search_clean)
             if score > best_score:
                 best_score = score
                 best_ingredient = ing
@@ -180,13 +271,13 @@ def rank_ingredients(
 
     for ing in ingredients:
         canonical_clean = clean_text(ing["canonical_name"])
-        score = fuzz.token_set_ratio(product_clean, canonical_clean)
+        score = _penalize_score(fuzz.token_set_ratio(product_clean, canonical_clean), product_clean, canonical_clean)
         match_type = "proximo_nome"
         matched_term = ing["canonical_name"]
 
         for alias in ing.get("aliases", []):
             alias_clean = clean_text(alias)
-            alias_score = fuzz.token_set_ratio(product_clean, alias_clean)
+            alias_score = _penalize_score(fuzz.token_set_ratio(product_clean, alias_clean), product_clean, alias_clean)
             if alias_score > score:
                 score = alias_score
                 match_type = "proximo_apelido"
@@ -194,7 +285,9 @@ def rank_ingredients(
 
         for search_term in ing.get("search_terms", []):
             search_clean = clean_text(search_term)
-            search_score = fuzz.token_set_ratio(product_clean, search_clean)
+            search_score = _penalize_score(
+                fuzz.token_set_ratio(product_clean, search_clean), product_clean, search_clean
+            )
             if search_score > score:
                 score = search_score
                 match_type = "proximo_apelido"
