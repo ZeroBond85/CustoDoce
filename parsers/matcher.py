@@ -87,7 +87,7 @@ def _is_short_term(term: str) -> bool:
     qualquer posição — evita FPs como 'Amarelo Manteiga' (cor) → Manteiga
     ou 'Ovos de Páscoa' (chocolate) → Ovos. Termos de 2+ palavras ("Leite
     Condensado", "Granulado Branco") são substanciais e casam em qualquer posição."""
-    words = [w for w in term.split()]
+    words = list(term.split())
     return len(words) < 2 or len(term.strip()) < 8
 
 
@@ -100,9 +100,7 @@ def match_exact(product_text: str, ingredient: Ingredient) -> bool:
         # INÍCIO do nome do produto (padrão real de e-commerce) — evita FPs
         # onde o termo é só um adjetivo/cor ("Pap Manteiga", "Ovos de Páscoa").
         if _is_short_term(ingredient["canonical_name"]):
-            if product_upper.startswith(canonical_upper) or product_upper.startswith(canonical_upper + " "):
-                return True
-            return False
+            return product_upper.startswith(canonical_upper) or product_upper.startswith(canonical_upper + " ")
         return True
 
     for alias in ingredient.get("aliases", []):
