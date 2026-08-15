@@ -162,13 +162,17 @@ ingredients:
 
   - canonical: "Farinha de Trigo"
     category: "farinhas"
-    brands: ["Dona Benta"]
-    search_terms: ["farinha de trigo", "farinha trigo"]
+    brands: ["Dona Benta", "Renata", "Regina"]
+    search_terms: ["farinha de trigo", "farinha trigo", "farinha bread flour", "farinha alta proteina", "farinha tipo 1"]
     aliases:
       - "Farinha de Trigo Dona Benta"
       - "Farinha de Trigo 1kg"
+      - "Farinha de Trigo 5kg"
+      - "Farinha Bread Flour"
+      - "Farinha Alta Proteína"
+      - "Farinha Tipo 1 1kg"
       - "FARINHA DE TRIGO DONA BENTA"
-    exclude_terms: ["mistura", "preparado", "bolo"]
+    exclude_terms: ["mistura", "preparado", "bolo", "autocrescente"]
 
   - canonical: "Micro Ball"
     category: "confeitos"
@@ -264,3 +268,41 @@ ingredients:
       - "Essência de Baunilha Coza 30ml"
       - "Baunilha Líquida 30ml"
     exclude_terms: ["artificial", "aroma", "essencia para"]
+
+  - canonical: "Ovos"
+    category: "ovos"
+    brands: ["Qualy", "Sadia", "Seara", "Naturovos", "Mantiqueira"]
+    search_terms: ["ovos", "ovo", "dúzia ovos", "ovos brancos"]
+    aliases:
+      - "Ovos Brancos 30 unidades"
+      - "Ovos Tipo Extra 12 unidades"
+      - "Ovos Grandes 18 unidades"
+      - "Ovos 30 Unidades"
+      - "OVOS BRANCOS 30 UNIDADES"
+    exclude_terms: ["caipira", "orgânico", "enriquecido", "omega", "pasta", "líquido"]
+
+  - canonical: "Flor de Sal"
+    category: "temperos"
+    brands: ["Maldon", "Cisal", "La Baleine", "Himalaya"]
+    search_terms: ["flor de sal", "sal maldon", "sal marinho flor", "flor sal"]
+    aliases:
+      - "Flor de Sal Maldon 250g"
+      - "Flor de Sal Cisal 120g"
+      - "Sal Maldon 240g"
+      - "FLOR DE SAL MALDON"
+      - "Sal Marinho Flor de Sal"
+    exclude_terms: ["sal grosso", "sal refinado", "sal light", "sal rosa", "temperado"]
+
+  - canonical: "Chocolate Chunks"
+    category: "chocolates"
+    brands: ["Harald", "Melken", "Sicao", "Callebaut"]
+    search_terms: ["chocolate chunks", "pedaços chocolate", "chocolate em pedaços", "chunks chocolate"]
+    aliases:
+      - "Chocolate Chunks Harald 1kg"
+      - "Chocolate Chunks Melken 1kg"
+      - "Chocolate em Pedaços 1kg"
+      - "Chunks Chocolate 500g"
+      - "CHOCOLATE CHUNKS HARALD"
+      - "Pedaços Chocolate Meio Amargo"
+      - "Pedaços Chocolate 70%"
+    exclude_terms: ["gotas", "achocolatado", "bebida", "preparado", "em pó", "cobertura"]
