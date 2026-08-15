@@ -673,3 +673,28 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Correção**: `tests/unit/test_ci_infrastructure.py` — remover `data/prices_latest.json` da lista `operational` (é snapshot público de preços intencionalmente commitado, não leak de cache/secret).
 - **Teste de regressão**: `tests/unit/test_ci_infrastructure.py::test_no_operational_files_tracked` (passa com snapshot trackeado).
 
+
+### 99. Streamlit Cloud tem 2 camadas de auth (gate + in-app) e sidebar st.navigation usa `<a>` (2026-08-14)
+- **Data + commit**: 2026-08-14 (warmup_streamlit #48, PR #48)
+- **Sintoma**: e2e-cloud `Warmup Streamlit Cloud` falhava 6×225s com `sidebar nao apareceu` — título carregava (`CustoDoce - Painel de Preços`), mas `button:has-text('Visão Geral')` nunca aparecia (run 31802508113).
+- **Causa raiz**: 
+  1. App tem **2 camadas de auth**: (a) gate Streamlit Cloud (`input[type=password]` + "Entrar") e (b) login in-app (`dashboard/login_page.py` — `render_login()` com usuário/senha/2FA). O `warmup_streamlit.py` só fazia a camada 1.
+  2. Sidebar renderizada por `st.navigation` (novo React SPA) usa links `<a data-testid="stSidebar">` — **não** `<button>`. O seletor antigo `button:has-text('Visão Geral')` nunca matchava.
+- **Correção** (`scripts/warmup_streamlit.py`):
+  - Após gate, polla 2º `input[type=password]` (login in-app), preenche `admin` + senha, clica "Entrar" (espelha `test_e2e_real.login_to_app`).
+  - Novo `_sidebar_ready(app)` aceita `button:has-text('Visão Geral')` **OU** `[data-testid="stSidebar"] a` filtrando "Visão Geral".
+  - Retry 3x mantido para transientes.
+- **Teste de regressão**: `tests/unit/test_warmup_streamlit.py::TestSidebarReady::test_sidebar_link` (mock locator `<a>` visível → True).
+- **Regra**: warmup/playwright em apps Streamlit Cloud deve lidar com **todas** camadas de auth + seletores tanto `button` (legacy) quanto `<a>` (st.navigation).
+
+### 100. Action `xiaotianxt/bypass-cloudflare` (v2.1.0) flaky por `jq: Cannot iterate over null` — remover se redundante (2026-08-14)
+- **Data + commit**: 2026-08-14 (scrape-reusable.yml #49)
+- **Sintoma**: heal-scrapers mensal (2026-08-01, run 30678984825) abortava no step `Bypass Cloudflare` com `jq: error: Cannot iterate over null` → setup falhava → todos tiers pulados.
+- **Causa raiz**: `xiaotianxt/bypass-cloudflare-for-github-action@v2.1.0` (latest) chama CF API para whitelist IP do runner; resposta ocasional sem `.result[]` (rate-limit/transient) → jq falha. Action é **latest sem correção** para este bug.
+- **Contexto**: Chefon (`cloudflare: true` em stores.yaml) já usa `shopify_curl_cffi: true` (Sprint 16, PR #31) com impersonação TLS Chrome120 → whitelist de zona CF redundante.
+- **Correção**: Removidos **dois** steps "Bypass Cloudflare" (setup + scrape) do `scrape-reusable.yml` (PR #49). Flag `cloudflare: true` em stores.yaml é só marcador (nenhum código a lê).
+- **Teste**: 14 testes de workflow passam + validação com run completo de scrape (Chefon 0 erros).
+- **Regra**: actions de terceiros sem manutenção ativa + bug conhecido + workaround nativo (curl_cffi) = **remover**, não contornar.
+
+### 101. Colisão de sessões paralelas: usar stash + worktree isolado (2026-08-14)
+- **Data + commit**: 2026-08-14 (branch `feature/docs-curation-consolidation` ativa + fix branches paralelos)
