@@ -43,6 +43,10 @@ _TARGET_STORES = ["rizzo_confeitaria", "casa_santa_luzia"]
 # Ingredientes de teste que não devem existir em produção
 _TEST_INGREDIENTS = ["_test_hist_unique_ing"]
 
+# Ingredientes órfãos: existiam em versões antigas do ingredients.yaml e foram
+# removidos/renomeados. Qualquer preço associado a eles é dado morto.
+_ORPHAN_INGREDIENTS = ["Leite Condensado"]
+
 # Produtos LEGÍTIMOS que contêm tokens de embalagem no nome mas são alimentos
 # reais (ex: "Açúcar Confeiteiro Snow Sugar Embalagem 500g"). Whitelist por
 # substring: se o produto casar um destes, NÃO é deletado.
@@ -108,8 +112,10 @@ def _list_fp_ids(client, limit: int = 10000) -> list[str]:
     return [r["id"] for r in rows if not _is_legit(r.get("raw_product", ""))]
 
 
-def _count_test_data(client) -> int:
-    quoted = ",".join(f"'{i}'" for i in _TEST_INGREDIENTS)
+def _count_by_ingredients(client, ingredient_ids: list[str]) -> int:
+    if not ingredient_ids:
+        return 0
+    quoted = ",".join(f"'{i}'" for i in ingredient_ids)
     sql = f"SELECT COUNT(*) AS n FROM prices WHERE ingredient_id IN ({quoted})"
     res = client.rpc("exec_sql_query", {"sql": sql}).execute()
     data = res.data
@@ -118,6 +124,15 @@ def _count_test_data(client) -> int:
     if isinstance(data, dict):
         return int(data.get("n", 0))
     return 0
+
+
+def _delete_by_ingredients(client, ingredient_ids: list[str]) -> int:
+    if not ingredient_ids:
+        return 0
+    quoted = ",".join(f"'{i}'" for i in ingredient_ids)
+    sql = f"DELETE FROM prices WHERE ingredient_id IN ({quoted})"
+    client.rpc("exec_sql", {"sql": sql}).execute()
+    return len(ingredient_ids)
 
 
 def _delete_fps(client) -> int:
@@ -134,20 +149,19 @@ def _delete_fps(client) -> int:
 
 
 def _delete_test_data(client) -> int:
-    quoted = ",".join(f"'{i}'" for i in _TEST_INGREDIENTS)
-    sql = f"DELETE FROM prices WHERE ingredient_id IN ({quoted})"
-    client.rpc("exec_sql", {"sql": sql}).execute()
-    # Ingredientes de teste podem ter N linhas; contamos via validação pós.
-    return len(_TEST_INGREDIENTS)
+    return _delete_by_ingredients(client, _TEST_INGREDIENTS)
+
+
+def _delete_orphans(client) -> int:
+    return _delete_by_ingredients(client, _ORPHAN_INGREDIENTS)
 
 
 def _validate(client) -> dict:
-    """Validação pós-aplicação: confirma que FPs e test data sumiram."""
+    """Validação pós-aplicação: confirma que FPs, test data e órfãos sumiram."""
     fps_left = _count_fps(client, dry_run=True)
-    test_left = _count_test_data(client)
-    total = client.rpc(
-        "exec_sql_query", {"sql": "SELECT COUNT(*) AS n FROM prices"}
-    ).execute()
+    test_left = _count_by_ingredients(client, _TEST_INGREDIENTS)
+    orphan_left = _count_by_ingredients(client, _ORPHAN_INGREDIENTS)
+    total = client.rpc("exec_sql_query", {"sql": "SELECT COUNT(*) AS n FROM prices"}).execute()
     total_n = 0
     data = total.data
     if isinstance(data, list) and data:
@@ -157,6 +171,7 @@ def _validate(client) -> dict:
     return {
         "fps_remaining": fps_left,
         "test_data_remaining": test_left,
+        "orphan_remaining": orphan_left,
         "total_prices": total_n,
         "validated_at": date.today().isoformat(),
     }
@@ -174,9 +189,11 @@ def main():
     client = get_service_client()
 
     n_fps = _count_fps(client, dry_run=args.dry_run)
-    n_test = _count_test_data(client)
+    n_test = _count_by_ingredients(client, _TEST_INGREDIENTS)
+    n_orphan = _count_by_ingredients(client, _ORPHAN_INGREDIENTS)
     print(f"FPs (embalagem/decoração) detectados: {n_fps}")
-    print(f"Dados de teste (_test_hist_unique_ing): {n_test}")
+    print(f"Dados de teste ({', '.join(_TEST_INGREDIENTS)}): {n_test}")
+    print(f"Ingredientes órfãos ({', '.join(_ORPHAN_INGREDIENTS)}): {n_orphan}")
 
     if n_fps > 0:
         print("\nAmostra dos FPs a remover (excluindo legítimos):")
@@ -196,16 +213,22 @@ def main():
 
     deleted_fps = _delete_fps(client) if n_fps > 0 else 0
     deleted_test = _delete_test_data(client) if n_test > 0 else 0
-    print(f"\n[Executado] FPs deletados: {deleted_fps}; test data deletados: {deleted_test}")
+    deleted_orphan = _delete_orphans(client) if n_orphan > 0 else 0
+    print(f"\n[Executado] FPs deletados: {deleted_fps}; test data: {deleted_test}; órfãos: {deleted_orphan}")
 
     validation = _validate(client)
     print("\nValidação pós-aplicação:")
     print(f"  FPs restantes: {validation['fps_remaining']}")
     print(f"  Test data restantes: {validation['test_data_remaining']}")
+    print(f"  Órfãos restantes: {validation['orphan_remaining']}")
     print(f"  Total de preços na tabela: {validation['total_prices']}")
 
-    if validation["fps_remaining"] == 0 and validation["test_data_remaining"] == 0:
-        print("\n[OK] Limpeza validada — DB limpo de FPs e test data.")
+    if (
+        validation["fps_remaining"] == 0
+        and validation["test_data_remaining"] == 0
+        and validation["orphan_remaining"] == 0
+    ):
+        print("\n[OK] Limpeza validada — DB limpo de FPs, test data e órfãos.")
     else:
         print("\n[ATENÇÃO] Ainda restam registros — verificar manualmente.")
 
