@@ -168,3 +168,50 @@ def test_chocolate_cremoso_rejeitado_por_exclude_terms(real_ingredients):
     """
     result, _score, _mt = match_ingredient("Chocolate Leite Cremoso 500g", real_ingredients)
     assert result is None
+
+
+# ====================================================================
+# RPR (Regra #11): FPs reais coletados do scrape (RIZZO/casa_santa_luzia)
+# devem ser bloqueados; TNs legítimos não podem ser perdidos.
+# ====================================================================
+
+
+@pytest.mark.parametrize(
+    "product_text",
+    [
+        "Haste de Chenille de Pelúcia 101cm - Amarelo Manteiga",
+        "Papel Trufa 14,5x15,5cm - Granulado Branco - 100 unidades",
+        "Caixa Surpresa para Doces Lembrancinha Granulado Colorido - Rosa",
+        "Folha para Ovos de Páscoa - Barra de Chocolate - 35 cm",
+        "Chocolate Granulado Dori - 300g",
+        "Creme de Leite de Coco Fredão - 200ml",
+        "Forminha para Doces Finos - Cheri - 3 Tons Pap Manteiga",
+        "Caixa Cartinha para Barra de Chocolate de 80g",
+    ],
+)
+def test_real_fps_rejeitados(real_ingredients, product_text):
+    """FPs reais (embalagem/decoração/cor) não devem casar nenhum ingrediente."""
+    result, _score, _mt = match_ingredient(product_text, real_ingredients)
+    assert result is None, f"FP não bloqueado: {product_text} -> {result}"
+
+
+@pytest.mark.parametrize(
+    "product_text, expected",
+    [
+        ("Manteiga Aviação 200g", "Manteiga"),
+        ("Manteiga com Sal 500g", "Manteiga"),
+        ("Granulado Branco Melken 500g", "Granulado Branco"),
+        ("Chocolate em Pó Melken 1kg 50%", "Chocolate em Pó 50% Cacau"),
+        ("Creme de Leite Nestlé 200g", "Creme de Leite 20% Gordura"),
+        ("Ovos Brancos 30 unidades", "Ovos"),
+        ("Leite em Pó Ninho 400g", "Leite em Pó Integral"),
+        ("Chocolate Chunks Harald 1kg", "Chocolate Chunks"),
+    ],
+)
+def test_tns_legitimos_casam(real_ingredients, product_text, expected):
+    """TNs legítimos devem continuar casando (sem perda de recall)."""
+    result, _score, _mt = match_ingredient(product_text, real_ingredients)
+    assert result is not None, f"TN perdido: {product_text}"
+    assert result["canonical_name"] == expected, (
+        f"{product_text} casou {result['canonical_name']}, esperado {expected}"
+    )
