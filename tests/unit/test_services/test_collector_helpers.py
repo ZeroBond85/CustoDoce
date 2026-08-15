@@ -61,6 +61,69 @@ def test_process_price_match_no_keyword_returns_none():
     mock_up.assert_not_called()
 
 
+def test_process_price_match_exclude_terms_nao_bloqueia_globalmente():
+    """RPR #53: exclude_terms de UM ingrediente não pode descartar produto de OUTRO.
+
+    Antes, o loop global em process_price_match descartava o produto se QUALQUER
+    ingrediente tivesse exclude_terms batendo (ex: "baunilha" no exclude do Top
+    Confete Morango bloqueava "Essência de Baunilha"). O matcher já aplica
+    exclude_terms por candidato — o loop global era redundante e prejudicial.
+    """
+    store = MOCK_STORES[0]
+    ingredients = [
+        {
+            "canonical_name": "Essência de Baunilha",
+            "aliases": [],
+            "search_terms": ["essencia baunilha", "baunilha"],
+            "exclude_terms": [],
+            "brands": [],
+        },
+        {
+            "canonical_name": "Top Confete Morango",
+            "aliases": [],
+            "search_terms": ["top confete"],
+            "exclude_terms": ["baunilha", "framboesa", "chocolate"],
+            "brands": [],
+        },
+    ]
+    with patch.object(collector, "upsert_price") as mock_up:
+        entry = collector.process_price_match(
+            store, "Essência de Baunilha Moça 395g", 10.5, "395g", ingredients
+        )
+    assert entry is not None
+    assert entry["ingredient_id"] == "Essência de Baunilha"
+    mock_up.assert_called_once()
+
+
+def test_process_price_match_exclude_terms_bloqueia_candidato_errado():
+    """exclude_terms deve impedir o candidato errado (Top Confete) de casar com
+    produto de outro sabor (framboesa), resultando em None (sem match legítimo)."""
+    store = MOCK_STORES[0]
+    ingredients = [
+        {
+            "canonical_name": "Essência de Baunilha",
+            "aliases": [],
+            "search_terms": ["essencia baunilha", "baunilha"],
+            "exclude_terms": [],
+            "brands": [],
+        },
+        {
+            "canonical_name": "Top Confete Morango",
+            "aliases": [],
+            "search_terms": ["top confete"],
+            "exclude_terms": ["baunilha", "framboesa", "chocolate"],
+            "brands": [],
+        },
+    ]
+    with patch.object(collector, "upsert_price") as mock_up:
+        entry = collector.process_price_match(
+            store, "Confeite Top Framboesa 400g", 10.5, "400g", ingredients
+        )
+    # "Top Framboesa" é rejeitado pelo exclude do Top Confete e não casa com Essência
+    assert entry is None
+    mock_up.assert_not_called()
+
+
 def test_process_price_match_batch_buffer_skips_single_upsert():
     """batch_entries presente → entry acumula no buffer e upsert_price NÃO é chamado.
 

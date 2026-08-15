@@ -19,7 +19,6 @@ from parsers.brand_extractor import extract_brand
 from parsers.matcher import (
     clean_text,
     extract_all_keywords,
-    has_excluded_terms,
     has_ingredient_keyword,
     match_ingredient,
     rank_ingredients,
@@ -123,7 +122,7 @@ def load_stores() -> list[Store]:
     client = get_supabase()
     freq = client.table("scrape_frequencies").select("store_id, enabled").execute()
     freq_by_store = {}
-    for f in (freq.data or []):
+    for f in freq.data or []:
         sid = f.get("store_id")
         if sid:
             freq_by_store[sid] = f.get("enabled", True)
@@ -208,10 +207,6 @@ def process_price_match(
     if not has_ingredient_keyword(product_text, keywords):
         return None
 
-    for ing in ingredients:
-        if has_excluded_terms(product_text, ing):
-            return None
-
     ingredient, score, match_type = match_ingredient(product_text, ingredients)
 
     def _persist(entry: PriceEntry) -> PriceEntry | None:
@@ -270,7 +265,11 @@ def process_price_match(
         if 0.70 <= combined < 0.80 and os.environ.get("GROQ_API_KEY"):
             from services.config import get_feature
 
-            if not get_feature("features.ai.llm_classifier", ingredient=ingredient.get("canonical_name") if ingredient else None, default=False):
+            if not get_feature(
+                "features.ai.llm_classifier",
+                ingredient=ingredient.get("canonical_name") if ingredient else None,
+                default=False,
+            ):
                 logger.debug("[%s] llm_classifier disabled via feature flag", store.get("name", "?"))
                 llm_result = None
             else:
@@ -393,11 +392,7 @@ def _should_skip_store(store: Store) -> tuple[bool, str]:
         client = get_supabase()
         # Get frequency
         freq = (
-            client.table("scrape_frequencies")
-            .select("frequency_minutes")
-            .eq("store_id", store_id)
-            .limit(1)
-            .execute()
+            client.table("scrape_frequencies").select("frequency_minutes").eq("store_id", store_id).limit(1).execute()
         )
         frequency_minutes = (
             freq.data[0]["frequency_minutes"]
@@ -488,7 +483,9 @@ def _verify_scrape_results(all_products: list[PriceEntry], store_count: int, ski
     if matched_stores < attempted:
         logger.info(
             "[VERIFY] %d/%d stores produced matches (%d skipped)",
-            matched_stores, attempted, skipped_count,
+            matched_stores,
+            attempted,
+            skipped_count,
         )
 
 
@@ -530,7 +527,10 @@ def _spawn_isolated(kind, target_mod, target_name, store, store_name, timeout_se
         scraper_type = target_mod.replace("scrapers.", "")
         logger.error(
             "[%s] TIMEOUT after %ds — encerrando processo (scraper=%s, store=%s)",
-            store_name, timeout_seconds, scraper_type, store.get("name", store_name),
+            store_name,
+            timeout_seconds,
+            scraper_type,
+            store.get("name", store_name),
         )
         p.terminate()
         with suppress(Exception):
@@ -553,7 +553,15 @@ def _run_scraper_isolated(scraper_cls, store, ingredients, needs_ingredients, st
     ao estourar, o processo e terminado (junto com o Chrome), liberando recursos
     para as lojas seguintes. Retorna ``(raw_products, thumbnail)``.
     """
-    res = _spawn_isolated("scraper", scraper_cls.__module__, scraper_cls.__name__, store, store_name, timeout_seconds, extra=(ingredients, needs_ingredients))
+    res = _spawn_isolated(
+        "scraper",
+        scraper_cls.__module__,
+        scraper_cls.__name__,
+        store,
+        store_name,
+        timeout_seconds,
+        extra=(ingredients, needs_ingredients),
+    )
     if res is None:
         return [], None
     return res
@@ -615,12 +623,23 @@ def _scrape_store(
             raw_products = raw_products or []
         else:
             raw_products, thumbnail = _run_scraper_isolated(
-                scraper_cls, store, filtered_ingredients, needs_ingredients_param, store_name, timeout_seconds=store_timeout
+                scraper_cls,
+                store,
+                filtered_ingredients,
+                needs_ingredients_param,
+                store_name,
+                timeout_seconds=store_timeout,
             )
 
         elapsed = int((dt_now.now(UTC) - started_at).total_seconds())
         cache_status = "hit" if not raw_products else "miss"
-        logger.info("[%s] <<< FIM coleta (%ds) — Cache %s: %d raw products found", store_name, elapsed, cache_status, len(raw_products))
+        logger.info(
+            "[%s] <<< FIM coleta (%ds) — Cache %s: %d raw products found",
+            store_name,
+            elapsed,
+            cache_status,
+            len(raw_products),
+        )
 
         if thumbnail:
             try:
@@ -649,9 +668,7 @@ def _scrape_store(
             with suppress(Exception):
                 from services.scraper_health import record_success
 
-                record_success(
-                    store_name, items_found=0, products_matched=0, flyer_count=0, attempted_by="collector"
-                )
+                record_success(store_name, items_found=0, products_matched=0, flyer_count=0, attempted_by="collector")
             return store_name, []
 
         matched = 0
@@ -705,7 +722,9 @@ def _scrape_store(
             # ativa e retenta na próxima janela. Não desativa, não alerta por email.
             logger.warning(
                 "[%s] erro TRANSITÓRIO (%s): %s — loja mantida ativa, retenta próxima janela",
-                store_name, error_class, e,
+                store_name,
+                error_class,
+                e,
             )
             log_scraper_run(store_name, "transient", 0, 0, str(e), started_at=started_at)
             with suppress(Exception):
@@ -849,7 +868,9 @@ def _collect_flyers(
             if error_class in TRANSIENT_ERROR_CLASSES:
                 logger.warning(
                     "[%s] erro TRANSITÓRIO (%s): %s — flyer mantido ativo, retenta próxima janela",
-                    store_name, error_class, e,
+                    store_name,
+                    error_class,
+                    e,
                 )
                 log_scraper_run(store_name, "transient", 0, 0, str(e))
                 with suppress(Exception):
@@ -890,7 +911,8 @@ def collect_tier1_pdfs(ingredients: list[Ingredient]) -> list[PriceEntry]:
     today = date.today()
     weekday = today.strftime("%A").lower()
     stores = [
-        s for s in load_stores()
+        s
+        for s in load_stores()
         if s.get("tier") == 1 and s.get("type") == "pdf_flyer" and _is_pdf_flyer_published(s, weekday)
     ]
     return _collect_prices(stores, FlyerScraper, ingredients, "PDF")
@@ -949,15 +971,16 @@ def collect_tier3_websites(ingredients: list[Ingredient]) -> list[PriceEntry]:
 
 def collect_vipcommerce(ingredients: list[Ingredient]) -> list[PriceEntry]:
     stores = [
-        s for s in load_stores()
-        if s.get("scraper") == "vipcommerce_api_scraper" and s.get("type") == "vipcommerce_api"
+        s for s in load_stores() if s.get("scraper") == "vipcommerce_api_scraper" and s.get("type") == "vipcommerce_api"
     ]
     return _collect_prices(stores, VipCommerceApiScraper, ingredients, "VipCommerce", store_timeout=300)
 
 
 def collect_carrefour(ingredients: list[Ingredient]) -> list[PriceEntry]:
     stores = [
-        s for s in load_stores() if s.get("scraper") == "carrefour_hybrid_scraper" and s.get("type") == "website_catalog"
+        s
+        for s in load_stores()
+        if s.get("scraper") == "carrefour_hybrid_scraper" and s.get("type") == "website_catalog"
     ]
     return _collect_prices(stores, CarrefourHybridScraper, ingredients, "Carrefour")
 
@@ -970,11 +993,7 @@ def collect_tier2_js(ingredients: list[Ingredient]) -> list[PriceEntry]:
     ]
     all_products: list[PriceEntry] = []
     for store in stores:
-        scraper_cls = (
-            PlaywrightPriceScraper
-            if store.get("scraper") == "playwright_price_scraper"
-            else EcomplusScraper
-        )
+        scraper_cls = PlaywrightPriceScraper if store.get("scraper") == "playwright_price_scraper" else EcomplusScraper
         # Playwright stores need more time: browser launch + page rendering.
         # Cada loja pode sobrepor playwright_timeout (default 600 p/ Playwright, 300 ecomplus).
         default_pw = 600 if store.get("scraper") == "playwright_price_scraper" else 300
@@ -999,9 +1018,14 @@ def _run_ssr_scraper(store: dict) -> list[dict]:
         if flyers:
             logger.info("[%s] TiendeoScraper (curl_cffi) coletou %d flyers", store.get("name", "unknown"), len(flyers))
             return flyers
-        logger.warning("[%s] TiendeoScraper (curl_cffi) retornou 0 flyers — usando Playwright fallback", store.get("name", "unknown"))
+        logger.warning(
+            "[%s] TiendeoScraper (curl_cffi) retornou 0 flyers — usando Playwright fallback",
+            store.get("name", "unknown"),
+        )
     except Exception as e:
-        logger.warning("[%s] TiendeoScraper (curl_cffi) falhou: %s — usando Playwright fallback", store.get("name", "unknown"), e)
+        logger.warning(
+            "[%s] TiendeoScraper (curl_cffi) falhou: %s — usando Playwright fallback", store.get("name", "unknown"), e
+        )
 
     scraper = TiendeoPlaywrightScraper(store)
     return scraper.run()
@@ -1027,9 +1051,7 @@ def collect_roldao_flyer(ingredients: list[Ingredient]) -> list[PriceEntry]:
 
 
 def collect_giga_flyer(ingredients: list[Ingredient]) -> list[PriceEntry]:
-    stores = [
-        s for s in load_stores() if s.get("scraper") == "giga_flyer_scraper" and s.get("type") == "aggregator_js"
-    ]
+    stores = [s for s in load_stores() if s.get("scraper") == "giga_flyer_scraper" and s.get("type") == "aggregator_js"]
     # Vision-LLM (OCR + LLM) é lento: cada loja pode sobrepor vision_timeout_seconds
     # (default 300). O download do encarte em si é rápido; o gargalo é o LLM.
     timeout = 300
@@ -1040,7 +1062,8 @@ def collect_giga_flyer(ingredients: list[Ingredient]) -> list[PriceEntry]:
 
 def collect_facebook_flyers(ingredients: list[Ingredient]) -> list[PriceEntry]:
     stores = [
-        s for s in load_stores()
+        s
+        for s in load_stores()
         if s.get("scraper") == "facebook_flyer_scraper"
         and s.get("type") == "facebook_flyer"
         and s.get("is_active", True)
@@ -1059,6 +1082,7 @@ def _resolve_flyer_image(http: httpx.Client, flyer: dict) -> dict:
         return flyer
     try:
         from selectolax.parser import HTMLParser
+
         resp = http.get(safe_url, timeout=30.0, follow_redirects=True)
         resp.raise_for_status()
         tree = HTMLParser(resp.text)
@@ -1100,7 +1124,10 @@ def process_ocr_queue() -> int:
             store_name = flyer.get("store_name", "")
             image_entries = [flyer]
             products, raw_text = extract_flyer_products(
-                http, image_entries, store_name, source=flyer.get("source", "tiendeo"),
+                http,
+                image_entries,
+                store_name,
+                source=flyer.get("source", "tiendeo"),
             )
 
             if not products:
@@ -1111,30 +1138,37 @@ def process_ocr_queue() -> int:
             # Extrair endereco do texto OCR
             if raw_text:
                 from parsers.address_extractor import best_address
+
                 addr = best_address(raw_text)
                 if addr:
                     from services.flyer_service import get_service_client
+
                     try:
                         sc = get_service_client()
-                        sc.table("flyers").update({
-                            "address": addr.address,
-                            "address_confidence": addr.confidence,
-                        }).eq("id", flyer["id"]).execute()
+                        sc.table("flyers").update(
+                            {
+                                "address": addr.address,
+                                "address_confidence": addr.confidence,
+                            }
+                        ).eq("id", flyer["id"]).execute()
                     except Exception as exc:
                         logger.debug("[OCR] Failed to save address for %s: %s", flyer["id"], exc)
 
                     # Se store nao tem endereco ainda, tentar salvar no store_registry
                     try:
                         from services.store_registry import normalize_name, find_similar_stores
+
                         norm = normalize_name(store_name)
                         if norm and addr.confidence >= 7.0:
                             matches = find_similar_stores(norm, threshold=92)
                             if matches:
                                 sid = matches[0]["id"]
                                 sc = get_service_client()
-                                sc.table("stores").update({
-                                    "address": addr.address,
-                                }).eq("id", sid).execute()
+                                sc.table("stores").update(
+                                    {
+                                        "address": addr.address,
+                                    }
+                                ).eq("id", sid).execute()
                     except Exception as exc:
                         logger.debug("[OCR] Failed to update store address for %s: %s", store_name, exc)
 

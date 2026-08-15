@@ -55,10 +55,10 @@ class TestDBReal:
         assert r.count is not None and r.count > 0, f"D2.2: price_history count == {r.count}"
 
     def test_d2_3_ingredients_count(self):
-        """ingredients = 23"""
+        """ingredients = 27 (23 base + Açúcar Cristal, Ovos, Flor de Sal, Chocolate Chunks)"""
         c = db()
         r = c.table("ingredients").select("id", count="exact").execute()
-        assert r.count == 23, f"D2.3: ingredients count == {r.count} (expected 23)"
+        assert r.count == 27, f"D2.3: ingredients count == {r.count} (expected 27)"
 
     def test_d2_4_scrape_frequencies_enabled(self):
         """scrape_frequencies.enabled > 0"""

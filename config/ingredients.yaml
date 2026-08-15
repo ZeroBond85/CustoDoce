@@ -192,7 +192,7 @@ ingredients:
       - "Top Confete Morango Harald"
       - "Top Confete Morango 500g"
       - "TOP CONFETE MORANGO HARALD"
-    exclude_terms: ["mistura", "preparado"]
+    exclude_terms: ["mistura", "preparado", "framboesa", "chocolate", "coco", "baunilha", "abacaxi", "uva", "limao", "laranja"]
 
   - canonical: "Gotas de Chocolate Branco"
     category: "chocolates"

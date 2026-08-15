@@ -39,6 +39,9 @@ def seed_ingredients():
                 "category": ing.get("category", ""),
                 "aliases": ing.get("aliases", []),
                 "unit_target": ing.get("unit_target", "kg"),
+                "search_terms": ing.get("search_terms", []),
+                "exclude_terms": ing.get("exclude_terms", []),
+                "brands": ing.get("brands", []),
                 "active": True,
             }
         )
