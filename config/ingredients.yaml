@@ -44,7 +44,7 @@ ingredients:
       - "Leite Ninho Integral"
       - "Ninho Integral 400g"
       - "LEITE NINHO 1KG"
-    exclude_terms: ["desnatado", "semidesnatado", "zero", "light", "papel", "trufa", "gostosura", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "castanha", "amendoim", "aveia", "soja", "arroz", "coco", "vegetal", "veg"]
+    exclude_terms: ["desnatado", "semidesnatado", "zero", "light", "papel", "trufa", "gostosura", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "castanha", "amendoim", "aveia", "soja", "arroz", "coco", "vegetal", "veg", "torrada"]
 
   - canonical: "Granulado Ao Leite"
     category: "confeitos"
@@ -92,7 +92,7 @@ ingredients:
       - "Granulado Colorido Coloretti"
       - "Granulado Colorido 500g"
       - "Granulado Crocante Mil Cores"
-    exclude_terms: ["mistura", "preparado", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "pincel", "brinquedo", "doces", "saco", "biscoito", "cookie", "bolacha", "wafer", "tortinha", "brownie", "pão", "pudim", "mousse", "sorvete", "picole"]
+    exclude_terms: ["mistura", "preparado", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "pincel", "brinquedo", "doces", "saco", "biscoito", "cookie", "bolacha", "wafer", "tortinha", "brownie", "pão", "pudim", "mousse", "sorvete", "picole", "miçanga"]
 
   - canonical: "Coco Ralado Grosso sem Açúcar"
     category: "secos"
@@ -103,7 +103,7 @@ ingredients:
       - "Coco Ralado Grosso Ducoco"
       - "Coco Ralado sem Açúcar 100g"
       - "COCO RALADO GROSSO SOCÔCO"
-    exclude_terms: ["acucarado", "com acucar", "adoçado"]
+    exclude_terms: ["acucarado", "com acucar", "adoçado", "saco", "embalagem", "pacote", "pote", "lata"]
 
   - canonical: "Chocolate Nobre Blend"
     category: "chocolates"
@@ -258,7 +258,7 @@ ingredients:
       - "FERMENTO ROYAL 100G"
       - "Fermento Químico 100g"
       - "Fermento Dona Benta 100g"
-    exclude_terms: ["mistura", "preparado", "bolo"]
+    exclude_terms: ["mistura", "preparado", "bolo", "corante", "cor"]
 
   - canonical: "Essência de Baunilha"
     category: "essencias"
@@ -282,7 +282,7 @@ ingredients:
       - "Ovos Grandes 18 unidades"
       - "Ovos 30 Unidades"
       - "OVOS BRANCOS 30 UNIDADES"
-    exclude_terms: ["caipira", "orgânico", "enriquecido", "omega", "pasta", "líquido", "pó", "em po", "pascoa", "páscoa", "ovo de chocolate", "ovo de páscoa", "chocolate", "brigadeiro", "recheio", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "macarrão", "massa", "lasanha", "espaguete", "penne", "nhoque", "parafuso", "talharim"]
+    exclude_terms: ["caipira", "orgânico", "enriquecido", "omega", "pasta", "líquido", "pó", "em po", "pascoa", "páscoa", "ovo de chocolate", "ovo de páscoa", "chocolate", "brigadeiro", "recheio", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "macarrão", "massa", "lasanha", "espaguete", "penne", "nhoque", "parafuso", "talharim", "uva", "lentilha"]
 
   - canonical: "Flor de Sal"
     category: "temperos"

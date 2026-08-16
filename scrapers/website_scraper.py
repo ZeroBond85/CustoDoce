@@ -443,7 +443,8 @@ class WebsiteScraper(BaseWebScraper):
             if not name:
                 continue
             # Skip "Lançamento" placeholder products (Central do Confeiteiro)
-            if re.fullmatch(r"\s*lançamento\s*", name, re.IGNORECASE):
+            # Handles variants with newlines/whitespace: "Lançamento\n\n"
+            if re.search(r"^\s*lançamento\s*$", name, re.IGNORECASE | re.MULTILINE):
                 logger.debug("[%s] Skipping placeholder product: %r", self.name, name)
                 continue
             price = self._extract_price(card)
