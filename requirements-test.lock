@@ -24,8 +24,12 @@ jinja2==3.1.6
     # via pytest-html
 markupsafe==3.0.3
     # via jinja2
+numpy==2.5.2
+    # via pandas
 packaging==26.3
     # via pytest
+pandas==3.0.5
+    # via -r requirements-test.in
 playwright==1.62.0
     # via -r requirements-test.in
 pluggy==1.6.0
@@ -61,7 +65,9 @@ pytest-mock==3.14.0
 pytest-xdist==3.6.1
     # via -r requirements-test.in
 python-dateutil==2.9.0.post0
-    # via faker
+    # via
+    #   faker
+    #   pandas
 pyyaml==6.0.3
     # via responses
 requests==2.34.2
