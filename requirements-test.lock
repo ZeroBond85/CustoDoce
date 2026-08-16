@@ -199,6 +199,8 @@ streamlit==1.61.1
     # via -r requirements-test.in
 strenum==0.4.15
     # via supabase-functions
+structlog==26.1.0
+    # via -r requirements-test.in
 supabase==2.31.0
     # via -r requirements-test.in
 supabase-auth==2.31.0

@@ -13,5 +13,7 @@ pandas>=1.0,<4.0
 streamlit==1.61.1
 # docs-sync importa supabase.Client (mesma versão produção)
 supabase==2.31.0
+# docs-sync importa structlog via services
+structlog
 # playwright movido para ca (test-only, nao usado em producao)
 playwright>=1.0,<2.0
