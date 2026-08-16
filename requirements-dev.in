@@ -10,3 +10,6 @@ sqlfluff>=3,<4
 
 markdown-it-py>=3.0
 pytest==9.0.3
+
+# Security lint (bandit/detect-secrets) importa supabase.Client
+supabase==2.31.0

@@ -4,6 +4,10 @@
 #
 #    pip-compile --allow-unsafe --output-file=requirements-dev.lock requirements-dev.in
 #
+annotated-types==0.8.0
+    # via pydantic
+anyio==4.14.2
+    # via httpx
 ast-serialize==0.8.0
     # via mypy
 bandit==1.9.4
@@ -15,7 +19,12 @@ cachecontrol[filecache]==0.14.4
     #   cachecontrol
     #   pip-audit
 certifi==2026.7.22
-    # via requests
+    # via
+    #   httpcore
+    #   httpx
+    #   requests
+cffi==2.1.1
+    # via cryptography
 chardet==7.5.1
     # via
     #   diff-cover
@@ -26,18 +35,45 @@ click==8.4.2
     # via sqlfluff
 colorama==0.4.6
     # via sqlfluff
+cryptography==50.0.0
+    # via pyjwt
 cyclonedx-python-lib==11.11.0
     # via pip-audit
 defusedxml==0.7.1
     # via py-serializable
+deprecation==2.1.0
+    # via
+    #   postgrest
+    #   storage3
 detect-secrets==1.5.0
     # via -r requirements-dev.in
 diff-cover==10.5.0
     # via sqlfluff
 filelock==3.32.2
     # via cachecontrol
+h11==0.16.0
+    # via httpcore
+h2==4.4.1
+    # via httpx
+hpack==4.2.0
+    # via h2
+httpcore==1.0.9
+    # via httpx
+httpx[http2]==0.28.1
+    # via
+    #   postgrest
+    #   storage3
+    #   supabase
+    #   supabase-auth
+    #   supabase-functions
+hyperframe==6.1.0
+    # via h2
 idna==3.18
-    # via requests
+    # via
+    #   anyio
+    #   httpx
+    #   requests
+    #   yarl
 iniconfig==2.3.0
     # via pytest
 jinja2==3.1.6
@@ -58,6 +94,8 @@ mdurl==0.1.2
     # via markdown-it-py
 msgpack==1.2.1
     # via cachecontrol
+multidict==6.7.1
+    # via yarl
 mypy==2.3.0
     # via -r requirements-dev.in
 mypy-extensions==1.1.0
@@ -66,6 +104,7 @@ packageurl-python==0.17.6
     # via cyclonedx-python-lib
 packaging==26.3
     # via
+    #   deprecation
     #   pip-audit
     #   pip-requirements-parser
     #   pytest
@@ -87,13 +126,29 @@ pluggy==1.6.0
     # via
     #   diff-cover
     #   pytest
+postgrest==2.31.0
+    # via supabase
+propcache==0.5.2
+    # via yarl
 py-serializable==2.1.0
     # via cyclonedx-python-lib
+pycparser==3.0
+    # via cffi
+pydantic==2.13.4
+    # via
+    #   postgrest
+    #   realtime
+    #   storage3
+    #   supabase-auth
+pydantic-core==2.46.4
+    # via pydantic
 pygments==2.20.0
     # via
     #   diff-cover
     #   pytest
     #   rich
+pyjwt[crypto]==2.13.0
+    # via supabase-auth
 pyparsing==3.3.2
     # via pip-requirements-parser
 pytest==9.0.3
@@ -105,6 +160,8 @@ pyyaml==6.0.3
     #   bandit
     #   detect-secrets
     #   sqlfluff
+realtime==2.31.0
+    # via supabase
 regex==2026.7.19
     # via sqlfluff
 requests==2.34.2
@@ -126,6 +183,16 @@ squawk-cli==2.62.0
     # via -r requirements-dev.in
 stevedore==5.9.0
     # via bandit
+storage3==2.31.0
+    # via supabase
+strenum==0.4.15
+    # via supabase-functions
+supabase==2.31.0
+    # via -r requirements-dev.in
+supabase-auth==2.31.0
+    # via supabase
+supabase-functions==2.31.0
+    # via supabase
 tblib==3.2.2
     # via sqlfluff
 tomli==2.4.1
@@ -135,9 +202,24 @@ tomli-w==1.2.0
 tqdm==4.70.0
     # via sqlfluff
 typing-extensions==4.16.0
-    # via mypy
+    # via
+    #   mypy
+    #   pydantic
+    #   pydantic-core
+    #   realtime
+    #   typing-inspection
+typing-inspection==0.4.4
+    # via pydantic
 urllib3==2.7.0
     # via requests
+websockets==15.0.1
+    # via realtime
+yarl==1.24.5
+    # via
+    #   postgrest
+    #   storage3
+    #   supabase
+    #   supabase-functions
 
 # The following packages are considered to be unsafe in a requirements file:
 pip==26.2.1
