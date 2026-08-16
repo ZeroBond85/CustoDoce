@@ -8,59 +8,12 @@ Why: prevents drift when MENU_GROUPS was duplicated in 2 files and
 PAGES was hardcoded in test_e2e_dashboard.py.
 
 Usage:
-    from dashboard.navigation_config import MENU_GROUPS, PAGE_FUNCTIONS
+    from dashboard.navigation_config import MENU_GROUPS, PAGE_TITLE_ICONS, PAGES, get_page_function
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
-
-from dashboard.pages.alertas import render_alertas
-from dashboard.pages.calculadora import render_calculadora
-from dashboard.pages.capacity_planning import render_capacity_planning
-from dashboard.pages.config import render_config
-from dashboard.pages.diagnostico import render_diagnostico
-from dashboard.pages.flyers import render_flyers
-from dashboard.pages.fontes import render_fontes
-from dashboard.pages.historico import render_historico
-from dashboard.pages.ingredientes import render_ingredientes
-from dashboard.pages.insights import render_insights
-from dashboard.pages.lojas import render_lojas
-from dashboard.pages.lojas_pendentes import render_lojas_pendentes
-from dashboard.pages.precos import render_precos
-from dashboard.pages.promocoes import render_promocoes
-from dashboard.pages.ranking import render_ranking
-from dashboard.pages.relatorios import render_relatorios
-from dashboard.pages.revisao import render_revisao
-from dashboard.pages.scraper_health import render_scraper_health
-from dashboard.pages.scrapers import render_scrapers
-from dashboard.pages.ci_telemetry import render_ci_telemetry
-from dashboard.pages.visao_geral import render_visao_geral
-
-# ── PAGE_FUNCTIONS: page_id → render function ────────────────────────────────
-PAGE_FUNCTIONS: dict[str, Callable] = {
-    "visao_geral": render_visao_geral,
-    "precos": render_precos,
-    "historico": render_historico,
-    "flyers": render_flyers,
-    "revisao": render_revisao,
-    "ranking": render_ranking,
-    "insights": render_insights,
-    "lojas": render_lojas,
-    "lojas_pendentes": render_lojas_pendentes,
-    "ingredientes": render_ingredientes,
-    "alertas": render_alertas,
-    "scrapers": render_scrapers,
-    "scraper_health": render_scraper_health,
-    "relatorios": render_relatorios,
-    "config": render_config,
-    "calculadora": render_calculadora,
-    "diagnostico": render_diagnostico,
-    "promocoes": render_promocoes,
-    "capacity_planning": render_capacity_planning,
-    "ci_telemetry": render_ci_telemetry,
-    "fontes": render_fontes,
-}
 
 # ── MENU_GROUPS: st.navigation() source of truth ──────────────────────────
 MENU_GROUPS: dict[str, list[tuple[str, str, str]]] = {
@@ -107,6 +60,52 @@ DEFAULT_PAGE = "visao_geral"
 # ── PAGES: legacy sidebar (pre-st.navigation) — computed from MENU_GROUPS ─
 # Format: (page_id, icon, label_without_accents)
 # Used by render_legacy_sidebar() in layout.py for pre-1.36 fallback
+PAGES: list[tuple[str, str, str]] = [
+    (page_id, icon, label) for _group_label, group_pages in MENU_GROUPS.items() for label, icon, page_id in group_pages
+]
+
+# Map page_id -> module_path for lazy loading (used by admin/app.py)
+# This avoids importing all page modules at startup.
+_PAGE_MODULES: dict[str, str] = {
+    "visao_geral": "dashboard.pages.visao_geral",
+    "precos": "dashboard.pages.precos",
+    "historico": "dashboard.pages.historico",
+    "promocoes": "dashboard.pages.promocoes",
+    "insights": "dashboard.pages.insights",
+    "fontes": "dashboard.pages.fontes",
+    "ranking": "dashboard.pages.ranking",
+    "calculadora": "dashboard.pages.calculadora",
+    "revisao": "dashboard.pages.revisao",
+    "capacity_planning": "dashboard.pages.capacity_planning",
+    "lojas": "dashboard.pages.lojas",
+    "lojas_pendentes": "dashboard.pages.lojas_pendentes",
+    "ingredientes": "dashboard.pages.ingredientes",
+    "alertas": "dashboard.pages.alertas",
+    "scrapers": "dashboard.pages.scrapers",
+    "scraper_health": "dashboard.pages.scraper_health",
+    "ci_telemetry": "dashboard.pages.ci_telemetry",
+    "relatorios": "dashboard.pages.relatorios",
+    "flyers": "dashboard.pages.flyers",
+    "config": "dashboard.pages.config",
+    "diagnostico": "dashboard.pages.diagnostico",
+}
+
+
+def get_page_function(page_id: str) -> Callable:
+    """Lazy-load a page's render function by page_id.
+
+    Avoids importing all page modules at startup — only loads when needed.
+    Page functions are named render_<page_id> (e.g., render_visao_geral).
+    """
+    if page_id not in _PAGE_MODULES:
+        raise KeyError(f"Unknown page_id: {page_id}")
+    module_path = _PAGE_MODULES[page_id]
+    module = __import__(module_path, fromlist=[f"render_{page_id}"])
+    return getattr(module, f"render_{page_id}")
+
+
+# ── Legacy PAGES (pre-st.navigation fallback) — computed from MENU_GROUPS ─
+# Format: (page_id, icon, label_without_accents)
 PAGES: list[tuple[str, str, str]] = [
     (page_id, icon, label) for _group_label, group_pages in MENU_GROUPS.items() for label, icon, page_id in group_pages
 ]

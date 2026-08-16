@@ -26,8 +26,42 @@ from dashboard.login_page import render_login
 from dashboard.navigation_config import (
     DEFAULT_PAGE,
     MENU_GROUPS,
-    PAGE_FUNCTIONS,
+    get_page_function,
 )
+
+# ── PAGE_FUNCTIONS compatível (lazy) ───────────────────────────────────────
+# Mantido para compatibilidade com testes que esperam PAGE_FUNCTIONS dict.
+# Faz lazy-load via get_page_function() — não importa módulos no import.
+class _PageFunctionsDict(dict):
+    def __getitem__(self, key):
+        # Sempre carrega preguiçosamente; ignora cache do dict base
+        return get_page_function(key)
+
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    def keys(self):
+        from dashboard.navigation_config import MENU_GROUPS
+        return {page_id for _g, pages in MENU_GROUPS.items() for _l, _i, page_id in pages}
+
+    def __len__(self):
+        return len(self.keys())
+
+    def __contains__(self, key):
+        try:
+            get_page_function(key)
+            return True
+        except KeyError:
+            return False
+
+    def __iter__(self):
+        return iter(self.keys())
+
+
+PAGE_FUNCTIONS = _PageFunctionsDict()
 
 st.set_page_config(
     page_title="CustoDoce - Painel de Preços",
@@ -67,7 +101,7 @@ def _get_kg(df):
 
 
 def _build_navigation():
-    """Build a grouped st.navigation() from MENU_GROUPS and PAGE_FUNCTIONS.
+    """Build a grouped st.navigation() from MENU_GROUPS and get_page_function.
 
     Returns None if Streamlit version doesn't support st.navigation() (defensive).
     Tests import PAGE_FUNCTIONS separately and don't touch the returned Page
@@ -80,9 +114,7 @@ def _build_navigation():
         for group_label, group_pages in MENU_GROUPS.items():
             group_pages_list = []
             for label, icon, page_id in group_pages:
-                fn = PAGE_FUNCTIONS.get(page_id)
-                if fn is None:
-                    continue
+                fn = get_page_function(page_id)
                 group_pages_list.append(
                     st.Page(
                         fn,
@@ -102,13 +134,9 @@ def _build_navigation():
 
 
 def _render_page_by_id(page_id: str) -> None:
-    """Legacy fallback path: dispatch to PAGE_FUNCTIONS[page_id]()."""
-    page_fn = PAGE_FUNCTIONS.get(page_id)
-    if page_fn is None:
-        st.error(f"Página '{page_id}' não encontrada.")
-        st.session_state.page = DEFAULT_PAGE
-        st.rerun()
-    page_fn()
+    """Legacy fallback path: dispatch to get_page_function(page_id)()."""
+    fn = get_page_function(page_id)
+    fn()
 
 
 def main():
