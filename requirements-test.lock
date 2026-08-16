@@ -91,7 +91,9 @@ markupsafe==3.0.3
 multidict==6.7.1
     # via yarl
 narwhals==2.24.0
-    # via altair
+    # via
+    #   altair
+    #   plotly
 numpy==2.5.2
     # via
     #   pandas
@@ -101,6 +103,7 @@ packaging==26.3
     # via
     #   altair
     #   deprecation
+    #   plotly
     #   pytest
     #   streamlit
 pandas==3.0.5
@@ -110,6 +113,8 @@ pandas==3.0.5
 pillow==12.3.0
     # via streamlit
 playwright==1.62.0
+    # via -r requirements-test.in
+plotly==6.9.0
     # via -r requirements-test.in
 pluggy==1.6.0
     # via pytest

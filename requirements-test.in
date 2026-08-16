@@ -15,5 +15,7 @@ streamlit==1.61.1
 supabase==2.31.0
 # docs-sync importa structlog via services
 structlog
+# docs-sync importa plotly via services/dashboard
+plotly>=6.0,<7.0
 # playwright movido para ca (test-only, nao usado em producao)
 playwright>=1.0,<2.0
