@@ -11,6 +11,7 @@ from services.dashboard_queries import (
     get_store_registry_approved_cached,
     get_store_registry_pending_cached,
     merge_store_registry_cached,
+    reject_store_registry_bulk_by_prefix_cached,
     reject_store_registry_cached,
 )
 from services.dashboard_queries import get_active_stores
@@ -38,6 +39,19 @@ def render_lojas_pendentes():
     with col3:
         matched = sum(1 for s in pending if s.get("matched_store_id"))
         st.metric("Já Casadas (auto-promoção)", matched)
+
+    # Ação em lote: rejeitar lixo de integration tests (Cleanup Store / OCR Test)
+    cleanup_count = sum(1 for s in pending if (s.get("name") or "").startswith(("Cleanup Store", "OCR Test")))
+    if cleanup_count:
+        st.warning(f"⚠️ **{cleanup_count}** registros são lixo de integration tests (prefixo 'Cleanup Store'/'OCR Test').")
+        if st.button("🗑️ Rejeitar lote de lixo de teste", type="secondary"):
+            rejected = reject_store_registry_bulk_by_prefix_cached("Cleanup Store")
+            rejected += reject_store_registry_bulk_by_prefix_cached("OCR Test")
+            if rejected:
+                st.success(f"✅ {rejected} registros de teste rejeitados!")
+                st.rerun()
+            else:
+                st.error("Erro ao rejeitar lote")
 
     st.divider()
 

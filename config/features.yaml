@@ -31,10 +31,12 @@ features:
   ai:
     vision: true
     # LLM classifier para match 70-80% (match_ingredient -> semantic -> LLM).
-    # LIGADO apenas se quiser validar matches "gray zone" com LLM.
-    # Desligado: match 70-80% vai direto p/ review_queue sem LLM.
+    # DESLIGADO (2026-08-16): matcher determinístico + semantic embeddings
+    # (RF 0.6 + ONNX 0.4) cobrem a faixa 60-80% sem custo/rate-limit externo.
+    # match 70-80% vai direto p/ review_queue se não passar no threshold.
+    # Reativo apenas se métricas pós-fix mostrarem gray zone mal resolvida.
     # Requer GROQ_API_KEY/OPENROUTER_API_KEY. Cuidado: consome quota free-tier.
-    llm_classifier: true
+    llm_classifier: false
     # Caminho hibrido para encartes DENSOS (RapidOCR + reconstrucao geometrica
     # de preco + LLM-texto p/ nomes). Em flyers densos a vision-LLM retorna 0
     # produtos gastando 30-40s; o hibrido le as centenas de regioes via OCR e

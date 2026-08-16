@@ -18,6 +18,11 @@ logger = logging.getLogger(__name__)
 
 # Threshold for considering two stores as duplicates
 DEDUP_THRESHOLD = 92
+# Threshold de alias match para lojas de AGREGAÇÃO (flyers): nomes de flyer são
+# ruidosos ("Assaí Atacadista" vs config "Assaí"). 80% deixava 697 lojas reais
+# sem matched_store_id → nunca auto-promoviam. 70% é seguro para agregadoras
+# (verify via token_set_ratio, não substring). Manuais/explícitos mantêm 80%.
+AGGREGATOR_MATCH_THRESHOLD = 70
 
 
 def normalize_name(raw: str) -> str:
@@ -25,6 +30,24 @@ def normalize_name(raw: str) -> str:
     if not raw:
         return ""
     return re.sub(r"[^A-Z0-9 ]", "", raw.upper())
+
+
+def _best_store_match(norm: str, stores_pool: list[dict], threshold: int) -> tuple[float, str | None]:
+    """Retorna (match_score, matched_store_id) do melhor match por token_set_ratio
+    contra o pool de lojas. Pool ampliado (todas lojas, não só is_active) para
+    recuperar matches legítimos que antes ficavam sem matched_store_id."""
+    best_score = 0.0
+    best_id = None
+    for s in stores_pool:
+        s_id = s.get("id")
+        s_name = s.get("name", "")
+        if not s_id or not s_name:
+            continue
+        score = fuzz.token_set_ratio(norm, normalize_name(s_name))
+        if score >= threshold and score > best_score:
+            best_score = score / 100.0
+            best_id = s_id
+    return best_score, best_id
 
 
 def find_similar_stores(name: str, threshold: int = DEDUP_THRESHOLD, limit: int = 3) -> list[dict]:
@@ -134,8 +157,17 @@ def upsert_registry_entry(entry: StoreRegistryEntry) -> StoreRegistryEntry | Non
                 conflict_data = {k: v for k, v in data.items() if k != "normalized_name"}
                 try:
                     existing_row = client.table("store_registry")\
-                        .select("address, neighborhood, phone, address_confidence, discovery_source, region")\
+                        .select("address, neighborhood, phone, address_confidence, discovery_source, region, matched_store_id, match_score")\
                         .eq("id", eid).single().execute().data or {}
+                    # Backfill matched_store_id/match_score no conflito: antes o
+                    # match só era calculado UMA vez no insert (contra pool
+                    # is_active=true) e nunca re-avaliado — lojas reais ficavam
+                    # sem matched_store_id para sempre, impossibilitando
+                    # auto-promoção (697 pendentes em 2026-08-16).
+                    if not existing_row.get("matched_store_id") and (data.get("matched_store_id") or entry.matched_store_id):
+                        conflict_data["matched_store_id"] = data.get("matched_store_id") or entry.matched_store_id
+                        conflict_data["match_score"] = data.get("match_score", 0)
+                        client.table("store_registry").update(conflict_data).eq("id", eid).execute()
                     if not existing_row.get("address") and data.get("address"):
                         conflict_data["address"] = data["address"]
                         conflict_data["neighborhood"] = data.get("neighborhood", "")
@@ -274,6 +306,12 @@ def _is_food_store_name(name: str) -> bool:
     if not name:
         return False
     name_lower = name.lower().strip()
+    # Prefixos de teste/integration que poluem o registry (Cleanup Store xxxx,
+    # OCR Test Store, _test_...). Filtrados na FONTE — antes entravam como
+    # pending_review e a limpeza nunca os removia (ver maintenance_service).
+    for prefix in ("cleanup store ", "test ", "e2e ", "_test_", "ocr test "):
+        if name_lower.startswith(prefix):
+            return False
     return not any(kw in name_lower for kw in NON_FOOD_KEYWORDS)
 
 
@@ -319,10 +357,13 @@ def discover_stores_from_flyers() -> int:
     if not seen:
         return 0
 
-    # Get existing store names (for alias mapping)
+    # Get existing store names (for alias mapping). Pool AMPLIADO: todas lojas
+    # (não só is_active=true) — antes só casava contra scraper configs ativos e
+    # lojas reais (Assaí, Zaffari, Max) nunca achavam match → matched_store_id
+    # vazio → impossível auto-promover.
     existing_stores: list[dict] = []
     try:
-        stores_resp = client.table("stores").select("id, name").eq("is_active", True).execute()
+        stores_resp = client.table("stores").select("id, name").execute()
         existing_stores = stores_resp.data or []
     except Exception as exc:
         logger.debug("[store_registry] Could not fetch existing stores: %s", exc)
@@ -346,12 +387,15 @@ def discover_stores_from_flyers() -> int:
         if norm in existing_norms:
             continue
 
-        # Alias mapping: check similarity with existing stores (80% fallback)
+        # Alias mapping: check similarity with existing stores.
+        # Threshold 70% para agregadoras (nomes de flyer são ruidosos); antes
+        # era 80% fixo e deixava 697 lojas sem matched_store_id.
         match_score = 0.0
         matched_store_id = None
+        match_threshold = AGGREGATOR_MATCH_THRESHOLD
         for s in existing_stores:
             score = fuzz.token_set_ratio(norm, normalize_name(s.get("name", "")))
-            if score >= 80 and score > match_score:
+            if score >= match_threshold and score > match_score:
                 match_score = score / 100.0
                 matched_store_id = s["id"]
 
@@ -359,7 +403,7 @@ def discover_stores_from_flyers() -> int:
         if not matched_store_id:
             for r in existing_registry:
                 score = fuzz.token_set_ratio(norm, r.get("normalized_name", ""))
-                if score >= 80 and score > match_score:
+                if score >= match_threshold and score > match_score:
                     match_score = score / 100.0
                     matched_store_id = r.get("matched_store_id") or r["id"]
 
@@ -439,7 +483,7 @@ def auto_promote_discovered_stores(min_matched_products: int = 2) -> int:
     try:
         # Get pending stores that already have a matched_store_id
         pending = client.table("store_registry")\
-            .select("id, name, matched_store_id")\
+            .select("id, name, matched_store_id, source, discovery_source, tier")\
             .eq("status", "pending_review")\
             .execute()
         if not pending.data:
@@ -451,17 +495,45 @@ def auto_promote_discovered_stores(min_matched_products: int = 2) -> int:
             matched_id = entry.get("matched_store_id")
             entry_id = entry["id"]
 
-            # Only promote stores with an existing matched_store_id
+            # Fix 4.4: agregadoras (source/discovery auto) sem matched_store_id
+            # podem ser promovidas se já produzem preços — são lojas reais
+            # descobertas de flyers, dispensam scraper config (tier 3).
+            # Antes, `if not matched_id: continue` descartava todas as 697 sem
+            # match, deixando a fila crescer indefinidamente.
             if not matched_id:
+                src = (entry.get("source") or "").lower()
+                disc = (entry.get("discovery_source") or "").lower()
+                is_aggregator = src in ("auto", "flyer", "portal") or disc in ("flyer", "auto")
+                if not is_aggregator:
+                    continue
+                # Sem matched_store_id: conta ingredientes por store_name direto
+                prices = client.table("prices")\
+                    .select("ingredient_id")\
+                    .eq("store_name", store_name)\
+                    .execute()
+                matched_count = len({p.get("ingredient_id") for p in (prices.data or []) if p.get("ingredient_id")})
+                if matched_count < min_matched_products:
+                    continue
+                now_iso = datetime.now(UTC).isoformat()
+                client.table("store_registry").update({
+                    "status": "approved",
+                    "promoted_at": now_iso,
+                    "reviewed_at": now_iso,
+                }).eq("id", entry_id).execute()
+                logger.info("[store_registry] Auto-promoted aggregator %s (%d products)", store_name, matched_count)
+                promoted += 1
                 continue
 
-            # Count distinct ingredients matched in prices for this store
+            # Count distinct ingredients matched in prices for this store.
+            # Fix 4.5: o nome do preço pode diferir do registry (ex.: price usa
+            # nome do scraper config). Conta por matched_store_id quando
+            # disponível — antes contava só por store_name == registry, que
+            # quase nunca batia (matched_count=0 → nenhuma promoção).
             prices = client.table("prices")\
                 .select("ingredient_id")\
-                .eq("store_name", store_name)\
+                .eq("store_id", matched_id)\
                 .execute()
             matched_count = len({p.get("ingredient_id") for p in (prices.data or []) if p.get("ingredient_id")})
-
             if matched_count < min_matched_products:
                 continue
 

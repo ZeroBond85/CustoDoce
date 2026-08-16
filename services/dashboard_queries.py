@@ -694,6 +694,40 @@ def reject_store_registry_cached(entry_id: str) -> bool:
         return False
 
 
+def reject_store_registry_bulk_by_prefix_cached(prefix: str) -> int:
+    """Reject all pending store_registry entries whose name starts with a prefix
+    (ex.: "Cleanup Store" de integration tests). Returns count rejected.
+    Processa em lotes de 1000 para respeitar o limite do Supabase."""
+    client = get_supabase()
+    rejected = 0
+    start = 0
+    now_iso = datetime.now(UTC).isoformat()
+    while True:
+        batch = (
+            client.table("store_registry")
+            .select("id")
+            .eq("status", "pending_review")
+            .ilike("name", f"{prefix}%")
+            .range(start, start + 999)
+            .execute()
+        )
+        ids = [r["id"] for r in (batch.data or [])]
+        if not ids:
+            break
+        try:
+            client.table("store_registry").update(
+                {"status": "rejected", "reviewed_at": now_iso}
+            ).in_("id", ids).execute()
+        except Exception as e:
+            logger.error(f"Bulk reject failed for {len(ids)} entries: {e}")
+            break
+        rejected += len(ids)
+        if len(ids) < 1000:
+            break
+        start += 1000
+    return rejected
+
+
 def merge_store_registry_cached(entry_id: str, target_store_id: str) -> bool:
     """Merge a registry entry into an existing store and populate store_units."""
     client = get_supabase()

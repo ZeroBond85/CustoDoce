@@ -120,18 +120,47 @@ def log_scraper_run(
         return {}
 
 
+def _retry_delete(client, table: str, name_col: str, prefix: str, max_retries: int = 3) -> int:
+    """Deleta registros com retry em erros de rede transitórios (HTTP/2 flaky).
+
+    Supabase REST sobre HTTP/2 derruba conexões silenciosamente (RemoteProtocolError),
+    fazendo o delete retornar vazio sem ter apagado nada — o teste de integração
+    flakava. Backoff exponencial: 1s, 1.5s, 2.25s."""
+    import time
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            result = client.table(table).delete().ilike(name_col, f"{prefix}%").execute()
+            return len(result.data) if result.data else 0
+        except Exception as exc:  # noqa: BLE001 - erro de rede precisa de retry
+            if attempt >= max_retries:
+                logger.debug("cleanup_test_data failed for %s after %d retries: %s", table, attempt, exc)
+                return 0
+            time.sleep(1.0 * (1.5 ** (attempt - 1)))
+    return 0
+
+
 def cleanup_test_data() -> dict[str, int]:
     client = get_service_client()
-    removed = {"prices": 0, "review_queue": 0, "scraping_logs": 0, "flyers": 0, "stores": 0}
+    # Coluna de nome real por tabela. IMPORTANTE: o mapeamento é EXPLÍCITO —
+    # o padrão antigo `"store_name" if "name" in table else "name"` nunca casava
+    # (nenhuma tabela contém "name" no NOME da tabela), então prices,
+    # review_queue, scraping_logs e flyers NUNCA eram limpos.
     _TEST_PREFIXES = ("test ", "e2e ", "_test_", "Cleanup Store ")
-    _SAFE_TABLES = ("prices", "review_queue", "scraping_logs", "flyers", "stores")
+    _SAFE_TABLES: dict[str, str] = {
+        "prices": "store_name",
+        "review_queue": "store_name",
+        "scraping_logs": "store_name",
+        "flyers": "store_name",
+        "stores": "name",
+        "store_registry": "name",
+        "store_units": "unit_name",
+    }
+    removed: dict[str, int] = {}
     for prefix in _TEST_PREFIXES:
         prefix_norm = prefix.strip()
-        for table in _SAFE_TABLES:
-            try:
-                result = client.table(table).delete().ilike("store_name" if "name" in table else "name", f"{prefix_norm}%").execute()
-                count = len(result.data) if result.data else 0
+        for table, name_col in _SAFE_TABLES.items():
+            count = _retry_delete(client, table, name_col, prefix_norm)
+            if count:
                 removed[table] = removed.get(table, 0) + count
-            except Exception as e:
-                logger.debug("cleanup_test_data failed for %s: %s", table, e)
     return removed

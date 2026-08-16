@@ -1,5 +1,5 @@
 # Lições Aprendidas
-> Última atualização: 2026-08-12 14:22 UTC
+> Última atualização: 2026-08-16 15:10 UTC
 
 > Extraídas de AGENTS.md. Numeração original preservada.
 > Regras de execução/ambiente → `REGRAS.md`.
@@ -698,3 +698,35 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 
 ### 101. Colisão de sessões paralelas: usar stash + worktree isolado (2026-08-14)
 - **Data + commit**: 2026-08-14 (branch `feature/docs-curation-consolidation` ativa + fix branches paralelos)
+
+### 102. cleanup_test_data flakava no CI: Supabase REST (HTTP/2) derruba conexão silenciosamente (2026-08-16)
+- **Data + commit**: 2026-08-16 (commit `8e0f173`, CI run 31925729242 → 31951168413)
+- **Sintoma**: `tests/integration/test_db_cleanup.py::TestDbCleanup::test_cleanup_test_data_removes_store_registry` falhava **só no CI** (`...F`, 1/116) — `cleanup_test_data()` retornava `{... store_registry: 0, ...}` (tudo zero) mesmo após inserir um registro; o teste levava 6.12s vs 0.86s local (indício de retries/timeouts de rede). Local passava, suíte inteira passava.
+- **Causa raiz**: `services/maintenance_service.py::cleanup_test_data()` chamava `client.table().delete().execute()` **sem retry**. Supabase REST sobre HTTP/2 derruba conexões (`RemoteProtocolError`) de forma silenciosa → `result.data` vazio → contador 0, sem exceção. O teste de integração usa `_retry_supabase()` (com retry) para o INSERT, mas o cleanup não tinha o mesmo guard.
+- **Correção**: `services/maintenance_service.py` — novo helper `_retry_delete(client, table, name_col, prefix, max_retries=3)` com backoff exponencial (1s, 1.5s, 2.25s); `cleanup_test_data()` delega cada `(prefixo, tabela)` a `_retry_delete`. Retorna 0 só após esgotar tentativas.
+- **Teste de regressão**: `tests/unit/test_services/test_maintenance_service.py::test_retry_delete_retries_on_network_flake` (1ª chamada lança, 2ª retorna dados → count==1, call_count==2) e `test_retry_delete_returns_zero_after_all_retries_fail` (todas falham → 0, call_count==max_retries).
+- **Regra**: operações REST de escrita contra Supabase em testes/flows de integração DEVEM ter retry com backoff, igual ao `_retry_supabase()` — `execute()` pode retornar vazio silenciosamente em rede HTTP/2 flaky.
+
+### 103. Threshold de review_queue era 0.70 (bug) — causa raiz de ~646 itens/dia (2026-08-16)
+- **Data + commit**: 2026-08-16 (commit `3d1eeab`)
+- **Sintoma**: review_queue crescia ~646 itens/dia; distribuição de `confidence` tinha pico maciço em 0.55-0.70 (itens "sem match" que o threshold deveria ter descartado).
+- **Causa raiz**: `services/collector.py::process_price_match()` usava `review_threshold` default `0.70` (linhas ~297-299) em vez dos `0.80` documentados — itens 0.70-0.79 que o matcher considerava "match" caíam em review em vez de virarem preço (gate de persistência real era `combined >= 0.80`, linha 252).
+- **Correção**: alinhado `review_threshold` a `0.80` (default documentado); removida a divergência "threshold do matcher (0.70) vs gate de persistência (0.80)". FASE 6 validou: scrape `--force` gerou apenas **11 borderlines novos** vs ~646/dia (redução 98%).
+- **Teste de regressão**: `tests/unit/test_services/test_store_registry.py` + golden `tests/fixtures/golden_matches.json` (100/100/100).
+- **Regra**: gate de persistência (`combined >= 0.80`) e threshold de review (`review_threshold`) DEVEM estar sempre alinhados; distribuição de confidence da review_queue é o termômetro do threshold.
+
+### 104. Excludes de ingrediente são data-driven e vivem no DB — sync via sync_ingredient_fields (2026-08-16)
+- **Data + commit**: 2026-08-16 (commit `3d1eeab`)
+- **Sintoma**: FPs como "Macarrão Renata Ninho" → Leite em Pó (exato 100 via search_term "ninho"), "Cereal Matinal Nestle Moça" → Leite Condensado, "Fatiador de Ovos Tramontina" → Ovos persistiam com `combined >= 0.80` (virariam preço errado no próximo scrape).
+- **Causa raiz**: `_is_short_term("ninho")` é True (1 palavra <8 chars) → `_term_at_word_boundary` casa em qualquer posição; e o runtime lê ingredientes de `get_active_ingredients()` (Supabase), NÃO do YAML — editar `config/ingredients.yaml` sem sincronizar não muda nada em produção.
+- **Correção**: `exclude_terms` data-driven adicionados em `config/ingredients.yaml` (9 ingredientes, ~245 termos: macarrão/iogurte/molho/tomate para Leite em Pó; biscoito/cookie/wafer para Manteiga; fatiador/utensílio para Ovos; cereal/matinal/maionese para Leite Condensado; pão de mel/barra/amargo/vegano/orgânico para Chocolates 70%/50%; mil cores/colorido para Açúcar Cristal; recheio/confeito/granulé para Gotas Branco; adocicado/umido para Coco Ralado) + **obrigatório** `python scripts/sync_ingredient_fields.py --execute` para espelhar no DB. `has_excluded_terms` aplicado dentro de `match_ingredient` (matcher.py:234, substring case-insensitive).
+- **Teste de regressão**: simulação de recuperação (replicando combined_score real) caiu de 94 → 46 legítimos; golden mantido 100/100/100 (canonical como product não contém os termos).
+- **Regra**: editar excludes no YAML é inócuo sem `sync_ingredient_fields.py --execute` — o DB é a fonte de verdade em runtime (mesma regra de paridade de ambiente).
+
+### 105. Recuperação da review_queue: re-match com matcher novo + combined ≥0.80 gera preços legítimos (2026-08-16)
+- **Data + commit**: 2026-08-16 (commit `8e0f173` + `scripts/recover_review_queue.py`)
+- **Sintoma**: 1748 itens na review_queue herdavam itens que, com o threshold bugado (0.70), ficaram presos sem virar preço mesmo sendo legítimos.
+- **Causa raiz**: itens ≤0.79 (com o bug) nunca chegavam ao gate de persistência 0.80; com threshold corrigido + excludes novos, muitos deles re-matcham ≥0.80.
+- **Correção**: `scripts/recover_review_queue.py` (dry-run/execute/delete-legacy/reject-stores) replica exatamente a lógica do collector (match_ingredient → semantic_matcher → `combined_score`), recupera pendentes com `combined >= 0.80` como preços via `batch_upsert_prices`, e marca `status=resolved`. Execução: 46 candidatos → 21 preços inseridos (25 eram duplicatas store+ingredient já existentes do scrape), 0 falhas.
+- **Teste de regressão**: dry-run antes do execute validou os 46 (todos confeitaria legítima); pós-execute conferiu contagem de preços (1359) e store_registry (0 pending).
+- **Regra**: antes de DELETE em massa de review_queue, rodar passagem de recuperação (D3) — itens legítimos presos viram preço; lixo real (teste/catálogo/Lançamento órfão) vira rejected. Backup FULL pré-remoção é mandatório.

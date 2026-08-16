@@ -134,13 +134,18 @@ def _token_coverage(product_clean: str, term_clean: str) -> float:
     return len(product_tokens & term_tokens) / len(term_tokens)
 
 
-_FUZZY_COVERAGE_PENALTY = 0.4
+_FUZZY_COVERAGE_PENALTY = 0.25
 # Termos de 1 palavra: token_set_ratio dá 100 se o token aparece em QUALQUER
 # posição ('Ovos' em 'Macarrão com Ovos'). Para esses, a cobertura deve ser
 # medida em relação ao PRODUTO: quantos tokens do produto o termo explica.
 # 'Macarrão ... Ovos 500g' → 1/5 = 0.2 → forte penalidade; 'Ovos brancos 30un'
 # → 1/3 = 0.33 → ainda penalizado, mas o match_exact (startswith) já resolve.
 _SINGLE_WORD_PRODUCT_COVERAGE = True
+# Só aplica a penalidade de cobertura do PRODUTO para termos de 1 palavra quando
+# o produto tem >4 tokens. Produtos curtos ('Leite Condensado', 'Chocolate 50%')
+# não devem ser derrubados pela fração de tokens explicada — a cobertura do termo
+# (token_set) já é suficiente e penalidade extra mata matches legítimos.
+_SINGLE_WORD_MIN_PRODUCT_TOKENS = 4
 
 
 def _penalize_score(score: float, product_clean: str, term_clean: str) -> float:
@@ -151,13 +156,16 @@ def _penalize_score(score: float, product_clean: str, term_clean: str) -> float:
     Para termos de 1 palavra, usa cobertura do PRODUTO (tokens do termo /
     tokens do produto): 'Ovos' isolado dentro de 'Macarrão com Ovos' explica
     fração mínima do produto → penalidade forte. token_set_ratio de termo
-    monopalavra é inútil (sempre 100 quando presente)."""
+    monopalavra é inútil (sempre 100 quando presente). Produtos curtos (<=4
+    tokens) pulam essa penalidade para não matar matches legítimos."""
     coverage = _token_coverage(product_clean, term_clean)
     if _SINGLE_WORD_PRODUCT_COVERAGE and len(term_clean.split()) == 1:
         product_tokens = set(product_clean.split())
-        term_tokens = set(term_clean.split())
         if not product_tokens:
             return score
+        if len(product_tokens) <= _SINGLE_WORD_MIN_PRODUCT_TOKENS:
+            return score * (1.0 - _FUZZY_COVERAGE_PENALTY * (1.0 - coverage))
+        term_tokens = set(term_clean.split())
         coverage = len(product_tokens & term_tokens) / len(product_tokens)
     return score * (1.0 - _FUZZY_COVERAGE_PENALTY * (1.0 - coverage))
 

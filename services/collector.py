@@ -295,7 +295,9 @@ def process_price_match(
     from services.config import get_feature
 
     threshold = get_feature(
-        "features.review_threshold", ingredient=ingredient["canonical_name"] if ingredient else None, default=0.55
+        "features.matcher.review_threshold",
+        ingredient=ingredient["canonical_name"] if ingredient else None,
+        default=0.70,
     )
     if combined >= threshold:
         candidates = rank_ingredients(product_text, ingredients, top_n=3)

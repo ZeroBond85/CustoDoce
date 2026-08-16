@@ -1,9 +1,9 @@
 # `dashboard_queries` — API
 
-> Última atualização: 2026-08-13 01:28 UTC
+> Última atualização: 2026-08-16 03:49 UTC
 > Gerado por AST parsing dos serviços em `services/dashboard_queries.py`.
 
-## Funções Públicas (49)
+## Funções Públicas (50)
 
 ### approve_review_item_cached(item_id: str, ingredient_id: str, brand_override: str)
 
@@ -152,6 +152,12 @@ Get all stores with their scrape frequencies merged.
 Merge a registry entry into an existing store and populate store_units.
 
 ### reject_review_item_cached(item_id: str)
+
+### reject_store_registry_bulk_by_prefix_cached(prefix: str)
+
+Reject all pending store_registry entries whose name starts with a prefix
+(ex.: "Cleanup Store" de integration tests). Returns count rejected.
+Processa em lotes de 1000 para respeitar o limite do Supabase.
 
 ### reject_store_registry_cached(entry_id: str)
 

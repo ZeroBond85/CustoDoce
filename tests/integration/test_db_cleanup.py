@@ -221,3 +221,69 @@ class TestDbCleanup:
                 assert collected_at > today_limit, f"Flyer antigo permaneceu: {collected_at}"
         finally:
             self._cleanup_test_data(real_supabase, store_id, store_name)
+
+    def test_cleanup_test_data_removes_store_registry(self, real_supabase):
+        """Valida cleanup_test_data() limpa TAMBÉM store_registry + store_units.
+
+        Regressão: _SAFE_TABLES não incluía store_registry (561 lixo de
+        "Cleanup Store xxxx" ficavam pendentes para sempre) e o mapeamento de
+        coluna era `"store_name" if "name" in table else "name"` — como nenhuma
+        tabela contém "name" no NOME, o ilike sempre usava coluna "name" e só
+        stores era limpa."""
+        from services.maintenance_service import cleanup_test_data
+
+        unique_id = uuid.uuid4().hex[:8]
+        junk_name = f"Cleanup Store {unique_id}"
+
+        _retry_supabase(
+            real_supabase.table("store_registry").insert(
+                {
+                    "name": junk_name,
+                    "normalized_name": junk_name.lower(),
+                    "tier": 3,
+                    "status": "pending_review",
+                    "source": "auto",
+                    "collection_method": "auto",
+                }
+            )
+        )
+        try:
+            _retry_supabase(
+                real_supabase.table("store_units").insert(
+                    {
+                        "store_id": f"junk_{unique_id}",
+                        "unit_name": junk_name,
+                        "source": "store_registry",
+                        "is_active": True,
+                    }
+                )
+            )
+        except Exception:
+            pass  # store_units pode exigir store_id FK — melhor esforço
+
+        # Aguarda eventual consistency: insert via client A pode não ser visível
+        # para delete via client B (cleanup_test_data cria seu próprio client).
+        # No CI a latência é maior; retry com backoff progressivo.
+        import time as _time
+
+        result = {"store_registry": 0}
+        for i in range(10):
+            result = cleanup_test_data()
+            if result.get("store_registry", 0) > 0:
+                break
+            _time.sleep(0.5 * (i + 1))
+
+        assert result.get("store_registry", 0) > 0, (
+            f"cleanup_test_data não removeu store_registry: {result}"
+        )
+
+        try:
+            res = _retry_supabase(
+                real_supabase.table("store_registry").select("id").eq("name", junk_name)
+            )
+            assert not res.data, f"Registro lixo {junk_name} permaneceu em store_registry"
+        finally:
+            with suppress(Exception):
+                _retry_supabase(real_supabase.table("store_registry").delete().eq("name", junk_name))
+            with suppress(Exception):
+                _retry_supabase(real_supabase.table("store_units").delete().ilike("unit_name", f"Cleanup Store {unique_id}%"))

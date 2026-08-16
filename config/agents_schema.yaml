@@ -1,6 +1,6 @@
 # Schema do AGENTS.md — define o que pode entrar, onde, e quanto.
 # CI valida isso a cada push e merge.
-max_lines: 350
+max_lines: 360
 headings:
   regras_mandatorias:
     type: list

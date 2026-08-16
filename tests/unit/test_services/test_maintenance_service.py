@@ -66,3 +66,26 @@ def test_log_scraper_run_inserts():
     sent = mock_client.table.return_value.insert.call_args[0][0]
     assert sent["store_name"] == "base_flyer"
     assert sent["status"] == "completed"
+
+
+def test_retry_delete_retries_on_network_flake():
+    """_retry_delete tenta de novo quando a 1ª chamada falha por rede (HTTP/2 flaky).
+
+    Regressão: cleanup_test_data retornava 0 no CI quando o Supabase derrubava a
+    conexão silenciosamente — o delete não rodava de verdade e o teste de
+    integração (test_db_cleanup) flakava."""
+    mock_execute = MagicMock(side_effect=[RuntimeError("RemoteProtocolError"), SimpleNamespace(data=[{"id": "x"}])])
+    mock_client = MagicMock()
+    mock_client.table.return_value.delete.return_value.ilike.return_value.execute = mock_execute
+    count = maintenance_service._retry_delete(mock_client, "store_registry", "name", "Cleanup Store")
+    assert count == 1
+    assert mock_execute.call_count == 2
+
+
+def test_retry_delete_returns_zero_after_all_retries_fail():
+    mock_execute = MagicMock(side_effect=RuntimeError("flaky"))
+    mock_client = MagicMock()
+    mock_client.table.return_value.delete.return_value.ilike.return_value.execute = mock_execute
+    count = maintenance_service._retry_delete(mock_client, "prices", "store_name", "test ", max_retries=2)
+    assert count == 0
+    assert mock_execute.call_count == 2

@@ -72,3 +72,88 @@ def test_get_registry_entry_builds_dataclass():
     assert entry is not None
     assert entry.name == "Nova Loja"
     assert entry.tier == 3
+
+
+def _mock_auto_promote(pending, prices_by_name=None, prices_by_id=None):
+    """Monta mock de client com dados de pending + prices para auto_promote."""
+    mock_client = MagicMock()
+
+    def table(name):
+        if name == "store_registry":
+            tbl = MagicMock()
+            tbl.select.return_value.eq.return_value.execute.return_value = SimpleNamespace(data=pending)
+            tbl.update.return_value.eq.return_value.execute.return_value = SimpleNamespace(data=[{}])
+            return tbl
+        if name == "prices":
+            tbl = MagicMock()
+
+            def select(cols):
+                sel = MagicMock()
+
+                def eq(col, val):
+                    data = []
+                    if col == "store_name":
+                        data = prices_by_name.get(val, [])
+                    elif col == "store_id":
+                        data = prices_by_id.get(val, [])
+                    sel.execute.return_value = SimpleNamespace(data=data)
+                    return sel
+
+                sel.eq.side_effect = eq
+                return sel
+
+            tbl.select.side_effect = select
+            return tbl
+        raise AssertionError(f"unexpected table: {name}")
+
+    mock_client.table.side_effect = table
+    return mock_client
+
+
+def test_auto_promote_aggregator_sem_match_conta_por_store_name():
+    """Fix 4.4: agregadora (source=auto) SEM matched_store_id com >=2 ingredientes
+    em prices por store_name é promovida."""
+    pending = [
+        {"id": "r1", "name": "Loja Flyer X", "matched_store_id": None,
+         "source": "auto", "discovery_source": "flyer", "tier": 3}
+    ]
+    prices = {
+        "Loja Flyer X": [
+            {"ingredient_id": "ing-1"}, {"ingredient_id": "ing-2"},
+        ]
+    }
+    mock_client = _mock_auto_promote(pending, prices_by_name=prices)
+    with patch.object(store_registry, "get_service_client", return_value=mock_client):
+        promoted = store_registry.auto_promote_discovered_stores(min_matched_products=2)
+    assert promoted == 1
+
+
+def test_auto_promote_aggregator_sem_match_nao_promove_sem_precos():
+    """Agregadora sem preços suficientes NÃO é promovida (continua pendente)."""
+    pending = [
+        {"id": "r1", "name": "Loja Flyer X", "matched_store_id": None,
+         "source": "auto", "discovery_source": "flyer", "tier": 3}
+    ]
+    mock_client = _mock_auto_promote(pending, prices_by_name={"Loja Flyer X": []})
+    with patch.object(store_registry, "get_service_client", return_value=mock_client):
+        promoted = store_registry.auto_promote_discovered_stores(min_matched_products=2)
+    assert promoted == 0
+
+
+def test_auto_promote_com_match_conta_por_store_id():
+    """Fix 4.5: com matched_store_id, conta ingredientes por store_id (não por
+    store_name que quase nunca bate com o nome do scraper config)."""
+    pending = [
+        {"id": "r1", "name": "Assaí Flyer", "matched_store_id": "store-42",
+         "source": "auto", "discovery_source": "flyer", "tier": 3}
+    ]
+    prices = {
+        "store-42": [
+            {"ingredient_id": "ing-1"}, {"ingredient_id": "ing-2"},
+            {"ingredient_id": "ing-3"},
+        ]
+    }
+    mock_client = _mock_auto_promote(pending, prices_by_id=prices)
+    with patch.object(store_registry, "get_service_client", return_value=mock_client):
+        promoted = store_registry.auto_promote_discovered_stores(min_matched_products=2)
+    assert promoted == 1

@@ -4,6 +4,15 @@
 
 ### Added
 
+#### Sprint 18 — Root-cause da review_queue: threshold real, excludes data-driven, recuperação e limpeza
+- **Threshold corrigido**: `services/collector.py` — `review_threshold` default era 0.70 (bug, linha ~297-299) divergindo do gate de persistência real `combined >= 0.80` (linha 252); alinhado a 0.80. Resultado validado em PROD (scrape `--force`): **11 borderlines novos** vs ~646/dia (redução 98%).
+- **Excludes data-driven**: `config/ingredients.yaml` — `exclude_terms` em 9 ingredientes (~245 termos) para matar FPs que virariam preço errado (Macarrão Ninho→Leite em Pó, Cereal Moça→Leite Condensado, Fatiador de Ovos, Biscoito Manteiga, Pão de Mel→Chocolate, Mil Cores→Açúcar Cristal, Granulé/Recheio→Gotas Branco, Coco Adocicado). `has_excluded_terms` aplicado dentro de `match_ingredient` (matcher.py:234). **Obrigatório** `scripts/sync_ingredient_fields.py --execute` após editar YAML (runtime lê do DB).
+- **Filtro "Lançamento"**: JSON-LD + HTML (base_flyer/vtex/website) — 130 itens órfãos "Lançamento" rejeitados na limpeza.
+- **cleanup_test_data com retry**: `services/maintenance_service.py` — `_retry_delete()` com backoff exponencial para Supabase REST HTTP/2 flaky (fix RPR, CI integration).
+- **Recuperação da review_queue**: `scripts/recover_review_queue.py` (dry-run/execute) — re-match de pendentes com matcher novo + `combined >= 0.80`; 46 candidatos → 21 preços inseridos, 46 marcados `resolved`.
+- **Limpeza de dados**: store_registry **0 pending** (145 rejected: 138 fora de escopo + 6 FPs de match + 2 teste; 64 approved); review_queue 1747→1582 pending (46 resolved, 130 Lançamento rejeitados); lixo de teste removido de prices.
+- **Testes**: +2 unit (retry_delete), 1452 unit+schema passing, golden 100/100/100, CI verde (run 31951168413: typecheck, docs-sync, lint, matcher-eval, integration, e2e-smoke, deploy-check, unit, real).
+
 #### Sprint de Otimização de Performance — batch upsert, dashboard N+1, cache híbrido, scrapers
 - **Fase 0 (Workflow)**: Tier 2b removido da matriz automate do `scrape-reusable.yml`; teste de YAML normaliza `[1, 2a, 3]` para str (YAML parseia ints).
 - **Fase 1 (Batch upsert)**: `_build_price_row()` extraído + `batch_upsert_prices()` em `services/price_repository.py` (chunks de 50, retry em erro transitório via `_is_transient_net_err`); `process_price_match()` ganhou param `batch_entries`; `_scrape_store()` acumula e faz flush em lote — elimina 1 upsert RPC/produto.

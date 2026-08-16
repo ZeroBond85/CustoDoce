@@ -110,7 +110,7 @@ CustoDoce/
 ├── requirements.lock       # = requirements-test.lock (backward compat)
 ├── requirements.txt        # = requirements-prod.in (pip-audit source)
 ├── AGENTS.md          # ← este arquivo (vivo, ~340 linhas)
-├── LESSONS.md         # 84 lições aprendidas
+├── LESSONS.md         # 88 lições aprendidas
 └── REGRAS.md          # Ambiente, hooks, comandos
 ```
 
@@ -241,13 +241,13 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 
 | Métrica | Valor |
 |---------|-------|
-| pytest (unit + schema, no slow) | 1403 passing (unit: 1309, schema: 94) |
-| pytest (integration) | 115 passing |
+| pytest (unit + schema, no slow) | 1452 passing (unit: 1358, schema: 94) |
+| pytest (integration) | 116 passing |
 | pytest (diagnostics, slow) | 4 passing |
 | Schema manifest | 17 tabelas/views com types, not_null, defaults, constraints |
 | Mock validation tests | 121 parametrizados (colunas, tipos, not_null, FKs, CHECK, jsonb) |
-| AGENTS.md | ~350+ linhas (Sprint 16 + docs gaps) |
-| LESSONS.md | 84 lições |
+| AGENTS.md | ~357 linhas (Sprint 18 + docs gaps) |
+| LESSONS.md | 88 lições |
 | REGRAS.md | Ambiente + hooks + comandos |
 | CI lint/type/test | ✅ Todos verdes (Python 3.14.6) |
 | E2E (cloud) | ✅ Validade (run 31806929724) |
@@ -300,7 +300,7 @@ Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarbal
 
 ## Documentação Relacionada
 
-- `LESSONS.md` — 84 lições (CI, mocks, schema, scrapers, monitoração, segurança)
+- `LESSONS.md` — 88 lições (CI, mocks, schema, scrapers, monitoração, segurança)
 - `REGRAS.md` — Ambiente, hooks, comandos, arquitetura
 - `docs/skills.md` — Skills OpenCode (globais + overlays locais)
 - `docs/changelog.md` — Histórico por fase/sprint; `config/agents_schema.yaml` — Schema deste arquivo
@@ -348,3 +348,10 @@ Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarbal
 
 ## Sprint 17 — Otimização de Performance (2026-08-08)
 - `price_repository.py`: `batch_upsert_prices()` (chunks 50, retry); `process_price_match(batch_entries=...)`; flush em lote.
+
+## Sprint 18 — Root-cause da review_queue (2026-08-16)
+- **Threshold real**: `collector.py::process_price_match` usava `review_threshold` 0.70 (bug) divergindo do gate de persistência `combined >= 0.80` → alinhado a 0.80. Scrape `--force` validou: 11 borderlines novos vs ~646/dia (redução 98%).
+- **Excludes data-driven**: `config/ingredients.yaml` → 9 ingredientes, ~245 termos; runtime lê do DB via `get_active_ingredients()` → **obrigatório** `python scripts/sync_ingredient_fields.py --execute` após editar YAML.
+- **Recuperação**: `scripts/recover_review_queue.py` (dry-run/execute) — re-match de pendentes + `combined >= 0.80` → preços; 46 recuperados (21 inseridos, 25 dups).
+- **Limpeza PROD**: store_registry 0 pending (145 rejected: 138 fora de escopo + 6 FP match + 2 teste), review_queue 1582 pending (46 resolved, 130 Lançamento rejeitados), lixo teste removido de prices.
+- **Retry HTTP/2**: `maintenance_service._retry_delete()` (backoff 1s/1.5s/2.25s) — fix RPR do flake CI integration.

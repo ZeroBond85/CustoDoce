@@ -444,7 +444,7 @@ class WebsiteScraper(BaseWebScraper):
                 continue
             # Skip "Lançamento" placeholder products (Central do Confeiteiro)
             # Handles variants with newlines/whitespace: "Lançamento\n\n"
-            if re.search(r"^\s*lançamento\s*$", name, re.IGNORECASE | re.MULTILINE):
+            if self._skip_lancamento(name):
                 logger.debug("[%s] Skipping placeholder product: %r", self.name, name)
                 continue
             price = self._extract_price(card)
@@ -465,6 +465,13 @@ class WebsiteScraper(BaseWebScraper):
 
         return products
 
+    def _skip_lancamento(self, name: str) -> bool:
+        """True se o nome é apenas um placeholder "Lançamento" (Central do
+        Confeiteiro usa 'Lançamento' como produto reservado sem preço real).
+        Aplicado TANTO no loop HTML quanto no JSON-LD — antes o filtro só
+        rodava no HTML, deixando itens bypassarem via _parse_jsonld."""
+        return bool(re.search(r"^\s*lançamento\s*$", name, re.IGNORECASE | re.MULTILINE))
+
     def _parse_jsonld(self, html: str) -> list[dict]:
         """Extrai produtos de JSON-LD embedado (VTEX IO / Schema.org)."""
         products: list[dict] = []
@@ -484,6 +491,9 @@ class WebsiteScraper(BaseWebScraper):
                     if price <= 0:
                         continue
                     name = item["name"].strip()
+                    if self._skip_lancamento(name):
+                        logger.debug("[%s] Skipping placeholder product: %r", self.name, name)
+                        continue
                     products.append({
                         "product": name,
                         "price": float(price),
