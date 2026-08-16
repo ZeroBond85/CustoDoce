@@ -57,13 +57,6 @@ PAGE_TITLE_ICONS: dict[str, tuple[str, str]] = {
 
 DEFAULT_PAGE = "visao_geral"
 
-# ── PAGES: legacy sidebar (pre-st.navigation) — computed from MENU_GROUPS ─
-# Format: (page_id, icon, label_without_accents)
-# Used by render_legacy_sidebar() in layout.py for pre-1.36 fallback
-PAGES: list[tuple[str, str, str]] = [
-    (page_id, icon, label) for _group_label, group_pages in MENU_GROUPS.items() for label, icon, page_id in group_pages
-]
-
 # Map page_id -> module_path for lazy loading (used by admin/app.py)
 # This avoids importing all page modules at startup.
 _PAGE_MODULES: dict[str, str] = {
