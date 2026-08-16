@@ -16,7 +16,7 @@ PyJWT
 sentence-transformers>=3.0.1
 scikit-learn>=1.5,<2.0
 curl_cffi>=0.15,<1.0
-optimum
+optimum[onnxruntime]
 requests>=2.34
 structlog
 opentelemetry-api
