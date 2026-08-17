@@ -5,9 +5,10 @@ from pathlib import Path
 import streamlit as st
 
 _CSS_PATH = Path(__file__).parent.parent / "static" / "style.css"
-_LOGO_PATH = Path(__file__).parent.parent.parent / "custodocelogo3.png"
-_LOGO_BRANCO_PATH = Path(__file__).parent.parent.parent / "custodocelogobranco.png"
-_LOGO_SIDEBAR_PATH = Path(__file__).parent.parent.parent / "custodocelogobranco_sidebar.png"
+_ASSETS_DIR = Path(__file__).parent.parent / "assets"
+_LOGO_PATH = _ASSETS_DIR / "custodocelogobranco.webp"
+_LOGO_BRANCO_PATH = _ASSETS_DIR / "custodocelogobranco.webp"
+_LOGO_SIDEBAR_PATH = _ASSETS_DIR / "custodocelogobranco_sidebar.webp"
 
 
 @st.cache_data(ttl=3600)
