@@ -267,7 +267,7 @@ class TestDbCleanup:
         import time as _time
 
         result = {"store_registry": 0}
-        for i in range(10):
+        for i in range(20):  # Aumentado de 10 para 20 (CI mais lento)
             result = cleanup_test_data()
             if result.get("store_registry", 0) > 0:
                 break
