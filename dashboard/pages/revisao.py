@@ -8,9 +8,11 @@ from dashboard.components.ui import inject_css
 from services.config_db import add_alias_to_ingredient
 from services.dashboard_queries import (
     approve_review_item_cached,
+    approve_review_queue_bulk_cached,
     get_all_ingredients,
     get_review_queue_cached,
     reject_review_item_cached,
+    reject_review_queue_bulk_cached,
 )
 
 
@@ -57,16 +59,53 @@ def render_revisao():
         st.info("Nenhum item corresponde aos filtros.")
         return
 
-    st.markdown(f"**Exibindo {len(filtered)} de {len(queue)} itens**")
-
-    # Ingredientes para seleção
+    # Ingredientes para seleção (necessário antes das ações em lote)
     ingredients = get_all_ingredients(include_inactive=True)
     ing_options = {i["canonical_name"]: i["id"] for i in ingredients}
+
+    # T3.1/T3.2: bulk actions (aprovar/rejeitar em lote)
+    st.markdown("**Ações em Lote**")
+    col_bulk1, col_bulk2, col_bulk3 = st.columns(3)
+    with col_bulk1:
+        st.checkbox("Selecionar todos itens filtrados", key="bulk_select_all")
+    with col_bulk2:
+        bulk_ing = st.selectbox(
+            "Ingrediente p/ aprovação em lote:",
+            ["Selecione..."] + list(ing_options.keys()),
+            key="bulk_ingredient",
+        )
+    with col_bulk3:
+        if st.button("✅ Aprovar Selecionados", type="primary", key="bulk_approve"):
+            if bulk_ing == "Selecione...":
+                st.error("Selecione um ingrediente")
+            else:
+                selected_ids = [f["id"] for f in filtered if f.get("selected")]
+                if not selected_ids:
+                    st.warning("Nenhum item selecionado")
+                else:
+                    count = approve_review_queue_bulk_cached(selected_ids, ing_options[bulk_ing])
+                    st.success(f"✅ {count} itens aprovados!")
+                    st.rerun()
+        if st.button("❌ Rejeitar Selecionados", type="secondary", key="bulk_reject"):
+            selected_ids = [f["id"] for f in filtered if f.get("selected")]
+            if not selected_ids:
+                st.warning("Nenhum item selecionado")
+            else:
+                count = reject_review_queue_bulk_cached(selected_ids)
+                st.success(f"❌ {count} itens rejeitados!")
+                st.rerun()
+
+    st.markdown(f"**Exibindo {len(filtered)} de {len(queue)} itens**")
 
     # Exibir itens
     for _idx, item in enumerate(filtered):
         with st.container():
             st.markdown("---")
+
+            # Checkbox para seleção em lote
+            item["selected"] = st.checkbox(
+                "Selecionar", key=f"sel_{item['id']}", value=False
+            )
 
             # Layout 2 colunas: imagem + dados
             col_img, col_data = st.columns([1, 3])

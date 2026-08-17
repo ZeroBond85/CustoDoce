@@ -1,11 +1,15 @@
 # `dashboard_queries` — API
 
-> Última atualização: 2026-08-16 03:49 UTC
+> Última atualização: 2026-08-17 16:20 UTC
 > Gerado por AST parsing dos serviços em `services/dashboard_queries.py`.
 
-## Funções Públicas (50)
+## Funções Públicas (53)
 
 ### approve_review_item_cached(item_id: str, ingredient_id: str, brand_override: str)
+
+### approve_review_queue_bulk_cached(item_ids: list[str], ingredient_id: str, brand_override: str)
+
+T3.1: aprova múltiplos itens da review_queue em lote (mesmo ingrediente).
 
 ### approve_store_registry_cached(entry_id: str)
 
@@ -153,6 +157,10 @@ Merge a registry entry into an existing store and populate store_units.
 
 ### reject_review_item_cached(item_id: str)
 
+### reject_review_queue_bulk_cached(item_ids: list[str])
+
+T3.1: rejeita múltiplos itens da review_queue em lote.
+
 ### reject_store_registry_bulk_by_prefix_cached(prefix: str)
 
 Reject all pending store_registry entries whose name starts with a prefix
@@ -162,4 +170,10 @@ Processa em lotes de 1000 para respeitar o limite do Supabase.
 ### reject_store_registry_cached(entry_id: str)
 
 Reject a store registry entry.
+
+### reject_store_registry_non_food_bulk_cached()
+
+T2.4: rejeita em lote pendentes cujo nome é varejo não-alimentar ou
+título de folheto agregador. Usa o mesmo filtro do collector
+(store_registry._is_food_store_name) para garantir paridade de regra.
 

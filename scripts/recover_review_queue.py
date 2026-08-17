@@ -31,13 +31,14 @@ client = get_service_client()
 REVIEW_THRESHOLD = 0.80
 
 
-def load_pending() -> list[dict]:
+def load_pending(client: object | None = None) -> list[dict]:
     """Carrega todos os itens pending da review_queue (com retry)."""
+    c = client or globals()["client"]
     rows: list[dict] = []
     page = 0
     while True:
         r = (
-            client.table("review_queue")
+            c.table("review_queue")
             .select("*")
             .eq("status", "pending")
             .range(page * 500, page * 500 + 499)
@@ -53,12 +54,65 @@ def load_pending() -> list[dict]:
     return rows
 
 
+def archive_below_threshold(client: object | None = None, threshold: float = 0.70) -> int:
+    """T1.3 — Arquiva (status='rejected') pendentes com confidence < threshold.
+
+    Lote reversível (só flip de status) para limpar o backlog legado que nunca
+    seria recuperado. Itens no gray-zone (>= threshold) são preservados.
+    """
+    c = client or globals()["client"]
+    r = (
+        c.table("review_queue")
+        .update({"status": "rejected"})
+        .eq("status", "pending")
+        .lt("confidence", threshold)
+        .execute()
+    )
+    return len(r.data or [])
+
+
+def reject_false_positives(
+    client: object | None = None,
+    ingredients: list[dict] | None = None,
+    threshold: float = 60.0,
+) -> int:
+    """T1.4 — Rejeita pendentes que NÃO casam com nenhum ingrediente ativo.
+
+    Itens cujo re-match com o matcher novo (com excludes do T1.5) não encontra
+    candidato eram falsos-positivos do matcher antigo — rejeitar em lote.
+    """
+    c = client or globals()["client"]
+    ingredients = ingredients or get_active_ingredients()
+    pending = load_pending(c)
+    rejected = 0
+    for item in pending:
+        product = item.get("raw_product") or ""
+        if not product:
+            continue
+        ing, score, _ = match_ingredient(product, ingredients, threshold=threshold)
+        if not ing or score < threshold:
+            c.table("review_queue").update({"status": "rejected"}).eq("id", item["id"]).execute()
+            rejected += 1
+    return rejected
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true", default=True)
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--delete-legacy", action="store_true")
     parser.add_argument("--reject-stores", action="store_true")
+    parser.add_argument(
+        "--archive-below",
+        type=float,
+        default=None,
+        help="T1.3: arquiva (rejected) pendentes com confidence abaixo deste valor",
+    )
+    parser.add_argument(
+        "--reject-false-positives",
+        action="store_true",
+        help="T1.4: rejeita pendentes que não casam com nenhum ingrediente ativo",
+    )
     args = parser.parse_args()
 
     ingredients = get_active_ingredients()
@@ -75,7 +129,7 @@ def main() -> None:
         product = item.get("raw_product") or ""
         if not product:
             continue
-        ing, score, mtype = match_ingredient(product, ingredients)
+        ing, score, mtype = match_ingredient(product, ingredients, threshold=60.0)
         if not ing or score < 60.0:
             continue
         combined = score / 100.0
@@ -127,6 +181,27 @@ def main() -> None:
         for c in recover:
             client.table("review_queue").update({"status": "resolved"}).eq("id", c["id"]).execute()
         print(f"Marcados resolved: {len(recover)}")
+
+    # ---- Passo 1.5: archive-below + reject-false-positives (T1.3/T1.4) ----
+    if args.archive_below is not None:
+        if args.execute:
+            count = archive_below_threshold(client, threshold=args.archive_below)
+            print(f"\n[T1.3 archive-below {args.archive_below}] arquivados (rejected): {count}")
+        else:
+            print(
+                f"\n[T1.3 archive-below {args.archive_below}] dry-run: use --execute "
+                "para arquivar pendentes abaixo do threshold"
+            )
+
+    if args.reject_false_positives:
+        if args.execute:
+            count = reject_false_positives(client, ingredients)
+            print(f"\n[T1.4 reject-false-positives] rejeitados: {count}")
+        else:
+            print(
+                "\n[T1.4 reject-false-positives] dry-run: use --execute "
+                "para rejeitar pendentes sem match"
+            )
 
     # ---- Passo 2: cleanup / reject ----
     if args.delete_legacy:

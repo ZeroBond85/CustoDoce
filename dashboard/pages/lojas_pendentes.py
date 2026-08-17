@@ -13,8 +13,16 @@ from services.dashboard_queries import (
     merge_store_registry_cached,
     reject_store_registry_bulk_by_prefix_cached,
     reject_store_registry_cached,
+    reject_store_registry_non_food_bulk_cached,
 )
 from services.dashboard_queries import get_active_stores
+
+
+def _is_pending_food_store(name: str) -> bool:
+    """Reusa o filtro do collector para classificar loja food vs não-food."""
+    from services.store_registry import _is_food_store_name
+
+    return _is_food_store_name(name)
 
 
 def render_lojas_pendentes():
@@ -49,6 +57,24 @@ def render_lojas_pendentes():
             rejected += reject_store_registry_bulk_by_prefix_cached("OCR Test")
             if rejected:
                 st.success(f"✅ {rejected} registros de teste rejeitados!")
+                st.rerun()
+            else:
+                st.error("Erro ao rejeitar lote")
+
+    # T2.4: rejeitar varejo não-alimentar / títulos de folheto em lote
+    non_food_count = sum(
+        1 for s in pending if not _is_pending_food_store(s.get("name", ""))
+    )
+    if non_food_count:
+        st.warning(
+            f"⚠️ **{non_food_count}** registros são varejo não-alimentar "
+            "(Havan, Cem, Quero-Quero, TEMU, Decathlon...) ou títulos de folheto "
+            "('Catálogo ... em ...')."
+        )
+        if st.button("🗑️ Rejeitar lote não-alimentar", type="secondary"):
+            rejected = reject_store_registry_non_food_bulk_cached()
+            if rejected:
+                st.success(f"✅ {rejected} registros não-alimentares rejeitados!")
                 st.rerun()
             else:
                 st.error("Erro ao rejeitar lote")

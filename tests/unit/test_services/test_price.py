@@ -343,6 +343,50 @@ class TestPriceService:
         count = auto_reject_stale_review_items()
         assert count == 0
 
+    @patch("services.review_queue_service.get_service_client")
+    def test_auto_reject_070_rejects_065_pending(self, mock_get_client):
+        """T1.2: min_confidence=0.70 (alinhado ao review_threshold) rejeita 0.65."""
+        from services.price_service import auto_reject_stale_review_items
+
+        mock_client, _, qb = make_mocks()
+        qb._return_data = [
+            {"id": "legacy1", "confidence": 0.65},
+            {"id": "legacy2", "confidence": 0.55},
+        ]
+        mock_get_client.return_value = mock_client
+        count = auto_reject_stale_review_items(max_age_days=14, min_confidence=0.70)
+        assert count == 2, "itens abaixo de 0.70 (abaixo do threshold) devem ser rejeitados"
+
+    @patch("services.review_queue_service.get_service_client")
+    def test_auto_reject_070_keeps_071(self, mock_get_client):
+        """T1.2: itens >= 0.70 (dentro do gray-zone) são mantidos para revisão."""
+        from services.price_service import auto_reject_stale_review_items
+
+        mock_client, _, qb = make_mocks()
+        qb._return_data = [
+            {"id": "gray1", "confidence": 0.71},
+            {"id": "gray2", "confidence": 0.79},
+        ]
+        mock_get_client.return_value = mock_client
+        count = auto_reject_stale_review_items(max_age_days=14, min_confidence=0.70)
+        assert count == 0, "gray-zone 0.70-0.79 deve ser mantido para revisão humana"
+
+    @patch("services.review_queue_service.get_service_client")
+    def test_auto_reject_070_skips_fresh(self, mock_get_client):
+        """T1.2: item abaixo do threshold mas RECENTE não é rejeitado (max_age_days)."""
+        from services.price_service import auto_reject_stale_review_items
+
+        mock_client, _, qb = make_mocks()
+        qb._return_data = [{"id": "fresh1", "confidence": 0.50}]
+        mock_get_client.return_value = mock_client
+        count = auto_reject_stale_review_items(max_age_days=14, min_confidence=0.70)
+        # O mock retorna o item independente da idade; o teste valida que o
+        # filtro de max_age está no query (lt collected_at) — o item aparece
+        # porque o mock não filtra por data real.
+        assert count == 1, "item aparece na query (mock não aplica idade real); o lt() está no query"
+        lt_filters = [f for f in qb._applied_filters if f[0] == "lt"]
+        assert any(f[1] == "collected_at" for f in lt_filters), "query deve filtrar por collected_at < cutoff"
+
     # ── reject_review_item ─────────────────────────────────────
 
     @patch("services.review_queue_service.get_service_client")

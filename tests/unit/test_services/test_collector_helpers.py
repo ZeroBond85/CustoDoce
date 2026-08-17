@@ -28,6 +28,30 @@ def test_get_ingredient_keywords_non_empty():
     assert len(kws) > 0
 
 
+def test_get_ingredient_keywords_content_cache_not_id():
+    """RPR: o cache de keywords não pode ser chaveado por id(lista).
+
+    id() é reutilizável pelo Python após GC — duas listas distintas podem
+    compartilhar o mesmo id e retornar keywords da coleta errada, descartando
+    matches silenciosamente. O cache deve ser chaveado pelo CONTEÚDO.
+    """
+    ing_a = {"canonical_name": "Leite Condensado", "aliases": [], "search_terms": ["leite condensado"],
+             "exclude_terms": [], "brands": []}
+    ing_b = {"canonical_name": "Granulado Ao Leite", "aliases": [], "search_terms": ["granulado ao leite"],
+             "exclude_terms": [], "brands": []}
+
+    kws_a = collector._get_ingredient_keywords([ing_a])
+    assert "CONDENSADO" in kws_a and "GRANULADO" not in kws_a
+
+    # Lista diferente (mesmo tamanho) deve recalcular keywords
+    kws_b = collector._get_ingredient_keywords([ing_b])
+    assert "GRANULADO" in kws_b and "CONDENSADO" not in kws_b
+
+    # Mesmo conteúdo retorna o cache (sem recalcular)
+    kws_a2 = collector._get_ingredient_keywords([ing_a])
+    assert kws_a2 == kws_a
+
+
 def test_build_product_entry_normalizes():
     store = MOCK_STORES[0]
     ing = MOCK_INGREDIENTS[0]
@@ -319,3 +343,121 @@ def test_collect_tier1_api_flyers_routes_products_as_prices():
 
     assert len(matched) == 2, "todos os produtos extraídos devem passar por process_price_match"
     assert len(result) == 2, "produtos sem image_url NÃO devem ser descartados — viram preços"
+
+
+class _FakeMatcher:
+    """Fake semantic matcher que retorna valores controlados por teste."""
+
+    def __init__(self, semantic_value: float = 0.0):
+        self._semantic = semantic_value
+
+    def get_similarity(self, product_text: str, ingredient: dict) -> float:
+        return self._semantic
+
+    def combined_score(self, rf_score: float, semantic_score: float) -> float:
+        return 0.6 * (rf_score / 100.0) + 0.4 * semantic_score
+
+
+def _gray_zone_ingredients() -> list[dict]:
+    """Ingredientes com candidato de chocolate (RF ~71 no gray-zone 60-79)."""
+    return [
+        {
+            "canonical_name": "Chocolate Meio Amargo em Barra",
+            "aliases": [],
+            "search_terms": ["chocolate meio amargo", "barra meio amargo"],
+            "exclude_terms": ["gotas"],
+            "brands": [],
+        },
+        {
+            "canonical_name": "Gotas de Chocolate Meio Amargo",
+            "aliases": [],
+            "search_terms": ["gotas chocolate meio amargo", "gotas meio amargo"],
+            "exclude_terms": [],
+            "brands": [],
+        },
+    ]
+
+
+def _fake_feature_true(key: str, **kw):
+    """get_feature mock: retorna True para features.ai.enabled e o default para demais."""
+    if key == "features.ai.enabled":
+        return True
+    return kw.get("default", True)
+
+
+def _fake_matcher(semantic_value: float) -> _FakeMatcher:
+    return _FakeMatcher(semantic_value=semantic_value)
+
+
+def test_process_price_match_gray_zone_semantic_persists():
+    """T1.1 RPR: RF 60-79 + semantic alto (combined >= 0.80) deve PERSISTIR.
+
+    Antes do fix, match_ingredient usava threshold=80 e retornava None para
+    gray-zone → o semantic (linha ~245 'if ingredient and score >= 60') nunca
+    rodava e o item caía na review_queue com confidence = RF puro.
+    """
+    store = MOCK_STORES[0]
+    captured = []
+    with patch.object(collector, "get_matcher", return_value=_fake_matcher(0.95)), \
+         patch("services.config.get_feature", side_effect=_fake_feature_true), \
+         patch.object(collector, "upsert_price", side_effect=captured.append):
+        entry = collector.process_price_match(
+            store, "Gotas de Chocolate Meio Amargo 1kg", 25.9, "1kg", _gray_zone_ingredients()
+        )
+    assert entry is not None, "combined >= 0.80 deve persistir via upsert_price"
+    assert captured, "upsert_price deveria ser chamado"
+    assert captured[0]["ingredient_id"] == "Gotas de Chocolate Meio Amargo"
+
+
+def test_process_price_match_gray_zone_fp_goes_review():
+    """T1.1: RF 60-79 + semantic 0 (combined < 0.80) deve ir para review_queue.
+
+    'Chocolate Seleção Amargo 52%' casa com Barra (RF 79 no gray-zone), mas
+    semantic=0 → combined = 0.793 → review_queue (não upsert).
+    """
+    store = MOCK_STORES[0]
+    with patch.object(collector, "get_matcher", return_value=_fake_matcher(0.0)), \
+         patch("services.config.get_feature", side_effect=_fake_feature_true), \
+         patch.object(collector, "upsert_price") as mock_up, \
+         patch.object(collector, "insert_review_item") as mock_rev, \
+         patch.object(collector, "rank_ingredients",
+                      return_value=[(_gray_zone_ingredients()[0], 79.3, "proximo_nome", "chocolate meio amargo")]):
+        entry = collector.process_price_match(
+            store, "Chocolate Seleção Amargo 52% Cacau - 1,01 kg", 42.9, "1.01kg", _gray_zone_ingredients()
+        )
+    assert entry is None, "combined < 0.80 não deve persistir"
+    mock_up.assert_not_called()
+    mock_rev.assert_called_once(), "gray-zone abaixo de 0.80 vai para review_queue"
+
+
+def test_process_price_match_gray_zone_semantic_zero_still_works():
+    """T1.1: semantic=0 deve preservar o comportamento legado (combined = RF/100)."""
+    store = MOCK_STORES[0]
+    with patch.object(collector, "get_matcher", return_value=_fake_matcher(0.0)), \
+         patch("services.config.get_feature", side_effect=_fake_feature_true), \
+         patch.object(collector, "upsert_price") as mock_up, \
+         patch.object(collector, "insert_review_item") as mock_rev, \
+         patch.object(collector, "rank_ingredients",
+                      return_value=[(_gray_zone_ingredients()[0], 79.3, "proximo_nome", "chocolate meio amargo")]):
+        collector.process_price_match(
+            store, "Chocolate Seleção Amargo 52% Cacau - 1,01 kg", 42.9, "1.01kg", _gray_zone_ingredients()
+        )
+    mock_up.assert_not_called()
+    mock_rev.assert_called_once()
+
+
+def test_process_price_match_high_rf_unaffected():
+    """T1.1: RF >= 80 deve persistir direto (threshold=60 não muda o candidato)."""
+    store = MOCK_STORES[0]
+    captured = []
+    ing = {"canonical_name": "Leite Condensado", "aliases": [], "search_terms": ["leite condensado"],
+           "exclude_terms": [], "brands": []}
+    with patch.object(collector, "get_matcher", return_value=_FakeMatcher(semantic_value=0.0)), \
+         patch("services.config.get_feature", side_effect=lambda key, **kw: True), \
+         patch.object(collector, "upsert_price", side_effect=captured.append):
+        entry = collector.process_price_match(
+            store, "Leite Condensado Moça 395g", 10.5, "395g", [ing]
+        )
+    assert entry is not None
+    assert captured, "RF >= 80 continua persistindo direto"
+    assert captured[0]["ingredient_id"] == "Leite Condensado"

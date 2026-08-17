@@ -53,7 +53,7 @@ ingredients:
     aliases:
       - "Granulado Ao Leite Melken"
       - "Granulado Leite 500g"
-    exclude_terms: ["mistura", "preparado", "bolo", "biscoito", "cookie", "bolacha", "wafer", "tortinha", "brownie", "pão", "pudim", "mousse", "sorvete", "picole"]
+    exclude_terms: ["mistura", "preparado", "bolo", "biscoito", "cookie", "bolacha", "wafer", "tortinha", "brownie", "pão", "pudim", "mousse", "sorvete", "picole", "barra", "tablete", "derretimento"]
 
   - canonical: "Granulado Branco"
     category: "confeitos"
@@ -62,7 +62,7 @@ ingredients:
     aliases:
       - "Granulado Branco Melken"
       - "Granulado Branco 500g"
-    exclude_terms: ["mistura", "preparado", "bolo", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "pincel", "brinquedo", "festa", "doces", "biscoito", "cookie", "bolacha", "wafer"]
+    exclude_terms: ["mistura", "preparado", "bolo", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "pincel", "brinquedo", "festa", "doces", "biscoito", "cookie", "bolacha", "wafer", "barra", "tablete", "derretimento"]
 
   - canonical: "Granulado Meio Amargo"
     category: "confeitos"
@@ -71,7 +71,7 @@ ingredients:
     aliases:
       - "Granulado Meio Amargo Melken"
       - "Granulado Dark 500g"
-    exclude_terms: ["mistura", "preparado", "bolo", "biscoito", "cookie", "bolacha", "wafer", "tortinha", "brownie", "pão", "pudim", "mousse", "sorvete", "picole"]
+    exclude_terms: ["mistura", "preparado", "bolo", "biscoito", "cookie", "bolacha", "wafer", "tortinha", "brownie", "pão", "pudim", "mousse", "sorvete", "picole", "barra", "tablete", "derretimento"]
 
   - canonical: "Creme de Avelã"
     category: "pastas"
@@ -92,7 +92,7 @@ ingredients:
       - "Granulado Colorido Coloretti"
       - "Granulado Colorido 500g"
       - "Granulado Crocante Mil Cores"
-    exclude_terms: ["mistura", "preparado", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "pincel", "brinquedo", "doces", "saco", "biscoito", "cookie", "bolacha", "wafer", "tortinha", "brownie", "pão", "pudim", "mousse", "sorvete", "picole", "miçanga"]
+    exclude_terms: ["mistura", "preparado", "papel", "caixa", "embalagem", "forma", "folha", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "pincel", "brinquedo", "doces", "saco", "biscoito", "cookie", "bolacha", "wafer", "tortinha", "brownie", "pão", "pudim", "mousse", "sorvete", "picole", "miçanga", "barra", "tablete", "derretimento"]
 
   - canonical: "Coco Ralado Grosso sem Açúcar"
     category: "secos"
@@ -246,7 +246,7 @@ ingredients:
       - "Chocolate Meio Amargo 500g"
       - "Barra Chocolate Meio Amargo"
       - "CHOCOLATE MEIO AMARGO HARALD"
-    exclude_terms: ["achocolatado", "bebida", "preparado", "folha", "papel", "caixa", "embalagem", "forma", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "barra de frutas", "ovo de pascoa", "ovos de pascoa", "biscoito", "cookie", "bolacha", "wafer", "tortinha", "brownie", "pão", "pudim", "mousse", "sorvete", "picole"]
+    exclude_terms: ["achocolatado", "bebida", "preparado", "folha", "papel", "caixa", "embalagem", "forma", "chenille", "pelúcia", "lembrancinha", "decorativo", "artesanato", "barra de frutas", "ovo de pascoa", "ovos de pascoa", "biscoito", "cookie", "bolacha", "wafer", "tortinha", "brownie", "pão", "pudim", "mousse", "sorvete", "picole", "gotas"]
 
   - canonical: "Fermento Químico em Pó"
     category: "farinhas"
@@ -307,4 +307,4 @@ ingredients:
       - "Chunks Chocolate 70%"
       - "Chunks Chocolate Meio Amargo"
       - "Pedaços de Chocolate para Cookies"
-    exclude_terms: ["gotas", "achocolatado", "bebida", "preparado", "em pó", "cobertura", "barra", "ao leite", "cremoso", "blister", "biscoito", "cookie", "bolacha", "wafer", "tortinha", "brownie", "pão", "pudim", "mousse", "sorvete", "picole"]
+    exclude_terms: ["gotas", "achocolatado", "bebida", "preparado", "em pó", "cobertura", "barra", "ao leite", "cremoso", "blister", "biscoito", "cookie", "bolacha", "wafer", "tortinha", "brownie", "pão", "pudim", "mousse", "sorvete", "picole", "tablete", "derretimento"]

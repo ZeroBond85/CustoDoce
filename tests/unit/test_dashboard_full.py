@@ -557,6 +557,14 @@ def test_tab_ingredientes_tester():
     assert "normalize_price" in content or "match_ingredient" in content or "test" in content.lower()
 
 
+def test_tab_lojas_pendentes_bulk_non_food():
+    """T2.4: página de lojas pendentes tem bulk-reject não-alimentar."""
+    with open("dashboard/pages/lojas_pendentes.py", encoding="utf-8") as f:
+        content = f.read()
+    assert "reject_store_registry_non_food_bulk_cached" in content
+    assert "Rejeitar lote não-alimentar" in content
+
+
 def test_normalizer_function():
     """Verifica que normalize_price existe e e callable"""
     from parsers.normalizer import normalize_price

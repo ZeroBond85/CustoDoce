@@ -178,16 +178,23 @@ def build_product_entry(
     }
 
 
-_keyword_cache: tuple[int, set] | None = None
+_keyword_cache: tuple[str, set] | None = None
 
 
 def _get_ingredient_keywords(ingredients: list[Ingredient]) -> set:
+    """Retorna o conjunto de keywords de busca dos ingredientes (com cache).
+
+    O cache é chaveado por uma assinatura CONTEÚDO-baseada (nomes canônicos +
+    search_terms), NÃO por id(lista). id() pode ser reutilizado pelo Python após
+    garbage collection — duas listas diferentes com o mesmo id retornariam
+    keywords de outra coleta, descartando matches silenciosamente.
+    """
     global _keyword_cache
-    ing_id = id(ingredients)
-    if _keyword_cache is not None and _keyword_cache[0] == ing_id:
+    signature = tuple(sorted((i["canonical_name"], tuple(sorted(i.get("search_terms", [])))) for i in ingredients))
+    if _keyword_cache is not None and _keyword_cache[0] == signature:
         return _keyword_cache[1]
     keywords = extract_all_keywords(ingredients)
-    _keyword_cache = (ing_id, keywords)
+    _keyword_cache = (signature, keywords)
     return keywords
 
 
@@ -207,7 +214,10 @@ def process_price_match(
     if not has_ingredient_keyword(product_text, keywords):
         return None
 
-    ingredient, score, match_type = match_ingredient(product_text, ingredients)
+    # threshold=60: para RF 60-79 o matcher devolve o melhor candidato (antes
+    # retornava None com default 80), permitindo o semantic matcher re-avaliar
+    # e combined score >= 0.80 persistir sem passar pela review_queue.
+    ingredient, score, match_type = match_ingredient(product_text, ingredients, threshold=60.0)
 
     def _persist(entry: PriceEntry) -> PriceEntry | None:
         """Persiste individualmente ou acumula para batch upsert (caller flushes)."""
@@ -245,7 +255,12 @@ def process_price_match(
         if ingredient and score >= 60.0:
             sm = get_matcher()
             semantic_score = sm.get_similarity(product_text, ingredient)
-            combined = sm.combined_score(score, semantic_score)
+            # Se o semantic matcher está indisponível (modelo OFF ou retornou 0),
+            # cai para RF puro — preserva o comportamento legado de mandar o
+            # gray-zone para a review_queue (não descartar silenciosamente).
+            combined = (
+                sm.combined_score(score, semantic_score) if semantic_score > 0.0 else score / 100.0
+            )
         elif ingredient:
             combined = score / 100.0
 
