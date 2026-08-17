@@ -1,5 +1,7 @@
 # CI Known Issues — Incidente 2026-08-17 (RESOLVIDO)
 
+> Última atualização: 2026-08-17 04:30 UTC
+
 > **Status: RESOLVIDO.** Este documento registra o incidente de CI e as causas
 > raiz para evitar recorrência. Não é mais uma lista de "flakiness aceitável".
 
