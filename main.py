@@ -238,7 +238,7 @@ def _finalize(all_products: list[dict], ingredients: list, args: Namespace) -> N
             logger.warning("cleanup_non_food_flyers_error", error=str(e))
 
         try:
-            result = price_service.auto_reject_stale_review_items(max_age_days=14, min_confidence=0.3)
+            result = price_service.auto_reject_stale_review_items(max_age_days=14, min_confidence=0.70)
             logger.info("cleanup_review_queue_executed", rejected_count=result)
         except Exception as e:
             logger.warning("cleanup_review_queue_error", error=str(e))

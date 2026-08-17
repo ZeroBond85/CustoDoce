@@ -1,0 +1,2702 @@
+[
+ {
+  "raw_product": "Mandioca Salsa Bandeja 500g",
+  "store_name": "Max Atacadista SP",
+  "stored_confidence": 0.63,
+  "match_ingredient": null,
+  "match_score": 47.8,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "COBER BRILL GELÉIA BRILHO CHOCOLATE 4Kg",
+  "store_name": "Dona Dani Ingredientes",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Select Laranja INTEGRAL",
+  "store_name": "Tenda Atacado",
+  "stored_confidence": 0.667,
+  "match_ingredient": null,
+  "match_score": 55.6,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "CMC 50g Mix  Confeitaria",
+  "store_name": "Rizzo Confeitaria",
+  "stored_confidence": 0.636,
+  "match_ingredient": null,
+  "match_score": 47.7,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Biscoito Cookies Natural Life Gotas Chocolate 180g",
+  "store_name": "Rede Krill",
+  "stored_confidence": 0.686,
+  "match_ingredient": null,
+  "match_score": 31.5,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Leite Uht Piracanjuba Integral Com Tampa 1l",
+  "store_name": "Rede Krill",
+  "stored_confidence": 0.714,
+  "match_ingredient": "Leite em Pó Integral",
+  "match_score": 75.5,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Chocolate em Pó 100% Cacau Alcalino Melken - 500g - Harald",
+  "store_name": "Chefon",
+  "stored_confidence": 0.772,
+  "match_ingredient": "Chocolate Nobre Blend",
+  "match_score": 77.2,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Farinha Milho Kisabor Amarela 500g",
+  "store_name": "Rede Krill",
+  "stored_confidence": 0.56,
+  "match_ingredient": null,
+  "match_score": 43.5,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Alho 100g",
+  "store_name": "Zaffari",
+  "stored_confidence": 0.615,
+  "match_ingredient": null,
+  "match_score": 51.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "CAKE CHOCOLATE (MUFFINS, CUP-CAKES E CAKES DIVERSOS) 2kg",
+  "store_name": "Dona Dani Ingredientes",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "PAO DE LÓ BRANCO 2kg",
+  "store_name": "Dona Dani Ingredientes",
+  "stored_confidence": 0.667,
+  "match_ingredient": null,
+  "match_score": 58.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Cápsula De Café 3 Corações C/10 Chocolate",
+  "store_name": "Spani Atacadista",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Tomate Salada Único 1Kg",
+  "store_name": "Carrefour Mercado",
+  "stored_confidence": 0.649,
+  "match_ingredient": null,
+  "match_score": 54.1,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "CARTÃO ROLDÃO PAY CHOCOLATE BIS LACTA BOMBOM AMOR AO LEITE OU BRANCO 302,4G CARI",
+  "store_name": "Roldão Atacadista",
+  "stored_confidence": 0.73,
+  "match_ingredient": "Gotas de Chocolate Branco",
+  "match_score": 77.2,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Leite Uht Jussara Integral Com Tampa 1l",
+  "store_name": "Rede Krill",
+  "stored_confidence": 0.714,
+  "match_ingredient": "Leite em Pó Integral",
+  "match_score": 75.5,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "chocolate sUrsW APP ROLDÃO MAIS chocolate",
+  "store_name": "Roldão Atacadista",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "VeganPro (550g) - Nutrify Proteína do Arroz / Vegetal Nutrify Fondue de Chocolate com Morango",
+  "store_name": "Ingredientes Santa Vita",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Uva-Branca Sem Semente Bandeja 500g",
+  "store_name": "Assaí Atacadista",
+  "stored_confidence": 0.557,
+  "match_ingredient": null,
+  "match_score": 44.6,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Leite integral Italac c/ tampa TP 1L",
+  "store_name": "Giga Atacadista",
+  "stored_confidence": 0.714,
+  "match_ingredient": "Leite em Pó Integral",
+  "match_score": 75.5,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Chocolate Power 80 Amargo 80% - 2,5Kg - Callebaut",
+  "store_name": "Chefon",
+  "stored_confidence": 0.793,
+  "match_ingredient": "Chocolate Meio Amargo em Barra",
+  "match_score": 79.3,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Fermento Fresco Fleishmann 4x15g",
+  "store_name": "Spani Atacadista",
+  "stored_confidence": 0.674,
+  "match_ingredient": "Fermento Químico em Pó",
+  "match_score": 73.7,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Desmoldante untafacil manteiga 180ml",
+  "store_name": "Chocoexpress",
+  "stored_confidence": 0.7,
+  "match_ingredient": null,
+  "match_score": 32.8,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Confeito Marrom de Chocolate Dr. Oetker Miçanga DeCoração 80g",
+  "store_name": "Carrefour Mercado",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Confeito de Amendoim Cobertura Chocolate ao Leite Bib's Pacote 40g",
+  "store_name": "Carrefour Mercado",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate Meio Amargo em Barra",
+  "match_score": 65.6,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Margarina Doriana 500g Sem Sal",
+  "store_name": "Spani Atacadista",
+  "stored_confidence": 0.567,
+  "match_ingredient": null,
+  "match_score": 47.7,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Repolho Branco La Vita Higienizado 250 g",
+  "store_name": "Carrefour Mercado",
+  "stored_confidence": 0.559,
+  "match_ingredient": null,
+  "match_score": 58.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Chocolate Garoto Vários sabores Unidade com 80g",
+  "store_name": "Atacadão",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Queijo Parmesão Ralado Tradicional Teixeira Sachê 40g",
+  "store_name": "Tenda Atacado",
+  "stored_confidence": 0.706,
+  "match_ingredient": "Coco Ralado Grosso sem Açúcar",
+  "match_score": 61.8,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "ROSA BRANCA - ROSA CENTIFOLIA L.",
+  "store_name": "Ingredientes Santa Vita",
+  "stored_confidence": 0.571,
+  "match_ingredient": null,
+  "match_score": 42.9,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Biscoito Cookie Framboesa com Gotas e Cobertura Chocolate Branco Fini Tubes Pinta Língua Bauducco Pacote 96g",
+  "store_name": "Carrefour Mercado",
+  "stored_confidence": 0.686,
+  "match_ingredient": null,
+  "match_score": 55.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Leite Longa Vida Italac 1l Integral",
+  "store_name": "Spani Atacadista",
+  "stored_confidence": 0.714,
+  "match_ingredient": "Leite em Pó Integral",
+  "match_score": 75.5,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "CREME DENTAL COLGATE LUMINOUS WHITE CARVÃO",
+  "store_name": "Roldão Atacadista",
+  "stored_confidence": 0.625,
+  "match_ingredient": null,
+  "match_score": 54.7,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Recheio Chocowaffer - Creme de Cacau ao Leite com Pedaços de Waffer 4,0 kg",
+  "store_name": "Dona Dani Ingredientes",
+  "stored_confidence": 0.66,
+  "match_ingredient": "Creme de Avelã",
+  "match_score": 69.8,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Sabão em barra Ypê",
+  "store_name": "Extra Folheteria",
+  "stored_confidence": 0.667,
+  "match_ingredient": null,
+  "match_score": 56.7,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Fermento Fresco Itaiquara 4x15g",
+  "store_name": "Spani Atacadista",
+  "stored_confidence": 0.674,
+  "match_ingredient": "Fermento Químico em Pó",
+  "match_score": 73.7,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "LEITE UHT INTEGRAL IL Leite longa vida integral Shefa 1L COM CLUBE GIGA",
+  "store_name": "Giga Atacadista",
+  "stored_confidence": 0.714,
+  "match_ingredient": "Leite em Pó Integral",
+  "match_score": 75.5,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "RECHEIO PRONTO SABOR CHOCOLATE TRUFADO 4Kg",
+  "store_name": "Dona Dani Ingredientes",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "LINGUIÇA SUÍNA CONGELADA NOBRE 5KG",
+  "store_name": "Roldão Atacadista",
+  "stored_confidence": 0.552,
+  "match_ingredient": null,
+  "match_score": 54.7,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Corante Soft Gel Branco Mago 15g",
+  "store_name": "Chocoexpress",
+  "stored_confidence": 0.689,
+  "match_ingredient": null,
+  "match_score": 58.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Express 44x44cm chuva alegria para ovos 500g a 750g",
+  "store_name": "Chocoexpress",
+  "stored_confidence": 0.644,
+  "match_ingredient": null,
+  "match_score": 43.8,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Confeito de Chocolate Branco Granulé 400g  - Melken",
+  "store_name": "Chefon",
+  "stored_confidence": 0.796,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Top Confeité Sabor Chocolate Branco - Verde e Amarelo - Copa do Mundo - Top - 400g  - 1 unidade - Harald - Riz",
+  "store_name": "Rizzo Confeitaria",
+  "stored_confidence": 0.73,
+  "match_ingredient": "Chocolate Nobre Blend",
+  "match_score": 77.2,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Creme de Avelã com Pedaços Flormel 150g",
+  "store_name": "Carrefour Mercado",
+  "stored_confidence": 0.63,
+  "match_ingredient": "Creme de Leite 20% Gordura",
+  "match_score": 66.7,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Carne Suína Acém Sem Osso KG",
+  "store_name": "Max Atacadista SP",
+  "stored_confidence": 0.618,
+  "match_ingredient": null,
+  "match_score": 49.5,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Decoracao De Mesa - Caça Aos Ovos - 20x28,5cm - 1 unidade - Rizzo",
+  "store_name": "Rizzo Confeitaria",
+  "stored_confidence": 0.64,
+  "match_ingredient": "Ovos",
+  "match_score": 77.5,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Biscoito Toddy Recheado 100g Chocolate",
+  "store_name": "Spani Atacadista",
+  "stored_confidence": 0.686,
+  "match_ingredient": null,
+  "match_score": 39.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "CARTÃO ROLDÃO PAY CHOCOLATE NEUGEBAUER CHOCOLATE SNICKERS STICKS STIKADINHO MORA",
+  "store_name": "Roldão Atacadista",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Bebida gaseificada H2OH! limoneto PET 500 ml R$ 4 Granulado sanitário para gatos Mr. Clean floral 4 kg",
+  "store_name": "Extra Folheteria",
+  "stored_confidence": 0.626,
+  "match_ingredient": "Granulado Meio Amargo",
+  "match_score": 68.5,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Recheio Chocowaffer - Creme de Cacau ao Leite com Pedaços de Waffer 1,050 kg",
+  "store_name": "Dona Dani Ingredientes",
+  "stored_confidence": 0.66,
+  "match_ingredient": "Creme de Avelã",
+  "match_score": 69.8,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Refrigerante Água de Coco Pepsí Tipos Pet Mais Coco TP 1L CADIA",
+  "store_name": "Max Atacadista SP",
+  "stored_confidence": 0.615,
+  "match_ingredient": null,
+  "match_score": 53.8,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Chocolate M&ms Brownie 35g",
+  "store_name": "Rede Krill",
+  "stored_confidence": 0.686,
+  "match_ingredient": null,
+  "match_score": 35.9,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Leite em Pó de Castanha do Brasil Sem Glúten Mahta 240g",
+  "store_name": "Casa Santa Luzia",
+  "stored_confidence": 0.63,
+  "match_ingredient": "Creme de Leite 20% Gordura",
+  "match_score": 66.7,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Cortador Confortline Branco - Leifheit",
+  "store_name": "Chefon",
+  "stored_confidence": 0.585,
+  "match_ingredient": null,
+  "match_score": 58.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Vidro 100g Pote 200g LIMITADA 'CADA Doce de Leite",
+  "store_name": "Max Atacadista SP",
+  "stored_confidence": 0.769,
+  "match_ingredient": "Creme de Leite 20% Gordura",
+  "match_score": 70.5,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Glacê Real (1kg) - Arcolor",
+  "store_name": "BarraDoce",
+  "stored_confidence": 0.651,
+  "match_ingredient": null,
+  "match_score": 54.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "UVA-VITÓRIA BANDEJA 500G",
+  "store_name": "Assaí Atacadista",
+  "stored_confidence": 0.585,
+  "match_ingredient": null,
+  "match_score": 50.0,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Chocolate Orgânico 70% Cacau Chokolah – 70g",
+  "store_name": "Casa Santa Luzia",
+  "stored_confidence": 0.71,
+  "match_ingredient": "Chocolate Chunks",
+  "match_score": 71.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Palito para Aromatizador - Rattan Creme - 24cm - 1 unidade - Rizzo",
+  "store_name": "Rizzo Confeitaria",
+  "stored_confidence": 0.625,
+  "match_ingredient": null,
+  "match_score": 54.7,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Docebeite Doce de Leite iLolay Pote 400g",
+  "store_name": "Max Atacadista SP",
+  "stored_confidence": 0.769,
+  "match_ingredient": "Leite em Pó Integral",
+  "match_score": 67.3,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Pipoca para Micro-Ondas Manteiga Yoki Pacote 100g",
+  "store_name": "Carrefour Mercado",
+  "stored_confidence": 0.657,
+  "match_ingredient": "Manteiga",
+  "match_score": 78.6,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Chocolate lo-lô Vários sabores Unidade com 75g",
+  "store_name": "Atacadão",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Doce Fios de Ovos Carmen 300g",
+  "store_name": "Casa Santa Luzia",
+  "stored_confidence": 0.667,
+  "match_ingredient": "Ovos",
+  "match_score": 79.2,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Isomalt (400g) - Gran Chef",
+  "store_name": "BarraDoce",
+  "stored_confidence": 0.571,
+  "match_ingredient": null,
+  "match_score": 40.5,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Aroma de Manteiga Arcólor 30ml",
+  "store_name": "Casa Santa Luzia",
+  "stored_confidence": 0.68,
+  "match_ingredient": "Manteiga",
+  "match_score": 80.0,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Topo de Bolo Color Glitter Cestinha de Ovos - Sonho Fino - Rizzo Confeitaria",
+  "store_name": "Rizzo Confeitaria",
+  "stored_confidence": 0.636,
+  "match_ingredient": "Ovos",
+  "match_score": 77.3,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Chocolate Nestlé Vários sabores Unidade com 80g",
+  "store_name": "Atacadão",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Leite Em Pó Italac Desnatado Instantâneo Sachê 200g",
+  "store_name": "Rede Krill",
+  "stored_confidence": 0.667,
+  "match_ingredient": "Creme de Leite 20% Gordura",
+  "match_score": 70.5,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Canjica Branca",
+  "store_name": "Ingredientes Santa Vita",
+  "stored_confidence": 0.6,
+  "match_ingredient": null,
+  "match_score": 48.8,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Corante Softgel 25Gr Rosa Cereja - Mix",
+  "store_name": "Chefon",
+  "stored_confidence": 0.571,
+  "match_ingredient": null,
+  "match_score": 42.9,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Chocolate Nescau Ball 75g",
+  "store_name": "Carrefour Mercado",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "LATE Maisena 400g sads",
+  "store_name": "Shibata",
+  "stored_confidence": 0.571,
+  "match_ingredient": null,
+  "match_score": 42.9,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Cookie Prestígio com Gotas de Chocolate Branco Nestlé 60g",
+  "store_name": "Casa Santa Luzia",
+  "stored_confidence": 0.686,
+  "match_ingredient": null,
+  "match_score": 55.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Express 49x49cm coelhinho para ovos 750g a 1kg",
+  "store_name": "Chocoexpress",
+  "stored_confidence": 0.65,
+  "match_ingredient": "Ovos",
+  "match_score": 78.1,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Leite Longa Vida Lider 1l Integral",
+  "store_name": "Spani Atacadista",
+  "stored_confidence": 0.714,
+  "match_ingredient": "Leite em Pó Integral",
+  "match_score": 75.5,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Farinha de Quinua (Quinoa)",
+  "store_name": "Ingredientes Santa Vita",
+  "stored_confidence": 0.667,
+  "match_ingredient": "Farinha de Trigo",
+  "match_score": 70.5,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Vinho 40% Governador DE DESCONTO Iogurte natural Nestlé 170 g De",
+  "store_name": "Extra Folheteria",
+  "stored_confidence": 0.556,
+  "match_ingredient": null,
+  "match_score": 46.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Farinha Mandioca Kisabor Biju 500g",
+  "store_name": "Rede Krill",
+  "stored_confidence": 0.56,
+  "match_ingredient": null,
+  "match_score": 42.4,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Creme chocomaltinho 4kg Doremus",
+  "store_name": "Chocoexpress",
+  "stored_confidence": 0.625,
+  "match_ingredient": null,
+  "match_score": 54.7,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Cápsula Café Nescafé Dolce Gusto Ao Leite 100g",
+  "store_name": "Rede Krill",
+  "stored_confidence": 0.615,
+  "match_ingredient": "Leite em Pó Integral",
+  "match_score": 67.3,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "GRANULADO MACIO 1,01kg DORI",
+  "store_name": "Cacau Center",
+  "stored_confidence": 0.626,
+  "match_ingredient": "Granulado Meio Amargo",
+  "match_score": 68.5,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Confeito de Chocolate Branco Granulé - 130g - Melken",
+  "store_name": "Chefon",
+  "stored_confidence": 0.796,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Chocolate 70% Cacau Puro 80 g ( vegano / sem lactose / sem glúten",
+  "store_name": "Ingredientes Santa Vita",
+  "stored_confidence": 0.71,
+  "match_ingredient": "Chocolate Chunks",
+  "match_score": 71.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Chocolate Kit Kat Nestlé Vários sabores Unidade com 41,5g",
+  "store_name": "Atacadão",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Leite Uht Aurora Integral Com Tampa 1l",
+  "store_name": "Rede Krill",
+  "stored_confidence": 0.714,
+  "match_ingredient": "Leite em Pó Integral",
+  "match_score": 75.5,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Farinha Mandioca Invicta Fina 500g",
+  "store_name": "Rede Krill",
+  "stored_confidence": 0.56,
+  "match_ingredient": null,
+  "match_score": 42.4,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Chocolate Blend Amargo 70% Cacau Ecuador + Peru - 2,5Kg - Republica Del Cacao",
+  "store_name": "Chefon",
+  "stored_confidence": 0.793,
+  "match_ingredient": "Chocolate Meio Amargo em Barra",
+  "match_score": 79.3,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Biscoito Cookie Chocolate com Gotas Cobertura Chocolate Branco Bauducco Maxi 96g",
+  "store_name": "Carrefour Mercado",
+  "stored_confidence": 0.686,
+  "match_ingredient": null,
+  "match_score": 55.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Chocolate Amargo 73% Cacau Amêndoas e Toffee Hershey's Special Dark 80g",
+  "store_name": "Carrefour Mercado",
+  "stored_confidence": 0.788,
+  "match_ingredient": "Chocolate Meio Amargo em Barra",
+  "match_score": 79.3,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Chocolate Amargo 73% Cacau Original Hershey's Special Dark 85g",
+  "store_name": "Carrefour Mercado",
+  "stored_confidence": 0.788,
+  "match_ingredient": "Chocolate Meio Amargo em Barra",
+  "match_score": 79.3,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Flocos de Arroz Top 500g Harald",
+  "store_name": "Chocoexpress",
+  "stored_confidence": 0.645,
+  "match_ingredient": null,
+  "match_score": 58.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Express 35x35cm liso preto para ovos 250g a 350g pct c/25",
+  "store_name": "Chocoexpress",
+  "stored_confidence": 0.636,
+  "match_ingredient": "Ovos",
+  "match_score": 77.3,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Farinha de Amêndoa - Extra fina",
+  "store_name": "Ingredientes Santa Vita",
+  "stored_confidence": 0.667,
+  "match_ingredient": "Farinha de Trigo",
+  "match_score": 70.5,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Morango Fresco Bandeja 250g",
+  "store_name": "Assaí Atacadista",
+  "stored_confidence": 0.636,
+  "match_ingredient": "Top Confete Morango",
+  "match_score": 68.1,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Cookies Integral Chocolate com Gotas 120g",
+  "store_name": "Casa Santa Luzia",
+  "stored_confidence": 0.686,
+  "match_ingredient": null,
+  "match_score": 55.6,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Óleo de coco Copra  Spray 200 ml",
+  "store_name": "Ingredientes Santa Vita",
+  "stored_confidence": 0.615,
+  "match_ingredient": null,
+  "match_score": 53.8,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Azeitona Verde com Caroço Select Vidro 500g",
+  "store_name": "Tenda Atacado",
+  "stored_confidence": 0.571,
+  "match_ingredient": null,
+  "match_score": 47.6,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "BATATA PALITO NOBRE CONGELADA 2KG",
+  "store_name": "Roldão Atacadista",
+  "stored_confidence": 0.576,
+  "match_ingredient": null,
+  "match_score": 54.7,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Farinha de Uva",
+  "store_name": "Ingredientes Santa Vita",
+  "stored_confidence": 0.722,
+  "match_ingredient": "Farinha de Trigo",
+  "match_score": 76.4,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Farinha Mandioca Kisabor Torrada 500g",
+  "store_name": "Rede Krill",
+  "stored_confidence": 0.56,
+  "match_ingredient": null,
+  "match_score": 41.2,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "CARTÃO ROLDÃO PAY CHOCOLATE LACTA",
+  "store_name": "Roldão Atacadista",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Queijo mussarela fatiado Ipanema 1kg",
+  "store_name": "Giga Atacadista",
+  "stored_confidence": 0.557,
+  "match_ingredient": null,
+  "match_score": 45.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Fermento Fresco Itaiquara 500g",
+  "store_name": "Spani Atacadista",
+  "stored_confidence": 0.674,
+  "match_ingredient": "Fermento Químico em Pó",
+  "match_score": 73.7,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Cobertura em Barra Ao leite Harald Confeiteiro - 1,010Kg - 1 unidade - Rizzo",
+  "store_name": "Rizzo Confeitaria",
+  "stored_confidence": 0.73,
+  "match_ingredient": "Leite em Pó Integral",
+  "match_score": 77.2,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Chocolate Orgânico Com Açúcar de Coco 70% Cacau Chokolah 80g",
+  "store_name": "Casa Santa Luzia",
+  "stored_confidence": 0.71,
+  "match_ingredient": "Chocolate Chunks",
+  "match_score": 71.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Oceani 500g cads",
+  "store_name": "X Supermercados",
+  "stored_confidence": 0.6,
+  "match_ingredient": null,
+  "match_score": 52.5,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Feijão Branco Especial",
+  "store_name": "Ingredientes Santa Vita",
+  "stored_confidence": 0.558,
+  "match_ingredient": null,
+  "match_score": 58.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Corante Softgel Amarelo Damasco 60g Mix",
+  "store_name": "Rizzo Confeitaria",
+  "stored_confidence": 0.575,
+  "match_ingredient": null,
+  "match_score": 43.2,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Glitter Para Decoração Azul Neon 5G - Sugar Art",
+  "store_name": "Doce Festa",
+  "stored_confidence": 0.667,
+  "match_ingredient": null,
+  "match_score": 58.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Biscoito Cookie Morango e Framboesa com Gotas e Cobertura Chocolate Branco Fini Dentaduras Bauducco 96g",
+  "store_name": "Carrefour Mercado",
+  "stored_confidence": 0.686,
+  "match_ingredient": null,
+  "match_score": 55.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "ERer Água de Cooo Kero Coco 1L 4DARTROX",
+  "store_name": "X Supermercados",
+  "stored_confidence": 0.615,
+  "match_ingredient": null,
+  "match_score": 53.8,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Farinha De Mandioca Crua Pacha 1kg",
+  "store_name": "Spani Atacadista",
+  "stored_confidence": 0.741,
+  "match_ingredient": null,
+  "match_score": 46.4,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Rosa Branca",
+  "store_name": "Tenda Atacado",
+  "stored_confidence": 0.706,
+  "match_ingredient": null,
+  "match_score": 57.4,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Chocolate Amargo Origens São Thomé 70% - 2,5kg - Callebaut",
+  "store_name": "Chefon",
+  "stored_confidence": 0.793,
+  "match_ingredient": "Chocolate Meio Amargo em Barra",
+  "match_score": 79.3,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "MORANGO FRESCO BANDEJA 250G",
+  "store_name": "Assaí Atacadista",
+  "stored_confidence": 0.636,
+  "match_ingredient": "Top Confete Morango",
+  "match_score": 68.1,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Melken Meio Amargo 1,010kg",
+  "store_name": "Chocoexpress",
+  "stored_confidence": 0.753,
+  "match_ingredient": "Granulado Meio Amargo",
+  "match_score": 78.5,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Batedor de Ovos de Silicone Vermelho Mundial/Hercules",
+  "store_name": "Rizzo Confeitaria",
+  "stored_confidence": 0.667,
+  "match_ingredient": "Ovos",
+  "match_score": 79.2,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Pasta Saborizante Concentrada Morango Silvestre (90g) - Blend",
+  "store_name": "BarraDoce",
+  "stored_confidence": 0.622,
+  "match_ingredient": "Top Confete Morango",
+  "match_score": 68.1,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Farinha Milho Kisabor Puro Milho 500g",
+  "store_name": "Rede Krill",
+  "stored_confidence": 0.56,
+  "match_ingredient": null,
+  "match_score": 42.9,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "400g, Doce de Leite Neugebauer mu-mu Mu Mu ou Italac Frimesa Pote 350g",
+  "store_name": "Max Atacadista SP",
+  "stored_confidence": 0.769,
+  "match_ingredient": "Leite em Pó Integral",
+  "match_score": 67.3,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Atum Burguesa Sardinha Ralado Hibrido Palmeira Tipos \"CADA OS PREÇOS NA MODALIDA",
+  "store_name": "Max Atacadista SP",
+  "stored_confidence": 0.706,
+  "match_ingredient": "Coco Ralado Grosso sem Açúcar",
+  "match_score": 61.8,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Leite iLolay Oorginal Pol 0g Caixa 510g Gelatina Royal",
+  "store_name": "Max Atacadista SP",
+  "stored_confidence": 0.769,
+  "match_ingredient": null,
+  "match_score": 46.1,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Carolna CABA Zero Nestlé Copo 160g APARTIRDE 3 UNDADES 'CADA",
+  "store_name": "Max Atacadista SP",
+  "stored_confidence": 0.556,
+  "match_ingredient": null,
+  "match_score": 46.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Palito para Aromatizador - Oval Creme - 24cm - 1 unidade - Rizzo",
+  "store_name": "Rizzo Confeitaria",
+  "stored_confidence": 0.625,
+  "match_ingredient": null,
+  "match_score": 54.7,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Amendoim Crocante Natural 200g - 1 unidade - Rizzo",
+  "store_name": "Rizzo Confeitaria",
+  "stored_confidence": 0.557,
+  "match_ingredient": null,
+  "match_score": 41.8,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Confeito Chocolate Micanga Dr Oetker – 80g",
+  "store_name": "Casa Santa Luzia",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Farinha de Arroz Integral",
+  "store_name": "Ingredientes Santa Vita",
+  "stored_confidence": 0.667,
+  "match_ingredient": null,
+  "match_score": 55.6,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Farinha de Coco Branco 100gr - Rizzo Confeitaria",
+  "store_name": "Rizzo Confeitaria",
+  "stored_confidence": 0.667,
+  "match_ingredient": null,
+  "match_score": 58.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Pão de Forma Visconti Pão de Forma Visconti Integral 400g Tradicional 400g",
+  "store_name": "Shibata",
+  "stored_confidence": 0.667,
+  "match_ingredient": null,
+  "match_score": 55.6,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "(Exceto Ninho/ Cabelo de Anja)",
+  "store_name": "Shibata",
+  "stored_confidence": 0.625,
+  "match_ingredient": null,
+  "match_score": 43.5,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Iogurte Chamyto 130g Com Cereal Chocolate",
+  "store_name": "Spani Atacadista",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Queijo Parmesão COMmOO RAENDA Ralado ou Fiapo Pão de Forma Select Tradicional Se",
+  "store_name": "Tenda Atacado",
+  "stored_confidence": 0.706,
+  "match_ingredient": "Coco Ralado Grosso sem Açúcar",
+  "match_score": 61.8,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Farinha de Arroz",
+  "store_name": "Ingredientes Santa Vita",
+  "stored_confidence": 0.704,
+  "match_ingredient": null,
+  "match_score": 51.1,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Rústica burguesa Delizza Vidro 910g Atum Burguesa Ralado Híbrido",
+  "store_name": "Max Atacadista SP",
+  "stored_confidence": 0.706,
+  "match_ingredient": "Coco Ralado Grosso sem Açúcar",
+  "match_score": 61.8,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Corante Softgel 25Gr Amarelo Damasco - Mix",
+  "store_name": "Chefon",
+  "stored_confidence": 0.575,
+  "match_ingredient": null,
+  "match_score": 43.2,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Farinha de coco sem glutem Copra 400 G",
+  "store_name": "Ingredientes Santa Vita",
+  "stored_confidence": 0.667,
+  "match_ingredient": "Coco Ralado Grosso sem Açúcar",
+  "match_score": 63.8,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Creme de Pistache Tacchio (250g) - Flakes Mec3",
+  "store_name": "BarraDoce",
+  "stored_confidence": 0.762,
+  "match_ingredient": "Creme de Avelã",
+  "match_score": 69.8,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Suporte Ovos Pequeno Alongado c/ 10un Bwb",
+  "store_name": "Chocoexpress",
+  "stored_confidence": 0.657,
+  "match_ingredient": "Ovos",
+  "match_score": 78.6,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Açúcar Azul Arcolor 500g",
+  "store_name": "Doce Festa",
+  "stored_confidence": 0.615,
+  "match_ingredient": null,
+  "match_score": 55.4,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "ARROZ BRANCO",
+  "store_name": "Zaffari",
+  "stored_confidence": 0.667,
+  "match_ingredient": "Açúcar Cristal / Refinado",
+  "match_score": 63.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Fatiador de Ovos  Tramontina",
+  "store_name": "Casa Santa Luzia",
+  "stored_confidence": 0.7,
+  "match_ingredient": null,
+  "match_score": 42.6,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Kit Caça aos Ovos com Plaquinha - 19x25cm - 1 unidade - Rizzo",
+  "store_name": "Rizzo Confeitaria",
+  "stored_confidence": 0.64,
+  "match_ingredient": "Ovos",
+  "match_score": 77.5,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Uva-Vitória (Bandeja 500g)",
+  "store_name": "Assaí Atacadista",
+  "stored_confidence": 0.585,
+  "match_ingredient": null,
+  "match_score": 50.0,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Express 44x44cm chuva alegria vermelho para ovos 500g a 750g",
+  "store_name": "Chocoexpress",
+  "stored_confidence": 0.64,
+  "match_ingredient": null,
+  "match_score": 41.2,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Creme tipo Chantilly Gran Finale 200ml",
+  "store_name": "Chocoexpress",
+  "stored_confidence": 0.625,
+  "match_ingredient": null,
+  "match_score": 54.7,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Cacau em Pó 100% Solúvel 500g - MAVALÉRIO",
+  "store_name": "Amendolate",
+  "stored_confidence": 0.769,
+  "match_ingredient": null,
+  "match_score": 49.2,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Corante Soft Gel Amarelo Gema 60G - Mix",
+  "store_name": "Chefon",
+  "stored_confidence": 0.62,
+  "match_ingredient": null,
+  "match_score": 46.5,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Leite iLolay mu-mu Mu Mu ou Italac Frimesa Pol 0g Pote 350g",
+  "store_name": "Max Atacadista SP",
+  "stored_confidence": 0.769,
+  "match_ingredient": "Leite em Pó Integral",
+  "match_score": 67.3,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Aroma Para Chocolate E Confeitaria Sabor Pão De Mel 30ml - Mix",
+  "store_name": "Chefon",
+  "stored_confidence": 0.77,
+  "match_ingredient": null,
+  "match_score": 39.6,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Amendoim Granulado Carrefour Classic 500g",
+  "store_name": "Carrefour Mercado",
+  "stored_confidence": 0.693,
+  "match_ingredient": "Granulado Branco",
+  "match_score": 73.3,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "MORANGO FRESCO",
+  "store_name": "Assaí Atacadista",
+  "stored_confidence": 0.69,
+  "match_ingredient": "Top Confete Morango",
+  "match_score": 68.1,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Creme de Pistache (300g) - Gastronomia Chiappetta",
+  "store_name": "BarraDoce",
+  "stored_confidence": 0.762,
+  "match_ingredient": "Creme de Avelã",
+  "match_score": 69.8,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Limão Siciliano Saco 500g",
+  "store_name": "Tenda Atacado",
+  "stored_confidence": 0.667,
+  "match_ingredient": null,
+  "match_score": 49.5,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Express 35x35cm chocolux fendi para ovos 250g a 350g",
+  "store_name": "Chocoexpress",
+  "stored_confidence": 0.644,
+  "match_ingredient": "Ovos",
+  "match_score": 77.8,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Chocolate Wafer Kinder Bueno 43g 2 Unidades",
+  "store_name": "Carrefour Mercado",
+  "stored_confidence": 0.686,
+  "match_ingredient": null,
+  "match_score": 33.1,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Aparelho descartável Bic Comfort com 2 unidades TODOS OS FIOS DENTAIS 50% DE DESCONTO NA 2a UNIDADE Creme dental Sorriso Tripla Limpeza Completa 70 g Kit antisséptico bucal Cepacol 500 ml + 250 ml",
+  "store_name": "Extra Folheteria",
+  "stored_confidence": 0.762,
+  "match_ingredient": "Creme de Avelã",
+  "match_score": 69.8,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "CARTÃO ROLDÃO PAY CHOCOLATE KINDER BUENO",
+  "store_name": "Roldão Atacadista",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Cookies Cantucci com Pedaços de Chocolate Laurieri - 200g",
+  "store_name": "Casa Santa Luzia",
+  "stored_confidence": 0.574,
+  "match_ingredient": null,
+  "match_score": 33.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Pão De Mel Panco 200g Coberto Chocolate",
+  "store_name": "Spani Atacadista",
+  "stored_confidence": 0.77,
+  "match_ingredient": null,
+  "match_score": 41.2,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Marshmallow em Pó (400g) - Mix",
+  "store_name": "BarraDoce",
+  "stored_confidence": 0.558,
+  "match_ingredient": null,
+  "match_score": 48.8,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Açúcar Impalpável 500g - Mix",
+  "store_name": "BarraDoce",
+  "stored_confidence": 0.6,
+  "match_ingredient": null,
+  "match_score": 55.0,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Açúcar Gelado 1kg - Mix",
+  "store_name": "BarraDoce",
+  "stored_confidence": 0.727,
+  "match_ingredient": "Açúcar Cristal / Refinado",
+  "match_score": 64.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "CARTÃO ROLDÃO PAY CHOCOLATE HERSHEY'S CHOCOLATE LACTA TIPOS TIPOS 82G",
+  "store_name": "Roldão Atacadista",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Pipoca para Micro-Ondas Manteiga Yoki Pacote 50g",
+  "store_name": "Carrefour Mercado",
+  "stored_confidence": 0.657,
+  "match_ingredient": "Manteiga",
+  "match_score": 78.6,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Açúcar Impalpável 1kg - Arcolor",
+  "store_name": "BarraDoce",
+  "stored_confidence": 0.667,
+  "match_ingredient": "Açúcar Mascavo",
+  "match_score": 61.1,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Corante Softgel 25G Branco - Fab!",
+  "store_name": "Chefon",
+  "stored_confidence": 0.621,
+  "match_ingredient": null,
+  "match_score": 58.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Leite longa vida Shefa 1L",
+  "store_name": "Giga Atacadista",
+  "stored_confidence": 0.769,
+  "match_ingredient": "Leite em Pó Integral",
+  "match_score": 67.3,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Chocolate em Pó 100% - Melken - 200g - 01 unidade - Harald -",
+  "store_name": "Rizzo Confeitaria",
+  "stored_confidence": 0.772,
+  "match_ingredient": "Chocolate Nobre Blend",
+  "match_score": 77.2,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "CocO COCO Água de Coco Coco Quadrado",
+  "store_name": "Tenda Atacado",
+  "stored_confidence": 0.629,
+  "match_ingredient": null,
+  "match_score": 53.8,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Express 44x44cm breeze para ovos 500g a 750g",
+  "store_name": "Chocoexpress",
+  "stored_confidence": 0.65,
+  "match_ingredient": "Ovos",
+  "match_score": 78.1,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Holandesa Italac Chocolate Chocolate TP0ml TP20ml",
+  "store_name": "Max Atacadista SP",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "BOMBOM SONHO DE VALSA 1kg",
+  "store_name": "Cacau Center",
+  "stored_confidence": 0.556,
+  "match_ingredient": null,
+  "match_score": 47.2,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Farinha De Milho Flocão 500g Dona Clara Premium",
+  "store_name": "Spani Atacadista",
+  "stored_confidence": 0.667,
+  "match_ingredient": null,
+  "match_score": 41.2,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Chocolate Kinder Bueno White 39g",
+  "store_name": "Rede Krill",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Saco Transparente Bliss 11x19,5cm Pacote com 100 Unidades - Cromus",
+  "store_name": "Amendolate",
+  "stored_confidence": 0.615,
+  "match_ingredient": null,
+  "match_score": 55.6,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Açúcar Branco Arcolor 80g",
+  "store_name": "Doce Festa",
+  "stored_confidence": 0.622,
+  "match_ingredient": null,
+  "match_score": 58.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Margarina Vigor 500g Com Sal",
+  "store_name": "Spani Atacadista",
+  "stored_confidence": 0.612,
+  "match_ingredient": null,
+  "match_score": 49.7,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Leite Uht Ninho Zero Lactose Integral 1l",
+  "store_name": "Rede Krill",
+  "stored_confidence": 0.622,
+  "match_ingredient": "Leite Condensado Integral",
+  "match_score": 65.8,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Alho Granulado",
+  "store_name": "Ingredientes Santa Vita",
+  "stored_confidence": 0.662,
+  "match_ingredient": "Granulado Colorido",
+  "match_score": 72.4,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Absorvente com COmo RENODA Abas Super Proteção Creme Dental Always Colgate Tripl",
+  "store_name": "Tenda Atacado",
+  "stored_confidence": 0.625,
+  "match_ingredient": null,
+  "match_score": 54.7,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Mistura para Bolo Italac Sabores CHOCOLATE Vvarelo Italac APARTRDE 6 UNDADES",
+  "store_name": "Max Atacadista SP",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "NESTA OFERTA, A UNIDADE SAI POR 70% DE DESCONTO NA 2a UNIDADE , ,90 39 Pack Ninho Fases 1+ com 2 latas de 800 g cada com 20% de desconto na 2a lata Snack infantil Mucilon tomate ou morango e banana 35 g",
+  "store_name": "Extra Folheteria",
+  "stored_confidence": 0.636,
+  "match_ingredient": "Top Confete Morango",
+  "match_score": 68.1,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "MANDIOQUINHA BANDEJA 500G",
+  "store_name": "Assaí Atacadista",
+  "stored_confidence": 0.591,
+  "match_ingredient": null,
+  "match_score": 49.2,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Glucose em Pó 50g Mix",
+  "store_name": "Rizzo Confeitaria",
+  "stored_confidence": 0.615,
+  "match_ingredient": null,
+  "match_score": 53.8,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Óleo de Algodão Refinado Select Balde 14,5kg",
+  "store_name": "Tenda Atacado",
+  "stored_confidence": 0.557,
+  "match_ingredient": "Açúcar Cristal / Refinado",
+  "match_score": 60.9,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "CREME DENTAL COLGATE SENSITIVE PRO",
+  "store_name": "Roldão Atacadista",
+  "stored_confidence": 0.625,
+  "match_ingredient": null,
+  "match_score": 54.7,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Farinha de milho Flocao marata 500g",
+  "store_name": "Chocoexpress",
+  "stored_confidence": 0.769,
+  "match_ingredient": null,
+  "match_score": 42.1,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Chocolate Neugebauer Vários sabores",
+  "store_name": "Atacadão",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Suco de Uva Suco de Uva Integral Suco New Select lnter gbldi Camoargo",
+  "store_name": "Max Atacadista SP",
+  "stored_confidence": 0.667,
+  "match_ingredient": null,
+  "match_score": 55.6,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Farinha De Mandioca Grossa Tondato 1kg",
+  "store_name": "Spani Atacadista",
+  "stored_confidence": 0.741,
+  "match_ingredient": null,
+  "match_score": 44.0,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Italac NESCAU Integral APPROLDÃOMAIS",
+  "store_name": "Roldão Atacadista",
+  "stored_confidence": 0.667,
+  "match_ingredient": null,
+  "match_score": 55.6,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Cookies com Gotas de Chocolate Bauducco 60g",
+  "store_name": "Casa Santa Luzia",
+  "stored_confidence": 0.686,
+  "match_ingredient": null,
+  "match_score": 33.9,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Leite Uht Jussara Zero Lactose Integral Garrafa 1l",
+  "store_name": "Rede Krill",
+  "stored_confidence": 0.622,
+  "match_ingredient": "Leite Condensado Integral",
+  "match_score": 65.8,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Express 24x24cm piscina de ovos 25un",
+  "store_name": "Chocoexpress",
+  "stored_confidence": 0.667,
+  "match_ingredient": "Ovos",
+  "match_score": 79.2,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Chantilinho 400g - Mix",
+  "store_name": "BarraDoce",
+  "stored_confidence": 0.564,
+  "match_ingredient": null,
+  "match_score": 42.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "RECHEIO PRONTO SABOR LEITE COND. 4kg",
+  "store_name": "Dona Dani Ingredientes",
+  "stored_confidence": 0.615,
+  "match_ingredient": "Leite em Pó Integral",
+  "match_score": 67.3,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Chocolate Lacta Favoritos Caixeta com 250,6g",
+  "store_name": "Atacadão",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "COM MERSAGENS SORTIOAS CARTÃO ROLDÃO PAY CHOCOLATE KINDER OVO CHOCOLATE KINDER B",
+  "store_name": "Roldão Atacadista",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Creme de Avelã com Cacau Flormel 150g",
+  "store_name": "Carrefour Mercado",
+  "stored_confidence": 0.63,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 67.3,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Cookies com Gotas de Chocolate Branco Laka Lacta 80g",
+  "store_name": "Casa Santa Luzia",
+  "stored_confidence": 0.686,
+  "match_ingredient": null,
+  "match_score": 55.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Confeito de Açúcar - Sprinkles Halloween - 1 unidade - Rizzo",
+  "store_name": "Rizzo Confeitaria",
+  "stored_confidence": 0.64,
+  "match_ingredient": null,
+  "match_score": 56.0,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "PAO DE LÓ CHOCOLATE 5kg",
+  "store_name": "Dona Dani Ingredientes",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Color Bits Chocolate Branco Gelo 50g - Gran Chef",
+  "store_name": "Chefon",
+  "stored_confidence": 0.73,
+  "match_ingredient": "Gotas de Chocolate Branco",
+  "match_score": 77.2,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "MALVA BRANCA",
+  "store_name": "Ingredientes Santa Vita",
+  "stored_confidence": 0.667,
+  "match_ingredient": null,
+  "match_score": 54.2,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Pão Francês Integral",
+  "store_name": "Giga Atacadista",
+  "stored_confidence": 0.667,
+  "match_ingredient": null,
+  "match_score": 55.6,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Bombom Nestlé Especialidades Caixeta com 220g",
+  "store_name": "Atacadão",
+  "stored_confidence": 0.556,
+  "match_ingredient": null,
+  "match_score": 46.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "ao leite CHOCOLATE NEUGEBAUER CHOCOLATE BIB'S STICKS STIKADINHO MORANGO NEUGEBAU",
+  "store_name": "Roldão Atacadista",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Leite em Pó Integral",
+  "match_score": 67.3,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "OVOMALTINE 750g EXTRA CROCANTE",
+  "store_name": "Cacau Center",
+  "stored_confidence": 0.612,
+  "match_ingredient": null,
+  "match_score": 51.0,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "DOCE DE LEITE ITAMBÉ 800g",
+  "store_name": "Cacau Center",
+  "stored_confidence": 0.769,
+  "match_ingredient": "Leite em Pó Integral",
+  "match_score": 70.5,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Express 32x32cm horta feliz azul para ovos 150g a 250g",
+  "store_name": "Chocoexpress",
+  "stored_confidence": 0.64,
+  "match_ingredient": "Ovos",
+  "match_score": 77.5,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Inovare Intenso Gotas 1,010kg",
+  "store_name": "Chocoexpress",
+  "stored_confidence": 0.612,
+  "match_ingredient": null,
+  "match_score": 58.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Cobertura e Recheio Sabor Chocolate ao Leite - Melken - 1,010kg - 1 unidade - Harald - Rizzo",
+  "store_name": "Rizzo Confeitaria",
+  "stored_confidence": 0.73,
+  "match_ingredient": "Chocolate Nobre Blend",
+  "match_score": 77.2,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "BACON EM FATIAS AURORA 1KG",
+  "store_name": "Roldão Atacadista",
+  "stored_confidence": 0.578,
+  "match_ingredient": null,
+  "match_score": 48.1,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Morango Nestlé WOPER",
+  "store_name": "Max Atacadista SP",
+  "stored_confidence": 0.737,
+  "match_ingredient": "Top Confete Morango",
+  "match_score": 68.1,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Leite Uht Parmalat Integral 1l",
+  "store_name": "Rede Krill",
+  "stored_confidence": 0.714,
+  "match_ingredient": "Leite em Pó Integral",
+  "match_score": 75.5,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Creme Belíssimo Pistache e Avelã 280G DABELLA",
+  "store_name": "Amendolate",
+  "stored_confidence": 0.754,
+  "match_ingredient": "Creme de Avelã",
+  "match_score": 79.7,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Arroz cateto Branco",
+  "store_name": "Ingredientes Santa Vita",
+  "stored_confidence": 0.634,
+  "match_ingredient": null,
+  "match_score": 58.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Confeito Vermicelli de Chocolate Branco 400g  - Melken",
+  "store_name": "Chefon",
+  "stored_confidence": 0.796,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Uva passa branca",
+  "store_name": "Ingredientes Santa Vita",
+  "stored_confidence": 0.571,
+  "match_ingredient": null,
+  "match_score": 44.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "CARTÃO ROLDÃO PAY CHOCOLATE LACTA CHOCOLATE LACTA TIPOS",
+  "store_name": "Roldão Atacadista",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Açúcar Rosa Arcolor 500g",
+  "store_name": "Doce Festa",
+  "stored_confidence": 0.654,
+  "match_ingredient": null,
+  "match_score": 59.7,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Granulado Top Confeité Framboesa 400g HARALD",
+  "store_name": "Amendolate",
+  "stored_confidence": 0.784,
+  "match_ingredient": "Granulado Meio Amargo",
+  "match_score": 68.5,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Ninho e Ninho e Talharim) Talharim) 'CADA 'CAOA",
+  "store_name": "Max Atacadista SP",
+  "stored_confidence": 0.625,
+  "match_ingredient": null,
+  "match_score": 36.7,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Pó Para Preparo Maracujá (12Un x 100g) - Mavalerio",
+  "store_name": "Doce Festa",
+  "stored_confidence": 0.621,
+  "match_ingredient": null,
+  "match_score": 51.7,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Café Tradicional ou Extra forte Jaraguá Almofada 500g",
+  "store_name": "Tenda Atacado",
+  "stored_confidence": 0.69,
+  "match_ingredient": "Manteiga",
+  "match_score": 63.2,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Fermento Em Pó Dona Benta 10g Fermix",
+  "store_name": "Spani Atacadista",
+  "stored_confidence": 0.795,
+  "match_ingredient": "Fermento Químico em Pó",
+  "match_score": 82.8,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Italac 395g coda codo",
+  "store_name": "Barbosa Supermercados",
+  "stored_confidence": 0.667,
+  "match_ingredient": null,
+  "match_score": 55.6,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Cereal Matinal Sucrilhos Kellogg's Original ou Sabor Chocolate Sachê 700g",
+  "store_name": "Tenda Atacado",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "CARTÃO ROLDÃO PAY CHOCOLATE M&M'S CHOCOLATE KINDER OVO AOLEITEOUAMENDOIM132G",
+  "store_name": "Roldão Atacadista",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "COB GOTAS INOVARE LEITE 2,05KG HARALD",
+  "store_name": "Cacau Center",
+  "stored_confidence": 0.769,
+  "match_ingredient": "Leite em Pó Integral",
+  "match_score": 67.3,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Biscoito Manteiga Marilan 350g",
+  "store_name": "Casa Santa Luzia",
+  "stored_confidence": 0.7,
+  "match_ingredient": null,
+  "match_score": 38.9,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Pó para Preparo de Glace Real - Mavalerio 500g",
+  "store_name": "Doce Festa",
+  "stored_confidence": 0.718,
+  "match_ingredient": "Açúcar de Confeiteiro",
+  "match_score": 62.8,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Biscoito Cookies Nestlé Chocolate Gotas Chocolate 60g",
+  "store_name": "Rede Krill",
+  "stored_confidence": 0.686,
+  "match_ingredient": null,
+  "match_score": 30.8,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Uva Verde Agrícola Bandeja 500g",
+  "store_name": "Max Atacadista SP",
+  "stored_confidence": 0.552,
+  "match_ingredient": null,
+  "match_score": 45.8,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Snow Flakes Tody Original POG350g Saché 700g SNOW",
+  "store_name": "X Supermercados",
+  "stored_confidence": 0.571,
+  "match_ingredient": null,
+  "match_score": 50.0,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Italac 395g coda",
+  "store_name": "Barbosa Supermercados",
+  "stored_confidence": 0.649,
+  "match_ingredient": null,
+  "match_score": 54.1,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "UVAPRETA SEM SEMENTE BANDEJA 500G",
+  "store_name": "Assaí Atacadista",
+  "stored_confidence": 0.567,
+  "match_ingredient": null,
+  "match_score": 45.6,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Tablete de Chocolate Vegano Sabor Cacau 70% Tnuva 80g",
+  "store_name": "Casa Santa Luzia",
+  "stored_confidence": 0.71,
+  "match_ingredient": "Chocolate Meio Amargo em Barra",
+  "match_score": 65.6,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Creme de Confeiteiro (500g) - Mix",
+  "store_name": "BarraDoce",
+  "stored_confidence": 0.75,
+  "match_ingredient": "Açúcar de Confeiteiro",
+  "match_score": 79.3,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Margarina Vigor 500g Sem Sal",
+  "store_name": "Spani Atacadista",
+  "stored_confidence": 0.604,
+  "match_ingredient": null,
+  "match_score": 49.1,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Algemix sabor sorvete leite condensado 1kg",
+  "store_name": "Chocoexpress",
+  "stored_confidence": 0.615,
+  "match_ingredient": "Leite em Pó Integral",
+  "match_score": 67.3,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Glacê Real (1kg) - Mix",
+  "store_name": "BarraDoce",
+  "stored_confidence": 0.563,
+  "match_ingredient": null,
+  "match_score": 48.8,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Açúcar Gelado (500g) - Mix",
+  "store_name": "BarraDoce",
+  "stored_confidence": 0.625,
+  "match_ingredient": null,
+  "match_score": 56.9,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Pasta Saborizante Nocciolissima Pasta Pura de Avelã (180g) - Gustosía Premium",
+  "store_name": "BarraDoce",
+  "stored_confidence": 0.607,
+  "match_ingredient": "Creme de Avelã",
+  "match_score": 64.2,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "COB. BARRA SICAO FACIL BLEND 1,01 kg",
+  "store_name": "Cacau Center",
+  "stored_confidence": 0.667,
+  "match_ingredient": null,
+  "match_score": 58.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Queijo ralado Vigor 50g",
+  "store_name": "Giga Atacadista",
+  "stored_confidence": 0.706,
+  "match_ingredient": "Coco Ralado Grosso sem Açúcar",
+  "match_score": 61.8,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Panco 85g/88g (Exceto Integral) cade",
+  "store_name": "Shibata",
+  "stored_confidence": 0.667,
+  "match_ingredient": null,
+  "match_score": 55.6,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Nobre Batata",
+  "store_name": "Roldão Atacadista",
+  "stored_confidence": 0.667,
+  "match_ingredient": null,
+  "match_score": 58.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Fondue Vigor 250g Chocolate",
+  "store_name": "Spani Atacadista",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Uva-vitória (bandeja 500g)",
+  "store_name": "Assaí Atacadista",
+  "stored_confidence": 0.585,
+  "match_ingredient": null,
+  "match_score": 50.0,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Doce de Leite Aviação Pote 400g",
+  "store_name": "X Supermercados",
+  "stored_confidence": 0.769,
+  "match_ingredient": "Leite em Pó Integral",
+  "match_score": 67.3,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "PACK CREME DENTAL SAB ENEM COLGATE TRIPLA BARRA PALMOLIVE TIPOS 85G AÇÃO 90G COM",
+  "store_name": "Roldão Atacadista",
+  "stored_confidence": 0.625,
+  "match_ingredient": null,
+  "match_score": 54.7,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Steak de Frango Seara 100g",
+  "store_name": "Angeloni",
+  "stored_confidence": 0.577,
+  "match_ingredient": null,
+  "match_score": 44.4,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Chocolate Hershey's Ovomaltine Black Unidade com 75g",
+  "store_name": "Atacadão",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "BOLO CREMOSO DE CHOCOLATE 5kg",
+  "store_name": "Dona Dani Ingredientes",
+  "stored_confidence": 0.6,
+  "match_ingredient": "Chocolate Meio Amargo em Barra",
+  "match_score": 65.6,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Maca Gala Carrefour Mercado 1kg",
+  "store_name": "Carrefour Mercado",
+  "stored_confidence": 0.576,
+  "match_ingredient": null,
+  "match_score": 46.4,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Pasta Saborizante Concentrada Leite Condensado (90g) - Blend",
+  "store_name": "BarraDoce",
+  "stored_confidence": 0.615,
+  "match_ingredient": "Leite em Pó Integral",
+  "match_score": 67.3,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Confeito de Chocolate Amargo 70% Granulé 400g - Melken",
+  "store_name": "Chefon",
+  "stored_confidence": 0.793,
+  "match_ingredient": "Chocolate Meio Amargo em Barra",
+  "match_score": 79.3,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Cereal Matinal Snow Flakes POG350g",
+  "store_name": "X Supermercados",
+  "stored_confidence": 0.571,
+  "match_ingredient": null,
+  "match_score": 50.0,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Chá Branco",
+  "store_name": "Ingredientes Santa Vita",
+  "stored_confidence": 0.64,
+  "match_ingredient": "Açúcar Cristal / Refinado",
+  "match_score": 70.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Requeijão cremoso D'or 200g",
+  "store_name": "Giga Atacadista",
+  "stored_confidence": 0.596,
+  "match_ingredient": null,
+  "match_score": 48.8,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Pasta Saborizante Morango (250g) - Gustosía Premium",
+  "store_name": "BarraDoce",
+  "stored_confidence": 0.622,
+  "match_ingredient": "Top Confete Morango",
+  "match_score": 68.1,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Azeite extra virgem Gomes da Costa 500mǐ",
+  "store_name": "Giga Atacadista",
+  "stored_confidence": 0.576,
+  "match_ingredient": null,
+  "match_score": 36.4,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Palito para Aromatizador - Creme - 24cm - 1 unidade - Rizzo",
+  "store_name": "Rizzo Confeitaria",
+  "stored_confidence": 0.625,
+  "match_ingredient": null,
+  "match_score": 54.7,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Chocolate 70% Cacau Vegano Espírito Cacau 80g",
+  "store_name": "Casa Santa Luzia",
+  "stored_confidence": 0.71,
+  "match_ingredient": "Chocolate Chunks",
+  "match_score": 71.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Achocolatada Chocolate Líder TP 1L TP20ml 'CADA NESTAEMBALAGEM500G SAI",
+  "store_name": "Max Atacadista SP",
+  "stored_confidence": 0.6,
+  "match_ingredient": "Chocolate Nobre Blend",
+  "match_score": 65.6,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Farinha De Mandioca Torrada Pacha 1kg",
+  "store_name": "Spani Atacadista",
+  "stored_confidence": 0.741,
+  "match_ingredient": null,
+  "match_score": 46.4,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Cobertura em Barra ao Leite - TOP - 2,100kg - 1 unidade - Harald - Rizzo",
+  "store_name": "Rizzo Confeitaria",
+  "stored_confidence": 0.73,
+  "match_ingredient": "Leite em Pó Integral",
+  "match_score": 77.2,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Cápsula Café Nescafé Dolce Gusto Cappuccino Doce Leite 170g",
+  "store_name": "Rede Krill",
+  "stored_confidence": 0.615,
+  "match_ingredient": "Leite em Pó Integral",
+  "match_score": 67.3,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Gotas de Chocolate Zero Açúcar Tnuva 500g",
+  "store_name": "Casa Santa Luzia",
+  "stored_confidence": 0.753,
+  "match_ingredient": "Gotas de Chocolate Branco",
+  "match_score": 78.5,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Destaque\n                            \n        \n                \n        \n    \n\n        \n    \n\n    \n\n        \n            \n                GRANULADO CROCANTE MAVALÉRIO 1KG\n            \n        \n\n        \n            \n                \n\n\n\n    \n    \n        R$ 24,99\n    \n\n    \n        \n    \n\n\n                    \n        \n    \n        \n     \n        \n                    \n        \t        \t\n        \t\t        \t\t        \t\t\n        \t\t        \t\t\n                        \t\t\n        \t\t\n        \t\t\t\n        \t\t\n        \t\t\n        \t\t\n        \t\t\n        \t\t\n                    g.actions['product-1034626827'] = function () {\n        \t\t\t\tjQuery(document).ready(function(){\n        \t\t\t\t\tnew Vue({\n        \t\t\t\t\t\tel: '#product-1034626827 .product__buy',\n        \t\t\t\t\t\tdata: {\n        \t\t\t\t\t\t\tvariants: [],\n        \t\t\t\t\t\t\tproduct_id: 1527,\n        \t\t\t\t\t\t\tproduct_random_id: 1034626827,\n        \t\t\t\t\t\t\tis_https: settings.is_https\n        \t\t\t\t\t\t\t\n        \t\t\t\t\t\t}\n        \t\t\t\t\t})\n        \t\t\t\t});\n        \t\t\t};\n        \t\t\n        \t    \t\t\t    \t    \t\n    \t    \n    \t        \n    \t        Comprar pelo Whats",
+  "store_name": "Central do Confeiteiro",
+  "stored_confidence": 0.788,
+  "match_ingredient": "Granulado Meio Amargo",
+  "match_score": 68.5,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Canção Canção em Difes Congelado 1Kg FOEDS BIFES",
+  "store_name": "X Supermercados",
+  "stored_confidence": 0.559,
+  "match_ingredient": null,
+  "match_score": 46.1,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Açúcar Amarelo Arcolor 500g",
+  "store_name": "Doce Festa",
+  "stored_confidence": 0.618,
+  "match_ingredient": null,
+  "match_score": 55.0,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "RECHEIO PRONTO SABOR CHOCOLATE 4kg",
+  "store_name": "Dona Dani Ingredientes",
+  "stored_confidence": 0.686,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "NIBS Cacau Torrado",
+  "store_name": "Ingredientes Santa Vita",
+  "stored_confidence": 0.615,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 67.3,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Cobertura Fracionada Amargo com Cacau Preto Mais - Gotas 1,01kg - Sicao",
+  "store_name": "Chefon",
+  "stored_confidence": 0.717,
+  "match_ingredient": "Gotas de Chocolate Meio Amargo",
+  "match_score": 75.9,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Glucose de Milho (500g) - Arcolor",
+  "store_name": "BarraDoce",
+  "stored_confidence": 0.577,
+  "match_ingredient": null,
+  "match_score": 48.8,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Cookies Chocolate Meio Amargo Cacow – 40g",
+  "store_name": "Casa Santa Luzia",
+  "stored_confidence": 0.574,
+  "match_ingredient": null,
+  "match_score": 36.4,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Corante Soft Gel - Super Branco - 25G - Mix",
+  "store_name": "Chefon",
+  "stored_confidence": 0.606,
+  "match_ingredient": null,
+  "match_score": 58.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Fermento em Pó Gefen Pessach – 227g",
+  "store_name": "Casa Santa Luzia",
+  "stored_confidence": 0.755,
+  "match_ingredient": "Fermento Químico em Pó",
+  "match_score": 78.6,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Feijão preto tipo 1 Pantera 1kg",
+  "store_name": "Giga Atacadista",
+  "stored_confidence": 0.593,
+  "match_ingredient": null,
+  "match_score": 55.0,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Express 35x35cm chocolux rosa para ovos 250g a 350g",
+  "store_name": "Chocoexpress",
+  "stored_confidence": 0.644,
+  "match_ingredient": "Ovos",
+  "match_score": 77.8,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Organizador Ovos Gaveta - 34x26x17Cm - Suporta 60 Ovos  - 1 unidade - Cromus Linha Profissional Allonsy - Rizzo",
+  "store_name": "Rizzo Confeitaria",
+  "stored_confidence": 0.631,
+  "match_ingredient": "Ovos",
+  "match_score": 76.9,
+  "match_type": "proximo_nome",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Cookies com Gotas de Chocolate Bauducco 100g",
+  "store_name": "Casa Santa Luzia",
+  "stored_confidence": 0.686,
+  "match_ingredient": null,
+  "match_score": 34.0,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "UVA-VITORIA BANDEJA 500G",
+  "store_name": "Assaí Atacadista",
+  "stored_confidence": 0.571,
+  "match_ingredient": null,
+  "match_score": 48.6,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Fermento Fresco Fleischmann 500g",
+  "store_name": "Spani Atacadista",
+  "stored_confidence": 0.674,
+  "match_ingredient": "Fermento Químico em Pó",
+  "match_score": 73.7,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Vinho Tinto Português Periquita Red Blend 750 ml",
+  "store_name": "Carrefour Mercado",
+  "stored_confidence": 0.667,
+  "match_ingredient": null,
+  "match_score": 58.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Açúcar Verde Arcolor 500g",
+  "store_name": "Doce Festa",
+  "stored_confidence": 0.636,
+  "match_ingredient": null,
+  "match_score": 58.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Corante Universal Neocolor Branco 25G - Fab!",
+  "store_name": "Chefon",
+  "stored_confidence": 0.551,
+  "match_ingredient": null,
+  "match_score": 58.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Água de Cooo Kero Coco 1L 4DARTROX",
+  "store_name": "X Supermercados",
+  "stored_confidence": 0.615,
+  "match_ingredient": null,
+  "match_score": 53.8,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "COCO VERDE",
+  "store_name": "Superbom",
+  "stored_confidence": 0.667,
+  "match_ingredient": null,
+  "match_score": 58.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "SUGARART CORANTE SOFT GEL 25G VERMELHO MORANGO",
+  "store_name": "Cacau Center",
+  "stored_confidence": 0.636,
+  "match_ingredient": "Top Confete Morango",
+  "match_score": 68.1,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Pão de queijo Forno de Minas tipos 1kg",
+  "store_name": "Giga Atacadista",
+  "stored_confidence": 0.593,
+  "match_ingredient": null,
+  "match_score": 51.9,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Cacau Alcalino Em Pó",
+  "store_name": "Ingredientes Santa Vita",
+  "stored_confidence": 0.72,
+  "match_ingredient": "Chocolate em Pó 50% Cacau",
+  "match_score": 75.0,
+  "match_type": "proximo_apelido",
+  "expected_reject": false
+ },
+ {
+  "raw_product": "Biscoito Cookie Toddy Chocolate Malhado com Gotas de Chocolate Branco e Preto Pacote 57 g",
+  "store_name": "Carrefour Mercado",
+  "stored_confidence": 0.686,
+  "match_ingredient": null,
+  "match_score": 55.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Biscoito Cookies Galak Gotas Chocolate Branco 60g",
+  "store_name": "Rede Krill",
+  "stored_confidence": 0.686,
+  "match_ingredient": null,
+  "match_score": 55.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Corante Soft Gel Branco 60G - Fab!",
+  "store_name": "Chefon",
+  "stored_confidence": 0.633,
+  "match_ingredient": null,
+  "match_score": 58.3,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "OVOS BRANCOS EXTRA CAIXA 20 UNIDADES",
+  "store_name": "Assaí Atacadista",
+  "stored_confidence": 0.557,
+  "match_ingredient": null,
+  "match_score": 36.9,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Açúcar Rosa Arcolor 80g",
+  "store_name": "Doce Festa",
+  "stored_confidence": 0.588,
+  "match_ingredient": null,
+  "match_score": 47.6,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Creme Dental Máxima Proteção Anticáries Colgate",
+  "store_name": "Tenda Atacado",
+  "stored_confidence": 0.625,
+  "match_ingredient": null,
+  "match_score": 54.7,
+  "match_type": null,
+  "expected_reject": true
+ },
+ {
+  "raw_product": "Almofada ou a Vácuo 500g",
+  "store_name": "Tenda Atacado",
+  "stored_confidence": 0.636,
+  "match_ingredient": null,
+  "match_score": 51.7,
+  "match_type": null,
+  "expected_reject": true
+ }
+]

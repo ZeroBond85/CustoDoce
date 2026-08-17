@@ -728,6 +728,39 @@ def reject_store_registry_bulk_by_prefix_cached(prefix: str) -> int:
     return rejected
 
 
+def reject_store_registry_non_food_bulk_cached() -> int:
+    """T2.4: rejeita em lote pendentes cujo nome é varejo não-alimentar ou
+    título de folheto agregador. Usa o mesmo filtro do collector
+    (store_registry._is_food_store_name) para garantir paridade de regra."""
+    from services.store_registry import _is_food_store_name
+
+    client = get_supabase()
+    now_iso = datetime.now(UTC).isoformat()
+    rejected = 0
+    start = 0
+    while True:
+        batch = (
+            client.table("store_registry")
+            .select("id, name")
+            .eq("status", "pending_review")
+            .range(start, start + 999)
+            .execute()
+        )
+        rows = batch.data or []
+        if not rows:
+            break
+        bad_ids = [r["id"] for r in rows if not _is_food_store_name(r.get("name", ""))]
+        if bad_ids:
+            client.table("store_registry").update(
+                {"status": "rejected", "reviewed_at": now_iso}
+            ).in_("id", bad_ids).execute()
+            rejected += len(bad_ids)
+        if len(rows) < 1000:
+            break
+        start += 1000
+    return rejected
+
+
 def merge_store_registry_cached(entry_id: str, target_store_id: str) -> bool:
     """Merge a registry entry into an existing store and populate store_units."""
     client = get_supabase()
@@ -803,6 +836,40 @@ def reject_review_item_cached(item_id: str):
     from services.price_service import reject_review_item
 
     return reject_review_item(item_id)
+
+
+def reject_review_queue_bulk_cached(item_ids: list[str]) -> int:
+    """T3.1: rejeita múltiplos itens da review_queue em lote."""
+    from services.logger import logger
+    from services.price_service import reject_review_item
+
+    rejected = 0
+    for item_id in item_ids:
+        try:
+            if reject_review_item(item_id):
+                rejected += 1
+        except Exception as exc:
+            logger.warning("bulk reject failed for %s: %s", item_id, exc)
+            continue
+    return rejected
+
+
+def approve_review_queue_bulk_cached(
+    item_ids: list[str], ingredient_id: str, brand_override: str = ""
+) -> int:
+    """T3.1: aprova múltiplos itens da review_queue em lote (mesmo ingrediente)."""
+    from services.logger import logger
+    from services.price_service import approve_review_item
+
+    approved = 0
+    for item_id in item_ids:
+        try:
+            if approve_review_item(item_id, ingredient_id, brand_override):
+                approved += 1
+        except Exception as exc:
+            logger.warning("bulk approve failed for %s: %s", item_id, exc)
+            continue
+    return approved
 
 
 # ============================================================

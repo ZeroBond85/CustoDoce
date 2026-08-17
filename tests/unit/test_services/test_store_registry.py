@@ -45,6 +45,58 @@ def test_discover_stores_from_flyers_no_client_returns_zero():
     assert result == 0
 
 
+def test_is_food_store_name_filters_non_food():
+    """T2.1: varejo não-alimentar visto nos pendentes é filtrado."""
+    non_food = [
+        "Lojas Havan", "Lojas Cem", "Lojas Quero-Quero", "Lojas Solar",
+        "Eudora", "Jequiti", "Ferreira Costa", "TEMU", "Decathlon",
+        "Tupperware", "Casa e Video", "Magazine Luiza", "Drogasil",
+    ]
+    for name in non_food:
+        assert not store_registry._is_food_store_name(name), f"deveria ser não-food: {name}"
+
+
+def test_is_food_store_name_keeps_food():
+    """Lojas de comida reais (Shibata, Sam's Club) NÃO são filtradas."""
+    food = [
+        "Shibata", "Sam's Club", "Supermercado Dia", "Nagumo",
+        "Assaí Atacadista", "Rede Krill", "Max Atacadista",
+    ]
+    for name in food:
+        assert store_registry._is_food_store_name(name), f"deveria ser food: {name}"
+
+
+def test_is_food_store_name_filters_flyer_titles():
+    """T2.2: títulos de folheto agregador ('Catálogo ... em ...') são filtrados."""
+    flyer_titles = [
+        "Catálogo Lojas Havan em Guarujá | Dia Dos Pais | 2026-07-27",
+        "Catálogo Nagumo em Itanhaém | FOLHETO | 2026-07-27",
+        "Catálogo Supermercado Dia em Santos | Encarte Supermercado Dia | 2026-07-30",
+        "Catalogo Lojas Havan em São Paulo | Dia Dos Pais",
+    ]
+    for name in flyer_titles:
+        assert not store_registry._is_food_store_name(name), f"deveria filtrar flyer: {name}"
+
+
+def test_discover_stores_from_flyers_filters_new_offenders():
+    """T2.1/T2.2: Havan/Quero-Quero/flyer titles não entram no registry."""
+    mock_client = MagicMock()
+    mock_client.table.return_value.select.return_value.execute.return_value = SimpleNamespace(
+        data=[
+            {"store_name": "Lojas Havan", "region": "Santos", "city": "Santos"},
+            {"store_name": "Catálogo Nagumo em Itanhaém | FOLHETO | 2026-07-27",
+             "region": "Baixada", "city": "Itanhaém"},
+            {"store_name": "Shibata", "region": "Santos", "city": "Santos"},
+        ]
+    )
+    with patch.object(store_registry, "get_service_client", return_value=mock_client), \
+         patch.object(store_registry, "upsert_registry_entry",
+                      return_value=SimpleNamespace(id="new-1", matched_store_id=None, address="")):
+        result = store_registry.discover_stores_from_flyers()
+    # Só Shibata (food) entra; Havan + flyer title filtrados
+    assert result == 1
+
+
 def test_get_registry_entry_builds_dataclass():
     row = {
         "id": "reg-1",

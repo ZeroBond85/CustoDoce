@@ -298,6 +298,10 @@ NON_FOOD_KEYWORDS = frozenset({
     "presentes", "souvenir", "brinquedos", "perfumaria",
     "cosmeticos", "cosméticos", "lavanderia", "telefonia",
     "informatica", "moda", "calçados", "calcados",
+    # Varejo não-alimentar visto nos pendentes (2026-08): Havan, Cem,
+    # Quero-Quero, Solar, Eudora, Jequiti, Ferreira Costa, TEMU, Decathlon.
+    "havan", "cem", "quero-quero", "solar", "eudora", "jequiti",
+    "ferreira costa", "temu", "decathlon", "tupperware", "casa e video",
 })
 
 
@@ -312,6 +316,11 @@ def _is_food_store_name(name: str) -> bool:
     for prefix in ("cleanup store ", "test ", "e2e ", "_test_", "ocr test "):
         if name_lower.startswith(prefix):
             return False
+    # T2.2: nomes de FOLHETO agregador ("Catálogo <loja> em <cidade> | ...")
+    # são títulos de flyer com datas, não nomes de loja — poluem o registry
+    # (19 pendentes em 2026-08). Filtrados na fonte.
+    if name_lower.startswith(("catálogo ", "catalogo ")):
+        return False
     return not any(kw in name_lower for kw in NON_FOOD_KEYWORDS)
 
 
