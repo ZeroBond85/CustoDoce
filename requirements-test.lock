@@ -66,6 +66,8 @@ pytest-xdist==3.6.1
     # via -r requirements-test.in
 python-dateutil==2.9.0.post0
     # via faker
+python-dotenv==1.2.3
+    # via -r requirements-test.in
 pyyaml==6.0.3
     # via responses
 requests==2.34.2
