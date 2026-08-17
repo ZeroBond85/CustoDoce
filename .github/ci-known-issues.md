@@ -1,4 +1,5 @@
 # CI Known Issues (Não são bugs de código)
+> Última atualização: 2026-08-17 02:30 UTC
 
 ## 1. docs-sync (CI-only flakiness)
 - **Local**: Passa (`sync_docs.py --check --strict` → OK)
