@@ -63,6 +63,8 @@ iniconfig==2.3.0
     # via pytest
 jinja2==3.1.6
     # via pytest-html
+joblib==1.5.3
+    # via -r requirements-test.in
 markdown-it-py==4.2.0
     # via -r requirements-test.in
 markupsafe==3.0.3

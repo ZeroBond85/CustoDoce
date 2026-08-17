@@ -17,5 +17,6 @@ rapidfuzz
 selectolax
 structlog
 curl_cffi>=0.15,<1.0
+joblib
 # playwright movido para ca (test-only, nao usado em producao)
 playwright>=1.0,<2.0
