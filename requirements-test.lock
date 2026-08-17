@@ -10,17 +10,22 @@ anyio==4.14.2
     # via httpx
 certifi==2026.7.22
     # via
+    #   curl-cffi
     #   httpcore
     #   httpx
     #   requests
 cffi==2.1.1
-    # via cryptography
+    # via
+    #   cryptography
+    #   curl-cffi
 charset-normalizer==3.4.9
     # via requests
 coverage[toml]==7.15.4
     # via pytest-cov
 cryptography==50.0.0
     # via pyjwt
+curl-cffi==0.16.0
+    # via -r requirements-test.in
 deprecation==2.1.0
     # via
     #   postgrest
@@ -126,11 +131,15 @@ python-dotenv==1.2.3
     # via -r requirements-test.in
 pyyaml==6.0.3
     # via responses
+rapidfuzz==3.14.5
+    # via -r requirements-test.in
 realtime==2.31.0
     # via supabase
 requests==2.34.2
     # via responses
 responses==0.25.3
+    # via -r requirements-test.in
+selectolax==0.4.11
     # via -r requirements-test.in
 six==1.17.0
     # via python-dateutil
@@ -138,6 +147,8 @@ storage3==2.31.0
     # via supabase
 strenum==0.4.15
     # via supabase-functions
+structlog==26.1.0
+    # via -r requirements-test.in
 supabase==2.31.0
     # via -r requirements-test.in
 supabase-auth==2.31.0
