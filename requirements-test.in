@@ -11,5 +11,7 @@ faker==33.1.0
 markdown-it-py>=3.0
 # conftest usa python-dotenv
 python-dotenv
+# unit tests precisam de supabase.Client (services.supabase_client)
+supabase==2.31.0
 # playwright movido para ca (test-only, nao usado em producao)
 playwright>=1.0,<2.0
