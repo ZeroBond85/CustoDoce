@@ -212,7 +212,7 @@ multiprocess==0.70.19
     # via
     #   datasets
     #   evaluate
-mypy==2.3.0
+mypy==2.3.1
     # via -r requirements-dev.in
 mypy-extensions==1.1.0
     # via mypy
@@ -430,7 +430,7 @@ rpds-py==2026.6.3
     # via
     #   jsonschema
     #   referencing
-ruff==0.16.2
+ruff==0.16.3
     # via -r requirements-dev.in
 safetensors==0.8.0
     # via transformers

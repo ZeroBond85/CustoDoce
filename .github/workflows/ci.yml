@@ -340,13 +340,24 @@ jobs:
       - name: Start Streamlit local server
         run: |
           nohup streamlit run admin/app.py --server.port 8501 --server.headless true > /tmp/streamlit.log 2>&1 &
-          for i in $(seq 1 30); do
-            if curl -s http://localhost:8501 > /dev/null 2>&1; then
-              echo "Streamlit ready after ${i}s"
-              break
+          echo "Waiting for Streamlit to become ready (real probe on log)..."
+          READY=0
+          for i in $(seq 1 60); do
+            # Pronto de verdade: log indica app no ar E sem crash de startup
+            if grep -q "You can now view your Streamlit app" /tmp/streamlit.log 2>/dev/null; then
+              if ! grep -q "Traceback" /tmp/streamlit.log 2>/dev/null; then
+                READY=1
+                echo "Streamlit ready after $((i * 2))s"
+                break
+              fi
             fi
             sleep 2
           done
+          if [ "$READY" -ne 1 ]; then
+            echo "::error::Streamlit failed to become ready in time. Last 40 lines of log:"
+            tail -40 /tmp/streamlit.log
+            exit 1
+          fi
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -395,13 +406,23 @@ jobs:
       - name: Start Streamlit local server
         run: |
           nohup streamlit run admin/app.py --server.port 8501 --server.headless true > /tmp/streamlit.log 2>&1 &
-          for i in $(seq 1 30); do
-            if curl -s http://localhost:8501 > /dev/null 2>&1; then
-              echo "Streamlit ready after ${i}s"
-              break
+          echo "Waiting for Streamlit to become ready (real probe on log)..."
+          READY=0
+          for i in $(seq 1 60); do
+            if grep -q "You can now view your Streamlit app" /tmp/streamlit.log 2>/dev/null; then
+              if ! grep -q "Traceback" /tmp/streamlit.log 2>/dev/null; then
+                READY=1
+                echo "Streamlit ready after $((i * 2))s"
+                break
+              fi
             fi
             sleep 2
           done
+          if [ "$READY" -ne 1 ]; then
+            echo "::error::Streamlit failed to become ready in time. Last 40 lines of log:"
+            tail -40 /tmp/streamlit.log
+            exit 1
+          fi
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

@@ -89,7 +89,12 @@ _TEST_DIRS = [
 def _pytest_collect_one(test_path: str) -> dict:
     """pytest --collect-only de um diretório (subprocess IDÊNTICO ao legado).
 
-    Retorna {"pytest_total": int, "my_count": int}.
+    Retorna {"pytest_total": int, "my_count": int}. `my_count` (badges do
+    README/AGENTS.md) usa a contagem de funções `test_*` do stdout do pytest,
+    que é estável entre ambientes **desde que todas as deps de teste estejam
+    instaladas** — garantido pelo lock combinado (requirements-test.lock =
+    test+dev+prod) gerado em WSL. O drift de badge no CI era causado por deps
+    faltando no lock (numpy/telegram), não pelo método de contagem.
     """
     import subprocess
 

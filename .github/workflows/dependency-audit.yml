@@ -16,6 +16,18 @@ on:
           - deptry
           - licenses
           - full
+  push:
+    branches:
+      - master
+    paths:
+      - 'requirements.txt'
+      - 'requirements-prod.in'
+      - 'requirements-dev.in'
+      - 'requirements-test.in'
+      - 'requirements-prod.lock'
+      - 'requirements-dev.lock'
+      - 'requirements-test.lock'
+      - 'requirements.lock'
   pull_request:
     paths:
       - 'requirements.txt'

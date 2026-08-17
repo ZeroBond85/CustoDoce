@@ -54,6 +54,26 @@ def _load_and_assert_no_errors(page, context):
             pass
 
 
+def _goto_with_retry(page, url, timeout_ms=60000, retries=5, retry_sleep=3):
+    """Navega para url com retry em falha de conexao (ERR_CONNECTION_REFUSED).
+
+    O CI ja garante prontidao do servidor antes de rodar (probe real no log
+    do Streamlit), mas este retry torna o teste robusto a pequenos gaps de
+    readiness (ex.: warmup local ou cold-start do runner).
+    """
+    import time
+
+    last_exc = None
+    for attempt in range(1, retries + 1):
+        try:
+            return page.goto(url, timeout=timeout_ms)
+        except Exception as exc:  # noqa: BLE001 - conexao recusada/timeout transitorios
+            last_exc = exc
+            if attempt < retries:
+                time.sleep(retry_sleep)
+    raise last_exc
+
+
 def _wait_script_running(page, timeout_ms=60000):
     """Espera ate a pagina entrar em script-state=running. Tolerante a 'notRunning' persistente."""
     import time
@@ -79,7 +99,7 @@ def _wait_script_running(page, timeout_ms=60000):
 def test_server_responds(browser):
     """Servidor responde HTTP 200 na raiz."""
     page = browser.new_page(viewport={"width": 1280, "height": 800})
-    response = page.goto(BASE_URL, timeout=60000)
+    response = _goto_with_retry(page, BASE_URL)
     assert response is not None and response.status == 200, (
         f"Streamlit nao respondeu 200 em {BASE_URL}: status={response.status if response else 'no response'}"
     )
@@ -89,7 +109,7 @@ def test_server_responds(browser):
 def test_login_form_renders(browser):
     """Login form renderiza apos o boot do script Streamlit."""
     page = browser.new_page(viewport={"width": 1280, "height": 800})
-    page.goto(BASE_URL, timeout=60000)
+    _goto_with_retry(page, BASE_URL)
     page.wait_for_load_state("domcontentloaded")
 
     # Streamlit pode levar 10-20s para bootar e renderizar login form
@@ -121,7 +141,7 @@ def test_login_submit_completes_without_exception(browser):
         pytest.skip("ADMIN_PASSWORD nao definido no env")
 
     page = browser.new_page(viewport={"width": 1280, "height": 800})
-    page.goto(BASE_URL, timeout=60000)
+    _goto_with_retry(page, BASE_URL)
     page.wait_for_load_state("domcontentloaded")
 
     # Esperar pelo login form
@@ -228,7 +248,7 @@ def test_all_pages_crawl(browser):
 
     try:
         # ── Login ──
-        page.goto(BASE_URL, timeout=60000)
+        _goto_with_retry(page, BASE_URL)
         page.wait_for_load_state("domcontentloaded")
 
         pwd = page.locator("input[type='password']").first

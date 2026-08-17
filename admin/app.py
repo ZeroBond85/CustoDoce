@@ -100,6 +100,22 @@ def _get_kg(df):
     return df["normalized"].apply(_format_kg)
 
 
+def _make_lazy_page(page_id: str):
+    """Retorna um callable que lazy-importa e executa a página sob demanda.
+
+    Evita importar os 21 módulos de página no startup do app — o "import storm"
+    de pandas/plotly/transformers/serviços estava estourando o orçamento de
+    warmup do CI (ERR_CONNECTION_REFUSED no :8501). Com lazy-load o import de
+    cada página ocorre apenas quando o usuário navega para ela; o startup só
+    carrega a página default.
+    """
+
+    def _runner() -> None:
+        get_page_function(page_id)()
+
+    return _runner
+
+
 def _build_navigation():
     """Build a grouped st.navigation() from MENU_GROUPS and get_page_function.
 
@@ -114,7 +130,7 @@ def _build_navigation():
         for group_label, group_pages in MENU_GROUPS.items():
             group_pages_list = []
             for label, icon, page_id in group_pages:
-                fn = get_page_function(page_id)
+                fn = _make_lazy_page(page_id)
                 group_pages_list.append(
                     st.Page(
                         fn,

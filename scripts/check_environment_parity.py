@@ -203,6 +203,95 @@ def _check_lock_sync() -> list[str]:
     return errors
 
 
+def _norm(name: str) -> str:
+    """Normaliza nome de pacote (PEP 503): lower + [-_.]+ -> '-'."""
+    return re.sub(r"[-_.]+", "-", name.strip().lower())
+
+
+def _parse_lock_packages(path: Path) -> set[str]:
+    """Retorna o conjunto de nomes de pacotes (top-level) de um lock file.
+
+    Remove extras (ex.: `transformers[sentencepiece]` -> `transformers`) e
+    normaliza o nome (PEP 503) para comparar com os .in.
+    """
+    pkgs: set[str] = set()
+    if not path.exists():
+        return pkgs
+    for line in path.read_text(encoding="utf-8").splitlines():
+        s = line.strip()
+        m = re.match(r"^([A-Za-z0-9_.\-\[\]]+)==", s)
+        if m and "\\" not in s:
+            name = m.group(1).lower()
+            if "[" in name:
+                name = name.split("[", 1)[0]
+            pkgs.add(_norm(name))
+    return pkgs
+
+
+def _parse_requirements_in(path: Path) -> set[str]:
+    """Nomes de pacotes DIRETOS (sem versao/extras/markers) de um .in file.
+
+    Normaliza o nome (PEP 503) para casar com o lock (ex.: `curl_cffi` no
+    .in vira `curl-cffi` no lock).
+    """
+    pkgs: set[str] = set()
+    if not path.exists():
+        return pkgs
+    for line in path.read_text(encoding="utf-8").splitlines():
+        s = line.strip()
+        if not s or s.startswith("#") or s.startswith("-"):
+            continue
+        name = re.split(r"[<>=!~\[\s;]", s, maxsplit=1)[0].strip()
+        if name:
+            pkgs.add(_norm(name))
+    return pkgs
+
+
+def _check_direct_deps_covered() -> list[str]:
+    """Garante que toda dep DIRETA de prod/dev/test esteja em requirements-test.lock.
+
+    Root-cause do incidente CI (locks incompletos): requirements-test.lock foi
+    gerado apenas a partir de requirements-test.in, faltando deps diretas de
+    producao (supabase, dotenv, numpy, pandas...). O CI instala so desse lock ->
+    ModuleNotFoundError e drift de badge no docs-sync.
+
+    NAO compara deps TRANSITIVAS entre os locks (geracoes separadas do
+    pip-compile resolvem versoes diferentes de deps transitivas como
+    huggingface-hub, o que e benigno). A checagem real e: cada pacote declarado
+    nos .in (prod/dev/test) PRECISA estar resolvel em requirements-test.lock.
+    Tambem garante que requirements.lock seja copia identica de test.lock.
+    """
+    errors: list[str] = []
+    test_lock = REPO_ROOT / "requirements-test.lock"
+    if not test_lock.exists():
+        return errors
+    test_pkgs = _parse_lock_packages(test_lock)
+
+    for label, in_file in (
+        ("prod", REPO_ROOT / "requirements-prod.in"),
+        ("dev", REPO_ROOT / "requirements-dev.in"),
+        ("test", REPO_ROOT / "requirements-test.in"),
+    ):
+        direct = _parse_requirements_in(in_file)
+        missing = {d for d in direct if d not in test_pkgs}
+        if missing:
+            errors.append(
+                f"{label}.in tem {len(missing)} pacote(s) direto(s) AUSENTE(S) em "
+                f"requirements-test.lock: {sorted(missing)[:20]}"
+            )
+
+    req_lock = REPO_ROOT / "requirements.lock"
+    if req_lock.exists():
+        req_pkgs = _parse_lock_packages(req_lock)
+        if req_pkgs != test_pkgs:
+            errors.append(
+                f"requirements.lock diverge de requirements-test.lock "
+                f"(faltando em req: {sorted(test_pkgs - req_pkgs)}, "
+                f"extras no req: {sorted(req_pkgs - test_pkgs)})"
+            )
+    return errors
+
+
 def _check_sanitize_yml() -> list[str]:
     """Check sanitize-check.yml for checkout@v4 drift."""
     errors: list[str] = []
@@ -299,6 +388,7 @@ def main() -> int:
     all_errors.extend(_check_runtime_txt())
     all_errors.extend(_check_devcontainer_python())
     all_errors.extend(_check_lock_sync())
+    all_errors.extend(_check_direct_deps_covered())
     all_errors.extend(_check_sanitize_yml())
     all_errors.extend(_check_no_windows_only_packages())
 

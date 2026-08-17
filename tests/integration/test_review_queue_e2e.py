@@ -6,7 +6,6 @@ Cobre: approve, reject, fuzzy match, duplicate price, trigger ON CONFLICT.
 Roda com: pytest tests/test_review_queue_e2e.py -v
 """
 
-import os
 import sys
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -17,15 +16,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
 from tests.conftest import _has_real_db as _has_db_creds
-
-
-CI_SKIP_REASON = "Flaky em CI (estado DB/trigger) — passa local"
-
-
-def _skip_if_ci():
-    """Pula testes flaky conhecidos em CI (GITHUB_ACTIONS=true)."""
-    if os.environ.get("GITHUB_ACTIONS") == "true":
-        pytest.skip("Flaky em CI (estado DB/trigger) — passa local")
 
 
 pytestmark = pytest.mark.skipif(
@@ -389,89 +379,112 @@ class TestApproveReviewItem:
 
         self._cleanup(client, db_conn)
 
-    def test_approve_duplicate_price_no_23505(self, real_supabase, db_conn, test_store, test_ingredient):
-        _skip_if_ci()
+    def test_approve_duplicate_price_no_23505(self, real_supabase, db_conn, test_ingredient):
+        import uuid as _uuid
+        from unittest.mock import patch
+
         from services.price_service import approve_review_item
 
         client = real_supabase
         today = date.today().isoformat()
 
-        # Explicit cleanup
-        client.table("review_queue").delete().eq("raw_product", "Duplicate Price Product 395g").execute()
+        # Isolamento total por run: store unica (uuid) -> a unique key
+        # (ingredient, store, date) jamais colide entre runs concorrentes no
+        # mesmo banco real (causa raiz do flake 23505 / linha duplicada).
+        # Monkeypatch evita poluir o ingrediente de producao via
+        # add_alias_to_ingredient / auto-learning.
+        run = _uuid.uuid4().hex[:8]
+        store_id = f"_test_dup_store_{run}"
+        store_name = f"Dup Store {run}"
 
-        # First: insert a price directly
-        client.rpc(
-            "upsert_price_rpc",
-            {
-                "p_ingredient_id": test_ingredient["id"],
-                "p_store_id": test_store["id"],
-                "p_source": "approve_test",
-                "p_store_name": test_store["name"],
-                "p_raw_product": "Existing Product 395g",
-                "p_raw_price": 9.99,
-                "p_raw_unit": "un",
-                "p_collected_at": today,
-                "p_valid_from": today,
-                "p_valid_until": today,
-                "p_validity_raw": "",
-                "p_collected_weekday": "Seg",
-                "p_is_promotion": False,
-                "p_tier": 99,
-                "p_confidence": 1.0,
-                "p_normalized": None,
-                "p_city": "Test",
-                "p_logistics": "pickup_local",
-                "p_brand": "TestBrand",
-            },
-        ).execute()
+        client.table("stores").delete().eq("id", store_id).execute()
+        client.table("stores").insert({"id": store_id, "name": store_name, "tier": 99}).execute()
 
-        # Clean price_history from trigger copy (via Supabase REST; exec_sql_query é SELECT-only)
-        (
-            client.table("price_history")
-            .delete()
-            .eq("ingredient_id", test_ingredient["id"])
-            .eq("store_id", test_store["id"])
-            .eq("collected_at", today)
-            .execute()
-        )
+        try:
+            client.table("review_queue").delete().eq("store_name", store_name).execute()
+            client.table("price_history").delete().eq("ingredient_id", test_ingredient["id"]).eq("store_id", store_id).execute()
+            client.table("prices").delete().eq("ingredient_id", test_ingredient["id"]).eq("store_id", store_id).execute()
 
-        # Now create a review item for the SAME ingredient/store/date
-        review = (
-            client.table("review_queue")
-            .upsert(
+            # First: insert a price directly for (ingredient, store, today)
+            client.rpc(
+                "upsert_price_rpc",
                 {
-                    "raw_product": "Duplicate Price Product 395g",
-                    "raw_price": 11.50,
-                    "raw_unit": "un",
-                    "store_name": test_store["name"],
-                    "source": "approve_test",
-                    "confidence": 0.60,
-                    "status": "pending",
-                    "collected_at": datetime.now(UTC).isoformat(),
-                }
+                    "p_ingredient_id": test_ingredient["id"],
+                    "p_store_id": store_id,
+                    "p_source": "approve_test",
+                    "p_store_name": store_name,
+                    "p_raw_product": "Existing Product 395g",
+                    "p_raw_price": 9.99,
+                    "p_raw_unit": "un",
+                    "p_collected_at": today,
+                    "p_valid_from": today,
+                    "p_valid_until": today,
+                    "p_validity_raw": "",
+                    "p_collected_weekday": "Seg",
+                    "p_is_promotion": False,
+                    "p_tier": 99,
+                    "p_confidence": 1.0,
+                    "p_normalized": None,
+                    "p_city": "Test",
+                    "p_logistics": "pickup_local",
+                    "p_brand": "TestBrand",
+                },
+            ).execute()
+
+            # Clean price_history from trigger copy (via Supabase REST; exec_sql_query é SELECT-only)
+            (
+                client.table("price_history")
+                .delete()
+                .eq("ingredient_id", test_ingredient["id"])
+                .eq("store_id", store_id)
+                .eq("collected_at", today)
+                .execute()
             )
-            .execute()
-        )
-        item_id = review.data[0]["id"]
 
-        # Approve — this should NOT fail with 23505
-        result = approve_review_item(item_id, test_ingredient["id"])
-        assert result, "approve duplicate price returned empty (was 23505)"
-        assert "error" not in result, f"approve duplicate price falhou: {result.get('error')}"
+            # Now create a review item for the SAME ingredient/store/date
+            review = (
+                client.table("review_queue")
+                .upsert(
+                    {
+                        "raw_product": "Duplicate Price Product 395g",
+                        "raw_price": 11.50,
+                        "raw_unit": "un",
+                        "store_name": store_name,
+                        "source": "approve_test",
+                        "confidence": 0.60,
+                        "status": "pending",
+                        "collected_at": datetime.now(UTC).isoformat(),
+                    }
+                )
+                .execute()
+            )
+            item_id = review.data[0]["id"]
 
-        # Verify price was updated (not duplicated)
-        check = (
-            client.table("prices")
-            .select("raw_price")
-            .eq("ingredient_id", test_ingredient["id"])
-            .eq("store_id", test_store["id"])
-            .eq("collected_at", today)
-            .execute()
-        )
-        assert len(check.data) == 1, f"Expected 1 price row, got {len(check.data)}"
-        assert check.data[0]["raw_price"] == 11.50, "Price was not updated"
+            # Approve — this should NOT fail with 23505 (ON CONFLICT DO UPDATE)
+            with patch("services.review_queue_service.add_alias_to_ingredient", return_value={}), patch(
+                "services.config_db.upsert_ingredient", return_value=test_ingredient
+            ):
+                result = approve_review_item(item_id, test_ingredient["id"])
+            assert result, "approve duplicate price returned empty (was 23505)"
+            assert "error" not in result, f"approve duplicate price falhou: {result.get('error')}"
 
-        self._cleanup(client, db_conn)
+            # Verify price was updated (not duplicated)
+            check = (
+                client.table("prices")
+                .select("raw_price")
+                .eq("ingredient_id", test_ingredient["id"])
+                .eq("store_id", store_id)
+                .eq("collected_at", today)
+                .execute()
+            )
+            assert len(check.data) == 1, f"Expected 1 price row, got {len(check.data)}"
+            assert check.data[0]["raw_price"] == 11.50, "Price was not updated"
+        finally:
+            # Cleanup determinístico (idempotente entre runs)
+            client.table("review_queue").delete().eq("store_name", store_name).execute()
+            client.table("price_history").delete().eq("ingredient_id", test_ingredient["id"]).eq("store_id", store_id).execute()
+            client.table("prices").delete().eq("ingredient_id", test_ingredient["id"]).eq("store_id", store_id).execute()
+            client.table("stores").delete().eq("id", store_id).execute()
 
 
 # ── 3. Reject review item ──────────────────────────────────────

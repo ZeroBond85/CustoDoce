@@ -394,11 +394,14 @@ fi
 
 # ----------------------------------------------------------------
 # 9. WINDOWS-ONLY PACKAGES GUARD — Bloqueia commit de lock files
-#    gerados no Windows (colorama, tzdata, etc.)
-#    LESSONS.md #52, REGRAS.md regra 5.
-#    Lock files DEVEM ser gerados em WSL/Linux (custodoce-314).
+#    gerados no Windows (pywin32, win32api, win32con, winerror, pywinpty,
+#    pywin32-ctypes — estes SO existem em lock gerado no Windows).
+#    colorama/tzdata SAO deps condicionais universais (ex.: colorama via
+#    sqlfluff) e aparecem em lock Linux legitimo — nao indicam Windows.
+#    LESSONS.md #52, REGRAS.md regra 5. Lock files DEVEM ser gerados em
+#    WSL/Linux (custodoce-314).
 # ----------------------------------------------------------------
-WIN_ONLY_PKGS="colorama|tzdata|pywin32|pywin32-ctypes|win32api|win32con|winerror|pywinpty"
+WIN_ONLY_PKGS="pywin32|pywin32-ctypes|win32api|win32con|winerror|pywinpty"
 if [ -n "${STAGED:-}" ]; then
   LOCK_HITS=""
   OIFS="$IFS"
