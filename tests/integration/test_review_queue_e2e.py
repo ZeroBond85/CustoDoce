@@ -49,10 +49,17 @@ def test_store(real_supabase):
 
 @pytest.fixture(scope="module")
 def test_ingredient(real_supabase):
-    """Pega um ingrediente real existente."""
+    """Pega um ingrediente real existente (determinístico: Fermento Químico em Pó)."""
     client = real_supabase
-    result = client.table("ingredients").select("id, canonical_name").eq("active", True).limit(1).execute()
-    assert result.data, "No active ingredients in DB"
+    result = (
+        client.table("ingredients")
+        .select("id, canonical_name")
+        .eq("active", True)
+        .eq("canonical_name", "Fermento Químico em Pó")
+        .limit(1)
+        .execute()
+    )
+    assert result.data, "Fermento Químico em Pó não encontrado ou inativo"
     return result.data[0]
 
 
