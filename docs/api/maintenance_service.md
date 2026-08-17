@@ -1,6 +1,6 @@
 # `maintenance_service` — API
 
-> Última atualização: 2026-08-13 01:28 UTC
+> Última atualização: 2026-08-17 18:54 UTC
 > Gerado por AST parsing dos serviços em `services/maintenance_service.py`.
 
 ## Funções Públicas (6)
@@ -13,7 +13,9 @@
 
 ### cleanup_resolved_review_items(retention_days: int)
 
-### cleanup_test_data()
+### cleanup_test_data(client)
+
+Remove test data from all safe tables.
 
 ### log_scraper_run(store_name: str, status: str, items_found: int, items_matched: int, errors: list[str] | None, started_at: datetime | None)
 

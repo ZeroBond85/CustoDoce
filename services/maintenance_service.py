@@ -140,8 +140,15 @@ def _retry_delete(client, table: str, name_col: str, prefix: str, max_retries: i
     return 0
 
 
-def cleanup_test_data() -> dict[str, int]:
-    client = get_service_client()
+def cleanup_test_data(client=None) -> dict[str, int]:
+    """Remove test data from all safe tables.
+
+    Args:
+        client: Optional Supabase client. If not provided, creates a new service client.
+                For tests, pass the same client used for inserts to avoid
+                cross-client eventual consistency issues in CI.
+    """
+    client = client or get_service_client()
     # Coluna de nome real por tabela. IMPORTANTE: o mapeamento é EXPLÍCITO —
     # o padrão antigo `"store_name" if "name" in table else "name"` nunca casava
     # (nenhuma tabela contém "name" no NOME da tabela), então prices,
