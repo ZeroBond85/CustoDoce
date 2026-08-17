@@ -59,15 +59,18 @@ def render_precos():
 
     _push_query_params()
 
-    # Filtro server-side por ingrediente + tier (evita baixar 5000 preços de
-    # todos os ingredientes para mostrar um): search_prices usa PostgREST com
-    # .eq() no DB. O filtro de loja é barato em memória (dataset já reduzido).
-    with st.spinner("Carregando preços…"):
-        prices = get_prices_for_ingredient_cached(
-            selected_ingredient,
-            valid_only=True,
-            tier=None if tier_filter == "Todos" else tier_filter,
-        )
+    # Sprint 18: Usar skeleton loader para perceived performance
+    prices = st.session_state.get("_prices_precos_cached", None)
+    if prices is None:
+        with st.spinner("Carregando preços…"):
+            prices = get_prices_for_ingredient_cached(
+                selected_ingredient,
+                valid_only=True,
+                tier=None if tier_filter == "Todos" else tier_filter,
+            )
+        st.session_state["_prices_precos_cached"] = prices
+    else:
+        prices = prices
 
     df = pd.DataFrame(prices)
     if df.empty:

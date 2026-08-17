@@ -78,8 +78,12 @@ def freshness_column(collected_at, now=None):
 
 
 def info_box(message: str, type: str = "info"):
+    """Caixa de informação com role=alert para screen readers."""
+    type_classes = {"info": "cd-info-box-info", "success": "cd-info-box-success", "warning": "cd-info-box-warning", "error": "cd-info-box-error"}
+    type_map = {"info": "Informação", "success": "Sucesso", "warning": "Aviso", "error": "Erro"}
+    aria_type = type_map.get(type, "Informação")
     st.markdown(
-        f'<div class="cd-info-box {type}">{message}</div>',
+        f'<div class="cd-info-box {type_classes.get(type, "cd-info-box-info")}" role="alert" aria-live="polite" aria-label="{aria_type}: {message}">{message}</div>',
         unsafe_allow_html=True,
     )
 
