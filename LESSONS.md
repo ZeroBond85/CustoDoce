@@ -168,28 +168,11 @@ Autenticação: `gh auth login` ou `GH_TOKEN` no `.env`. Responsabilidade do des
 
 ### 38. Monitoração é essencial — se não é monitorado, assuma que está quebrado
 
-**Causa raiz:** Phase 0 security baseline descobriu 6 RLS policies inseguras, 3 RPCs `SECURITY DEFINER` sem `REVOKE`, fallback silencioso de `get_service_client()`, admin app gerando senha aleatória invisível, e JWT morto — tudo passando despercebido por meses porque **não havia monitoração em nenhum desses pontos**.
+**Causa raiz:** Phase 0 security baseline achou 6 RLS inseguras, 3 RPCs `SECURITY DEFINER` sem `REVOKE`, fallback silencioso de `get_service_client()`, senha admin invisível e JWT morto — tudo despercebido por meses por falta de monitoração. Toda mitigação foi reativa.
 
-Toda mitigação foi reativa. Com monitoração, teriam sido descobertas proativamente semanas antes.
+**Monitore tudo que falha silenciosamente:** Segurança (`db_security_lint.py`); Scrapers (failure rate, `scraper_health.py` + `heal-scrapers.yml`); CI/CD (`git pw` + `gh run watch`); DB (`validate_db_schema.py` + cron); Dependências (`dependency-audit.yml`); Dead code (`vulture`); Secrets (`detect-secrets` no pre-commit); Free tier budget (alerta manual).
 
-**Abrangência (monitore tudo que pode falhar silenciosamente):**
-
-| Domínio | O que monitorar | Como |
-|---------|----------------|------|
-| Segurança | RLS policies, permissões de funções, tentativas de auth falhas | `db_security_lint.py` + Supabase audit log |
-| Scrapers | Failure rate, circuit breaker, auto-disable | `scraper_health.py` + `heal-scrapers.yml` |
-| CI/CD | Pass/fail rate, duração, timeout | `git pw` com `gh run watch` |
-| Database | Migration drift, schema changes, query perf | `validate_db_schema.py` + cron |
-| Dependências | CVEs em prod e dev, licenças | `dependency-audit.yml` (mensal) |
-| Código morto | Funções/classes não utilizadas | `vulture` (mensal) |
-| Secrets | Exposição acidental em working tree | `detect-secrets` (pre-commit) |
-| Free tier budget | GHA minutos, Supabase storage, Streamlit horas | Alerta manual por email |
-
-**Regra permanente:**
-- Toda nova funcionalidade DEVE incluir pelo menos um ponto de observabilidade (log estruturado, métrica, alerta)
-- Nada que pode falhar silenciosamente deve ficar sem monitoração por mais de um sprint
-- `git pw` (CI watch) é obrigatório para todo push — não monitorar CI é aceitar merge silencioso de breaking change
-- Se um componente quebrou e ninguém percebeu, a culpa não é do componente — é da falta de monitoração
+**Regra:** toda nova feature DEVE ter ≥1 ponto de observabilidade; nada que falha silenciosamente fica sem monitoração >1 sprint; `git pw` é obrigatório no push.
 
 ### 39. Monitoração de CI em shells com timeout (Polling vs Watch)
   
