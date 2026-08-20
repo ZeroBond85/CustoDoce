@@ -18,8 +18,7 @@ Auditoria UX/UI completa do portal CustoDoce com 9 fases executadas, validando:
 - **Lint/Ruff/Mypy** sem issues
 - **10/10** validações de queries dashboard
 - **Assets otimizados**: logos WebP <100KB (redução de 485-988KB para 1.9-23.8KB)
-- **Acessibilidade WCAG 2.2 AA** implementada
-- **Dark mode** adicionado via `prefers-color-scheme`
+- **Acessibilidade WCAG 2.2 AA** implementada (touch targets 44px, ARIA, focus-visible)
 - **Performance** melhorada com skeleton loaders
 
 ---
@@ -53,7 +52,7 @@ Auditoria UX/UI completa do portal CustoDoce com 9 fases executadas, validando:
 - `.gitattributes` cobre todos os hooks com `eol=lf` (regra #17)
 
 ### Fase 3 - Acessibilidade WCAG 2.2 AA ✅
-- Contraste: `--cd-text-secondary: #6B5B3D` (was `#8B7355`), `--cd-border: #D4C4A8` (was `#F0E6DB`)
+- Paleta de cores existente mantida (decisão do usuário — sem alteração de contraste)
 - Touch targets: `min-height: 44px` e `min-width: 44px` em botões sidebar
 - ARIA labels: `info_box()` agora tem `role="alert"`, `aria-live="polite"`, `aria-label`
 - Focus-visible: estilos CSS consistentes com `outline: 2px solid var(--cd-text)`
@@ -87,12 +86,8 @@ Auditoria UX/UI completa do portal CustoDoce com 9 fases executadas, validando:
 - `st.session_state` used para caching de prices entre interações
 
 ### Fase 7 - Modernizações 2026 ✅
-- **Dark mode**: `@media (prefers-color-scheme: dark)` com variáveis CSS completas
-  - Oranges, pinks, blues, success, warning, danger ajustados para modo escuro
-  - Background: `#1F2937` (was `#FFF9F5`)
-  - Card: `#1E293B` (was `#FFFFFF`)
-  - Sidebar: gradient `#3F396D` → `#1E1B4B`
-  - Text: `#F8FAFC` (was `#3D2C1E`)
+- Dark mode **não incluso** (decisão do usuário — paleta atual mantida)
+- Touch targets acessíveis: `min-height: 44px` em botões do sidebar (WCAG 2.5.5)
 - Animações respectarem `prefers-reduced-motion`
 - Feature flag `ai.enabled: true` adicionado em `config/features.yaml`
 
@@ -101,7 +96,7 @@ Auditoria UX/UI completa do portal CustoDoce com 9 fases executadas, validando:
 ## Arquivos Modificados
 
 ### Código Fonte
-- `dashboard/static/style.css` - Cores, touch targets, focus-visible, dark mode
+- `dashboard/static/style.css` - Touch targets 44px (sidebar), focus-visible
 - `dashboard/components/ui.py` - `info_box()` com ARIA labels completos
 - `dashboard/pages/visao_geral.py` - Skeleton loader pattern
 - `dashboard/pages/precos.py` - Skeleton loader pattern + session state caching
@@ -201,8 +196,7 @@ Auditoria UX/UI completa do portal CustoDoce com 9 fases executadas, validando:
 ✅ python scripts/sanity_check.py ... OK
 ✅ python scripts/check_environment_parity.py ... ALL PASS
 ✅ Push WSL + CI 16 workflows ... todos validados
-✅ Dark mode @media (prefers-color-scheme: dark) ... implementado
-✅ Acessibilidade WCAG 2.2 AA ... 100% coberta
+✅ Acessibilidade WCAG 2.2 AA ... touch targets 44px + ARIA + focus-visible
 ✅ Assets WebP <100KB ... todas as logos otimizadas
 ```
 

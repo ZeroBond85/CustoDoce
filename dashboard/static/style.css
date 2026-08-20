@@ -183,8 +183,9 @@ div[data-testid="stDataFrame"] table {
 
     div[data-testid="stSidebar"] .stButton>button {
         font-size: 0.75rem !important;
-        padding: 0.35rem 0.5rem !important;
-        min-height: 32px;
+        padding: 0.5rem 0.75rem !important;
+        min-height: 44px;
+        min-width: 44px;
     }
     div[data-testid="stSidebar"] > section {
         padding: 0 !important;
