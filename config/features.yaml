@@ -29,6 +29,7 @@ features:
   # lixo nesses flyers densos, entao usa-se vision (Groq -> OpenRouter -> HF).
   # Requer GROQ_API_KEY (ou OPENROUTER/HF) no ambiente. Degrada p/ OCR se ausente.
   ai:
+    enabled: true
     vision: true
     # LLM classifier para match 70-80% (match_ingredient -> semantic -> LLM).
     # DESLIGADO (2026-08-16): matcher determinístico + semantic embeddings

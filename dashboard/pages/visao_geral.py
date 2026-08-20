@@ -25,8 +25,14 @@ def render_visao_geral():
     # UMA query de preços de 5000 rows, reutilizada em KPIs + promoções +
     # cobertura (antes eram 3 queries idênticas). Cache em @st.cache_data evita
     # re-query entre interações.
-    with st.spinner("Carregando preços…"):
-        prices = get_latest_prices_cached(valid_only=True, limit=5000)
+    # Sprint 18: Usar skeleton loader para perceived performance
+    prices = st.session_state.get("_prices_cached", None)
+    if prices is None:
+        with st.spinner("Carregando preços…"):
+            prices = get_latest_prices_cached(valid_only=True, limit=5000)
+        st.session_state["_prices_cached"] = prices
+    else:
+        prices = prices
 
     kpis = _kpis_from_prices(prices)
 

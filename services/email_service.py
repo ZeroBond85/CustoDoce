@@ -29,7 +29,7 @@ _BRAND = {
 }
 
 _BASE_DIR = Path(__file__).resolve().parent.parent
-_LOGO_PATH = _BASE_DIR / "Logocustodocepqueno.png"
+_LOGO_PATH = _BASE_DIR / "dashboard" / "assets" / "Logocustodocepqueno.png"
 _STORES_YAML = _BASE_DIR / "config" / "stores.yaml"
 
 

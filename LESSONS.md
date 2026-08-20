@@ -1,5 +1,5 @@
 # Lições Aprendidas
-> Última atualização: 2026-08-16 15:10 UTC
+> Última atualização: 2026-08-20 22:10 UTC
 
 > Extraídas de AGENTS.md. Numeração original preservada.
 > Regras de execução/ambiente → `REGRAS.md`.
@@ -730,3 +730,7 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Correção**: `scripts/recover_review_queue.py` (dry-run/execute/delete-legacy/reject-stores) replica exatamente a lógica do collector (match_ingredient → semantic_matcher → `combined_score`), recupera pendentes com `combined >= 0.80` como preços via `batch_upsert_prices`, e marca `status=resolved`. Execução: 46 candidatos → 21 preços inseridos (25 eram duplicatas store+ingredient já existentes do scrape), 0 falhas.
 - **Teste de regressão**: dry-run antes do execute validou os 46 (todos confeitaria legítima); pós-execute conferiu contagem de preços (1359) e store_registry (0 pending).
 - **Regra**: antes de DELETE em massa de review_queue, rodar passagem de recuperação (D3) — itens legítimos presos viram preço; lixo real (teste/catálogo/Lançamento órfão) vira rejected. Backup FULL pré-remoção é mandatório.
+### 106. Mudança ARIA em `info_box()` quebrou teste de markup em CI — validar suíte completa antes do push (2026-08-20)
+- **Sintoma/causa/correção**: CI do PR #57 falhou em `test_ui_components.py::TestInfoBox::test_info_box_renders` — `info_box()` ganhou classes por tipo (`cd-info-box-success`) + `role="alert"`/`aria-live`/`aria-label`, mas o teste esperava o markup antigo `class="cd-info-box success"`. Validação local rodou só testes-alvo, não a suíte completa. Correção: assert atualizado para o novo markup (classes + atributos ARIA).
+- **Teste de regressão**: `test_ui_components.py::TestInfoBox::test_info_box_renders` (valida ARIA).
+- **Regra**: mudança de markup HTML gerado (classes/atributos) DEVE rodar a suíte unit completa local antes do push (`pytest tests/unit/ -q`), não só testes-alvo.
