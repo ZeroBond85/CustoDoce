@@ -64,7 +64,10 @@ class TestInfoBox:
             ui.info_box("test message", type="success")
             mock_st.markdown.assert_called_once()
             call_args = mock_st.markdown.call_args[0][0]
-            assert "cd-info-box success" in call_args
+            assert 'cd-info-box cd-info-box-success' in call_args
+            assert 'role="alert"' in call_args
+            assert 'aria-live="polite"' in call_args
+            assert 'aria-label="Sucesso: test message"' in call_args
             assert "test message" in call_args
 
 
