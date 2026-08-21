@@ -131,12 +131,15 @@ def _retry_delete(client, table: str, name_col: str, prefix: str, max_retries: i
     for attempt in range(1, max_retries + 1):
         try:
             result = client.table(table).delete().ilike(name_col, f"{prefix}%").execute()
-            return len(result.data) if result.data else 0
+            if result.data:
+                return len(result.data)
+            # Silent drop: empty data sem exception — tenta novamente
+            logger.debug("cleanup_test_data silent drop on %s (attempt %d/%d)", table, attempt, max_retries)
         except Exception as exc:  # noqa: BLE001 - erro de rede precisa de retry
-            if attempt >= max_retries:
-                logger.debug("cleanup_test_data failed for %s after %d retries: %s", table, attempt, exc)
-                return 0
-            time.sleep(1.0 * (1.5 ** (attempt - 1)))
+            logger.debug("cleanup_test_data exception on %s (attempt %d/%d): %s", table, attempt, max_retries, exc)
+        if attempt >= max_retries:
+            return 0
+        time.sleep(1.0 * (1.5 ** (attempt - 1)))
     return 0
 
 
