@@ -728,13 +728,12 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 
 ### 108. Sleeps/timeouts reais em testes unitários disfarçados de lentidão (2026-08-20)
 - **Data + commit**: 2026-08-20 (c0e7794)
-- **Sintoma**: suíte unit+schema levava ~147s (1473 testes); perfil cProfile revelou tempo gasto em `time.sleep` real e chamadas HTTP reais não mockadas.
-- **Causa raiz**: 
-  - `test_main_tier_dispatch`: harness deixava passar 3 chamadas reais ao Supabase (cleanup_test_data, sync_store_units, auto_promote_discovered_stores via lazy import) → ~3-7s TLS por teste.
-  - `test_self_healing`: conftest carrega .env (TELEGRAM_BOT_TOKEN) → `record_failure` disparava POST real à API Telegram (~16s).
-  - `test_alert_service`: mockava email mas não Telegram → HTTP real (~32s).
-  - `test_retry_policy` / `test_price` / `flyer_ocr` / `scraper_base` / `maintenance_service` / `website_scraper` / `base_scraper`: `time.sleep` real de backoff/retry/throttle.
-  - `rate_limiter` (unit + dashboard): janela de 1-1.5s com sleep real.
-- **Correção**: Fixture autouse `_no_real_sleep` + patch nos harnesses; relógio fake para rate_limiter; mocks completos para Telegram/email/Supabase.
+- **Sintoma/causa**: suíte unit+schema levava ~147s (1473 testes) — cProfile revelou I/O real não mockado: `test_main_tier_dispatch` deixava passar 3 chamadas reais ao Supabase (~3-7s TLS/teste); `test_self_healing` carregava .env → POST real ao Telegram (~16s); `test_alert_service` mockava email mas não Telegram (~32s); `test_retry_policy`/`test_price`/`flyer_ocr`/`scraper_base`/`maintenance_service`/`website_scraper`/`base_scraper` com `time.sleep` real de backoff/throttle; `rate_limiter` (unit+dashboard) com janela de sleep real.
+- **Correção**: fixture autouse `_no_real_sleep` + patch nos harnesses; relógio fake p/ rate_limiter; mocks completos Telegram/email/Supabase.
 - **Teste de regressão**: suíte unit+schema 147s → 40s (1473 passed).
-- **Regra**: zero I/O real (rede, disco, sleep) em testes unitários — usar fixtures autouse para mockar no conftest; validar com `pytest --durations=10` periodicamente.
+- **Regra**: zero I/O real (rede, disco, sleep) em testes unitários — fixtures autouse no conftest; validar com `pytest --durations=10`.
+
+### 109. CI #618 flake integration — Supabase REST HTTP/2 silent drop (2026-08-21)
+- **Sintoma/causa**: runs 32429656813/32430936335 falharam em `test_cleanup_test_data_removes_store_registry` — HTTP/2 derruba conexão silenciosamente (`RemoteProtocolError`) → `.delete().execute()` retorna `data: []` sem exception → `_retry_delete` só retentava em exception.
+- **Correção/validação**: `52c2ebc` retenta também em silent drop (backoff 1s/1.5s/2.25s); runs seguintes 100% success (32438278650, 32442644691).
+- **Regra**: flakiness de rede/scraper = exceção RPR (regra 11a) — fix no código + registro; re-run "pra ver se passa" é proibido.
