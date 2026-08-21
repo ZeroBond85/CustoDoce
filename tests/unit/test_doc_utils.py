@@ -109,6 +109,7 @@ def test_allowlist_is_complete_for_known_docs():
 
 from scripts.doc_utils import (  # noqa: E402
     _COUNTS_MEMO,
+    _FULL_COUNTS_MEMO,
     _hash_test_state,
     count_tests_full_cached,
 )
