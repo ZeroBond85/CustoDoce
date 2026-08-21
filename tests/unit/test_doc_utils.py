@@ -114,10 +114,10 @@ from scripts.doc_utils import (  # noqa: E402
     count_tests_full_cached,
 )
 
-# Silence F401 for items used only in test functions
-_COUNTS_MEMO  # noqa: F841
-_FULL_COUNTS_MEMO  # noqa: F841
-count_tests_full_cached  # noqa: F841
+# Silence F401/B018 for items used only in test functions
+_ = _COUNTS_MEMO  # noqa: F841
+_ = _FULL_COUNTS_MEMO  # noqa: F841
+_ = count_tests_full_cached  # noqa: F841
 
 
 def test_hash_nao_inclui_git_head(tmp_path, monkeypatch):
