@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 # Guard: o projeto é 3.14.6 em TODOS os ambientes (CI/Cloud/WSL/.venv314).
 # Rodar com outro interpretador (ex.: python3 = 3.13 do apt no WSL) gera falhas
 # confusas de import/deps. Falha rápido com instrução em vez de erro obscuro.
-if sys.version_info < (3, 14):
+if sys.version_info < (3, 14):  # noqa: UP036 — check de RUNTIME; pyproject aceita >=3.12 mas o projeto roda 3.14.6
     pytest.exit(
         f"Python 3.14+ obrigatório (encontrado {sys.version.split()[0]}). "
         "Use /usr/local/bin/python3.14 (WSL) ou .venv314 (Windows).",

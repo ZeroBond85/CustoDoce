@@ -732,6 +732,7 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Correção**: fixture autouse `_no_real_sleep` + patch nos harnesses; relógio fake p/ rate_limiter; mocks completos Telegram/email/Supabase.
 - **Teste de regressão**: suíte unit+schema 147s → 40s (1473 passed).
 - **Regra**: zero I/O real (rede, disco, sleep) em testes unitários — fixtures autouse no conftest; validar com `pytest --durations=10`.
+- **Guard (2026-08-21)**: `tests/conftest.py` falha rápido se Python < 3.14 (`pytest.exit` + `noqa: UP036`) — evita rodar a suíte com interpretador errado (ex.: `python3`=3.13 do apt no WSL, sem deps) que gera falhas de import confusas; `ruff check` local antes do push é mandatório.
 
 ### 109. CI #618 flake integration — Supabase REST HTTP/2 silent drop (2026-08-21)
 - **Sintoma/causa**: runs 32429656813/32430936335 falharam em `test_cleanup_test_data_removes_store_registry` — HTTP/2 derruba conexão silenciosamente (`RemoteProtocolError`) → `.delete().execute()` retorna `data: []` sem exception → `_retry_delete` só retentava em exception.
