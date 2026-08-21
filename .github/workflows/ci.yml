@@ -225,7 +225,8 @@ jobs:
           python scripts/generate_schema_manifest.py
           python -m pytest tests/unit/test_validate_mocks_against_manifest.py -q --no-header
       - name: Run unit tests
-        run: python -m pytest tests/unit/ tests/schema/ -q --tb=short --no-header --durations=5
+        # -n auto (pytest-xdist): suíte 100% mockada desde c0e7794 — paralela com segurança.
+        run: python -m pytest tests/unit/ tests/schema/ -q --tb=short --no-header --durations=5 -n auto
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -260,6 +261,8 @@ jobs:
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - name: Run integration tests
+        # Serial de propósito: DB Supabase compartilhado — workers xdist se
+        # atravessariam no cleanup (ilike 'Cleanup%' apagaria rows de outro worker).
         run: python -m pytest tests/integration/ -q --tb=short --no-header --durations=5
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

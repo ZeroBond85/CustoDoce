@@ -19,6 +19,16 @@ from unittest.mock import MagicMock
 import pytest
 from dotenv import load_dotenv
 
+# Guard: o projeto é 3.14.6 em TODOS os ambientes (CI/Cloud/WSL/.venv314).
+# Rodar com outro interpretador (ex.: python3 = 3.13 do apt no WSL) gera falhas
+# confusas de import/deps. Falha rápido com instrução em vez de erro obscuro.
+if sys.version_info < (3, 14):
+    pytest.exit(
+        f"Python 3.14+ obrigatório (encontrado {sys.version.split()[0]}). "
+        "Use /usr/local/bin/python3.14 (WSL) ou .venv314 (Windows).",
+        returncode=1,
+    )
+
 # Carrega .env ANTES de qualquer import para garantir que credenciais estejam disponíveis
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
@@ -174,10 +184,12 @@ class _SchemaConn:
         return _SchemaCursor(self._client)
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def db_conn():
     """
-    Conexão ao Supabase via exec_sql_query RPC (porta 443).
+    Conexão ao Supabase via exec_sql_query RPC (porta 443), session-scoped.
+    Os testes de schema são read-only (SELECTs de catálogo), então a conexão é
+    compartilhada com segurança — evita recarregar supabase_client 94x por suíte.
     Lida com a poluição de cache de módulos causada por MagicMocks nos testes unitários.
     """
     import importlib
