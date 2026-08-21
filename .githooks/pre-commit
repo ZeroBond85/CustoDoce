@@ -187,7 +187,7 @@ if echo "${STAGED:-}" | grep -qE "$CODE_PATTERNS"; then
       echo "[INFO] Rodando sync_docs.py para atualizar docs..."
 
       if [ -n "$PY" ] && [ -f "scripts/sync_docs.py" ]; then
-        SYNC_OUTPUT=$("$PY" scripts/sync_docs.py 2>&1) || true
+        SYNC_OUTPUT=$(timeout 120 "$PY" scripts/sync_docs.py 2>&1) || true
         echo "$SYNC_OUTPUT"
       else
         echo "[WARN] scripts/sync_docs.py nao encontrado ou Python indisponivel"
@@ -224,9 +224,16 @@ fi
 
 # ----------------------------------------------------------------
 # 2.5 DOC SYNC --strict check - AVISO se sync_docs.py --check falhar
+#     Gate: só roda se staged tocar código, docs ou skills (evita
+#     re-verificação em commits que não afetam o estado documentado).
+#     Skip: CUSTODOCE_SKIP_SYNC_DOCS_STRICT=1 (pre-push/CI continuam validando).
 # ----------------------------------------------------------------
-if [ -n "$PY" ] && [ -f "scripts/sync_docs.py" ]; then
-  SYNC_RESULT=$("$PY" scripts/sync_docs.py --check --strict 2>&1) || true
+SYNC_STRICT_SKIP="${CUSTODOCE_SKIP_SYNC_DOCS_STRICT:-0}"
+if [ "$SYNC_STRICT_SKIP" = "1" ]; then
+  echo "[AVISO] CUSTODOCE_SKIP_SYNC_DOCS_STRICT=1 - pulando DOC SYNC --strict (layer 2.5). Pre-push/CI ainda validam." >&2
+elif [ -n "$PY" ] && [ -f "scripts/sync_docs.py" ] \
+  && echo "${STAGED:-}" | grep -qE "$CODE_PATTERNS|$DOC_REQUIRED|^\.opencode/skills/"; then
+  SYNC_RESULT=$(timeout 120 "$PY" scripts/sync_docs.py --check --strict 2>&1) || true
   if echo "$SYNC_RESULT" | grep -q "\[FAIL\]"; then
     echo ""
     echo "📄 [AVISO] Documentacao desatualizada detectada:"
@@ -323,7 +330,7 @@ fi
 # ----------------------------------------------------------------
 if echo "${STAGED:-}" | grep -qE '^\.opencode/skills/'; then
   if [ -n "$PY" ] && [ -f "scripts/sync_docs.py" ]; then
-    SYNC_CHECK=$("$PY" scripts/sync_docs.py --check --strict --experimental 2>&1) || true
+    SYNC_CHECK=$(timeout 120 "$PY" scripts/sync_docs.py --check --strict --experimental 2>&1) || true
     if echo "$SYNC_CHECK" | grep -qE "\[FAIL\]|drift|out of sync"; then
       echo ""
       echo "🚨 COMMIT BLOQUEADO: .opencode/skills/ alterado sem sync_docs alinhado."

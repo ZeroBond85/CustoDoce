@@ -103,3 +103,80 @@ def test_allowlist_is_complete_for_known_docs():
         assert Path(rel).name  # caminho relativo válido
         assert isinstance(num, int)
         assert label in ("páginas", "testes")
+
+
+# ── Cache de test counts (doc_utils) ──────────────────────────────
+
+from scripts.doc_utils import (  # noqa: E402
+    _COUNTS_MEMO,
+    _hash_test_state,
+    count_tests_full_cached,
+)
+
+
+def test_hash_nao_inclui_git_head(tmp_path, monkeypatch):
+    """Regressão Fase 1: mudar o HEAD não invalida o cache de test counts.
+
+    Após `git commit` o HEAD muda mas os arquivos de tests/ não são tocados;
+    o cache precisa sobreviver entre pre-commit e pre-push (senão pytest
+    --collect-only re-roda a cada push).
+    """
+    # Cria estrutura mínima de tests/ para o hash não depender do repo real
+    d = tmp_path / "tests" / "unit"
+    d.mkdir(parents=True)
+    (d / "dummy.py").write_text("# dummy\n", encoding="utf-8")
+
+    # Chama _hash_test_state duas vezes — deve ser estável
+    h1 = _hash_test_state(tmp_path)
+    # Simula commit mudando HEAD (mockando _git_head_short)
+    with monkeypatch.context() as m:
+        m.setattr("scripts.doc_utils._git_head_short", lambda _: "abc123")
+        h2 = _hash_test_state(tmp_path)
+    assert h1 == h2, "Hash não deve mudar quando só HEAD muda"
+
+
+def test_memo_count_tests_cached_reusa_em_duas_chamadas(tmp_path):
+    """Memo in-processo evita rodar pytest_func 2x na mesma execução."""
+    from scripts.doc_utils import count_tests_cached, _COUNTS_MEMO
+
+    _COUNTS_MEMO.clear()
+
+    calls = {"count": 0}
+
+    def fake_pytest():
+        calls["count"] += 1
+        return {"unit": 100, "schema": 10, "integration": 5}
+
+    # Cria estrutura mínima
+    d = tmp_path / "tests" / "unit"
+    d.mkdir(parents=True)
+    (d / "dummy.py").write_text("# dummy\n", encoding="utf-8")
+
+    r1 = count_tests_cached(tmp_path, fake_pytest)
+    r2 = count_tests_cached(tmp_path, fake_pytest)
+
+    assert r1 == r2
+    assert calls["count"] == 1, "pytest_func deve ser chamado apenas 1x"
+
+
+def test_memo_count_tests_full_cached_reusa_em_duas_chamadas(tmp_path):
+    """Memo in-processo evita rodar pytest_func 2x na mesma execução (full)."""
+    from scripts.doc_utils import count_tests_full_cached, _FULL_COUNTS_MEMO
+
+    _FULL_COUNTS_MEMO.clear()
+
+    calls = {"count": 0}
+
+    def fake_pytest():
+        calls["count"] += 1
+        return {"unit": {"pytest_total": 1200, "my_count": 1000}}
+
+    d = tmp_path / "tests" / "unit"
+    d.mkdir(parents=True)
+    (d / "dummy.py").write_text("# dummy\n", encoding="utf-8")
+
+    r1 = count_tests_full_cached(tmp_path, fake_pytest)
+    r2 = count_tests_full_cached(tmp_path, fake_pytest)
+
+    assert r1 == r2
+    assert calls["count"] == 1, "pytest_func deve ser chamado apenas 1x"

@@ -35,6 +35,7 @@ import json
 import os
 import re
 import sys
+import time
 import warnings
 from collections import Counter
 from datetime import UTC, datetime
@@ -1008,7 +1009,39 @@ def _check_dirty_invariants() -> list[str]:
     return issues
 
 
-def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, experimental: bool = False, touch_timestamps: bool = False) -> bool:
+class _Timings:
+    """Coleta tempos por fase quando --timings é passado.
+
+    Uso:
+        t = _Timings(enabled)
+        t.mark("state")
+        ...fase 1...
+        t.mark("drift")
+        ...fase 2...
+        t.report()
+    """
+
+    def __init__(self, enabled: bool = False) -> None:
+        self.enabled = enabled
+        self._start: float | None = time.monotonic()
+        self._marks: list[tuple[str, float]] = []
+
+    def mark(self, label: str) -> None:
+        """Registra tempo desde a última marca (ou início) com o label dado."""
+        now = time.monotonic()
+        if self._start is not None:
+            self._marks.append((label, now - self._start))
+        self._start = now
+
+    def report(self) -> None:
+        if not self.enabled:
+            return
+        print("\nTimings:", file=sys.stderr)
+        for label, elapsed in self._marks:
+            print(f"  {label:<45} {elapsed:6.1f}s", file=sys.stderr)
+
+
+def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, experimental: bool = False, touch_timestamps: bool = False, timings: bool = False) -> bool:
     """
     Main sync logic. Returns True if in sync, False if out of sync.
 
@@ -1016,13 +1049,17 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, e
     Drift detection runs against pytest --collect-only. If the source of truth
     (sync_docs count) disagrees with pytest's reported total, --check fails.
     This ensures checks are pure read-only operations, safe for hooks/CI.
+
+    With timings=True: prints elapsed time per phase to stderr (--timings).
     """
     if check:
         dry_run = True
 
     issues: list[str] = []
+    _t = _Timings(timings)
 
     state = _build_agents_state()
+    _t.mark("build_agents_state")
     print(f"Current state (as of {state['updated_at']}):")
     print(
         f"  Tests: {state['total_tests']} total ({', '.join(f'{k}={v}' for k, v in state['test_counts'].items() if v > 0)})"
@@ -1033,6 +1070,7 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, e
 
     print("\nDrift detection (sync_docs counts vs pytest --collect-only)...")
     drift = _check_drift()
+    _t.mark("drift detection")
     if drift:
         for d in drift:
             print(f"  [DRIFT] {d}")
@@ -1042,6 +1080,7 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, e
 
     print("\nInvariants (IMMUTABLE / SNAPSHOT_FROZEN dirty detection)...")
     invariants = _check_dirty_invariants()
+    _t.mark("invariants check")
     if invariants:
         for d in invariants:
             print(f"  [INVARIANT] {d}")
@@ -1051,6 +1090,7 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, e
 
     print("\nSkills sync check (disk vs APPROVED_SKILLS)...")
     skill_issues = _check_skills_sync()
+    _t.mark("skills check")
     if skill_issues:
         for s in skill_issues:
             print(f"  [FAIL] {s}")
@@ -1059,6 +1099,7 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, e
         print("  [OK] All skills match between disk and APPROVED_SKILLS")
 
     print("\nUpdating AGENTS.md + auto-fixers...")
+    _t.mark("update AGENTS.md")
     agent_changes = _update_agents_md(state, dry_run=dry_run)
     if dry_run:
         for c in agent_changes:
@@ -1077,6 +1118,7 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, e
         print("  (dry-run, skipped)")
 
     print("\nSyncing docs/skills.md...")
+    _t.mark("sync docs/skills.md")
     skill_md_changes = _sync_skills_md(state, dry_run=dry_run, touch_timestamps=touch_timestamps)
     for c in skill_md_changes:
         print(f"  {c}")
@@ -1084,6 +1126,7 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, e
         issues.append("[AUTO] docs/skills.md drift")
 
     print("\nUpdating docs/archive/ (Raio X - policy-driven)...")
+    _t.mark("update docs/archive/")
     archive_changes = _update_archive_md(state, dry_run=dry_run, touch_timestamps=touch_timestamps)
     for c in archive_changes:
         print(f"  {c}")
@@ -1096,6 +1139,7 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, e
         print("  [NOTE] SNAPSHOT_DERIVED_LIVE permanece — regeneração é manual")
 
     print("\nUpdating README.md...")
+    _t.mark("update README.md")
     readme_changes = _update_readme_md(state, dry_run=dry_run, touch_timestamps=touch_timestamps)
     for c in readme_changes:
         print(f"  {c}")
@@ -1110,6 +1154,7 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, e
         issues.append("[LIVE] REGRAS.md drift")
 
     print("\nGenerating API docs (AST from services/)...")
+    _t.mark("generate API docs")
     api_changes = _generate_api_docs(state, dry_run=dry_run, touch_timestamps=touch_timestamps)
     for c in api_changes:
         print(f"  {c}")
@@ -1119,6 +1164,7 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, e
             issues.append(f"[AUTO] {api_count} docs/api/*.md precisam regenerar")
 
     print("\nUpdating generic .md files (timestamps)...")
+    _t.mark("update generic MD")
     generic_changes = _update_generic_md(state, dry_run=dry_run, touch_timestamps=touch_timestamps)
     for c in generic_changes:
         print(f"  {c}")
@@ -1163,6 +1209,7 @@ def run_sync(dry_run: bool = False, check: bool = False, strict: bool = False, e
         print("\n  (pass --strict for full .md audit)")
 
     print()
+    _t.report()
     if issues:
         print(f"[FAIL] Issues found: {len(issues)}")
         for issue in issues:
@@ -1517,6 +1564,7 @@ def main():
     )
     parser.add_argument("--analyze", action="store_true", help="Classify stale refs via heading hierarchy (v2)")
     parser.add_argument("--sync", action="store_true", help="Auto-update CURRENT blocks with truth values (v2)")
+    parser.add_argument("--timings", action="store_true", help="Print elapsed time per phase to stderr")
     parser.add_argument("--dump-truth", action="store_true", help="Print truth JSON and exit")
     args = parser.parse_args()
 
@@ -1537,7 +1585,7 @@ def main():
             print("=== v1 sync (README/REGRAS/AGENTS/API, conteúdo) ===")
             v1_in_sync = run_sync(
                 dry_run=False, check=False, strict=False, experimental=False,
-                touch_timestamps=args.touch_timestamps,
+                touch_timestamps=args.touch_timestamps, timings=args.timings,
             )
             print()
         changes, findings = _v2_run_sync(dry_run=args.dry_run)
@@ -1556,7 +1604,7 @@ def main():
         print(json.dumps(truth, ensure_ascii=False, indent=2, default=str))
         return
 
-    in_sync = run_sync(dry_run=args.dry_run, check=args.check, strict=args.strict, experimental=args.experimental, touch_timestamps=args.touch_timestamps)
+    in_sync = run_sync(dry_run=args.dry_run, check=args.check, strict=args.strict, experimental=args.experimental, touch_timestamps=args.touch_timestamps, timings=args.timings)
 
     if args.check and not in_sync:
         print("\n::error::Documentation is out of sync. Run 'python scripts/sync_docs.py' to update.")

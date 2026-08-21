@@ -1,5 +1,5 @@
 # Lições Aprendidas
-> Última atualização: 2026-08-20 22:10 UTC
+> Última atualização: 2026-08-21 03:00 UTC
 
 > Extraídas de AGENTS.md. Numeração original preservada.
 > Regras de execução/ambiente → `REGRAS.md`.
@@ -717,3 +717,31 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Sintoma/causa/correção**: CI do PR #57 falhou em `test_ui_components.py::TestInfoBox::test_info_box_renders` — `info_box()` ganhou classes por tipo (`cd-info-box-success`) + `role="alert"`/`aria-live`/`aria-label`, mas o teste esperava o markup antigo `class="cd-info-box success"`. Validação local rodou só testes-alvo, não a suíte completa. Correção: assert atualizado para o novo markup (classes + atributos ARIA).
 - **Teste de regressão**: `test_ui_components.py::TestInfoBox::test_info_box_renders` (valida ARIA).
 - **Regra**: mudança de markup HTML gerado (classes/atributos) DEVE rodar a suíte unit completa local antes do push (`pytest tests/unit/ -q`), não só testes-alvo.
+
+### 107. sync_docs lento no commit/push — HEAD no hash do cache + pytest 2x por execução (2026-08-20)
+- **Data + commit**: 2026-08-20 (re-aplicação 3ª tentativa; componentes em HEAD via c0e7794)
+- **Sintoma**: commit demorava 30-150s; pre-push re-executava `pytest --collect-only` até 3x (check→sync→check), cada ~12s+.
+- **Causa raiz**: (a) `doc_utils._hash_test_state()` incluía `git rev-parse --short HEAD` — commit muda HEAD sem tocar `tests/`, matando cache on-disk entre pre-commit e pre-push; (b) `count_tests_full_cached()` chamado 2x por execução (`_build_agents_state`→`_count_tests` e `_check_drift`) e com `_tests_dirty()` True AMBAS re-rodavam pytest; (c) sem timeout no pre-push/pre-commit.
+- **Correção**: (a) removido o HEAD do hash (mtime+bytes+count + `_tests_dirty` cobrem invalidação); (b) memo em processo (`_COUNTS_MEMO`/`_FULL_COUNTS_MEMO` chaveadas por `hash:id(pytest_func)`) — 1ª chamada roda pytest, 2ª reusa (12s→0.04s); (c) `timeout=120` no pre-push (3 chamadas) e `timeout 120` no pre-commit (layers 2/2.5/6); (d) Layer 2.5 gateada por staged + skip var `CUSTODOCE_SKIP_SYNC_DOCS_STRICT=1`; (e) flag `--timings` p/ medir por fase.
+- **Teste de regressão**: `tests/unit/test_doc_utils.py` (+5): hash estável quando HEAD muda, muda quando tests/ muda, memo roda `pytest_func` 1x em 2 chamadas.
+- **Regra**: cache que vive entre pre-commit e pre-push NÃO pode depender do git HEAD; otimizar só após medir com `--timings`.
+
+### 108. Sleeps/timeouts reais em testes unitários disfarçados de lentidão (2026-08-20)
+- **Data + commit**: 2026-08-20 (c0e7794)
+- **Sintoma**: suíte unit+schema levava ~147s (1473 testes); perfil cProfile revelou tempo gasto em `time.sleep` real e chamadas HTTP reais não mockadas.
+- **Causa raiz**: 
+  - `test_main_tier_dispatch`: harness deixava passar 3 chamadas reais ao Supabase (cleanup_test_data, sync_store_units, auto_promote_discovered_stores via lazy import) → ~3-7s TLS por teste.
+  - `test_self_healing`: conftest carrega .env (TELEGRAM_BOT_TOKEN) → `record_failure` disparava POST real à API Telegram (~16s).
+  - `test_alert_service`: mockava email mas não Telegram → HTTP real (~32s).
+  - `test_retry_policy` / `test_price` / `flyer_ocr` / `scraper_base` / `maintenance_service` / `website_scraper` / `base_scraper`: `time.sleep` real de backoff/retry/throttle.
+  - `rate_limiter` (unit + dashboard): janela de 1-1.5s com sleep real.
+- **Correção**: Fixture autouse `_no_real_sleep` + patch nos harnesses; relógio fake para rate_limiter; mocks completos para Telegram/email/Supabase.
+- **Teste de regressão**: suíte unit+schema 147s → 40s (1473 passed).
+- **Regra**: zero I/O real (rede, disco, sleep) em testes unitários — usar fixtures autouse para mockar no conftest; validar com `pytest --durations=10` periodicamente.
+
+### 109. CI #618 falha intermitente no integration — flake Supabase REST HTTP/2 (2026-08-21)
+- **Runs afetados**: 32429656813 (sha 4487d8d), 32430936335 (sha 4a316df) — ambos falharam em `test_cleanup_test_data_removes_store_registry` com `cleanup_test_data` retornando `{}`.
+- **Causa raiz**: Supabase REST sobre HTTP/2 derruba conexões silenciosamente (`RemoteProtocolError`) → `.delete().execute()` retorna `data: []` sem exception → `_retry_delete` original só retentava em exception, retornando 0 imediatamente.
+- **Correção aplicada**: `52c2ebc` — `_retry_delete` agora retenta também em empty data (silent drop), com backoff 1s/1.5s/2.25s e log debug.
+- **Validação**: Run 32438278650 (sha c0e7794) inclui fix + mocks de rede (c0e7794) → deve passar.
+- **Regra**: flakiness de rede/Scraper = exceção RPR (regra 11a) — não exige novo teste; fix no código + registro de lição.

@@ -436,12 +436,21 @@ def _tests_dirty(root: Path) -> bool:
         return True
 
 
+# Memoização em processo das contagens de teste. Chave: "{hash}:{id(pytest_func)}".
+# Permite que sync_docs compartilhe UMA coleta de pytest --collect-only entre
+# _build_agents_state (_count_tests) e _check_drift (_check_drift) na MESMA
+# execução, sem re-rodar pytest — mesmo com tests/ dirty.
+_COUNTS_MEMO: dict[str, dict] = {}
+_FULL_COUNTS_MEMO: dict[str, dict] = {}
+
+
 def _hash_test_state(root: Path) -> str:
     """Hash do estado dos diretórios tests/ para cache.
 
-    Combina file count + soma de mtime + soma de bytes + git HEAD curto.
-    A soma de mtime/bytes sozinha pode colidir entre checkouts (mtime não
-    preservado em alguns filesystems); o HEAD curto quebra essa colisão.
+    Combina file count + soma de mtime + soma de bytes.
+    (HEAD removido — commit muda HEAD sem tocar tests/; mtime+bytes+count
+    + _tests_dirty cobrem invalidação. Evita cache on-disk morrer entre
+    pre-commit e pre-push quando HEAD muda sem tocar tests/.)
     """
     import hashlib
 
@@ -461,8 +470,7 @@ def _hash_test_state(root: Path) -> str:
             total_mtime += int(st.st_mtime)
             total_bytes += int(st.st_size)
             total_files += 1
-    head = _git_head_short(root)
-    h.update(f"{total_mtime}:{total_bytes}:{total_files}:{head}".encode())
+    h.update(f"{total_mtime}:{total_bytes}:{total_files}".encode())
     return h.hexdigest()
 
 
@@ -470,10 +478,11 @@ def count_tests_cached(root: Path, pytest_func) -> dict[str, int]:
     """Cache de test counts: rerun pytest só se tests/ mudou.
 
     Segurança anti-staleness (camadas):
-      1. Hash de estado robusto (count + mtime + bytes + git HEAD).
+      1. Hash de estado robusto (count + mtime + bytes).
       2. Rejeita cache se `tests/` estiver com mudanças não commitadas
          (_tests_dirty) — impossível servir número obsoleto após edição.
       3. Sanity check `expected_min` (proteção contra hash colidido).
+      4. Memoização em processo (_COUNTS_MEMO) — evita pytest 2x na mesma execução.
     """
     import json
     import tempfile
@@ -483,13 +492,14 @@ def count_tests_cached(root: Path, pytest_func) -> dict[str, int]:
     cache_file = cache_dir / "test_counts.json"
 
     state_hash = _hash_test_state(root)
-    # Freshness real-time: se tests/ tem edição não commitada, força recompute
-    # independentemente do hash (cobre edições same-mtime/same-size).
     dirty = _tests_dirty(root)
+    memo_key = f"{state_hash}:{id(pytest_func)}"
 
-    # Under test execution the callable is mocked per-test; serving a shared
-    # on-disk cache would cross-contaminate test cases (one mock's result
-    # leaking into another). Skip the cache entirely when pytest is driving.
+    # 1. Memo in-processo: mesma execução, mesmo hash + mesma funcao = reusa
+    if _COUNTS_MEMO.get(memo_key) is not None:
+        return _COUNTS_MEMO[memo_key]
+
+    # 2. Cache on-disk (persistente entre processos)
     if "PYTEST_CURRENT_TEST" not in os.environ:
         cached = {}
         if cache_file.exists():
@@ -500,17 +510,17 @@ def count_tests_cached(root: Path, pytest_func) -> dict[str, int]:
 
         if not dirty and cached.get("hash") == state_hash:
             cached_counts = cached.get("counts", {})
-            # Sanity check: cache nao pode ter menos que 20% do esperado.
             expected_min = {"unit": 800, "schema": 50, "integration": 50}
             sane = all(
                 cached_counts.get(k, 0) >= v
                 for k, v in expected_min.items()
             )
             if sane:
+                _COUNTS_MEMO[memo_key] = cached_counts
                 return cached_counts
-            # Cache invalido: ignora e regera
 
     counts = pytest_func()
+    _COUNTS_MEMO[memo_key] = counts
     cache_file.write_text(
         json.dumps({"hash": state_hash, "counts": counts}, ensure_ascii=False),
         encoding="utf-8",
@@ -528,6 +538,9 @@ def count_tests_full_cached(root: Path, pytest_func) -> dict[str, dict]:
     Permite que sync_docs compartilhe UMA coleta (paralela) entre o
     agente de contagem (_count_tests) e o drift check (_check_drift) —
     eliminando re-execucoes de pytest --collect-only entre os dois.
+
+    Memoização em processo (_FULL_COUNTS_MEMO) evita re-execucao de pytest
+    na mesma execução (mesmo hash + mesma funcao = reusa).
     """
     import json
     import tempfile
@@ -538,7 +551,13 @@ def count_tests_full_cached(root: Path, pytest_func) -> dict[str, dict]:
 
     state_hash = _hash_test_state(root)
     dirty = _tests_dirty(root)
+    memo_key = f"{state_hash}:{id(pytest_func)}"
 
+    # 1. Memo in-processo
+    if _FULL_COUNTS_MEMO.get(memo_key) is not None:
+        return _FULL_COUNTS_MEMO[memo_key]
+
+    # 2. Cache on-disk
     if "PYTEST_CURRENT_TEST" not in os.environ:
         cached = {}
         if cache_file.exists():
@@ -555,10 +574,11 @@ def count_tests_full_cached(root: Path, pytest_func) -> dict[str, dict]:
                 for k, v in expected_min.items()
             )
             if sane:
+                _FULL_COUNTS_MEMO[memo_key] = cached_full
                 return cached_full
-            # Cache invalido: ignora e regera
 
     full = pytest_func()
+    _FULL_COUNTS_MEMO[memo_key] = full
     cache_file.write_text(
         json.dumps({"hash": state_hash, "full": full}, ensure_ascii=False),
         encoding="utf-8",
