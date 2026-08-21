@@ -1,4 +1,12 @@
+import pytest
+
 from unittest.mock import patch
+
+
+@pytest.fixture(autouse=True)
+def _no_real_sleep(monkeypatch):
+    """Congela time.sleep - retries/backoff reais nao sao alvo destes testes."""
+    monkeypatch.setattr("time.sleep", lambda *_: None)
 
 
 class TestBaseWebScraper:
@@ -97,14 +105,13 @@ class TestBaseWebScraper:
         assert len(result) == 2
         assert mock_search.call_count == 2
 
-    def test_throttle_positive(self):
-        import time
-
+    def test_throttle_positive(self, monkeypatch):
+        """_throttle dorme rate_limit via time.sleep (delay correto, sem wall-clock)."""
+        sleeps: list[float] = []
+        monkeypatch.setattr("time.sleep", sleeps.append)
         scraper = self._make_concrete_scraper(rate_limit=0.01)
-        start = time.time()
         scraper._throttle()
-        elapsed = time.time() - start
-        assert elapsed >= 0.01
+        assert sleeps == [0.01]
 
     def test_throttle_zero(self):
         import time

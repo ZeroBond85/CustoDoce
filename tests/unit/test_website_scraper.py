@@ -6,7 +6,15 @@ Storefront API /collections/all/products.json NAO dispara challenge e
 retorna JSON estruturado. O scraper deve coletar 100% via JSON.
 """
 
+import pytest
+
 from scrapers.website_scraper import WebsiteScraper
+
+
+@pytest.fixture(autouse=True)
+def _no_real_sleep(monkeypatch):
+    """Congela time.sleep - retries/backoff reais nao sao alvo destes testes."""
+    monkeypatch.setattr("time.sleep", lambda *_: None)
 
 
 def _make_product(title, price, vendor="MarcaX", available=True):
@@ -133,16 +141,18 @@ def test_fetch_browse_thread_isolation_timeout_returns_none():
 
     sc = WebsiteScraper({**_chefon_config(), "browse_url_timeout": 0.05})
     # Stub que trava: se o request rodasse inline travaria o teste.
-    sc._fetch_browse_raw = lambda url: _sleep_forever()
+    sc._fetch_browse_raw = lambda url: _block_forever()
     result = sc.fetch_browse("https://chefon.com.br/collections/all")
     assert result is None  # teto estourou, retorna None
     sc.close()
 
 
-def _sleep_forever():
-    import time as _time
+def _block_forever():
+    """Bloqueia a thread sem depender de time.sleep (congelado pelo fixture
+    autouse) — Event().wait() sem timeout nunca retorna."""
+    import threading
 
-    _time.sleep(30)
+    threading.Event().wait()
     return "<html/>"
 
 

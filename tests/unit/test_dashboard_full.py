@@ -478,16 +478,19 @@ def test_generate_secret_key():
     assert len(key) >= 32, f"Chave muito curta: {len(key)}"
 
 
-def test_rate_limiter_window_expires():
-    import time
+def test_rate_limiter_window_expires(monkeypatch):
+    import time as _time
 
     from services.rate_limiter import RateLimiter
+
+    clock_t = _time.time()
+    monkeypatch.setattr("services.rate_limiter.time.time", lambda: clock_t)
 
     rl = RateLimiter(max_attempts=1, window_seconds=1)
     rl.record_attempt("expire-test")
     assert rl.remaining_attempts("expire-test") == 0
     assert rl.is_limited("expire-test")
-    time.sleep(1.5)
+    clock_t += 1.5
     assert not rl.is_limited("expire-test"), "Janela deveria ter expirado"
     rl.clear_attempts("expire-test")
 

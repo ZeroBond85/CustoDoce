@@ -1,7 +1,16 @@
 from datetime import date, timedelta
 from unittest.mock import patch
 
+import pytest
+
 from tests.unit.test_services.conftest import SAMPLE_HISTORY, SAMPLE_PRICES, make_mocks
+
+
+@pytest.fixture(autouse=True)
+def _no_real_sleep(monkeypatch):
+    """Congela time.sleep — retries de price_repository (1s*attempt) rodavam
+    de verdade nos caminhos de resiliência (~3-6s por teste)."""
+    monkeypatch.setattr("time.sleep", lambda *_: None)
 
 
 class TestPriceService:

@@ -5,6 +5,26 @@ import pytest
 from services.rate_limiter import RateLimiter
 
 
+class _FakeClock:
+    """Relogio controlavel — substitui time.time() no modulo sob teste."""
+
+    def __init__(self):
+        self._t = time.time()
+
+    def advance(self, seconds: float) -> None:
+        self._t += seconds
+
+    def __call__(self) -> float:
+        return self._t
+
+
+@pytest.fixture
+def fake_clock(monkeypatch):
+    clock = _FakeClock()
+    monkeypatch.setattr("services.rate_limiter.time.time", clock)
+    return clock
+
+
 @pytest.fixture
 def temp_limiter(tmp_path):
     db_file = tmp_path / "test_rate.db"
@@ -23,14 +43,14 @@ def test_rate_limiter_basic(temp_limiter):
     assert temp_limiter.remaining_attempts(key) == 0
 
 
-def test_rate_limiter_window_expiry(temp_limiter):
+def test_rate_limiter_window_expiry(temp_limiter, fake_clock):
     key = "user2"
     temp_limiter.record_attempt(key)
     temp_limiter.record_attempt(key)
     temp_limiter.record_attempt(key)
     assert temp_limiter.is_limited(key) is True
 
-    time.sleep(1.1)
+    fake_clock.advance(1.1)
     assert temp_limiter.is_limited(key) is False
     assert temp_limiter.remaining_attempts(key) == 3
 
@@ -44,14 +64,13 @@ def test_rate_limiter_clear(temp_limiter):
     assert temp_limiter.is_limited(key) is False
 
 
-def test_retry_after(temp_limiter):
+def test_retry_after(temp_limiter, fake_clock):
     key = "user4"
     temp_limiter.record_attempt(key)
     temp_limiter.record_attempt(key)
     temp_limiter.record_attempt(key)
 
-    # Small sleep to ensure time has moved forward
-    time.sleep(0.01)
+    fake_clock.advance(0.01)
     retry = temp_limiter.retry_after(key)
     assert retry >= 0
     assert retry <= 1

@@ -16,6 +16,12 @@ from scrapers.flyer_ocr import extract_flyer_products
 
 
 @pytest.fixture(autouse=True)
+def _no_real_sleep(monkeypatch):
+    """Congela time.sleep - retries/backoff reais nao sao alvo destes testes."""
+    monkeypatch.setattr("time.sleep", lambda *_: None)
+
+
+@pytest.fixture(autouse=True)
 def _allow_test_urls(monkeypatch):
     """SSRF guard blocks fictional test hosts (https://x/...); bypass for unit tests."""
     monkeypatch.setattr(flyer_ocr, "guard_url", lambda url, **kw: url)

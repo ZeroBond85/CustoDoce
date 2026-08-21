@@ -23,6 +23,13 @@ import main as main_mod  # noqa: E402
 import services  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _no_real_sleep(monkeypatch):
+    """Congela time.sleep — o fluxo main→price_repository tem retries com
+    backoff real (~3-6s por teste de dispatch)."""
+    monkeypatch.setattr("time.sleep", lambda *_: None)
+
+
 @pytest.fixture
 def harness(tmp_path):
     """Patch every collector + side-effect so main() can run offline."""
@@ -59,9 +66,19 @@ def harness(tmp_path):
     ), patch.object(
         main_mod, "sync_scrape_frequencies", MagicMock(return_value=1)
     ), patch.object(
+        # Batem no Supabase real (TLS ~3-4s cada) se não mockados.
+        main_mod, "sync_store_units", MagicMock(return_value=1)
+    ), patch.object(
+        main_mod, "cleanup_test_data", MagicMock(return_value={})
+    ), patch.object(
         main_mod.store_registry,
         "discover_stores_from_flyers",
         MagicMock(),
+    ), patch.object(
+        # Lazy import dentro de _finalize() — sem mock bate no Supabase real (HTTP/2, ~3s).
+        main_mod.store_registry,
+        "auto_promote_discovered_stores",
+        MagicMock(return_value=0),
     ), patch.object(
         main_mod.price_intelligence, "PriceIntelligence", return_value=pi
     ), patch.object(

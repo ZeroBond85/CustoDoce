@@ -8,6 +8,12 @@ import pytest
 from scrapers.base_unified import BaseScraper
 
 
+@pytest.fixture(autouse=True)
+def _no_real_sleep(monkeypatch):
+    """Congela time.sleep - retries/backoff reais nao sao alvo destes testes."""
+    monkeypatch.setattr("time.sleep", lambda *_: None)
+
+
 class _ConcreteScraper(BaseScraper):
     def run(self, *args, **kwargs) -> list[dict]:
         return []

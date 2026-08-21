@@ -72,8 +72,9 @@ class TestProcessProactiveAlerts:
         process_proactive_alerts()
 
     @patch("services.alert_service.get_supabase")
+    @patch("services.alert_service.send_telegram_message")
     @patch("services.alert_service.send_email_notification")
-    def test_email_error_caught_as_warning(self, mock_send_email, mock_get_supabase):
+    def test_email_error_caught_as_warning(self, mock_send_email, mock_send_tg, mock_get_supabase):
         client = _make_mock_client(has_rules=True, has_recipients=True, has_failures=True)
         mock_get_supabase.return_value = client
         mock_send_email.side_effect = Exception("SMTP not configured")

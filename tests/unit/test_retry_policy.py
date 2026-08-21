@@ -4,6 +4,13 @@ import pytest
 from services.retry_policy import RetryDecision, RetryPolicy, get_policy, with_retry
 
 
+@pytest.fixture(autouse=True)
+def _no_real_sleep(monkeypatch):
+    """Congela time.sleep — testes de retry validam contagem de chamadas,
+    não o backoff real (1s+2s+... somava ~3-15s por teste)."""
+    monkeypatch.setattr("time.sleep", lambda *_: None)
+
+
 def test_default_policy():
     p = get_policy()
     assert p.max_retries == 3

@@ -11,6 +11,12 @@ import pytest
 from services import maintenance_service
 
 
+@pytest.fixture(autouse=True)
+def _no_real_sleep(monkeypatch):
+    """Congela time.sleep - retries/backoff reais nao sao alvo destes testes."""
+    monkeypatch.setattr("time.sleep", lambda *_: None)
+
+
 @pytest.fixture
 def tmp_track(tmp_path, monkeypatch):
     p = tmp_path / "cleanup_track.json"

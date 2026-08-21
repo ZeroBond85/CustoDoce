@@ -16,6 +16,17 @@ import pytest
 
 from services import scraper_health
 
+
+@pytest.fixture(autouse=True)
+def _no_real_notifications(monkeypatch):
+    """Bloqueia HTTP real ao Telegram/ScraperAlert.
+
+    tests/conftest.py carrega .env (TELEGRAM_BOT_TOKEN presente) — sem este
+    mock, record_failure/attempt_heal disparam POST real à API do Telegram
+    (~16s de timeout de rede por teste).
+    """
+    monkeypatch.setattr("services.scraper_alert._send_alert", lambda *a, **k: True)
+
 # ─── 1. SelfHealingMixin presence ────────────────────────────────────────────
 
 
