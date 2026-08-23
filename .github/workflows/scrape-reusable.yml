@@ -108,9 +108,9 @@ jobs:
     outputs:
       stores: ${{ steps.sync_stores.outputs.stores }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.14.6'
           cache: 'pip'
@@ -145,9 +145,9 @@ jobs:
       matrix:
         tier: [1, 2a, 3]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.14.6'
           cache: 'pip'
@@ -156,7 +156,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-prod.lock
       - name: Cache Playwright browsers (chromium)
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-pw-1.61.0-${{ hashFiles('requirements-prod.lock') }}
@@ -254,9 +254,9 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.14.6'
           cache: 'pip'
@@ -270,7 +270,7 @@ jobs:
           sed -E 's/^(torch==[0-9.]+)\+[0-9a-zA-Z.]+/\1/' requirements-prod.lock > /tmp/requirements-macos.lock
           pip install -r /tmp/requirements-macos.lock
       - name: Cache Playwright browsers (chromium, macOS)
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/Library/Caches/ms-playwright
           key: ${{ runner.os }}-pw-1.61.0-${{ hashFiles('requirements-prod.lock') }}
@@ -325,9 +325,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.14.6'
           cache: 'pip'
