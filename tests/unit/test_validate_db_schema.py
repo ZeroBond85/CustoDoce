@@ -93,3 +93,54 @@ class TestManifestHealth:
             if table == "_meta":
                 continue
             assert spec.get("columns"), f"{table} sem colunas no manifest"
+
+
+class TestStaticSqlPolicy:
+    """Audit item #2 (PR-03): SQL 100% estático, diff client-side."""
+
+    def test_no_file_level_noqa_s608(self):
+        content = _read_script()
+        assert "noqa: S608" not in content
+
+    def test_every_query_call_references_static_constant(self):
+        """run_query/_safe_set só podem receber ast.Name de constantes SQL_*."""
+        tree = ast.parse(_read_script())
+        calls = [
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Call) and getattr(n.func, "id", "") in ("run_query", "_safe_set")
+        ]
+        assert calls, "nenhuma chamada de query encontrada"
+        arg_names = {a.id for c in calls for a in c.args[1:] if isinstance(a, ast.Name)}
+        non_name_args = [a for c in calls for a in c.args[1:] if not isinstance(a, ast.Name)]
+        assert not non_name_args, "queries devem ser constantes, não expressões"
+        # 'sql' = parâmetro da própria def run_query(client, sql) — permitido;
+        # qualquer outro nome deve ser constante SQL_*.
+        arg_names.discard("sql")
+        assert arg_names == {
+            "SQL_TABLES",
+            "SQL_MATVIEWS",
+            "SQL_COLUMNS",
+            "SQL_CONSTRAINTS",
+            "SQL_INDEXES",
+            "SQL_FUNCTIONS",
+        }
+
+    def test_sql_constants_are_plain_static_strings(self):
+        tree = ast.parse(_read_script())
+        assigns = {}
+        for n in ast.walk(tree):
+            if isinstance(n, ast.Assign) and isinstance(n.targets[0], ast.Name):
+                assigns[n.targets[0].id] = n.value
+        sql_consts = {k: v for k, v in assigns.items() if k.startswith("SQL_")}
+        assert len(sql_consts) == 6
+        for name, value in sql_consts.items():
+            assert isinstance(value, ast.Constant), f"{name} deve ser string literal única"
+            assert isinstance(value.value, str), f"{name} deve ser str"
+            assert "{" not in value.value and "}" not in value.value, (
+                f"{name} não pode ter placeholders"
+            )
+
+    def test_run_query_still_uses_rpc_443(self):
+        content = _read_script()
+        assert 'rpc("exec_sql_query"' in content

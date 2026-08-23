@@ -1,11 +1,15 @@
 ﻿#!/usr/bin/env python3
-# ruff: noqa: S608  # SQL construído com valores do manifest local (safe)
 """Valida que o banco Supabase tem TODAS as tabelas, colunas, constraints, índices e
 funções esperadas pelas migrations.
 
 Sempre usa REST API (RPC exec_sql_query, porta 443) para ser compatível com CI/CD.
 Fonte de verdade: config/schema_manifest.json (gerado por generate_schema_manifest.py)
 + listas adicionais de índices/funções aqui.
+
+Audit item #2 (PR-03): NENHUMA interpolação em SQL — cada categoria usa UMA
+query bulk estática (schema 'public' inteiro) e o diff esperado↔observado é
+feito client-side. Além de eliminar a classe S608/B608, corta ~100+ round-trips
+RPC para 5.
 
 Saída: exit 0 se TODAS as checagens passarem, exit 1 caso contrário.
 NUNCA é no-op: se a query de tabelas voltar vazia, o script falha.
@@ -47,6 +51,33 @@ EXPECTED_FUNCTIONS = [
     "cleanup_old_logs",
     "cleanup_old_flyers",
 ]
+
+# Queries bulk estáticas — schema public inteiro, sem interpolação.
+SQL_TABLES = (
+    "SELECT table_name FROM information_schema.tables "
+    "WHERE table_schema = 'public' ORDER BY table_name"
+)
+SQL_MATVIEWS = "SELECT matviewname FROM pg_matviews"
+SQL_COLUMNS = (
+    "SELECT r.relname AS table_name, a.attname AS col "
+    "FROM pg_attribute a "
+    "JOIN pg_class r ON r.oid = a.attrelid "
+    "JOIN pg_namespace n ON n.oid = r.relnamespace "
+    "WHERE n.nspname = 'public' AND a.attnum > 0 AND NOT a.attisdropped"
+)
+SQL_CONSTRAINTS = (
+    "SELECT r.relname AS table_name, c.contype "
+    "FROM pg_constraint c "
+    "JOIN pg_class r ON r.oid = c.conrelid "
+    "JOIN pg_namespace n ON n.oid = r.relnamespace "
+    "WHERE n.nspname = 'public'"
+)
+SQL_INDEXES = "SELECT indexname FROM pg_indexes WHERE schemaname = 'public'"
+SQL_FUNCTIONS = (
+    "SELECT p.proname FROM pg_proc p "
+    "JOIN pg_namespace n ON n.oid = p.pronamespace "
+    "WHERE n.nspname = 'public'"
+)
 
 
 def load_manifest() -> dict:
@@ -92,15 +123,10 @@ def _safe_set(client, sql):
 
 def validate_tables(client, expected_tables):
     print("=== TABLES ===")
-    sql = (
-        "SELECT table_name FROM information_schema.tables "
-        "WHERE table_schema = 'public' ORDER BY table_name"
-    )
-    db_tables = _safe_set(client, sql)
+    db_tables = _safe_set(client, SQL_TABLES)
     # Materialized views NÃO aparecem em information_schema.tables — estão em
     # pg_matviews. O manifest inclui v_latest_prices como tabela.
-    matview_sql = "SELECT matviewname FROM pg_matviews"
-    matviews = _safe_set(client, matview_sql)
+    matviews = _safe_set(client, SQL_MATVIEWS)
     if db_tables is not None and matviews is not None:
         db_tables |= matviews
     if db_tables is None:
@@ -118,16 +144,16 @@ def validate_tables(client, expected_tables):
 def validate_columns(client, expected_columns):
     print("\n=== COLUMNS ===")
     ok, total = 0, 0
+    # pg_attribute funciona para tabelas E materialized views
+    # (information_schema.columns não expõe colunas de matviews).
+    rows = run_query(client, SQL_COLUMNS)
+    cols_by_table: dict[str, set] = {}
+    if rows is not None:
+        for row in rows:
+            cols_by_table.setdefault(row["table_name"], set()).add(row["col"])
     for table, spec in sorted(expected_columns.items()):
+        db_cols = cols_by_table.get(table)
         cols = spec.get("columns", [])
-        # pg_attribute funciona para tabelas E materialized views
-        # (information_schema.columns não expõe colunas de matviews).
-        sql = (
-            "SELECT a.attname FROM pg_attribute a "
-            "JOIN pg_class r ON r.oid = a.attrelid "
-            f"WHERE r.relname = '{table}' AND a.attnum > 0 AND NOT a.attisdropped"  # noqa: S608
-        )
-        db_cols = _safe_set(client, sql)
         if db_cols is None:
             total += len(cols)
             continue
@@ -144,16 +170,18 @@ def validate_columns(client, expected_columns):
 def validate_constraints(client, expected_tables):
     print("\n=== CONSTRAINTS (PK + UNIQUE) ===")
     ok, total = 0, 0
+    rows = run_query(client, SQL_CONSTRAINTS)
+    types_by_table: dict[str, set] = {}
+    if rows is not None:
+        for row in rows:
+            types_by_table.setdefault(row["table_name"], set()).add(row["contype"])
     for table, spec in sorted(expected_tables.items()):
         pk = spec.get("constraints", {}).get("pk", [])
         uniques = spec.get("constraints", {}).get("unique", [])
+        ctypes = types_by_table.get(table)
         for col in pk:
             total += 1
-            sql = (
-                "SELECT 1 FROM pg_constraint WHERE conrelid = "
-                f"'{table}'::regclass AND contype = 'p'"  # noqa: S608
-            )
-            if run_query(client, sql):
+            if ctypes and "p" in ctypes:
                 print(f"  [OK] {table}: PK ({', '.join(col) if isinstance(col, list) else col})")
                 ok += 1
             else:
@@ -161,12 +189,7 @@ def validate_constraints(client, expected_tables):
         for cols in uniques:
             total += 1
             col_list = ", ".join(cols)
-            sql = (
-                "SELECT 1 FROM pg_index i JOIN pg_constraint c ON c.conindid = i.indexrelid "
-                f"WHERE c.conrelid = '{table}'::regclass AND c.contype = 'u' "  # noqa: S608
-                "AND array_to_string(i.indkey, ',') IS NOT NULL"
-            )
-            if run_query(client, sql):
+            if ctypes and "u" in ctypes:
                 print(f"  [OK] {table}: UNIQUE ({col_list})")
                 ok += 1
             else:
@@ -177,9 +200,9 @@ def validate_constraints(client, expected_tables):
 def validate_indexes(client):
     print("\n=== INDEXES ===")
     ok = 0
+    db_idx = _safe_set(client, SQL_INDEXES)
     for idx in EXPECTED_INDEXES:
-        sql = f"SELECT 1 FROM pg_indexes WHERE indexname = '{idx}'"  # noqa: S608
-        if run_query(client, sql):
+        if db_idx and idx in db_idx:
             print(f"  [OK] {idx}")
             ok += 1
         else:
@@ -190,9 +213,9 @@ def validate_indexes(client):
 def validate_functions(client):
     print("\n=== FUNCTIONS ===")
     ok = 0
+    db_fns = _safe_set(client, SQL_FUNCTIONS)
     for fn in EXPECTED_FUNCTIONS:
-        sql = f"SELECT 1 FROM pg_proc WHERE proname = '{fn}'"  # noqa: S608
-        if run_query(client, sql):
+        if db_fns and fn in db_fns:
             print(f"  [OK] {fn}()")
             ok += 1
         else:
@@ -205,11 +228,7 @@ def main():
     client = get_client()
 
     # Anti no-op: se a query de tabelas falhar ou voltar vazia, abortar.
-    probe = (
-        "SELECT table_name FROM information_schema.tables "
-        "WHERE table_schema = 'public'"
-    )
-    db_tables = _safe_set(client, probe)
+    db_tables = _safe_set(client, SQL_TABLES)
     if db_tables is None:
         print("\n[FATAL] Falha ao consultar tabelas via exec_sql_query RPC.")
         sys.exit(1)
