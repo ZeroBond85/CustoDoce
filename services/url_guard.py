@@ -199,13 +199,39 @@ def validate_redirect_target(url: str) -> None:
     raise httpx.UnsupportedProtocol(f"SSRF guard: blocked redirect to {url}")
 
 
+# Sufixos de TLD multi-label (eTLD) para derivar dominio registravel sem
+# depender da lib publicsuffix. Cobertura: foco BR do projeto + comuns.
+_KNOWN_MULTI_LABEL_TLDS: frozenset[str] = frozenset(
+    {
+        "com.br", "net.br", "org.br", "gov.br", "eco.br", "art.br", "blog.br",
+        "com.vc", "co.uk", "org.uk", "com.ar", "com.au", "com.mx", "com.pt",
+        "com.co", "com.pe", "com.uy",
+    }
+)
+
+
+def _registrable_domain(host: str) -> str:
+    """Approximate eTLD+1 for a hostname (lowercase assumed).
+
+    barradoce.com.br -> barradoce.com.br ; www.barradoce.com.br -> barradoce.com.br ;
+    scontent.fbcdn.net -> fbcdn.net ; evil.com -> evil.com.
+    """
+    labels = host.rstrip(".").split(".")
+    if len(labels) <= 2:
+        return host
+    tld2 = ".".join(labels[-2:])
+    n = 3 if tld2 in _KNOWN_MULTI_LABEL_TLDS else 2
+    return ".".join(labels[-n:])
+
+
 def _inject_redirect_guard(client_kwargs: dict, *, is_async: bool = False) -> dict:
     """Add a response event hook that re-validates every redirect target.
 
     Shared by make_safe_client() and make_safe_async_client(). The hook runs
     for each received response; when a redirect is pending, its target URL is
-    checked against is_safe_url() and rejected (by raising) otherwise,
-    closing the CVE-2026-35459 class of redirect-based SSRF.
+    validated: same-registrable-domain hops pass (apex<->www), anything else
+    must satisfy is_safe_url() or is rejected by raising — closing the
+    CVE-2026-35459 class of redirect-based SSRF.
 
     NOTE: httpx requires SYNC callables in Client event hooks and COROUTINE
     functions in AsyncClient event hooks — hence the is_async switch.
@@ -222,6 +248,24 @@ def _inject_redirect_guard(client_kwargs: dict, *, is_async: bool = False) -> di
         if not response.has_redirect_location:
             return
         target = str(response.url.join(response.headers["location"]))
+
+        # Same-site hop policy: redirect dentro do MESMO dominio registravel
+        # do hop atual e legitimo (apex <-> www <-> subdomain — padrao
+        # onipresente em e-commerce, ex. barradoce.com.br -> www.barradoce.com.br,
+        # quebrado no CI run 32614724013 quando o guard virou real). A ancora
+        # de confianca e a URL ORIGEM configurada pelo operador (stores.yaml/
+        # store_registry); a politica e transitiva por hop, entao nunca se
+        # atravessa fronteira registravel sem passar pela allowlist estrita.
+        t_host = (urllib.parse.urlparse(target).hostname or "").lower()
+        o_host = (response.url.host or "").lower()
+        if (
+            t_host
+            and o_host
+            and _registrable_domain(t_host) == _registrable_domain(o_host)
+            and not any(kw in t_host for kw in _BLOCKED_HOST_KEYWORDS)
+        ):
+            return
+
         validate_redirect_target(target)
 
     client_kwargs.setdefault("event_hooks", {})

@@ -229,6 +229,61 @@ class TestRedirectRevalidation:
         client.event_hooks["response"][0](ok)
         assert captured == [302, 200]
 
+    # ── Same-site hop policy (LESSONS #111) ───────────────────────────────
+
+    @staticmethod
+    def _redirect_client(location: str):
+        calls = {"n": 0}
+
+        def handler(request):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return httpx.Response(302, headers={"Location": location})
+            return httpx.Response(200, content=b"ok")
+
+        return make_safe_client(transport=httpx.MockTransport(handler), follow_redirects=True)
+
+    def test_registrable_domain_br_multi_label(self):
+        assert ug._registrable_domain("barradoce.com.br") == "barradoce.com.br"
+        assert ug._registrable_domain("www.barradoce.com.br") == "barradoce.com.br"
+        assert ug._registrable_domain("scontent.fbcdn.net") == "fbcdn.net"
+        assert ug._registrable_domain("a.b.marketplace.com.vc") == "marketplace.com.vc"
+        assert ug._registrable_domain("evil.com") == "evil.com"
+
+    def test_same_site_apex_to_www_redirect_allowed(self):
+        # Cenário real do CI run 32614724013 (Barradoce): apex -> www.
+        client = self._redirect_client("https://www.barradoce.com.br/b")
+        try:
+            resp = client.get("https://barradoce.com.br/a")
+        finally:
+            client.close()
+        assert resp.status_code == 200
+
+    def test_same_site_www_to_subdomain_redirect_allowed(self):
+        client = self._redirect_client("https://api.loja.com.br/v2")
+        try:
+            resp = client.get("https://www.loja.com.br/a")
+        finally:
+            client.close()
+        assert resp.status_code == 200
+
+    def test_cross_site_non_allowlisted_still_blocked(self):
+        client = self._redirect_client("https://evil-ssrf.test/x")
+        try:
+            with pytest.raises(httpx.UnsupportedProtocol, match="SSRF guard"):
+                client.get("https://barradoce.com.br/a")
+        finally:
+            client.close()
+
+    def test_same_site_metadata_keyword_still_blocked(self):
+        # Mesmo dentro do mesmo site, keyword de metadata no host bloqueia.
+        client = self._redirect_client("http://metadata.barradoce.com.br/x")
+        try:
+            with pytest.raises(httpx.UnsupportedProtocol, match="SSRF guard"):
+                client.get("https://www.barradoce.com.br/a")
+        finally:
+            client.close()
+
 
 # ─── 6. Integracao com flyer_ocr (allow_http=True) ────────────────────────
 class TestFlyerOcrIntegration:
