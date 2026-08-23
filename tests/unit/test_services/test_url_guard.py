@@ -212,10 +212,16 @@ class TestRedirectRevalidation:
         client = make_safe_client(follow_redirects=False, event_hooks={"response": [existing]})
         # o hook interno foi envolvido (nao eh o mesmo objeto do caller)
         assert client.event_hooks["response"][0] is not existing
-        # simula um response com next_request apontando p/ host perigoso:
+        # simula um response de redirect como o httpx entrega ao hook
+        # (request SEMPRE anexado — _send_single_request popula antes):
         # o hook existente roda no 302 e o nosso hook levanta antes de seguir.
-        resp = httpx.Response(302, headers={"Location": "http://169.254.169.254/meta"})
-        resp.next_request = httpx.Request("GET", "http://169.254.169.254/meta")
+        # (Antes de 2026-08-22 o hook dependia de next_request, que so eh
+        # populado com follow_redirects=False — guard era no-op no modo True.)
+        resp = httpx.Response(
+            302,
+            headers={"Location": "http://169.254.169.254/meta"},
+            request=httpx.Request("GET", "https://scontent.fbcdn.net/a.jpg"),
+        )
         with pytest.raises(httpx.UnsupportedProtocol):
             client.event_hooks["response"][0](resp)
         # existing hook ainda roda em response sem redirect

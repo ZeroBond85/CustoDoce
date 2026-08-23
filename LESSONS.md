@@ -650,16 +650,12 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 
 ### 98. Snapshot prices_latest.json intencionalmente trackeado quebra teste de arquivos operacionais (2026-08-14)
 
-- **Data + commit**: 2026-08-14 (fix commit_prices #3/#44/#45)
-- **Sintoma**: `tests/unit/test_ci_infrastructure.py::test_no_operational_files_tracked` falha após o push do snapshot funcionar: `AssertionError: Arquivos operacionais estão no repo (deveriam estar no .gitignore): ['data/prices_latest.json']` (CI do PR #46).
+- **Sintoma** (contexto: fixes commit_prices #3/#44/#45): `tests/unit/test_ci_infrastructure.py::test_no_operational_files_tracked` falha após o push do snapshot funcionar: `AssertionError: Arquivos operacionais estão no repo (deveriam estar no .gitignore): ['data/prices_latest.json']` (CI do PR #46).
 - **Causa raiz**: `scripts/commit_prices.py` faz `git add --force data/prices_latest.json` no finalize do scrape. Enquanto o push dava 403 (`GITHUB_TOKEN` sem write em master), o arquivo nunca entrava no repo → o teste passava. Ao corrigir o push (GH_PAT wired + extraheader neutralizado + secret válido), o snapshot é commitado em master → agora o arquivo é trackeado → o teste de "operacionais não trackeados" quebra. Era uma contradição de design latente entre o teste e o commit_prices.
 - **Correção**: `tests/unit/test_ci_infrastructure.py` — remover `data/prices_latest.json` da lista `operational` (é snapshot público de preços intencionalmente commitado, não leak de cache/secret).
 - **Teste de regressão**: `tests/unit/test_ci_infrastructure.py::test_no_operational_files_tracked` (passa com snapshot trackeado).
-
-
 ### 99. Streamlit Cloud tem 2 camadas de auth (gate + in-app) e sidebar st.navigation usa `<a>` (2026-08-14)
-- **Data + commit**: 2026-08-14 (warmup_streamlit #48, PR #48)
-- **Sintoma**: e2e-cloud `Warmup Streamlit Cloud` falhava 6×225s com `sidebar nao apareceu` — título carregava (`CustoDoce - Painel de Preços`), mas `button:has-text('Visão Geral')` nunca aparecia (run 31802508113).
+- **Sintoma** (contexto: warmup_streamlit, PR #48): e2e-cloud `Warmup Streamlit Cloud` falhava 6×225s com `sidebar nao apareceu` — título carregava (`CustoDoce - Painel de Preços`), mas `button:has-text('Visão Geral')` nunca aparecia (run 31802508113).
 - **Causa raiz**: 
   1. App tem **2 camadas de auth**: (a) gate Streamlit Cloud (`input[type=password]` + "Entrar") e (b) login in-app (`dashboard/login_page.py` — `render_login()` com usuário/senha/2FA). O `warmup_streamlit.py` só fazia a camada 1.
   2. Sidebar renderizada por `st.navigation` (novo React SPA) usa links `<a data-testid="stSidebar">` — **não** `<button>`. O seletor antigo `button:has-text('Visão Geral')` nunca matchava.
@@ -671,7 +667,6 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Regra**: warmup/playwright em apps Streamlit Cloud deve lidar com **todas** camadas de auth + seletores tanto `button` (legacy) quanto `<a>` (st.navigation).
 
 ### 100. Action `xiaotianxt/bypass-cloudflare` (v2.1.0) flaky por `jq: Cannot iterate over null` — remover se redundante (2026-08-14)
-- **Data + commit**: 2026-08-14 (scrape-reusable.yml #49)
 - **Sintoma**: heal-scrapers mensal (2026-08-01, run 30678984825) abortava no step `Bypass Cloudflare` com `jq: error: Cannot iterate over null` → setup falhava → todos tiers pulados.
 - **Causa raiz**: `xiaotianxt/bypass-cloudflare-for-github-action@v2.1.0` (latest) chama CF API para whitelist IP do runner; resposta ocasional sem `.result[]` (rate-limit/transient) → jq falha. Action é **latest sem correção** para este bug.
 - **Contexto**: Chefon (`cloudflare: true` em stores.yaml) já usa `shopify_curl_cffi: true` (Sprint 16, PR #31) com impersonação TLS Chrome120 → whitelist de zona CF redundante.
@@ -683,23 +678,20 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Data + commit**: 2026-08-14 (branch `feature/docs-curation-consolidation` ativa + fix branches paralelos)
 
 ### 102. cleanup_test_data flakava no CI: Supabase REST (HTTP/2) derruba conexão silenciosamente (2026-08-16)
-- **Data + commit**: 2026-08-16 (commit `8e0f173`, CI run 31925729242 → 31951168413)
-- **Sintoma**: `tests/integration/test_db_cleanup.py::TestDbCleanup::test_cleanup_test_data_removes_store_registry` falhava **só no CI** (`...F`, 1/116) — `cleanup_test_data()` retornava `{... store_registry: 0, ...}` (tudo zero) mesmo após inserir um registro; o teste levava 6.12s vs 0.86s local (indício de retries/timeouts de rede). Local passava, suíte inteira passava.
+- **Sintoma** (runs CI 31925729242 → 31951168413; fix `8e0f173`): `tests/integration/test_db_cleanup.py::TestDbCleanup::test_cleanup_test_data_removes_store_registry` falhava **só no CI** (`...F`, 1/116) — `cleanup_test_data()` retornava `{... store_registry: 0, ...}` (tudo zero) mesmo após inserir um registro; o teste levava 6.12s vs 0.86s local (indício de retries/timeouts de rede). Local passava, suíte inteira passava.
 - **Causa raiz**: `services/maintenance_service.py::cleanup_test_data()` chamava `client.table().delete().execute()` **sem retry**. Supabase REST sobre HTTP/2 derruba conexões (`RemoteProtocolError`) de forma silenciosa → `result.data` vazio → contador 0, sem exceção. O teste de integração usa `_retry_supabase()` (com retry) para o INSERT, mas o cleanup não tinha o mesmo guard.
 - **Correção**: `services/maintenance_service.py` — novo helper `_retry_delete(client, table, name_col, prefix, max_retries=3)` com backoff exponencial (1s, 1.5s, 2.25s); `cleanup_test_data()` delega cada `(prefixo, tabela)` a `_retry_delete`. Retorna 0 só após esgotar tentativas.
 - **Teste de regressão**: `tests/unit/test_services/test_maintenance_service.py::test_retry_delete_retries_on_network_flake` (1ª chamada lança, 2ª retorna dados → count==1, call_count==2) e `test_retry_delete_returns_zero_after_all_retries_fail` (todas falham → 0, call_count==max_retries).
 - **Regra**: operações REST de escrita contra Supabase em testes/flows de integração DEVEM ter retry com backoff, igual ao `_retry_supabase()` — `execute()` pode retornar vazio silenciosamente em rede HTTP/2 flaky.
 
-### 103. Threshold de review_queue era 0.70 (bug) — causa raiz de ~646 itens/dia (2026-08-16)
-- **Data + commit**: 2026-08-16 (commit `3d1eeab`)
+### 103. Threshold de review_queue era 0.70 (bug) — causa raiz de ~646 itens/dia (2026-08-16, `3d1eeab`)
 - **Sintoma**: review_queue crescia ~646 itens/dia; distribuição de `confidence` tinha pico maciço em 0.55-0.70 (itens "sem match" que o threshold deveria ter descartado).
 - **Causa raiz**: `services/collector.py::process_price_match()` usava `review_threshold` default `0.70` (linhas ~297-299) em vez dos `0.80` documentados — itens 0.70-0.79 que o matcher considerava "match" caíam em review em vez de virarem preço (gate de persistência real era `combined >= 0.80`, linha 252).
 - **Correção**: alinhado `review_threshold` a `0.80` (default documentado); removida a divergência "threshold do matcher (0.70) vs gate de persistência (0.80)". FASE 6 validou: scrape `--force` gerou apenas **11 borderlines novos** vs ~646/dia (redução 98%).
 - **Teste de regressão**: `tests/unit/test_services/test_store_registry.py` + golden `tests/fixtures/golden_matches.json` (100/100/100).
 - **Regra**: gate de persistência (`combined >= 0.80`) e threshold de review (`review_threshold`) DEVEM estar sempre alinhados; distribuição de confidence da review_queue é o termômetro do threshold.
 
-### 104. Excludes de ingrediente são data-driven e vivem no DB — sync via sync_ingredient_fields (2026-08-16)
-- **Data + commit**: 2026-08-16 (commit `3d1eeab`)
+### 104. Excludes de ingrediente são data-driven e vivem no DB — sync via sync_ingredient_fields (2026-08-16, `3d1eeab`)
 - **Sintoma**: FPs como "Macarrão Renata Ninho" → Leite em Pó (exato 100 via search_term "ninho"), "Cereal Matinal Nestle Moça" → Leite Condensado, "Fatiador de Ovos Tramontina" → Ovos persistiam com `combined >= 0.80` (virariam preço errado no próximo scrape).
 - **Causa raiz**: `_is_short_term("ninho")` é True (1 palavra <8 chars) → `_term_at_word_boundary` casa em qualquer posição; e o runtime lê ingredientes de `get_active_ingredients()` (Supabase), NÃO do YAML — editar `config/ingredients.yaml` sem sincronizar não muda nada em produção.
 - **Correção**: `exclude_terms` data-driven adicionados em `config/ingredients.yaml` (9 ingredientes, ~245 termos: macarrão/iogurte/molho/tomate para Leite em Pó; biscoito/cookie/wafer para Manteiga; fatiador/utensílio para Ovos; cereal/matinal/maionese para Leite Condensado; pão de mel/barra/amargo/vegano/orgânico para Chocolates 70%/50%; mil cores/colorido para Açúcar Cristal; recheio/confeito/granulé para Gotas Branco; adocicado/umido para Coco Ralado) + **obrigatório** `python scripts/sync_ingredient_fields.py --execute` para espelhar no DB. `has_excluded_terms` aplicado dentro de `match_ingredient` (matcher.py:234, substring case-insensitive).
@@ -738,3 +730,7 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Sintoma/causa**: runs 32429656813/32430936335 falharam em `test_cleanup_test_data_removes_store_registry` — HTTP/2 derruba conexão silenciosamente (`RemoteProtocolError`) → `.delete().execute()` retorna `data: []` sem exception → `_retry_delete` só retentava em exception.
 - **Correção/validação**: `52c2ebc` retenta também em silent drop (backoff 1s/1.5s/2.25s); runs seguintes 100% success (32438278650, 32442644691).
 - **Regra**: flakiness de rede/scraper = exceção RPR (regra 11a) — fix no código + registro; re-run "pra ver se passa" é proibido.
+
+### 110. Guard SSRF de redirect era no-op com follow_redirects=True
+
+Sintoma: teste novo do AsyncClient guardado recebia TooManyRedirects em vez de UnsupportedProtocol ao seguir 302 para 169.254.169.254. Causa: o event-hook do make_safe_client validava response.next_request, mas o httpx so popula next_request quando follow_redirects=False; com True o hop seguinte e computado internamente (_build_redirect_request) e next_request permanece None quando o hook roda — a checagem early-return virava no-op silencioso (falso sentido de seguranca na correcao original). Correcao: _on_response valida o header Location resolvido via response.url.join() (cobre True/False); hooks async exigem coroutine (is_async flag no _inject_redirect_guard). Testes: tests/unit/test_facebook_flyer_scraper.py (6 testes, MockTransport, zero rede) + test_url_guard.py::test_event_hook_wraps_existing_and_blocks_redirect atualizado para anexar request realista. Licao: defesa baseada em internals nao-documentados de lib (next_request) precisa de teste de integracao do caminho REAL, nao so da funcao isolada.

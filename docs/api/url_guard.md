@@ -1,9 +1,9 @@
 # `url_guard` — API
 
-> Última atualização: 2026-08-13 01:28 UTC
+> Última atualização: 2026-08-23 01:55 UTC
 > Gerado por AST parsing dos serviços em `services/url_guard.py`.
 
-## Funções Públicas (5)
+## Funções Públicas (6)
 
 ### guard_url(url: str)
 
@@ -12,6 +12,10 @@ Return the URL if safe, else None (caller should skip the fetch).
 ### is_safe_url(url: str)
 
 Return True only if the URL is safe to fetch.
+
+### make_safe_async_client()
+
+Build an httpx.AsyncClient that re-validates every redirect hop (SSRF-safe).
 
 ### make_safe_client()
 

@@ -199,6 +199,55 @@ def validate_redirect_target(url: str) -> None:
     raise httpx.UnsupportedProtocol(f"SSRF guard: blocked redirect to {url}")
 
 
+def _inject_redirect_guard(client_kwargs: dict, *, is_async: bool = False) -> dict:
+    """Add a response event hook that re-validates every redirect target.
+
+    Shared by make_safe_client() and make_safe_async_client(). The hook runs
+    for each received response; when a redirect is pending, its target URL is
+    checked against is_safe_url() and rejected (by raising) otherwise,
+    closing the CVE-2026-35459 class of redirect-based SSRF.
+
+    NOTE: httpx requires SYNC callables in Client event hooks and COROUTINE
+    functions in AsyncClient event hooks — hence the is_async switch.
+    """
+
+    def _on_response(response: httpx.Response) -> None:
+        # IMPORTANTE: httpx so popula response.next_request quando
+        # follow_redirects=False. Com follow_redirects=True o hop seguinte
+        # e computado internamente (_build_redirect_request) e next_request
+        # permanece None quando o hook roda — a checagem antiga era um
+        # no-op silencioso (buraco encontrado por teste em 2026-08-22).
+        # Validamos entao o header Location resolvido contra a URL base,
+        # cobrindo follow_redirects=True e False.
+        if not response.has_redirect_location:
+            return
+        target = str(response.url.join(response.headers["location"]))
+        validate_redirect_target(target)
+
+    client_kwargs.setdefault("event_hooks", {})
+    hooks = client_kwargs["event_hooks"]
+    existing = list(hooks.get("response") or [])
+
+    if is_async:
+
+        async def _hook(resp: httpx.Response) -> None:
+            for h in existing:
+                result = h(resp)
+                if hasattr(result, "__await__"):
+                    await result
+            _on_response(resp)
+
+    else:
+
+        def _hook(resp: httpx.Response) -> None:
+            for h in existing:
+                h(resp)
+            _on_response(resp)
+
+    hooks["response"] = [_hook]
+    return client_kwargs
+
+
 def make_safe_client(**client_kwargs) -> httpx.Client:
     """Build an httpx.Client that re-validates every redirect hop (SSRF-safe).
 
@@ -207,28 +256,20 @@ def make_safe_client(**client_kwargs) -> httpx.Client:
         from services.url_guard import make_safe_client
         client = make_safe_client(timeout=40.0, follow_redirects=True)
         client.get(image_url)  # each redirect re-checked against is_safe_url
-
-    The event hook inspects the redirect target host and rejects it (by raising)
-    if it is not allowlisted / publicly routable, closing the CVE-2026-35459
-    class of redirect-based SSRF.
     """
+    return httpx.Client(**_inject_redirect_guard(client_kwargs))
 
-    def _on_response(response: httpx.Response) -> None:
-        if response.next_request is None:
-            return
-        validate_redirect_target(str(response.next_request.url))
 
-    client_kwargs.setdefault("event_hooks", {})
-    hooks = client_kwargs["event_hooks"]
-    existing = hooks.get("response") or []
+def make_safe_async_client(**client_kwargs) -> httpx.AsyncClient:
+    """Build an httpx.AsyncClient that re-validates every redirect hop (SSRF-safe).
 
-    def _hook(resp: httpx.Response) -> None:
-        for h in existing:
-            h(resp)
-        _on_response(resp)
+    Async mirror of make_safe_client() — same event-hook semantics::
 
-    hooks["response"] = [_hook]
-    return httpx.Client(**client_kwargs)
+        from services.url_guard import make_safe_async_client
+        async with make_safe_async_client(timeout=30.0) as client:
+            resp = await client.get(image_url)
+    """
+    return httpx.AsyncClient(**_inject_redirect_guard(client_kwargs, is_async=True))
 
 
 __all__ = [
@@ -236,5 +277,6 @@ __all__ = [
     "guard_url",
     "resolve_public_ips",
     "make_safe_client",
+    "make_safe_async_client",
     "validate_redirect_target",
 ]
