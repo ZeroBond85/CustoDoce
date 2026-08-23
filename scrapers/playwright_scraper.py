@@ -329,6 +329,113 @@ class PlaywrightAggregatorScraper:
     async def _get_page_html(self, page: Page) -> str:
         return await page.content()
 
+    # ─── Helpers para _extract_flyers (decomposto de CC 36) ───
+    async def _extract_store_name(self, card, portal_config: dict) -> str:
+        """Extrai nome da loja do card usando patterns do portal."""
+        store_name = self.name
+        for pattern in portal_config.get("store_name_patterns", []):
+            try:
+                match = re.search(pattern, await card.inner_html(), re.I)
+                if match:
+                    store_name = match.group(1).strip()
+                    break
+            except Exception as e:
+                self.logger.debug("[%s] store_name pattern failed: %s", self.name, e)
+        return store_name
+
+    def _href_has_flyer_pattern(self, href: str, flyer_patterns: list[str]) -> bool:
+        """Verifica se href contém algum padrão de folheto."""
+        h = (href or "").lower()
+        return any(p.strip("/") in h for p in flyer_patterns)
+
+    async def _extract_flyer_url(self, card, flyer_patterns: list[str], own_href: str | None) -> str:
+        """Extrai URL do folheto do card (prioridade: href do card, regex no HTML, links internos)."""
+        if own_href and self._href_has_flyer_pattern(own_href, flyer_patterns):
+            return own_href
+
+        try:
+            card_html = await card.inner_html()
+        except Exception:
+            card_html = ""
+        for pattern in flyer_patterns:
+            match = re.search(rf'href="([^"]*{pattern}[^"]*)"', card_html, re.I)
+            if match:
+                return match.group(1)
+
+        try:
+            links = await card.query_selector_all("a")
+            for link in links:
+                href = await link.get_attribute("href")
+                if href and self._href_has_flyer_pattern(href, flyer_patterns):
+                    return href
+        except Exception as e:
+            self.logger.debug("[%s] link query failed: %s", self.name, e)
+        return ""
+
+    async def _extract_image(self, card) -> str:
+        """Extrai src da imagem do card."""
+        try:
+            img = await card.query_selector("img")
+            if img:
+                return await img.get_attribute("src") or await img.get_attribute("data-src") or ""
+        except Exception as e:
+            self.logger.debug("[%s] image query failed: %s", self.name, e)
+        return ""
+
+    async def _extract_title(self, card) -> str:
+        """Extrai título/descrição do card."""
+        try:
+            title = await card.inner_text()
+            return re.sub(r"\s+", " ", title.strip())[:200]
+        except Exception as e:
+            self.logger.debug("[%s] Error getting title: %s", self.name, e)
+            return ""
+
+    def _extract_date(self, card_html: str) -> str | None:
+        """Extrai data do HTML do card."""
+        match = re.search(r"(\d{2}/\d{2}/\d{4})", card_html)
+        return match.group(1) if match else None
+
+    def _should_skip_card(self, card_html: str, title: str, img_src: str, flyer_url: str, fallback_mode: bool) -> bool:
+        """Determina se deve pular o card (placeholder, sem conteúdo útil, etc.)."""
+        if "placeholder" in card_html.lower() or "skeleton" in card_html.lower():
+            return True
+        if not img_src and not flyer_url:
+            return not (title and "placeholder" not in title.lower() and "skeleton" not in title.lower())
+        return fallback_mode and not flyer_url and not img_src
+
+    def _normalize_flyer_url(self, flyer_url: str, base_url: str) -> str:
+        """Normaliza URL do folheto para absoluta."""
+        if not flyer_url:
+            return ""
+        if flyer_url.startswith("http"):
+            return flyer_url
+        return f"{base_url}{flyer_url}"
+
+    def _build_flyer_dict(
+        self,
+        store_name: str,
+        source: str,
+        title: str,
+        img_src: str,
+        flyer_url: str,
+        date_end: str | None,
+    ) -> dict:
+        """Constrói dict do flyer padronizado."""
+        flyer = {
+            "store_name": store_name,
+            "region": "",
+            "flyer_title": title or "Folheto",
+            "image_url": img_src if 'img_src' in locals() else "",
+            "image_hash": f"{source}_{hash(img_src or flyer_url or title)}",
+            "source": source,
+        }
+        if flyer_url:
+            flyer["flyer_url"] = self._normalize_flyer_url(flyer_url, self.base_url)
+        if 'date_end' in locals() and date_end:
+            flyer["flyer_date_end"] = date_end
+        return flyer
+
     async def _extract_flyers(self, page: Page, source: str) -> list[dict]:
         """Extract flyers from page using portal-specific logic."""
         portal_config = get_portal_config(source)
@@ -357,50 +464,17 @@ class PlaywrightAggregatorScraper:
                 card_html = await card.inner_html()
 
                 # Extract store name
-                store_name = self.name
-                for pattern in portal_config["store_name_patterns"]:
-                    match = re.search(pattern, await card.inner_html(), re.I)
-                    if match:
-                        store_name = match.group(1).strip()
-                        break
+                store_name = await self._extract_store_name(card, portal_config)
 
                 # Extract flyer URL
-                flyer_url = ""
-
-                def _href_has_flyer_pattern(href: str) -> bool:
-                    h = (href or "").lower()
-                    return any(p.strip("/") in h for p in flyer_patterns)
-
-                # Se o proprio card ja eh um <a> (fallback de pagina inteira),
-                # pega o href direto antes de procurar dentro do HTML.
                 try:
                     own_href = await card.get_attribute("href")
                 except Exception:
                     own_href = None
-                if own_href and _href_has_flyer_pattern(own_href):
-                    flyer_url = own_href
-                if not flyer_url:
-                    card_html = await card.inner_html()
-                    for pattern in flyer_patterns:
-                        match = re.search(rf'href="([^"]*{pattern}[^"]*)"', card_html, re.I)
-                        if match:
-                            flyer_url = match.group(1)
-                            break
+                flyer_url = await self._extract_flyer_url(card, flyer_patterns, own_href)
 
-                # Also try to get link from card's <a> tags
-                if not flyer_url:
-                    links = await card.query_selector_all("a")
-                    for link in links:
-                        href = await link.get_attribute("href")
-                        if href and _href_has_flyer_pattern(href):
-                            flyer_url = href
-                            break
-
-                # Get image
-                img_src = ""
-                img = await card.query_selector("img")
-                if img:
-                    img_src = await img.get_attribute("src") or await img.get_attribute("data-src") or ""
+                # Extract image
+                img_src = await self._extract_image(card)
 
                 # No fallback de pagina inteira, descarta links de navegacao que
                 # nao casam com nenhum padrao de folheto e nao tem imagem (evita
@@ -410,40 +484,23 @@ class PlaywrightAggregatorScraper:
                     continue
 
                 # Get title/description
-                title = ""
-                try:
-                    title = await card.inner_text()
-                    title = re.sub(r"\s+", " ", title.strip())[:200]
-                except Exception as e:
-                    self.logger.debug("[%s] Error getting title: %s", self.name, e)
+                title = await self._extract_title(card)
 
                 # Extract date
-                date_match = re.search(r"(\d{2}/\d{2}/\d{4})", card_html)
+                date_end = self._extract_date(card_html)
 
                 # Filter out placeholders
-                if "placeholder" in card_html.lower() or "skeleton" in card_html.lower():
+                if self._should_skip_card(card_html, title, img_src, flyer_url, fallback_mode):
                     continue
 
-                if not img_src and not flyer_url:
-                    if title and "placeholder" not in title.lower() and "skeleton" not in title.lower():
-                        pass
-                    else:
-                        continue
-
-                flyer = {
-                    "store_name": store_name,
-                    "region": "",
-                    "flyer_title": title or "Folheto",
-                    "image_url": img_src,
-                    "image_hash": f"{source}_{hash(img_src or flyer_url or title)}",
-                    "source": source,
-                }
-
-                if flyer_url:
-                    flyer["flyer_url"] = flyer_url if flyer_url.startswith("http") else f"{self.base_url}{flyer_url}"
-
-                if date_match:
-                    flyer["flyer_date_end"] = date_match.group(1)
+                flyer = self._build_flyer_dict(
+                    store_name=store_name,
+                    source=source,
+                    title=title,
+                    img_src=img_src,
+                    flyer_url=flyer_url,
+                    date_end=date_end,
+                )
 
                 flyers.append(flyer)
 
