@@ -100,33 +100,35 @@ def _count_consecutive_failures(client, scraper_name: str) -> int:
     return count
 
 
+# ─── Error Classification (data-driven) ───
+
+# Each entry: (list of patterns, category)
+# Order matters — first match wins (priority: specific → general)
+_ERROR_PATTERNS: list[tuple[list[str], str]] = [
+    (["timeout", "timed out"], "Timeout"),
+    (["dns", "no address", "name resolution", "getaddrinfo", "errno -5"], "DNSError"),
+    (["errno 11", "resource temporarily unavailable", "too many open files", "emfile"], "ResourceError"),
+    (["ssl", "tls", "certificate"], "SSLError"),
+    (["proxy"], "ProxyConfigError"),
+    (["connect", "connection"], "ConnectError"),
+    (["404", "not found", "parse", "selector", "no element"], "LayoutChanged"),
+    (["captcha", "robot", "cloudflare", "forbidden", "403"], "AntiBot"),
+    (["rate", "429", "too many"], "RateLimit"),
+]
+
+
 def classify_error_for_alert(reason: str | None) -> str:
-    """Coarse 1-line classifier used in alerting + scraper_health_log.error_class."""
+    """Coarse 1-line classifier used in alerting + scraper_health_log.error_class.
+
+    Data-driven: patterns defined in _ERROR_PATTERNS (ordered by priority).
+    First match wins. Defaults to "Other" if no pattern matches.
+    """
     if not reason:
         return "Unknown"
     s = reason.lower()
-    if "timeout" in s or "timed out" in s:
-        return "Timeout"
-    if "dns" in s or "no address" in s or "name resolution" in s or "getaddrinfo" in s or "errno -5" in s:
-        return "DNSError"
-    if "errno 11" in s or "resource temporarily unavailable" in s or "too many open files" in s or "emfile" in s:
-        return "ResourceError"
-    if "ssl" in s or "tls" in s or "certificate" in s:
-        return "SSLError"
-    if "proxy" in s:
-        return "ProxyConfigError"
-    if "connect" in s or "connection" in s:
-        return "ConnectError"
-    if "404" in s or "not found" in s:
-        return "LayoutChanged"
-    if "parse" in s or "selector" in s or "no element" in s:
-        return "LayoutChanged"
-    if "captcha" in s or "robot" in s:
-        return "AntiBot"
-    if "rate" in s or "429" in s or "too many" in s:
-        return "RateLimit"
-    if "forbidden" in s or "403" in s or "cloudflare" in s or "captcha" in s or "robot" in s:
-        return "AntiBot"
+    for patterns, category in _ERROR_PATTERNS:
+        if any(p in s for p in patterns):
+            return category
     return "Other"
 
 
