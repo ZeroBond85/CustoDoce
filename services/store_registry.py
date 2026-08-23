@@ -356,55 +356,33 @@ def _is_food_store_name(name: str) -> bool:
     return not any(kw in name_lower for kw in NON_FOOD_KEYWORDS)
 
 
-def discover_stores_from_flyers() -> int:
-    """
-    Discover new stores from aggregator flyers.
-    Filters non-food stores, checks alias similarity (>=80%), and inserts into store_registry.
-    Returns count of new entries inserted.
-    """
-    try:
-        client = get_service_client()
-    except Exception as exc:
-        logger.warning("store_registry.discover_stores_from_flyers: no supabase client (%s)", exc)
-        return 0
-
-    # Housekeeping: pendências >30d viram 'expired' antes de avaliar novas
-    expire_stale_pending(days=30)
-
+def _fetch_and_dedup_flyers(client) -> dict[str, dict]:
+    """Busca flyers e deduplica por normalized_name, filtrando não-food."""
     try:
         flyers = client.table("flyers").select("store_name, region, city, address").execute()
     except Exception as exc:
         logger.warning("discover_stores_from_flyers: query failed: %s", exc)
-        return 0
+        return {}
 
-    if not flyers.data:
-        return 0
-
-    # Dedup store names (different flyers from same store)
     seen: dict[str, dict] = {}
-    for f in flyers.data:
+    for f in flyers.data or []:
         name = (f.get("store_name") or "").strip()
         if not name:
             continue
         norm = normalize_name(name)
         if not norm:
             continue
-        # Filter non-food BEFORE registry
-        if not _is_food_store_name(name):
+        if not _is_food_store_name(f.get("store_name") or ""):
             continue
-        # Keep the first occurrence (region + city + address from first flyer)
         if norm not in seen:
-            seen[norm] = {"name": name, "normalized_name": norm,
+            seen[norm] = {"name": f.get("store_name", ""), "normalized_name": norm,
                           "region": f.get("region", ""), "city": f.get("city", ""),
                           "address": f.get("address", "")}
+    return seen
 
-    if not seen:
-        return 0
 
-    # Get existing store names (for alias mapping). Pool AMPLIADO: todas lojas
-    # (não só is_active=true) — antes só casava contra scraper configs ativos e
-    # lojas reais (Assaí, Zaffari, Max) nunca achavam match → matched_store_id
-    # vazio → impossível auto-promover.
+def _load_existing_data(client) -> tuple[list[dict], list[dict], set[str]]:
+    """Carrega lojas existentes e registry entries para dedup/match."""
     existing_stores: list[dict] = []
     try:
         stores_resp = client.table("stores").select("id, name").execute()
@@ -412,7 +390,6 @@ def discover_stores_from_flyers() -> int:
     except Exception as exc:
         logger.debug("[store_registry] Could not fetch existing stores: %s", exc)
 
-    # Get existing registry entries (to avoid inserting duplicates)
     existing_registry: list[dict] = []
     try:
         reg_resp = client.table("store_registry") \
@@ -425,60 +402,106 @@ def discover_stores_from_flyers() -> int:
 
     existing_norms: set[str] = {normalize_name(s.get("name", "")) for s in existing_stores}
     existing_norms |= {r.get("normalized_name", "") for r in existing_registry}
+    return existing_stores, existing_registry, existing_norms
+
+
+def _find_store_match(norm: str, existing_stores: list[dict], existing_registry: list[dict]) -> tuple[float, str | None]:
+    """Encontra melhor match (loja ou registry) via fuzzy token_set_ratio ≥ 70%."""
+    match_score = 0.0
+    matched_store_id = None
+    match_threshold = AGGREGATOR_MATCH_THRESHOLD
+
+    for s in existing_stores:
+        score = fuzz.token_set_ratio(norm, normalize_name(s.get("name", "")))
+        if score >= match_threshold and score > match_score:
+            match_score = score / 100.0
+            matched_store_id = s["id"]
+
+    if not matched_store_id:
+        for r in existing_registry:
+            score = fuzz.token_set_ratio(norm, r.get("normalized_name", ""))
+            if score >= match_threshold and score > match_score:
+                match_score = score / 100.0
+                matched_store_id = r.get("matched_store_id") or r["id"]
+    return match_score, matched_store_id
+
+
+def _build_registry_entry(norm: str, info: dict, match_score: float, matched_store_id: str | None) -> StoreRegistryEntry:
+    """Constrói StoreRegistryEntry padronizada para descoberta via flyer."""
+    entry = StoreRegistryEntry(
+        name=info["name"],
+        normalized_name=norm,
+        tier=3,
+        type="manual",
+        logistics="pickup_local",
+        city=info.get("city", ""),
+        coverage=info.get("region", info.get("city", "")),
+        collection_method="auto",
+        source="auto",
+        status="pending_review",
+        match_score=match_score,
+        matched_store_id=matched_store_id,
+        address=info.get("address", ""),
+        region=info.get("region", ""),
+    )
+    if info.get("address"):
+        entry.address_confidence = 7.0
+        entry.discovery_source = "flyer"
+    return entry
+
+
+def _process_new_store(
+    norm: str,
+    info: dict,
+    client,
+    existing_norms: set[str],
+    existing_stores: list[dict],
+    existing_registry: list[dict],
+) -> int:
+    """Processa uma nova loja candidata: match, upsert, address merge. Retorna 1 se inseriu."""
+    if norm in existing_norms:
+        return 0
+
+    match_score, matched_store_id = _find_store_match(norm, existing_stores, existing_registry)
+
+    entry = _build_registry_entry(norm, info, match_score, matched_store_id)
+    result = upsert_registry_entry(entry)
+    if result and result.id:
+        if result.matched_store_id and result.address:
+            merge_store_address_from_registry(result)
+        return 1
+    return 0
+
+
+def discover_stores_from_flyers() -> int:
+    """
+    Discover new stores from aggregator flyers.
+    Filters non-food stores, checks alias similarity (>=70%), and inserts into store_registry.
+    Returns count of new entries inserted.
+    """
+    try:
+        client = get_service_client()
+    except Exception as exc:
+        logger.warning("store_registry.discover_stores_from_flyers: no supabase client (%s)", exc)
+        return 0
+
+    # Housekeeping: pendências >30d viram 'expired' antes de avaliar novas
+    expire_stale_pending(days=30)
+
+    seen = _fetch_and_dedup_flyers(client)
+    if not seen:
+        return 0
+
+    existing_stores, existing_registry, existing_norms = _load_existing_data(client)
+    if not seen:
+        return 0
 
     new_count = 0
     for norm, info in seen.items():
-        if norm in existing_norms:
-            continue
-
-        # Alias mapping: check similarity with existing stores.
-        # Threshold 70% para agregadoras (nomes de flyer são ruidosos); antes
-        # era 80% fixo e deixava 697 lojas sem matched_store_id.
-        match_score = 0.0
-        matched_store_id = None
-        match_threshold = AGGREGATOR_MATCH_THRESHOLD
-        for s in existing_stores:
-            score = fuzz.token_set_ratio(norm, normalize_name(s.get("name", "")))
-            if score >= match_threshold and score > match_score:
-                match_score = score / 100.0
-                matched_store_id = s["id"]
-
-        # Also check existing registry
-        if not matched_store_id:
-            for r in existing_registry:
-                score = fuzz.token_set_ratio(norm, r.get("normalized_name", ""))
-                if score >= match_threshold and score > match_score:
-                    match_score = score / 100.0
-                    matched_store_id = r.get("matched_store_id") or r["id"]
-
-        entry = StoreRegistryEntry(
-            name=info["name"],
-            normalized_name=norm,
-            tier=3,
-            type="manual",
-            logistics="pickup_local",
-            city=info.get("city", ""),
-            coverage=info.get("region", info.get("city", "")),
-            collection_method="auto",
-            source="auto",
-            status="pending_review",
-            match_score=match_score,
-            matched_store_id=matched_store_id,
-            address=info.get("address", ""),
-            region=info.get("region", ""),
+        new_count += _process_new_store(
+            norm, info, client, existing_norms,
+            existing_stores, existing_registry
         )
-        if info.get("address"):
-            entry.address_confidence = 7.0
-            entry.discovery_source = "flyer"
-
-        result = upsert_registry_entry(entry)
-        if result and result.id:
-            new_count += 1
-            existing_norms.add(norm)
-
-            # Merge address into existing store if matched
-            if result.matched_store_id and result.address:
-                merge_store_address_from_registry(result)
 
     if new_count:
         logger.info("[store_registry] Discovered %d new stores from flyers", new_count)
