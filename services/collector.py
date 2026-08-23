@@ -253,110 +253,196 @@ def process_price_match(
 
     semantic_score = 0.0
     combined = score / 100.0
+
+    # ─── Semantic matching (se habilitado e houver candidato RF 60-79) ───
+    if ingredient and score >= 60.0:
+        combined = _apply_semantic_matching(
+            product_text, ingredient, score, combined
+        )
+
+    # ─── LLM classifier para gray-zone 70-79% (se habilitado) ───
+    if ingredient and 0.70 <= combined < 0.80:
+        combined = _apply_llm_classifier(
+            store, product_text, ingredient, ingredients, raw_price, raw_unit,
+            validity_raw, brand, combined
+        )
+
+    # ─── Persistência direta se combined >= 0.80 (gate alinhado Sprint 18+) ───
+    if ingredient and combined >= 0.80:
+        entry = build_product_entry(
+            store,
+            ingredient,
+            product_text,
+            raw_price,
+            raw_unit,
+            combined,
+            validity_raw=validity_raw,
+            brand=brand,
+            all_ingredients=ingredients,
+        )
+        return _persist(entry)
+
+    # ─── Review queue (combined < 0.80 — threshold alinhado ao gate 0.80) ───
+    # O original não exigia `ingredient` para enfileirar — usava rank_ingredients
+    # com a lista completa de ingredients. Mantemos essa semântica.
+    _queue_for_review(
+        store=store,
+        product_text=product_text,
+        raw_price=raw_price,
+        raw_unit=raw_unit,
+        ingredient=ingredient,
+        score=score,
+        combined=combined,
+        semantic_score=semantic_score if 'semantic_score' in locals() else 0.0,
+        validity_raw=validity_raw,
+        brand=brand,
+        image_url=image_url,
+        source_url=source_url,
+        match_type=match_type,
+        ingredients=ingredients,
+    )
+
+    return None
+
+
+def _apply_semantic_matching(
+    product_text: str,
+    ingredient: Ingredient,
+    score: float,
+    combined: float,
+) -> float:
+    """Aplica semantic matching se feature flag habilitado e retorna combined atualizado."""
     from services.config import get_feature
 
     ai_enabled = get_feature(
-        "features.ai.enabled", ingredient=ingredient["canonical_name"] if ingredient else None, default=True
+        "features.ai.enabled",
+        ingredient=ingredient["canonical_name"],
+        default=True,
     )
-    if ai_enabled:
-        if ingredient and score >= 60.0:
-            sm = get_matcher()
-            semantic_score = sm.get_similarity(product_text, ingredient)
-            # Se o semantic matcher está indisponível (modelo OFF ou retornou 0),
-            # cai para RF puro — preserva o comportamento legado de mandar o
-            # gray-zone para a review_queue (não descartar silenciosamente).
-            combined = (
-                sm.combined_score(score, semantic_score) if semantic_score > 0.0 else score / 100.0
-            )
-        elif ingredient:
-            combined = score / 100.0
+    if not ai_enabled:
+        return combined
 
-        if ingredient and combined >= 0.80:
+    sm = get_matcher()
+    semantic_score = sm.get_similarity(product_text, ingredient)
+    # Se o semantic matcher está indisponível (modelo OFF ou retornou 0),
+    # cai para RF puro — preserva o comportamento legado de mandar o
+    # gray-zone para a review_queue (não descartar silenciosamente).
+    if semantic_score > 0.0:
+        combined = sm.combined_score(score, semantic_score)
+    return combined
+
+
+def _apply_llm_classifier(
+    store: Store,
+    product_text: str,
+    ingredient: Ingredient,
+    ingredients: list[Ingredient],
+    raw_price: float,
+    raw_unit: str,
+    validity_raw: str,
+    brand: str,
+    combined: float,
+) -> float:
+    """Tenta LLM classifier para gray-zone 70-79%. Retorna combined (pode persistir)."""
+    import os
+    from services.config import get_feature
+
+    if not os.environ.get("GROQ_API_KEY"):
+        return combined
+
+    if not get_feature(
+        "features.ai.llm_classifier",
+        ingredient=ingredient.get("canonical_name"),
+        default=False,
+    ):
+        logger.debug("[%s] llm_classifier disabled via feature flag", store.get("name", "?"))
+        return combined
+
+    from parsers.llm_classifier import classify as _llm_classify
+
+    candidates = rank_ingredients(product_text, ingredients, top_n=3)
+    llm_result = _llm_classify(product_text, [c[0] for c in candidates])
+    if llm_result and llm_result.get("confidence", 0) >= 0.85:
+        chosen = next((c for c in candidates if c[0]["canonical_name"] == llm_result["ingredient"]), None)
+        if chosen:
             entry = build_product_entry(
                 store,
-                ingredient,
+                chosen[0],
                 product_text,
                 raw_price,
                 raw_unit,
-                combined,
+                llm_result["confidence"],
                 validity_raw=validity_raw,
                 brand=brand,
                 all_ingredients=ingredients,
             )
-            return _persist(entry)
+            # Persiste via upsert_price direto (bypassa batch)
+            try:
+                upsert_price(entry)
+            except Exception as e_upsert:
+                logger.warning("[%s] upsert_price failed for LLM entry: %s", store.get("name", "?"), e_upsert)
+            return 1.0  # força combined >= 0.80 para indicar persistência
+    return combined
 
-        if 0.70 <= combined < 0.80 and os.environ.get("GROQ_API_KEY"):
-            from services.config import get_feature
 
-            if not get_feature(
-                "features.ai.llm_classifier",
-                ingredient=ingredient.get("canonical_name") if ingredient else None,
-                default=False,
-            ):
-                logger.debug("[%s] llm_classifier disabled via feature flag", store.get("name", "?"))
-                llm_result = None
-            else:
-                from parsers.llm_classifier import classify as _llm_classify
-
-                candidates = rank_ingredients(product_text, ingredients, top_n=3)
-                llm_result = _llm_classify(product_text, [c[0] for c in candidates])
-            if llm_result and llm_result.get("confidence", 0) >= 0.85:
-                chosen = next((c for c in candidates if c[0]["canonical_name"] == llm_result["ingredient"]), None)
-                if chosen:
-                    entry = build_product_entry(
-                        store,
-                        chosen[0],
-                        product_text,
-                        raw_price,
-                        raw_unit,
-                        llm_result["confidence"],
-                        validity_raw=validity_raw,
-                        brand=brand,
-                        all_ingredients=ingredients,
-                    )
-                    return _persist(entry)
-
+def _queue_for_review(
+    store: Store,
+    product_text: str,
+    raw_price: float,
+    raw_unit: str,
+    ingredient: Ingredient | None,
+    score: float,
+    combined: float,
+    semantic_score: float,
+    validity_raw: str,
+    brand: str,
+    image_url: str,
+    source_url: str,
+    match_type: str,
+    ingredients: list[Ingredient],
+) -> None:
+    """Enfileira item na review_queue com metadados completos."""
     from services.config import get_feature
 
     threshold = get_feature(
         "features.matcher.review_threshold",
         ingredient=ingredient["canonical_name"] if ingredient else None,
-        # Sprint 18+: alinhado ao gate de persistência (combined >= 0.80).
-        # Default 0.70 era bug — mandava borderlines 70-79% pra review_queue
-        # que nunca seriam persistidos, inflando a fila (~646/dia em prod).
         default=0.80,
     )
-    if combined >= threshold:
-        candidates = rank_ingredients(product_text, ingredients, top_n=3)
-        suggestions = [c[0]["canonical_name"] for c in candidates if c[1] >= 55.0]
-        validity = validity_raw or _extract_validity_from_product(product_text)
+    if combined < threshold:
+        return
 
-        match_type = ""
-        match_reason = ""
-        if candidates:
-            top = candidates[0]
-            top_ing, top_score, top_type, top_term = top
-            match_type = top_type
-            type_labels = {
-                "proximo_nome": "semelhante ao nome do ingrediente",
-                "proximo_apelido": "semelhante a um apelido do ingrediente",
-                "exato": "exato",
-                "contido": "nome do ingrediente contido no produto",
-            }
-            type_label = type_labels.get(top_type, top_type)
-            product_words = set(clean_text(product_text).split())
-            canonical_words = set(clean_text(top_ing["canonical_name"]).split())
-            unmatched_words = product_words - canonical_words
-            match_reason = (
-                f"Tipo: {type_label} | "
-                f"Score: {top_score:.0f}% | "
-                f"Candidato: '{top_ing['canonical_name']}' | "
-                f"Termo match: '{top_term}'"
-            )
-            if unmatched_words:
-                match_reason += f" | Palavras não matcheadas: {', '.join(sorted(unmatched_words))}"
-        else:
-            match_reason = f"Score {score:.0f}% - nenhum candidato acima de 55%"
+    candidates = rank_ingredients(product_text, ingredients, top_n=3)
+    suggestions = [c[0]["canonical_name"] for c in candidates if c[1] >= 55.0]
+    validity = validity_raw or _extract_validity_from_product(product_text)
+
+    if not candidates:
+        match_type_local = ""
+        match_reason = f"Score {score:.0f}% - nenhum candidato acima de 55%"
+        top3_summary = []
+        brand_extracted = brand
+    else:
+        top = candidates[0]
+        top_ing, top_score, top_type, top_term = top
+        match_type_local = top_type
+        type_labels = {
+            "proximo_nome": "semelhante ao nome do ingrediente",
+            "proximo_apelido": "semelhante a um apelido do ingrediente",
+            "exato": "exato",
+            "contido": "nome do ingrediente contido no produto",
+        }
+        type_label = type_labels.get(top_type, top_type)
+        product_words = set(clean_text(product_text).split())
+        canonical_words = set(clean_text(top_ing["canonical_name"]).split())
+        unmatched_words = product_words - canonical_words
+        match_reason = (
+            f"Tipo: {type_label} | "
+            f"Score: {top_score:.0f}% | "
+            f"Candidato: '{top_ing['canonical_name']}' | "
+            f"Termo match: '{top_term}'"
+        )
+        if unmatched_words:
+            match_reason += f" | Palavras não matcheadas: {', '.join(sorted(unmatched_words))}"
 
         top3_summary = []
         for c in candidates:
@@ -370,40 +456,39 @@ def process_price_match(
             )
 
         if not brand and candidates:
-            brand = extract_brand(product_text, candidates[0][0], all_ingredients=ingredients)
+            brand_extracted = extract_brand(product_text, candidates[0][0], all_ingredients=ingredients)
+        else:
+            brand_extracted = brand
 
-        if candidates:
-            combined_pct = int(combined * 100)
-            match_reason = (
-                f"Tipo: {type_label} | Score: {combined_pct}% "
-                f"(RF: {score:.0f}%, Semântico: {int(semantic_score * 100)}%) "
-                f"| Candidato: '{top_ing['canonical_name']}' | Termo: '{top_term}'"
-            )
-            if unmatched_words:
-                match_reason += f" | Palavras não matcheadas: {', '.join(sorted(unmatched_words))}"
+        combined_pct = int(combined * 100)
+        match_reason = (
+            f"Tipo: {type_label} | Score: {combined_pct}% "
+            f"(RF: {score:.0f}%, Semântico: {int(semantic_score * 100)}%) "
+            f"| Candidato: '{top_ing['canonical_name']}' | Termo: '{top_term}'"
+        )
+        if unmatched_words:
+            match_reason += f" | Palavras não matcheadas: {', '.join(sorted(unmatched_words))}"
 
-        review_item = {
-            "raw_product": product_text,
-            "raw_price": raw_price,
-            "raw_unit": raw_unit,
-            "store_name": store["name"],
-            "source": store.get("type", "automated"),
-            "confidence": combined,
-            "suggestions": suggestions,
-            "validity_raw": validity,
-            "brand": brand,
-            "image_url": image_url,
-            "source_url": source_url,
-            "match_reason": match_reason,
-            "match_type": match_type,
-            "top3": top3_summary,
-        }
-        try:
-            insert_review_item(review_item)
-        except Exception as e:
-            logger.warning("Review queue error: %s", e)
-
-    return None
+    review_item = {
+        "raw_product": product_text,
+        "raw_price": raw_price,
+        "raw_unit": raw_unit,
+        "store_name": store["name"],
+        "source": store.get("type", "automated"),
+        "confidence": combined,
+        "suggestions": suggestions,
+        "validity_raw": validity,
+        "brand": brand_extracted,
+        "image_url": image_url,
+        "source_url": source_url,
+        "match_reason": match_reason,
+        "match_type": match_type_local,
+        "top3": top3_summary,
+    }
+    try:
+        insert_review_item(review_item)
+    except Exception as e:
+        logger.warning("Review queue error: %s", e)
 
 
 def _get_default_frequency_minutes(store: Store) -> int:
