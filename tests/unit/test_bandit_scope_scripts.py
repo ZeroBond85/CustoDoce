@@ -18,9 +18,13 @@ CI_YML = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 class TestBanditScope:
     def test_ci_bandit_includes_scripts(self):
         content = CI_YML.read_text(encoding="utf-8")
-        matches = [ln for ln in content.splitlines() if "bandit -r" in ln]
-        assert matches, "step bandit ausente no ci.yml"
-        assert any("scripts/" in ln for ln in matches), f"bandit deve incluir scripts/: {matches}"
+        matches = [ln.strip() for ln in content.splitlines() if "bandit -r" in ln]
+        assert matches, "steps bandit ausentes no ci.yml"
+        # Passo legado estrito (low+) para os diretórios de produção.
+        assert any("admin/" in ln and "-ll" not in ln for ln in matches), matches
+        # scripts/ entra com gate calibrado medium+ (LOW de dev-tools não bloqueia).
+        script_steps = [ln for ln in matches if "scripts/" in ln and "admin/" not in ln]
+        assert script_steps and all("-ll" in ln for ln in script_steps), matches
 
 
 class TestShellTrueEliminated:
