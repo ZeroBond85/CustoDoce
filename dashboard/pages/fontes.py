@@ -15,6 +15,27 @@ from services.dashboard_queries import (
 )
 
 
+def _fmt_frequency(freq: dict | str | None) -> str:
+    """Converte scrape_frequency (dict) em rótulo legível."""
+    if not freq or not isinstance(freq, dict):
+        return "—"
+    if freq.get("enabled") is False:
+        return "Desativada"
+    minutes = freq.get("frequency_minutes") or 0
+    try:
+        minutes = int(minutes)
+    except (TypeError, ValueError):
+        cron = freq.get("cron_expression")
+        return f"Cron: {cron}" if cron else "—"
+    if minutes <= 60 * 25:
+        return "Diária"
+    if minutes <= 60 * 24 * 8:
+        return "Semanal"
+    if minutes <= 60 * 24 * 45:
+        return "Mensal"
+    return f"A cada {minutes // (60 * 24)} dias"
+
+
 def render_fontes():
     inject_css()
 
@@ -71,10 +92,41 @@ def render_fontes():
     with st.spinner("Listando fontes…"):
         stores = get_stores_with_frequencies()
     if stores:
-        df = pd.DataFrame(stores)
-        cols = [c for c in ["name", "tier", "scraper", "active", "scrape_frequency"] if c in df.columns]
-        df = df.reindex(columns=cols)
-        st.dataframe(df, use_container_width=True)
+        # Nº Preços e Última Coleta por loja — do cache de preços já carregado.
+        price_counts: dict = {}
+        last_collect: dict = {}
+        for p in prices:
+            sid = p.get("store_id")
+            if not sid:
+                continue
+            price_counts[sid] = price_counts.get(sid, 0) + 1
+            ca = str(p.get("collected_at") or "")
+            if ca > last_collect.get(sid, ""):
+                last_collect[sid] = ca
+
+        rows = []
+        for s in stores:
+            sid = s.get("id")
+            rows.append(
+                {
+                    "Loja": s.get("name"),
+                    "Tier": s.get("tier"),
+                    "Scraper": s.get("scraper") or "—",
+                    "Ativa": bool(s.get("active")),
+                    "Frequência": _fmt_frequency(s.get("scrape_frequency")),
+                    "Nº Preços": price_counts.get(sid, 0),
+                    "Última Coleta": last_collect[sid][:16].replace("T", " ") if sid in last_collect else "—",
+                }
+            )
+        df = pd.DataFrame(rows)
+        st.dataframe(
+            df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Ativa": st.column_config.CheckboxColumn("Ativa?"),
+            },
+        )
 
 
 __all__ = ["render_fontes"]

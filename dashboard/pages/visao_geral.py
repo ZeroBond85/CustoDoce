@@ -36,10 +36,19 @@ def render_visao_geral():
 
     kpis = _kpis_from_prices(prices)
 
+    # Brand + promoção KPIs
+    total = len(prices)
+    with_brand = sum(1 for p in prices if p.get("brand") and p.get("brand") != "Desconhecido")
+    brand_pct = (with_brand / total * 100) if total else 0
+    # % de ingredientes com pelo menos 1 oferta marcada como promoção agora
+    ings_with_promo = {p.get("ingredient_id") for p in prices if p.get("is_promotion")}
+    all_ings = {p.get("ingredient_id") for p in prices if p.get("ingredient_id")}
+    promo_pct = (len(ings_with_promo) / len(all_ings) * 100) if all_ings else 0
+
     # Sprint 8: KPI row uses .cd-kpi-row class for mobile responsiveness
     # (1 column @ ≤640px, 2 cols @ ≤768px, 4 cols on desktop).
     st.markdown('<div class="cd-kpi-row">', unsafe_allow_html=True)
-    k1, k2, k3, k4 = st.columns(4, gap="small")
+    k1, k2, k3, k4, k5 = st.columns(5, gap="small")
     with k1:
         st.metric("Total Preços", kpis["total_prices"])
     with k2:
@@ -47,7 +56,9 @@ def render_visao_geral():
     with k3:
         st.metric("Lojas Ativas", kpis["stores_active"])
     with k4:
-        st.metric("Média R$/kg", f"R$ {kpis['avg_price_per_kg']:.2f}")
+        st.metric("Ingredientes c/ Promoção", f"{promo_pct:.0f}%", help="% de ingredientes com ≥1 preço em promoção")
+    with k5:
+        st.metric("Cobertura de Marca", f"{brand_pct:.0f}%", help="% de preços com marca identificada")
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.divider()
@@ -58,7 +69,7 @@ def render_visao_geral():
     if promos:
         df = pd.DataFrame(promos)
         st.dataframe(
-            df[["ingredient_id", "store_name", "raw_product", "raw_price", "raw_unit"]], use_container_width=True
+            df[["ingredient_id", "store_name", "raw_product", "brand", "raw_price", "raw_unit"]], use_container_width=True
         )
     else:
         info_box("Nenhuma promoção ativa no momento.", "info")

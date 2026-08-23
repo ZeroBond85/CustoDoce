@@ -23,6 +23,8 @@ _weekday_pt = price_repository._weekday_pt
 # --- Review Queue ---
 insert_review_item = review_queue_service.insert_review_item
 get_review_queue = review_queue_service.get_review_queue
+get_review_queue_pending_count = review_queue_service.get_review_queue_pending_count
+auto_approve_high_confidence = review_queue_service.auto_approve_high_confidence
 approve_review_item = review_queue_service.approve_review_item
 reject_review_item = review_queue_service.reject_review_item
 auto_reject_stale_review_items = review_queue_service.auto_reject_stale_review_items

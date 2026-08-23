@@ -1,11 +1,11 @@
 # `collector` — API
 
-> Última atualização: 2026-08-13 01:28 UTC
+> Última atualização: 2026-08-23 01:22 UTC
 > Gerado por AST parsing dos serviços em `services/collector.py`.
 
 ## Funções Públicas (19)
 
-### build_product_entry(store: Store, ingredient: Ingredient, raw_product: str, raw_price: float, raw_unit: str, confidence: float, validity_raw: str, brand: str)
+### build_product_entry(store: Store, ingredient: Ingredient, raw_product: str, raw_price: float, raw_unit: str, confidence: float, validity_raw: str, brand: str, all_ingredients: list[Ingredient] | None)
 
 ### collect_aggregators_js()
 

@@ -9,11 +9,15 @@ from services.config_db import add_alias_to_ingredient
 from services.dashboard_queries import (
     approve_review_item_cached,
     approve_review_queue_bulk_cached,
+    auto_approve_high_confidence_cached,
     get_all_ingredients,
     get_review_queue_cached,
+    get_review_queue_pending_count_cached,
     reject_review_item_cached,
     reject_review_queue_bulk_cached,
 )
+
+PAGE_SIZE = 50
 
 
 def render_revisao():
@@ -22,22 +26,48 @@ def render_revisao():
     st.title("Fila de Revisão")
     st.markdown("*Itens com confiança < 80% aguardam validação manual*")
 
-    queue = get_review_queue_cached(limit=500)
+    # Contagem REAL de pendentes (independente da janela exibida)
+    total_pending = get_review_queue_pending_count_cached()
+    queue = get_review_queue_cached(limit=1000)  # janela de trabalho; paginação abaixo
 
     if not queue:
         st.success("Fila de revisão vazia! 🎉")
         return
 
-    # Estatísticas
+    # Estatísticas (totais reais do banco + composição da janela)
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Total Pendentes", len(queue))
+        st.metric("Total Pendentes", total_pending)
     with col2:
-        high_conf = sum(1 for i in queue if i.get("confidence", 0) >= 0.6)
-        st.metric("Alta Confiança (≥60%)", high_conf)
+        high_conf = sum(1 for i in queue if i.get("confidence", 0) >= 0.8)
+        st.metric("Auto-aprováveis (≥80%)", high_conf)
     with col3:
-        low_conf = sum(1 for i in queue if i.get("confidence", 0) < 0.4)
-        st.metric("Baixa Confiança (<40%)", low_conf)
+        mid_conf = sum(1 for i in queue if 0.6 <= i.get("confidence", 0) < 0.8)
+        st.metric("Confiança Média (60–79%)", mid_conf)
+
+    # Auto-aprovação em lote (itens ≥80% que ficaram presos no legado)
+    if high_conf:
+        with st.expander(f"⚡ Auto-aprovar {high_conf} itens com confiança ≥80%", expanded=False):
+            st.caption(
+                "Usa o candidato #1 (top3) como ingrediente. Executa dry-run primeiro; "
+                "o botão de confirmação aplica de verdade."
+            )
+            col_dry, col_go = st.columns(2)
+            with col_dry:
+                if st.button("🔍 Simular (dry-run)", key="auto_dry"):
+                    stats = auto_approve_high_confidence_cached(threshold=0.80, dry_run=True)
+                    st.info(
+                        f"{stats['candidates']} candidatos seriam processados "
+                        f"(aprovados/falhas aparecem após executar)."
+                    )
+            with col_go:
+                if st.button("✅ Executar auto-aprovação", type="primary", key="auto_go"):
+                    stats = auto_approve_high_confidence_cached(threshold=0.80, dry_run=False)
+                    st.success(
+                        f"✅ {stats['approved']} aprovados · ❌ {stats['failed']} falhas · "
+                        f"⏭️ {stats['skipped']} sem candidato"
+                    )
+                    st.rerun()
 
     st.divider()
 
@@ -59,6 +89,26 @@ def render_revisao():
         st.info("Nenhum item corresponde aos filtros.")
         return
 
+    # Paginação server-side (renderizar milhares de itens trava o browser)
+    total_pages = max(1, (len(filtered) + PAGE_SIZE - 1) // PAGE_SIZE)
+    col_prev, col_page, col_next = st.columns([1, 2, 1])
+    with col_prev:
+        if st.button("◀ Anterior", key="rev_prev", disabled=st.session_state.get("rev_page", 0) == 0):
+            st.session_state["rev_page"] = max(0, st.session_state.get("rev_page", 0) - 1)
+            st.rerun()
+    with col_page:
+        st.markdown(f"**Página {st.session_state.get('rev_page', 0) + 1} de {total_pages}**")
+    with col_next:
+        if (
+            st.button("Próxima ▶", key="rev_next")
+            and st.session_state.get("rev_page", 0) < total_pages - 1
+        ):
+            st.session_state["rev_page"] = st.session_state.get("rev_page", 0) + 1
+            st.rerun()
+    page = min(st.session_state.get("rev_page", 0), total_pages - 1)
+    start = page * PAGE_SIZE
+    visible = filtered[start : start + PAGE_SIZE]
+
     # Ingredientes para seleção (necessário antes das ações em lote)
     ingredients = get_all_ingredients(include_inactive=True)
     ing_options = {i["canonical_name"]: i["id"] for i in ingredients}
@@ -79,7 +129,7 @@ def render_revisao():
             if bulk_ing == "Selecione...":
                 st.error("Selecione um ingrediente")
             else:
-                selected_ids = [f["id"] for f in filtered if f.get("selected")]
+                selected_ids = [f["id"] for f in visible if f.get("selected")]
                 if not selected_ids:
                     st.warning("Nenhum item selecionado")
                 else:
@@ -87,7 +137,7 @@ def render_revisao():
                     st.success(f"✅ {count} itens aprovados!")
                     st.rerun()
         if st.button("❌ Rejeitar Selecionados", type="secondary", key="bulk_reject"):
-            selected_ids = [f["id"] for f in filtered if f.get("selected")]
+            selected_ids = [f["id"] for f in visible if f.get("selected")]
             if not selected_ids:
                 st.warning("Nenhum item selecionado")
             else:
@@ -95,10 +145,10 @@ def render_revisao():
                 st.success(f"❌ {count} itens rejeitados!")
                 st.rerun()
 
-    st.markdown(f"**Exibindo {len(filtered)} de {len(queue)} itens**")
+    st.markdown(f"**Exibindo {len(visible)} de {len(filtered)} filtrados · {total_pending} pendentes no total**")
 
     # Exibir itens
-    for _idx, item in enumerate(filtered):
+    for _idx, item in enumerate(visible):
         with st.container():
             st.markdown("---")
 

@@ -179,8 +179,8 @@ def main() -> None:
         result = batch_upsert_prices(entries)
         print(f"\n[execute] Upsert: {result}")
         for c in recover:
-            client.table("review_queue").update({"status": "resolved"}).eq("id", c["id"]).execute()
-        print(f"Marcados resolved: {len(recover)}")
+            client.table("review_queue").update({"status": "approved"}).eq("id", c["id"]).execute()
+        print(f"Marcados approved: {len(recover)}")
 
     # ---- Passo 1.5: archive-below + reject-false-positives (T1.3/T1.4) ----
     if args.archive_below is not None:

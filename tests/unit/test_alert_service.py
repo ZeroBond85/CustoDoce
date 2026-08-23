@@ -15,12 +15,21 @@ def _make_mock_client(has_rules=True, has_recipients=True, has_failures=False):
     ] if has_rules else []
 
     latest_data = [
-        {"ingredient_id": "Leite Condensado", "store_name": "Loja A", "price_per_kg": 8.50}
+        {
+            "ingredient_id": "Leite Condensado",
+            "store_name": "Loja A",
+            "price_per_kg": 8.50,
+            "raw_product": "Leite Condensado Moça 395g",
+            "brand": "Moça",
+            "city": "Santos",
+            "store_id": "loja_a",
+            "valid_until": "2026-08-30",
+        }
     ] if has_rules else []
 
     history_data = [
-        {"normalized": {"price_per_kg": 12.0}},
-        {"normalized": {"price_per_kg": 11.5}},
+        {"ingredient_id": "Leite Condensado", "normalized": {"price_per_kg": 12.0}},
+        {"ingredient_id": "Leite Condensado", "normalized": {"price_per_kg": 11.5}},
     ]
 
     failures_data = [
@@ -38,13 +47,19 @@ def _make_mock_client(has_rules=True, has_recipients=True, has_failures=False):
     qb = MagicMock()
     qb.select.return_value = qb
     qb.eq.return_value = qb
+    qb.in_.return_value = qb
     qb.order.return_value = qb
     qb.limit.return_value = qb
     qb.gte.return_value = qb
+    stores_data = [
+        {"id": "loja_a", "address": "Rua A, 123", "city": "Santos"},
+    ]
+
     qb.execute.side_effect = [
         MagicMock(data=rules_data),
         MagicMock(data=latest_data),
         MagicMock(data=history_data),
+        MagicMock(data=stores_data),  # stores table lookup
         MagicMock(data=recipients_data),
         MagicMock(data=failures_data),
         MagicMock(data=recipients_data),

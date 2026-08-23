@@ -1,9 +1,9 @@
 # `store_registry` — API
 
-> Última atualização: 2026-08-13 01:28 UTC
+> Última atualização: 2026-08-23 01:22 UTC
 > Gerado por AST parsing dos serviços em `services/store_registry.py`.
 
-## Funções Públicas (10)
+## Funções Públicas (11)
 
 ### approve_registry_entry(entry_id: str, ingredient_id: str, brand_override: str)
 
@@ -19,6 +19,10 @@ Auto-promote stores from pending_review to approved if they have
 Discover new stores from aggregator flyers.
 Filters non-food stores, checks alias similarity (>=80%), and inserts into store_registry.
 Returns count of new entries inserted.
+
+### expire_stale_pending(days: int)
+
+Auto-expira entradas pending_review mais antigas que `days` dias.
 
 ### find_similar_stores(name: str, threshold: int, limit: int)
 

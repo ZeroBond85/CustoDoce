@@ -1,3 +1,4 @@
+import contextlib
 import json
 import re
 import time
@@ -518,9 +519,24 @@ class WebsiteScraper(BaseWebScraper):
             if found:
                 text = found[0].text().strip()
                 if text:
-                    return text
+                    return self._sanitize_name(text)
+        # Fallback: .text() do card inteiro. Páginas Vue/SPA embutem <script>/
+        # <style> com código no texto — remover antes (contaminação vista em
+        # prod em raw_product, quebrando matcher e UI).
+        for tag in ("script", "style", "noscript"):
+            for junk in node.css(tag):
+                with contextlib.suppress(AttributeError):
+                    junk.decompose()
         text = node.text().strip()
-        return text if text else None
+        return self._sanitize_name(text) if text else None
+
+    @staticmethod
+    def _sanitize_name(text: str, max_len: int = 300) -> str | None:
+        """Normaliza whitespace e limita tamanho; None se vazio."""
+        cleaned = re.sub(r"\s+", " ", text).strip()
+        if not cleaned:
+            return None
+        return cleaned[:max_len]
 
     def _extract_price(self, node) -> float | None:
         for selector in self.selectors["product_price"]:

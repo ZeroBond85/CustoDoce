@@ -10,6 +10,9 @@ from services.logger import logger
 from services.supabase_client import get_service_client, get_supabase
 from services.types import ReviewItem, Store
 
+# Reabre itens rejeitados após este período (dias) — contexto pode ter mudado
+_REOPEN_REJECTED_AFTER_DAYS = 90
+
 
 def _normalize_text(text: str) -> str:
     import unicodedata
@@ -36,13 +39,43 @@ def insert_review_item(item: ReviewItem) -> dict[str, Any]:
     try:
         existing = (
             client.table("review_queue")
-            .select("id")
+            .select("id,status,reviewed_at")
             .eq("store_name", item.get("store_name", ""))
             .eq("raw_product", item["raw_product"])
             .execute()
         )
         if existing.data:
-            return existing.data[0]
+            row = existing.data[0]
+            # Re-entry: UNIQUE(store_name, raw_product) impede reinserir. Se o
+            # item foi REJEITADO há >= 90 dias, reabre como pending com o
+            # contexto atual (marcas/thresholds podem ter mudado desde então).
+            if row.get("status") == "rejected":
+                reviewed_at = row.get("reviewed_at") or ""
+                try:
+                    reviewed_dt = datetime.fromisoformat(str(reviewed_at).replace("Z", "+00:00"))
+                    age_days = (datetime.now(UTC) - reviewed_dt).days
+                except ValueError:
+                    age_days = -1
+                if age_days >= _REOPEN_REJECTED_AFTER_DAYS:
+                    client.table("review_queue").update(
+                        {
+                            "status": "pending",
+                            "confidence": item.get("confidence", 0),
+                            "suggestions": item.get("suggestions", []),
+                            "match_reason": item.get("match_reason", ""),
+                            "match_type": item.get("match_type", ""),
+                            "top3": item.get("top3", []),
+                            "brand": item.get("brand", ""),
+                            "raw_price": item.get("raw_price"),
+                            "validity_raw": item.get("validity_raw", ""),
+                        }
+                    ).eq("id", row["id"]).execute()
+                    logger.info(
+                        "review_queue: item rejeitado há %sd reaberto (re-entry): %s",
+                        age_days,
+                        str(item.get("raw_product", ""))[:60],
+                    )
+            return row
     except Exception:
         logger.debug("insert_review_item dedup check failed", exc_info=True)
     data = {
@@ -70,9 +103,96 @@ def insert_review_item(item: ReviewItem) -> dict[str, Any]:
 
 
 def get_review_queue(limit: int = 500) -> list[ReviewItem]:
+    """Retorna apenas itens PENDENTES (fix raiz: antes misturava approved/rejected)."""
     client = get_supabase()
-    result = client.table("review_queue").select("*").order("collected_at", desc=True).limit(limit).execute()
+    result = (
+        client.table("review_queue")
+        .select("*")
+        .eq("status", "pending")
+        .order("collected_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
     return result.data if result.data else []
+
+
+def get_review_queue_pending_count() -> int:
+    """Contagem real de pendentes (independente do limit da página)."""
+    client = get_supabase()
+    result = client.table("review_queue").select("id", count="exact").eq("status", "pending").execute()
+    return result.count or 0
+
+
+def auto_approve_high_confidence(
+    threshold: float = 0.80,
+    limit: int | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Aprova automaticamente itens pendentes com confiança >= threshold.
+
+    Usa o candidato #1 do campo top3 (ou suggestions) como ingrediente alvo e
+    delega ao approve_review_item (que resolve loja, insere preço e marca alias).
+    Retorna estatísticas {candidates, approved, failed, skipped}.
+    """
+    client = get_supabase()
+    query = (
+        client.table("review_queue")
+        .select("*")
+        .eq("status", "pending")
+        .gte("confidence", threshold)
+        .order("collected_at", desc=True)
+    )
+    if limit:
+        query = query.limit(limit)
+    items = query.execute().data or []
+
+    stats: dict[str, Any] = {"candidates": len(items), "approved": 0, "failed": 0, "skipped": 0}
+    if dry_run:
+        return stats
+
+    for item in items:
+        target = _pick_auto_approve_ingredient(item)
+        if not target:
+            stats["skipped"] += 1
+            continue
+        result = approve_review_item(item["id"], target, brand_override=item.get("brand", "") or "")
+        if result and not result.get("error"):
+            stats["approved"] += 1
+        else:
+            stats["failed"] += 1
+    return stats
+
+
+def _pick_auto_approve_ingredient(item: ReviewItem) -> str:
+    """Escolhe o ingrediente do melhor candidato (top3[0] ou suggestions[0])."""
+    top3 = item.get("top3") or []
+    if isinstance(top3, str):
+        import json
+
+        try:
+            top3 = json.loads(top3)
+        except Exception:
+            top3 = []
+    if top3 and isinstance(top3, list):
+        first = top3[0] or {}
+        name = first.get("canonical_name") or ""
+        if name:
+            return name
+    suggestions = item.get("suggestions") or []
+    if isinstance(suggestions, str):
+        import json
+
+        try:
+            suggestions = json.loads(suggestions)
+        except Exception:
+            suggestions = []
+    if suggestions and isinstance(suggestions, list):
+        first = suggestions[0]
+        if isinstance(first, str) and first:
+            return first
+        if isinstance(first, dict):
+            return first.get("canonical_name") or ""
+    return ""
 
 
 def approve_review_item(item_id: str, ingredient_id: str, brand_override: str = "") -> dict[str, Any]:

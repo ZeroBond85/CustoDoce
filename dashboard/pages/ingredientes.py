@@ -76,6 +76,27 @@ def _save_ingredient(ing_dict: dict, is_new: bool) -> bool:
     return True
 
 
+def _coerce_editor_df(df: pd.DataFrame, col_map: dict[str, str]) -> pd.DataFrame:
+    """Normaliza dtypes para o st.data_editor (evita StreamlitAPIException).
+
+    Colunas JSONB chegam do Supabase como listas Python (object dtype), que
+    quebram o _check_type_compatibilities do TextColumn. Converte para texto
+    multi-linha; garante bool em Ativo e string nos demais.
+    """
+    out = df.rename(columns=col_map).copy()
+    for col in ("Marcas", "Busca", "Apelidos"):
+        if col in out.columns:
+            out[col] = out[col].apply(
+                lambda v: "\n".join(str(i) for i in v) if isinstance(v, (list, tuple)) else ("" if v is None else str(v))
+            )
+    if "Ativo" in out.columns:
+        out["Ativo"] = out["Ativo"].fillna(False).astype(bool)
+    for col in ("Categoria", "Unidade", "Nome Canônico"):
+        if col in out.columns:
+            out[col] = out[col].fillna("").astype(str)
+    return out
+
+
 def render_ingredientes():
     inject_css()
     st.title("🥄 Ingredientes")
@@ -122,7 +143,7 @@ def render_ingredientes():
         available = [c for c in display_cols if c in filtered.columns]
 
         edited = st.data_editor(
-            filtered[available].rename(columns=col_map),
+            _coerce_editor_df(filtered[available], col_map),
             use_container_width=True,
             hide_index=True,
             column_config={

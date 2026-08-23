@@ -61,33 +61,65 @@ _STORES_CACHE: dict | None = None
 
 
 def _load_stores() -> dict:
-    """Carrega stores.yaml e retorna dict name -> {address, phone, whatsapp, city}."""
+    """Carrega lojas do DB (fonte única) com fallback YAML p/ phone/whatsapp."""
     global _STORES_CACHE
     if _STORES_CACHE is not None:
         return _STORES_CACHE
+
+    # 1. DB (address, city, phone, neighborhood)
+    from services.supabase_client import get_service_client
+
+    try:
+        client = get_service_client()
+        r = client.rpc("exec_sql_query", {
+            "sql": "SELECT name, address, city, phone, neighborhood FROM stores"
+        }).execute()
+        db_stores = {}
+        for row in r.data or []:
+            name = row.get("name", "")
+            if name:
+                db_stores[name] = {
+                    "address": row.get("address", ""),
+                    "city": row.get("city", ""),
+                    "phone": row.get("phone", ""),
+                    "neighborhood": row.get("neighborhood", ""),
+                }
+    except Exception as e:
+        from services.logger import logger
+        logger.warning("email_load_stores_db_failed: %s", e)
+        db_stores = {}
+
+    # 2. YAML fallback (phone, whatsapp para lojas sem no DB)
     import yaml
 
+    yaml_phones = {}
     if _STORES_YAML.exists():
         with open(_STORES_YAML, encoding="utf-8") as f:
             data = yaml.safe_load(f)
-        stores = {}
         for s in data.get("stores", []):
             name = s.get("name", "")
-            units = s.get("units", [])
-            addr = units[0].get("address", "") if units else ""
-            phone = s.get("phone", "")
-            whatsapp = s.get("whatsapp", "")
-            city = s.get("cities", [""])[0] if s.get("cities") else ""
-            stores[name] = {
-                "address": addr,
-                "phone": phone,
-                "whatsapp": whatsapp,
-                "city": city,
-            }
-        _STORES_CACHE = stores
-        return stores
-    _STORES_CACHE = {}
-    return {}
+            if name:
+                yaml_phones[name] = {
+                    "phone": s.get("phone", ""),
+                    "whatsapp": s.get("whatsapp", ""),
+                }
+
+    # Merge: DB address/city/phone/neighborhood + YAML phone/whatsapp
+    stores = {}
+    all_names = set(db_stores.keys()) | set(yaml_phones.keys())
+    for name in all_names:
+        db = db_stores.get(name, {})
+        yp = yaml_phones.get(name, {})
+        stores[name] = {
+            "address": db.get("address", ""),
+            "city": db.get("city", ""),
+            "phone": db.get("phone", "") or yp.get("phone", ""),
+            "whatsapp": yp.get("whatsapp", ""),
+            "neighborhood": db.get("neighborhood", ""),
+        }
+
+    _STORES_CACHE = stores
+    return stores
 
 
 def _store_info_html(store_name: str) -> str:
@@ -239,43 +271,46 @@ def build_full_report_html(prices_by_ingredient: dict) -> str:
 
         rows = ""
         for p in sorted_prices:
-            store = _html.escape(p.get("store_name", "?"))
-            product = _html.escape(p.get("raw_product", "?")[:45])
-            raw_p = float(p.get("raw_price", 0))
-            unit = p.get("raw_unit", "")
-            raw_norm = p.get("normalized")
-            norm = raw_norm if isinstance(raw_norm, dict) else {}
-            ppk = norm.get("price_per_kg", 0)
-            ppk_str = f"R$ {ppk:.2f}" if ppk else "—"
-            promo = (
-                " <span style='background:{};color:{};padding:2px 6px;border-radius:4px;font-size:11px;'>PROMO</span>".format(
-                    _BRAND["promo_bg"], _BRAND["promo_text"]
+                store = _html.escape(p.get("store_name", "?"))
+                product = _html.escape(p.get("raw_product", "?")[:45])
+                raw_p = float(p.get("raw_price", 0))
+                unit = p.get("raw_unit", "")
+                raw_norm = p.get("normalized")
+                norm = raw_norm if isinstance(raw_norm, dict) else {}
+                ppk = norm.get("price_per_kg", 0)
+                ppk_str = f"R$ {ppk:.2f}" if ppk else "—"
+                promo = (
+                    " <span style='background:{};color:{};padding:2px 6px;border-radius:4px;font-size:11px;'>PROMO</span>".format(
+                        _BRAND["promo_bg"], _BRAND["promo_text"]
+                    )
+                    if p.get("is_promotion")
+                    else ""
                 )
-                if p.get("is_promotion")
-                else ""
-            )
-            valid = p.get("valid_until", "")
-            valid_str = f"<br><span style='font-size:11px;color:{_BRAND['light']}'>até {valid}</span>" if valid else ""
-            highlight = "background:#FFFBEB;" if p == best else ""
-            store_info = _store_info_html(p.get("store_name", ""))
-            rows += f"""<tr style="{highlight}">
-              <td class="table-td" style="padding:10px 12px;border-bottom:1px solid #F3F4F6;">{store}{promo}{valid_str}{store_info}</td>
-              <td class="table-td" style="padding:10px 12px;border-bottom:1px solid #F3F4F6;font-size:13px;word-break:break-word;">{product}</td>
-              <td class="table-td" style="padding:10px 12px;border-bottom:1px solid #F3F4F6;white-space:nowrap;">R$ {raw_p:.2f} {unit}</td>
-              <td class="table-td" style="padding:10px 12px;border-bottom:1px solid #F3F4F6;white-space:nowrap;font-weight:600;">{ppk_str}</td>
-            </tr>"""
+                valid = p.get("valid_until", "")
+                valid_str = f"<br><span style='font-size:11px;color:{_BRAND['light']}'>até {valid}</span>" if valid else ""
+                highlight = "background:#FFFBEB;" if p == best else ""
+                store_info = _store_info_html(p.get("store_name", ""))
+                brand = _html.escape(p.get("brand", "Desconhecido")[:25]) if p.get("brand") else "Desconhecido"
+                rows += f"""<tr style="{highlight}">
+                  <td class="table-td" style="padding:10px 12px;border-bottom:1px solid #F3F4F6;">{store}{promo}{valid_str}{store_info}</td>
+                  <td class="table-td" style="padding:10px 12px;border-bottom:1px solid #F3F4F6;font-size:13px;word-break:break-word;">{product}</td>
+                  <td class="table-td" style="padding:10px 12px;border-bottom:1px solid #F3F4F6;white-space:nowrap;">{brand}</td>
+                  <td class="table-td" style="padding:10px 12px;border-bottom:1px solid #F3F4F6;white-space:nowrap;">R$ {raw_p:.2f} {unit}</td>
+                  <td class="table-td" style="padding:10px 12px;border-bottom:1px solid #F3F4F6;white-space:nowrap;font-weight:600;">{ppk_str}</td>
+                </tr>"""
 
         sections += f"""
         <div style="margin-bottom:24px;">
           <h2 class="email-h2" style="margin:0 0 4px 0;font-size:17px;color:{_BRAND["text"]};">{safe_ing}</h2>
           <p class="email-p" style="margin:0 0 10px 0;font-size:13px;color:{_BRAND["muted"]};">Melhor: {best_store} &mdash; R$ {best_ppk:.2f}/kg</p>
           <div class="table-wrap" style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
-                 style="border-collapse:collapse;background:{_BRAND["white"]};border-radius:8px;overflow:hidden;border:1px solid #F3F4F6;min-width:420px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+                  style="border-collapse:collapse;background:{_BRAND["white"]};border-radius:8px;overflow:hidden;border:1px solid #F3F4F6;min-width:420px;">
             <thead>
               <tr style="background:{_BRAND["primary"]};color:{_BRAND["white"]};">
                 <th class="table-th" style="padding:10px 12px;text-align:left;font-size:13px;">Loja</th>
                 <th class="table-th" style="padding:10px 12px;text-align:left;font-size:13px;">Produto</th>
+                <th class="table-th" style="padding:10px 12px;text-align:left;font-size:13px;">Marca</th>
                 <th class="table-th" style="padding:10px 12px;text-align:left;font-size:13px;">Preço</th>
                 <th class="table-th" style="padding:10px 12px;text-align:left;font-size:13px;">R$/kg</th>
               </tr>

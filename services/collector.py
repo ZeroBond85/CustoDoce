@@ -152,12 +152,13 @@ def build_product_entry(
     confidence: float,
     validity_raw: str = "",
     brand: str = "",
+    all_ingredients: list[Ingredient] | None = None,
 ) -> PriceEntry:
     from services.price_service import _detect_promotion, _weekday_pt
 
     normalized = normalize_price(raw_price, raw_unit)
     validity = validity_raw or _extract_validity_from_product(raw_product)
-    brand = brand or extract_brand(raw_product, ingredient)
+    brand = brand or extract_brand(raw_product, ingredient, all_ingredients=all_ingredients)
     return {
         "ingredient_id": ingredient["canonical_name"],
         "store_id": store.get("id") or store["name"].lower().replace(" ", "_"),
@@ -210,6 +211,11 @@ def process_price_match(
     source_url: str = "",
     batch_entries: list[PriceEntry] | None = None,
 ) -> PriceEntry | None:
+    # Defesa contra contaminação de scrapers Tier 3 (script/style leak, nomes
+    # gigantes de layout): normaliza whitespace e limita a 300 chars.
+    product_text = re.sub(r"\s+", " ", str(product_text or "")).strip()[:300]
+    if not product_text:
+        return None
     keywords = _get_ingredient_keywords(ingredients)
     if not has_ingredient_keyword(product_text, keywords):
         return None
@@ -241,6 +247,7 @@ def process_price_match(
             score / 100.0,
             validity_raw=validity_raw,
             brand=brand,
+            all_ingredients=ingredients,
         )
         return _persist(entry)
 
@@ -274,6 +281,7 @@ def process_price_match(
                 combined,
                 validity_raw=validity_raw,
                 brand=brand,
+                all_ingredients=ingredients,
             )
             return _persist(entry)
 
@@ -304,6 +312,7 @@ def process_price_match(
                         llm_result["confidence"],
                         validity_raw=validity_raw,
                         brand=brand,
+                        all_ingredients=ingredients,
                     )
                     return _persist(entry)
 
@@ -312,7 +321,10 @@ def process_price_match(
     threshold = get_feature(
         "features.matcher.review_threshold",
         ingredient=ingredient["canonical_name"] if ingredient else None,
-        default=0.70,
+        # Sprint 18+: alinhado ao gate de persistência (combined >= 0.80).
+        # Default 0.70 era bug — mandava borderlines 70-79% pra review_queue
+        # que nunca seriam persistidos, inflando a fila (~646/dia em prod).
+        default=0.80,
     )
     if combined >= threshold:
         candidates = rank_ingredients(product_text, ingredients, top_n=3)
@@ -358,7 +370,7 @@ def process_price_match(
             )
 
         if not brand and candidates:
-            brand = extract_brand(product_text, candidates[0][0])
+            brand = extract_brand(product_text, candidates[0][0], all_ingredients=ingredients)
 
         if candidates:
             combined_pct = int(combined * 100)
