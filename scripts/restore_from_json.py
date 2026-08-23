@@ -67,16 +67,10 @@ def dry_run_check(client, table: str, rows: list) -> dict:
     """Simulate insert by checking if table exists and columns match."""
     result: dict = {"table": table, "rows": len(rows), "status": "OK", "details": []}
 
-    # Check table exists via RPC
+    # Check table exists via PostgREST (sem SQL dinâmico)
     try:
-        # ruff: noqa: S608
-        check = client.rpc(
-            "exec_sql_query",
-            {
-                "sql": f"SELECT COUNT(*) FROM {table} LIMIT 1",
-            },
-        ).execute()
-        result["details"].append(f"Table exists: {check.data}")  # type: ignore
+        probe = client.table(table).select("*", count="exact").limit(1).execute()
+        result["details"].append(f"Table exists ({probe.count or 0} rows)")  # type: ignore
     except Exception as e:
         result["status"] = "WARN"
         result["details"].append(f"Table check failed: {e}")  # type: ignore

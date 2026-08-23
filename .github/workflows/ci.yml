@@ -95,7 +95,7 @@ jobs:
         run: |
           python -m detect_secrets scan --baseline .secrets.baseline \
             admin/ dashboard/ services/ scrapers/ parsers/ scripts/ telegram_bot/ config/ .github/workflows/
-      - run: bandit -r admin/ dashboard/ services/ -x tests/
+      - run: bandit -r admin/ dashboard/ services/ scripts/ -x tests/
       - name: Audit dependencies
         id: audit
         run: |

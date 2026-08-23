@@ -13,6 +13,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger(__name__)
 
 MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+# Pin da revisão (commit) — B615: download reprodutível, sem drift silencioso.
+MODEL_REVISION = "e8f8c211226b894fcb81acc59f3b34ba3efd5f42"
 EXPORT_DIR = Path(__file__).resolve().parent.parent / "data" / "onnx_models" / MODEL_NAME.replace("/", "_")
 
 
@@ -23,8 +25,8 @@ def export_model():
         logger.info(f"Exporting model {MODEL_NAME} to ONNX...")
 
         # Load and export model to ONNX
-        model = ORTModelForFeatureExtraction.from_pretrained(MODEL_NAME, export=True)
-        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+        model = ORTModelForFeatureExtraction.from_pretrained(MODEL_NAME, revision=MODEL_REVISION, export=True)
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, revision=MODEL_REVISION)
 
         # Save to disk
         model.save_pretrained(str(EXPORT_DIR))

@@ -17,7 +17,7 @@ def download_latest_release(repo: str, prefix: str, token: str, output_dir: str)
     }
 
     try:
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=30)
         response.raise_for_status()
         releases = response.json()
     except requests.exceptions.RequestException as e:
@@ -39,7 +39,7 @@ def download_latest_release(repo: str, prefix: str, token: str, output_dir: str)
     # Baixar arquivos da release
     assets_url = f"{latest_release['url']}/assets"
     try:
-        assets_response = requests.get(assets_url, headers=headers)
+        assets_response = requests.get(assets_url, headers=headers, timeout=30)
         assets_response.raise_for_status()
         assets = assets_response.json()
     except requests.exceptions.RequestException as e:
@@ -57,7 +57,7 @@ def download_latest_release(repo: str, prefix: str, token: str, output_dir: str)
 
         try:
             print(f"Baixando {asset_name}...")
-            response = requests.get(download_url, stream=True)
+            response = requests.get(download_url, stream=True, timeout=60)
             response.raise_for_status()
 
             with open(local_path, 'wb') as f:
