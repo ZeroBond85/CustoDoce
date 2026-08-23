@@ -195,23 +195,25 @@ def reference_score(section: dict) -> int:
         _ROOT / "config",
         _ROOT / ".github" / "workflows",
     ]
+    dirs = [str(d) for d in search_dirs if d.exists()]
+    if not dirs:
+        return 0
 
     import subprocess
 
-    for pat in patterns:
-        for d in search_dirs:
-            if not d.exists():
-                continue
-            try:
-                result = subprocess.run(
-                    ["grep", "-rl", pat, str(d)],
-                    capture_output=True, text=True, timeout=15,
-                    cwd=str(_ROOT),
-                )
-                if result.stdout.strip():
-                    score += len(result.stdout.strip().splitlines())
-            except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-                pass
+    try:
+        # Um único grep multi-pattern: 1 travessia da árvore em vez de uma por
+        # padrão (no /mnt/c via WSL, cada varredura custa dezenas de segundos).
+        result = subprocess.run(
+            ["grep", "-rl", "--exclude-dir=__pycache__", *patterns, *dirs],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            cwd=str(_ROOT),
+        )
+        score += len(result.stdout.strip().splitlines()) if result.stdout.strip() else 0
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        pass
 
     return min(score, 50)  # cap
 

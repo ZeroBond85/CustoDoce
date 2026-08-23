@@ -434,16 +434,14 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 
 ### 60. `load_stores()` dropava silenciosamente lojas sem `scrape_frequencies`
 
-- **Data + commit**: 2026-07-13
-- **Sintoma**: ~64/71 lojas ativas em YAML nunca apareciam no pipeline — `collect_*()` sempre retornava vazio para a maioria dos scrapers. O log não mostrava erro, apenas "0 stores".
+- **Sintoma** _(2026-07-13)_: ~64/71 lojas ativas em YAML nunca apareciam no pipeline — `collect_*()` sempre retornava vazio para a maioria dos scrapers. O log não mostrava erro, apenas "0 stores".
 - **Causa raiz**: `services/collector.py:63-65` — `load_stores()` fazia `.select("store_id").eq("enabled", True)` e usava interseção (`in enabled_ids`). Lojas **sem nenhuma linha** em `scrape_frequencies` eram excluídas silenciosamente. A maioria das lojas reativadas não tinha freq row.
 - **Correção**: `services/collector.py:58-71` — agora carrega TODAS as linhas de scrape_frequencies (incluindo `enabled=False`). Lojas sem freq row passam pelo filtro; apenas lojas com `enabled=False` explícito são excluídas (kill-switch).
 - **Teste de regressão**: `test_validate_mocks_against_manifest` (indireto — validar que o mapper cobre todas). Teste direto ainda não escrito.
 
 ### 61. Type-drift: FKs `INTEGER`/`UUID` para `stores(id)` quando `stores.id` é `TEXT`
 
-- **Data + commit**: 2026-07-13
-- **Sintoma**: Migrations `006_scrape_requests.sql` e `009_store_registry.sql` declaravam `store_id INTEGER REFERENCES stores(id)` e retorno `id UUID` em `find_similar_store()` — incompatíveis com `stores.id TEXT`.
+- **Sintoma** _(2026-07-13)_: Migrations `006_scrape_requests.sql` e `009_store_registry.sql` declaravam `store_id INTEGER REFERENCES stores(id)` e retorno `id UUID` em `find_similar_store()` — incompatíveis com `stores.id TEXT`.
 - **Causa raiz**: `stores.id` foi migrado de `UUID`/`INTEGER` para `TEXT` (slug) em seed.sql/consolidated, mas migrations mais antigas nunca foram atualizadas. `deploy_database.py` já corrigia `scrape_frequencies` inline (linhas 65-82) mas carregava `006` e `009` verbatim.
 - **Correção**:
   - `supabase/migrations/006_scrape_requests.sql:7`: `INTEGER` → `TEXT`
@@ -478,8 +476,7 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 
 ### 65. Encartes vision-LLM (Max/Roldão/Giga): keys precisam estar no workflow de produção
 
-- **Data + commit**: 2026-07-13
-- **Sintoma**: Extração vision de encartes (Groq/Gemini) funcionava 100% local (`.env` carregado) mas falharia silenciosamente em produção — `scrape.yml`/`scrape-reusable.yml` só passavam secrets do Supabase, sem `GROQ_API_KEY`/`GOOGLE_API_KEY`.
+- **Sintoma** _(2026-07-13)_: Extração vision de encartes (Groq/Gemini) funcionava 100% local (`.env` carregado) mas falharia silenciosamente em produção — `scrape.yml`/`scrape-reusable.yml` só passavam secrets do Supabase, sem `GROQ_API_KEY`/`GOOGLE_API_KEY`.
 - **Causa raiz**: Novos providers vision adicionados ao código (`parsers/vision_strategies.py`) sem wiring correspondente no `env:` do step de scraping nem na declaração `secrets:` do reusable workflow. Local ≠ produção (viola paridade, regra 10).
 - **Correção**: (1) `scrape-reusable.yml` — `GROQ_API_KEY`/`GOOGLE_API_KEY` em `workflow_call.secrets` (optional) + `env:` do step `main.py --tier`. (2) `scrape.yml` e `on_demand_scrape.yml` — repassam ambos secrets. (3) `gh secret set` para os 2 valores validados.
 - **Detalhes vision**: Groq (`llama-4-scout-17b`) é 3–8x mais rápido que Gemini (`gemini-2.5-flash-lite`) e igualmente preciso → **Groq primário, Gemini fallback** (chain Groq→Gemini→OpenRouter→HF). Gemini truncava JSON em `maxOutputTokens`; imagens grandes davam 413 → `_downscale_image` (PIL ≤1600px, JPEG ≤900KB). Giga: cards `img[class*=encartesSection__image]` já são páginas full-size — não precisa abrir modal.
@@ -487,8 +484,7 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 
 ### 66. Indentação de bloco malformada em stores.yaml passa despercebida até `yaml.safe_load`
 
-- **Data + commit**: 2026-07-13
-- **Sintoma**: 6 testes falharam com `yaml.parser.ParserError: expected <block end>` apontando para o bloco `Proplastik` (`config/stores.yaml:967`).
+- **Sintoma** _(2026-07-13)_: 6 testes falharam com `yaml.parser.ParserError: expected <block end>` apontando para o bloco `Proplastik` (`config/stores.yaml:967`).
 - **Causa raiz**: Sessão anterior deixou as 4 primeiras linhas do bloco Proplastik com 1 espaço a mais (3/5 espaços em vez de 2/4). YAML só quebra quando um item de sequência desalinha do resto — passou silenciosamente até um parse real.
 - **Correção**: Re-indentado `- name`/`tier`/`type`/`is_active` para 2/4 espaços. Proplastik também desativado (`is_active: false`) — dava TIMEOUT de 532s e 0 cobertura, desperdiçando minutos do free-tier.
 - **Teste de regressão**: `tests/unit/test_deploy_check.py::test_yaml_files_parse` e `test_stores_config.py` cobrem parse + schema de stores.yaml.
@@ -503,8 +499,7 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 
 ### 68. Config scraper-specific (browse_urls etc.) não sincronizava para o DB → lojas rodavam sem config em CI
 
-- **Data + commit**: 2026-07-15
-- **Sintoma**: No `test_store_recovery.yml`, Rede Krill "success" mas `collected: 0` após **hang de 600s** (browser inicia, nada mais logado); Chefon 0 produtos por 429. As 8 lojas reativadas falhavam em CI apesar de a config em `stores.yaml` estar correta.
+- **Sintoma** _(2026-07-15)_: No `test_store_recovery.yml`, Rede Krill "success" mas `collected: 0` após **hang de 600s** (browser inicia, nada mais logado); Chefon 0 produtos por 429. As 8 lojas reativadas falhavam em CI apesar de a config em `stores.yaml` estar correta.
 - **Causa raiz**: `scripts/sync_all_store_fields.py` só sincronizava as colunas em `FIELDS`. Chaves específicas de scraper (`browse_urls`, `api_base`, `api_base_fallbacks`, `image_host_fallbacks`, `headers`, `verify_ssl`, `anti_bot`, `cloudflare`, `rate_limit`, `vision_timeout_seconds`, `store_slug`, ...) **não são colunas** da tabela `stores` e nunca eram persistidas. A coluna `config` (jsonb) existia vazia (`{}`) e `load_stores()` não a promovia ao topo. Resultado: em CI (config vem do DB, não do yaml) Krill sem `browse_urls` caía no `/busca?q=` quebrado (SPA não renderiza busca) → 23 ingredientes × termos, cada `goto` de 30s → estoura 600s → 0 produtos. Max sem fallbacks de DNS, Chefon sem `anti_bot`, Giga sem `vision_timeout_seconds`, Spani sem `store_slug` — todas capadas.
 - **Correção**: (1) `sync_all_store_fields.py` roteia toda chave que não é coluna (`DB_COLUMNS`) para a coluna `config` (jsonb). (2) `collector._merge_store_config()` promove `config` ao topo do dict da loja (colunas reais têm precedência), aplicado em `load_stores()` e `test_single_store.py`. (3) Sincronizado no Supabase (69 lojas). Validado local: Krill coleta **80 produtos em 10.5s** (browse mode) vs. 0 antes.
 - **Bugs correlatos corrigidos junto**: (a) `get_active_stores()` sem paginação → cap de 1000 linhas do PostgREST truncava lojas reais (725 ativas hoje, 675 fixtures `Cleanup Store`); agora pagina via `.range()`. (b) `test_single_store.py` resolvia via `load_stores` (excluía lojas pausadas por `scrape_frequencies.enabled`) → agora resolve por `get_store_by_name`; e retornava exit 0 com `collected==0` (mascarava timeout/429) → agora falha.
@@ -512,8 +507,7 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 
 ### 69. Spani não era Tiendeo — é e-commerce VipCommerce (mesma plataforma da Rede Krill)
 
-- **Data + commit**: 2026-07-15
-- **Sintoma**: Spani reativada mas sem fonte real: config antiga usava `type=aggregator`/`aggregator_scraper` (Tiendeo) com `url_pattern` S3 de placeholders literais que nunca resolveu. Raspar o site (Angular SPA) via Playwright era lento e frágil.
+- **Sintoma** _(2026-07-15)_: Spani reativada mas sem fonte real: config antiga usava `type=aggregator`/`aggregator_scraper` (Tiendeo) com `url_pattern` S3 de placeholders literais que nunca resolveu. Raspar o site (Angular SPA) via Playwright era lento e frágil.
 - **Causa raiz**: `spanionline.com.br` roda na plataforma **VipCommerce**, que expõe uma **API JSON pública** após login anônimo de loja. Raspar a API é ordens de magnitude mais rápido/estável que o SPA. Descoberta via captura de rede: `POST /org/{org}/auth/loja/login` (body com `domain`/`username`/`key`) → Bearer token; `GET .../departamentos/arvore` → 14 departamentos; `GET .../departamentos/{id}/produtos?page=N` → produtos paginados (`paginator.total_pages`). Spani: `org=67`, `filial=1`, `centro_distribuicao=15`.
 - **Correção**: novo `scrapers/vipcommerce_api_scraper.py` (`VipCommerceApiScraper`) reutilizável: login → seleção de departamentos por palavra-chave de confeitaria (`chocolate`, `mercearia`, `cereais`, `laticinio`, `sobremesa`, ...) → paginação com teto `vip_max_pages_per_dept`. Registrado em `collector.API`/`collect_vipcommerce` (tier 2a, `type=vipcommerce_api`) e em `test_single_store.py`. Spani reconfigurada em `stores.yaml` com `vip_org_id/vip_filial_id/vip_cd_id/vip_login_key/vip_domain`. Validado E2E via `test_single_store`: **593 produtos, 93 matched & upserted** em ~90s.
 - **Nota de eficiência**: browse por departamento traz muito produto irrelevante (593 → 93 matched); endpoint de busca targeted do VipCommerce (`/produtos/busca`) retorna 500 com params testados — não descoberto. `vip_max_pages_per_dept=6` equilibra cobertura (14/23 ingredientes; os ausentes não existem no catálogo Spani) vs. carga de matching/upsert. Krill (mesma plataforma) pode migrar para este scraper no futuro.
@@ -738,3 +732,7 @@ Sintoma: teste novo do AsyncClient guardado recebia TooManyRedirects em vez de U
 ### 111. Guard SSRF real bloqueou redirect same-site legitimo (Barradoce) + poll de CI via gh no bash Windows falha silencioso
 
 Sintoma: (a) CI run 32614724013 job integration falhou em test_real_ecomplus_scraper_barradoce com 'SSRF guard: blocked redirect to https://www.barradoce.com.br/' apos o guard virar real (LESSONS #110); (b) loop ad-hoc de polling do CI rodou gh no bash Windows onde ele nao esta no PATH -> 29 iteracoes vazias, falha nao capturada (2a ocorrencia). Causa: (a) politica antiga exigia allowlist global para TODO hop; apex->www da propria loja e padrao onipresente em e-commerce que o guard no-op mascarava; (b) gh so existe no WSL (_ensure_bin_path e do git_push.py). Correcao: (a) same-site hop policy no _on_response — redirect dentro do mesmo dominio registravel (_registrable_domain com TLDs multi-label BR) passa sem DNS; cross-site segue estrito (allowlist); keyword metadata segue bloqueada mesmo in-site; ancora = URL origem configurada pelo operador (stores.yaml), transitiva por hop. Testes: 5 novos em test_url_guard.py (apex<->www, www->subdominio, cross-site blocked, metadata blocked, _registrable_domain). (b) polling de CI SEMPRE via wsl.exe bash -c com gh autenticado. Regra: ao relaxar guard de seguranca que estava no-op, rodar integration real antes do push; loops de monitoracao nunca dependem de binario ausente no host.
+
+### 112. Bandit silencioso no Windows + gate CI calibrado (-ll) e filhos do wsl.exe
+
+Sintoma: (a) PR-02 passou local mas CI falhou — bandit crashava no Windows com charmap codec (caractere ✅ no output) sem imprimir nada, validando contra baseline errado; (b) push em background via (nohup git push &) dentro de wsl.exe morria instantaneamente ao sair a sessão. Causa raiz: Windows cp1252 não codifica Unicode do report bandit; wsl.exe encerra TODOS os processos filhos quando o comando principal termina — background jobs não sobrevivem. Correção: PYTHONUTF8=1 obrigatório em qualquer bandit local; push síncrono com timeout longo (900s) pois pre-push hook leva ~3-4min; gate de scripts/ calibrado com -ll (medium+) mantendo admin/dashboard/services estritos. Teste: test_bandit_scope_scripts.py trava ambos os gates.
