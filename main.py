@@ -6,6 +6,7 @@ Coordinates collection, cleaning, intelligence, and reporting.
 import json
 import os
 import threading
+import time
 from argparse import ArgumentParser, Namespace
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -14,6 +15,66 @@ from scripts.sync_all_store_fields import sync_scrape_frequencies, sync_store_fi
 from services import collector, email_service, flyer_service, otel, price_analytics, price_intelligence, price_service, store_registry
 from services.maintenance_service import cleanup_test_data
 from services.logger import logger
+
+DATA_DIR = Path("data")
+DATA_DIR.mkdir(exist_ok=True)
+
+
+class CircuitBreaker:
+    """Simple circuit breaker to prevent cascading failures.
+
+    States: CLOSED (normal), OPEN (failing), HALF_OPEN (testing recovery).
+    Opens after `failure_threshold` consecutive failures.
+    Auto-closes after `recovery_timeout` seconds when in HALF_OPEN with success.
+    """
+
+    def __init__(self, name: str, failure_threshold: int = 3, recovery_timeout: int = 300):
+        self.name = name
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self._state = "CLOSED"  # CLOSED, OPEN, HALF_OPEN
+        self._failure_count = 0
+        self._last_failure_time: float | None = None
+        self._lock = threading.Lock()
+
+    @property
+    def state(self) -> str:
+        with self._lock:
+            if self._state == "OPEN" and time.time() - self._last_failure_time >= self.recovery_timeout:
+                self._state = "HALF_OPEN"
+                logger.info("circuit_breaker_half_open", name=self.name)
+            return self._state
+
+    def is_available(self) -> bool:
+        return self.state != "OPEN"
+
+    def record_success(self):
+        with self._lock:
+            if self._state == "HALF_OPEN":
+                self._state = "CLOSED"
+                self._failure_count = 0
+                logger.info("circuit_breaker_closed", name=self.name)
+            elif self._state == "CLOSED":
+                self._failure_count = 0
+
+    def record_failure(self):
+        with self._lock:
+            self._failure_count += 1
+            self._last_failure_time = time.time()
+            if self._failure_count >= self.failure_threshold:
+                self._state = "OPEN"
+                logger.warning("circuit_breaker_opened", name=self.name, failures=self._failure_count)
+
+
+# Circuit breakers per tier/method
+_CIRCUIT_BREAKERS: dict[str, CircuitBreaker] = {}
+
+
+def _get_circuit_breaker(name: str) -> CircuitBreaker:
+    if name not in _CIRCUIT_BREAKERS:
+        _CIRCUIT_BREAKERS[name] = CircuitBreaker(name)
+    return _CIRCUIT_BREAKERS[name]
+
 
 DATA_DIR = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
@@ -125,11 +186,20 @@ def _collect(args: Namespace, collector, ingredients: list) -> list[dict]:
     for tier, method, needs_ing in TIER_PLAN:
         if args.tier and tier != args.tier:
             continue
+
+        # Circuit breaker check
+        cb = _get_circuit_breaker(f"{tier}_{method}")
+        if not cb.is_available():
+            logger.warning("circuit_breaker_skipping", tier=tier, method=method, state=cb.state)
+            continue
+
         fn = getattr(collector, method)
         try:
             result = fn(ingredients) if needs_ing else fn()
+            cb.record_success()
         except Exception as e:
             logger.error("collector_error", tier=tier, method=method, error=str(e))
+            cb.record_failure()
             result = []
         if isinstance(result, list):
             collected.append(result)
