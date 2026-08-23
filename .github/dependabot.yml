@@ -1,0 +1,68 @@
+# .github/dependabot.yml
+# Dependabot configuration for CustoDoce
+# Runs weekly to keep dependencies updated
+
+version: 2
+updates:
+  # Python dependencies (requirements*.in files → lock files)
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Sao_Paulo"
+    # Only create PRs for patch/minor updates by default
+    # Major version updates require manual review
+    allow:
+      - dependency-type: "direct"
+        update-type: "version-update:semver-patch"
+      - dependency-type: "direct"
+        update-type: "version-update:semver-minor"
+    # Group minor/patch updates together to reduce PR noise
+    groups:
+      python-patches:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+        applies-to: "version-updates"
+    # Don't auto-merge; require CI green + manual review
+    auto-merge: false
+    # Ignore packages that need manual migration
+    ignore:
+      - dependency-name: "pandas"
+        # Major versions often break API
+      - dependency-name: "pytesseract"
+        # System dependency, version tied to tesseract-ocr binary
+      - dependency-name: "opencv-python"
+        # System dependency
+      - dependency-name: "playwright"
+        # Version tied to browser binaries
+    # Rebase PRs automatically
+    rebase-strategy: "auto"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Sao_Paulo"
+    allow:
+      - dependency-type: "direct"
+        update-type: "version-update:semver-patch"
+      - dependency-type: "direct"
+        update-type: "version-update:semver-minor"
+    # Pin actions to commit SHA by default; Dependabot will update to new tags
+    # when we manually review and approve
+    allow:
+      - dependency-type: "direct"
+        update-type: "version-update:semver-major"
+    ignore:
+      - dependency-name: "actions/checkout"
+        # Major updates may change behavior
+      - dependency-name: "actions/setup-python"
+      - dependency-name: "actions/cache"
+      - dependency-name: "actions/upload-artifact"
