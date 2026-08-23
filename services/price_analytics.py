@@ -4,11 +4,189 @@ Price Analytics Service - Reports and data analysis.
 
 from collections import defaultdict
 from datetime import date, timedelta
+from itertools import combinations
 from typing import Any
 
 from services.price_repository import get_latest_prices as get_all_current_prices
 from services.supabase_client import get_supabase
 from services.types import Ingredient, PriceEntry
+
+
+def _fetch_and_index_prices() -> dict[str, dict[str, dict]]:
+    """
+    Busca preços atuais e indexa por (ingredient_id -> store_id -> price_data).
+
+    Returns:
+        by_ing_store: {ing: {sid: {"store_name", "price_per_kg", "raw_price", "raw_unit", "store_id"}}}
+    """
+    try:
+        latest_prices = get_all_current_prices(valid_only=True, limit=5000)
+    except Exception:
+        latest_prices = []
+
+    by_ing_store: dict[str, dict[str, dict]] = defaultdict(dict)
+    for p in latest_prices:
+        ing = p.get("ingredient_id", "")
+        sid = p.get("store_id") or p.get("store_name", "")
+        raw_norm = p.get("normalized")
+        norm = raw_norm if isinstance(raw_norm, dict) else {}
+        ppk = norm.get("price_per_kg")
+        if ing and sid and ppk and ppk > 0:
+            by_ing_store[ing][sid] = {
+                "store_id": sid,
+                "store_name": p.get("store_name", "unknown"),
+                "price_per_kg": float(ppk),
+                "raw_price": p.get("raw_price"),
+                "raw_unit": p.get("raw_unit"),
+            }
+    return by_ing_store
+
+
+def _validate_ingredients(
+    lista_itens: dict, by_ing_store: dict
+) -> tuple[list[str], dict[str, dict[str, float]]]:
+    """
+    Valida quais ingredientes têm preços e quais faltam.
+
+    Returns:
+        (lista_faltando, candidates)
+        candidates: {ing: {sid: price_per_kg}}
+    """
+    lista_faltando = []
+    candidates = {}
+    for ing, _qty_kg in lista_itens.items():
+        if ing not in by_ing_store or not by_ing_store[ing]:
+            lista_faltando.append(ing)
+            continue
+        candidates[ing] = {sid: data["price_per_kg"] for sid, data in by_ing_store[ing].items()}
+    return lista_faltando, candidates
+
+
+def _compute_monofonte(
+    candidates: dict[str, dict[str, float]],
+    lista_itens: dict,
+    by_ing_store: dict,
+) -> dict | None:
+    """Computa cenário Monofonte: uma loja cobrindo 100% dos itens."""
+    all_store_ids = set()
+    for stores in candidates.values():
+        all_store_ids.update(stores.keys())
+
+    monofonte_per_store = []
+    for sid in all_store_ids:
+        total = 0.0
+        itens = []
+        all_present = True
+        for ing, store_prices in candidates.items():
+            qty = float(lista_itens[ing])
+            if sid in store_prices:
+                price_pkg = store_prices[sid]
+                cost = price_pkg * qty
+                total += cost
+                itens.append(
+                    {"ingredient": ing, "qty_kg": qty, "cost": cost, "price_per_kg": price_pkg, "store_id": sid}
+                )
+            else:
+                all_present = False
+                itens.append({"ingredient": ing, "qty_kg": qty, "cost": None, "store_id": sid})
+        if all_present:
+            store_name = next(
+                (by_ing_store[ing][sid].get("store_name", sid) for ing in candidates if sid in candidates[ing]),
+                sid,
+            )
+            monofonte_per_store.append(
+                {
+                    "store_id": sid,
+                    "store_name": store_name,
+                    "total": total,
+                    "itens": [it for it in itens if it["cost"] is not None],
+                }
+            )
+
+    if monofonte_per_store:
+        monofonte_per_store.sort(key=lambda x: x["total"])
+        return monofonte_per_store[0]
+    return None
+
+
+def _compute_multifonte(
+    candidates: dict[str, dict[str, float]],
+    lista_itens: dict,
+    by_ing_store: dict,
+    max_sources: int,
+) -> dict | None:
+    """Computa cenário Multifonte: combinação de até max_sources lojas."""
+    if max_sources <= 1:
+        return None
+
+    all_store_ids = set()
+    for stores in candidates.values():
+        all_store_ids.update(stores.keys())
+    store_ids_list = list(all_store_ids)
+
+    multifonte_per_combo: list[dict] = []
+    for r in range(1, max_sources + 1):
+        for combo in combinations(store_ids_list, r):
+            if not all(any(sid in candidates[ing] for sid in combo) for ing in candidates):
+                continue
+            total = 0.0
+            itens = []
+            for ing in candidates:
+                qty = float(lista_itens[ing])
+                best_sid = min(combo, key=lambda sid: candidates[ing].get(sid, float("inf")))
+                price_pkg = candidates[ing][best_sid]
+                cost = price_pkg * qty
+                total += cost
+                itens.append(
+                    {
+                        "ingredient": ing,
+                        "qty_kg": qty,
+                        "cost": cost,
+                        "price_per_kg": price_pkg,
+                        "store_id": best_sid,
+                    }
+                )
+            store_names = {
+                by_ing_store[ing][sid].get("store_name", sid)
+                for ing, sid in zip(
+                    candidates,
+                    [
+                        min(combo, key=lambda s: candidates[ing].get(s, float("inf")))
+                        for ing in candidates
+                    ],
+                    strict=False,
+                )
+                if sid in by_ing_store.get(ing, {})
+            }
+            multifonte_per_combo.append(
+                {
+                    "store_ids": list(combo),
+                    "store_names": list(store_names),
+                    "total": total,
+                    "itens": itens,
+                }
+            )
+
+    if multifonte_per_combo:
+        multifonte_per_combo.sort(key=lambda x: x["total"])
+        return multifonte_per_combo[0]
+    return None
+
+
+def _format_results(
+    lista_itens: dict,
+    lista_faltando: list,
+    monofonte: dict | None,
+    multifonte: dict | None,
+) -> tuple[str, str, float | None]:
+    """Gera markdown, HTML e economia."""
+    economia = None
+    if multifonte and monofonte:
+        economia = max(0.0, monofonte["total"] - multifonte["total"])
+
+    md = _format_cart_md(lista_itens, lista_faltando, monofonte, multifonte)
+    html = _format_cart_html(lista_itens, lista_faltando, monofonte, multifonte)
+    return md, html, economia
 
 
 def get_telegram_report(ingredients: list[Ingredient], top_n: int = 5) -> list[dict[str, Any]]:
@@ -254,35 +432,8 @@ def otimizar_carrinho_compras(lista_itens: dict, max_sources: int = 2) -> dict:
             "format_html": "<i>Lista vazia</i>",
         }
 
-    try:
-        latest_prices = get_all_current_prices(valid_only=True, limit=5000)
-    except Exception:
-        latest_prices = []
-
-    # Index por (ingredient, store)
-    by_ing_store: dict[str, dict[str, dict]] = defaultdict(dict)
-    for p in latest_prices:
-        ing = p.get("ingredient_id", "")
-        sid = p.get("store_id") or p.get("store_name", "")
-        raw_norm = p.get("normalized")
-        norm = raw_norm if isinstance(raw_norm, dict) else {}
-        ppk = norm.get("price_per_kg")
-        if ing and sid and ppk and ppk > 0:
-            by_ing_store[ing][sid] = {
-                "store_id": sid,
-                "store_name": p.get("store_name", "unknown"),
-                "price_per_kg": float(ppk),
-                "raw_price": p.get("raw_price"),
-                "raw_unit": p.get("raw_unit"),
-            }
-
-    lista_faltando = []
-    candidates = {}  # {ing: {store_id: price_per_kg}}
-    for ing, _qty_kg in lista_itens.items():
-        if ing not in by_ing_store or not by_ing_store[ing]:
-            lista_faltando.append(ing)
-            continue
-        candidates[ing] = {sid: data["price_per_kg"] for sid, data in by_ing_store[ing].items()}
+    by_ing_store = _fetch_and_index_prices()
+    lista_faltando, candidates = _validate_ingredients(lista_itens, by_ing_store)
 
     if not candidates:
         return {
@@ -293,7 +444,6 @@ def otimizar_carrinho_compras(lista_itens: dict, max_sources: int = 2) -> dict:
             "format_html": "<i>Nenhum dos itens da lista tem preço coletado ainda.</i>",
         }
 
-    # Se há itens faltando, monofonte e multifonte não cobrem 100% da lista
     if lista_faltando:
         missing_str = ",".join(lista_faltando)
         return {
@@ -304,120 +454,9 @@ def otimizar_carrinho_compras(lista_itens: dict, max_sources: int = 2) -> dict:
             "format_html": "<i>Lista com itens faltando: " + missing_str + "</i>",
         }
 
-    # =================================================================
-    # Cenário Monofonte: para cada loja, soma o custo de TODOS os itens
-    # =================================================================
-    all_store_ids = set()
-    for stores in candidates.values():
-        all_store_ids.update(stores.keys())
-
-    monofonte_per_store = []
-    for sid in all_store_ids:
-        covered = 0
-        total = 0.0
-        itens = []
-        all_present = True
-        for ing, store_prices in candidates.items():
-            qty = float(lista_itens[ing])
-            if sid in store_prices:
-                price_pkg = store_prices[sid]
-                cost = price_pkg * qty
-                total += cost
-                covered += 1
-                itens.append(
-                    {"ingredient": ing, "qty_kg": qty, "cost": cost, "price_per_kg": price_pkg, "store_id": sid}
-                )
-            else:
-                all_present = False
-                itens.append({"ingredient": ing, "qty_kg": qty, "cost": None, "store_id": sid})
-        # Só considerar lojas que cobrem 100% da lista
-        if all_present:
-            monofonte_per_store.append(
-                {
-                    "store_id": sid,
-                    "store_name": candidates
-                    and next(
-                        (by_ing_store[ing][sid].get("store_name", sid) for ing in candidates if sid in candidates[ing]),
-                        sid,
-                    ),
-                    "total": total,
-                    "itens": [it for it in itens if it["cost"] is not None],
-                }
-            )
-
-    monofonte = None
-    if monofonte_per_store:
-        monofonte_per_store.sort(key=lambda x: x["total"])
-        monofonte = monofonte_per_store[0]
-
-    # =================================================================
-    # Cenário Multifonte: top max_sources lojas que cobrem tudo
-    # =================================================================
-    multifonte = None
-    if max_sources > 1:
-        multifonte_per_combo: list[dict] = []
-
-        # Para simplicidade O(n^2): combinação de até N=max_sources lojas
-        from itertools import combinations
-
-        store_ids_list = list(all_store_ids)
-        for r in range(1, max_sources + 1):
-            for combo in combinations(store_ids_list, r):
-                # Verifica se combo cobre 100% da lista
-                if not all(any(sid in candidates[ing] for sid in combo) for ing in candidates):
-                    continue
-                total = 0.0
-                itens = []
-                for ing in candidates:
-                    qty = float(lista_itens[ing])
-                    best_sid = min(combo, key=lambda sid: candidates[ing].get(sid, float("inf")))
-                    price_pkg = candidates[ing][best_sid]
-                    cost = price_pkg * qty
-                    total += cost
-                    itens.append(
-                        {
-                            "ingredient": ing,
-                            "qty_kg": qty,
-                            "cost": cost,
-                            "price_per_kg": price_pkg,
-                            "store_id": best_sid,
-                        }
-                    )
-                multifonte_per_combo.append(
-                    {
-                        "store_ids": list(combo),
-                        "store_names": list(
-                            {
-                                by_ing_store[ing][sid].get("store_name", sid)
-                                for ing, sid in zip(
-                                    candidates,
-                                    [
-                                        min(combo, key=lambda s: candidates[ing].get(s, float("inf")))
-                                        for ing in candidates
-                                    ],
-                                    strict=False,
-                                )
-                                if sid in by_ing_store.get(ing, {})
-                            }
-                        ),
-                        "total": total,
-                        "itens": itens,
-                    }
-                )
-
-        if multifonte_per_combo:
-            multifonte_per_combo.sort(key=lambda x: x["total"])
-            multifonte = multifonte_per_combo[0]
-
-    # =================================================================
-    # Formatting
-    # =================================================================
-    economia = None
-    if multifonte and monofonte:
-        economia = max(0.0, monofonte["total"] - multifonte["total"])
-
-    md = _format_cart_md(lista_itens, lista_faltando, monofonte, multifonte)
-    html = _format_cart_html(lista_itens, lista_faltando, monofonte, multifonte)
+    monofonte = _compute_monofonte(candidates, lista_itens, by_ing_store)
+    multifonte = _compute_multifonte(candidates, lista_itens, by_ing_store, max_sources)
+    md, html, economia = _format_results(lista_itens, lista_faltando, monofonte, multifonte)
 
     return {
         "lista_faltando": lista_faltando,
