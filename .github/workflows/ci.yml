@@ -96,6 +96,9 @@ jobs:
           python -m detect_secrets scan --baseline .secrets.baseline \
             admin/ dashboard/ services/ scrapers/ parsers/ scripts/ telegram_bot/ config/ .github/workflows/
       - run: bandit -r admin/ dashboard/ services/ -x tests/
+      # scripts/ tem ~180 LOW legítimos de dev-tools (asserts, subprocess
+      # tokenizado, random não-cripto) — gate calibrado em medium+.
+      - run: bandit -r scripts/ -x tests/ -ll
       - name: Audit dependencies
         id: audit
         run: |

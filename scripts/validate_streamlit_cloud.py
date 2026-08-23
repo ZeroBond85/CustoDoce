@@ -8,15 +8,14 @@ We do a warm-up request first, then check the actual app.
 import os
 import sys
 import time
-import urllib.error
-import urllib.request
+
+import httpx
 
 APP_URL = os.environ.get("STREAMLIT_APP_URL", "https://custodoce.streamlit.app")
 
 
 def _fetch(url: str, timeout: int = 30):
-    req = urllib.request.Request(url, method="GET")  # noqa: S310 - URL controlada via env var HTTPS
-    return urllib.request.urlopen(req, timeout=timeout)  # noqa: S310 - URL controlada via env var HTTPS
+    return httpx.get(url, timeout=timeout, follow_redirects=False)
 
 
 def check_app() -> int:
@@ -35,21 +34,19 @@ def check_app() -> int:
     print(f"Verificando {APP_URL}...")
     try:
         r = _fetch(APP_URL, timeout=30)
-        body = r.read().decode("utf-8", errors="replace")
+        body = r.text
         # Streamlit Cloud sempre retorna 303 (redirect), mesmo quando acordado
-        if r.status == 303 or (r.status < 500 and "CustoDoce" in body):
-            print(f"OK - App online (HTTP {r.status})")
+        if r.status_code == 303 or (r.status_code < 500 and "CustoDoce" in body):
+            print(f"OK - App online (HTTP {r.status_code})")
             return 0
-        print(f"FALHA - HTTP {r.status} sem conteudo esperado")
+        print(f"FALHA - HTTP {r.status_code} sem conteudo esperado")
         return 1
-    except urllib.error.HTTPError as e:
-        if e.code < 500:
-            print(f"OK - App respondeu HTTP {e.code}")
+    except httpx.HTTPStatusError as e:
+        code = e.response.status_code
+        if code < 500:
+            print(f"OK - App respondeu HTTP {code}")
             return 0
-        print(f"FALHA - HTTP {e.code}")
-        return 1
-    except urllib.error.URLError as e:
-        print(f"FALHA - URL error: {e.reason}")
+        print(f"FALHA - HTTP {code}")
         return 1
     except Exception as e:
         print(f"FALHA - {e}")

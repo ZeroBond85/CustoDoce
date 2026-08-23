@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# ruff: noqa: S608  # SQL construído com valores do manifest local (safe)
 """Valida o ledger de migrations: compara migrations locais com o que foi
 aplicado no banco (tabela public.schema_migrations).
 
@@ -46,15 +45,6 @@ def run_query(client, sql):
         return None
 
 
-def run_exec(client, sql):
-    try:
-        client.rpc("exec_sql", {"sql": sql}).execute()
-        return True
-    except Exception as e:
-        print(f"  Exec Failed: {e}")
-        return False
-
-
 def sha256_of(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -92,8 +82,7 @@ def fetch_db_ledger(client) -> dict[str, dict]:
 def table_exists(client) -> bool:
     rows = run_query(
         client,
-        "SELECT 1 FROM information_schema.tables "
-        "WHERE table_schema = 'public' AND table_name = 'schema_migrations'",
+        "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'schema_migrations'",
     )
     return bool(rows)
 
@@ -158,16 +147,15 @@ def bootstrap(client) -> int:
     for m in local:
         if m["version"] in db:
             continue
-        sql = (
-            f"INSERT INTO public.schema_migrations (version, name, checksum) "
-            f"VALUES ('{m['version']}', '{m['name']}', '{m['checksum']}') "  # noqa: S608
-            "ON CONFLICT (version) DO NOTHING"
-        )
-        if run_exec(client, sql):
+        try:
+            client.table("schema_migrations").upsert(
+                {"version": m["version"], "name": m["name"], "checksum": m["checksum"]},
+                on_conflict="version",
+            ).execute()
             print(f"  [OK] registrado {m['name']}")
             added += 1
-        else:
-            print(f"  [!!] falha ao registrar {m['name']}")
+        except Exception as e:
+            print(f"  [!!] falha ao registrar {m['name']}: {e}")
     print(f"\nBootstrap: {added} migrations registradas.")
     return 0 if added or not db else 1
 

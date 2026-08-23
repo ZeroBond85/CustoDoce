@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import shlex
 import subprocess
 import sys
 import textwrap
@@ -76,23 +77,21 @@ CI_ENV_OPTIONAL = {
 
 
 def run(cmd: str, cwd: Path = REPO_ROOT, capture: bool = True) -> subprocess.CompletedProcess:
-    """Executa comando shell, usando o mesmo Python que roda este script."""
+    """Executa comando (lista de tokens), usando o mesmo Python que roda este script."""
     py = sys.executable
-    if cmd.startswith("python "):
-        quoted_py = f'"{py}"' if " " in py else py
-        actual_cmd = cmd.replace("python ", f"{quoted_py} ", 1)
-    else:
-        actual_cmd = cmd
-    print(f"  $ {actual_cmd}")
+    tokens = [tok.strip('"') for tok in shlex.split(cmd, posix=False)]
+    if tokens and tokens[0] == "python":
+        tokens[0] = py
+    print(f"  $ {' '.join(tokens)}")
     # timeout de seguranca: nenhuma verificacao local deve travar o hook
     # (pip-audit e rede tem timeout proprio; aqui cobre o subprocess em geral).
-    result = subprocess.run(  # noqa: S602
-        actual_cmd,
-        shell=True,
+    result = subprocess.run(
+        tokens,
         cwd=cwd,
         capture_output=capture,
         text=True,
         timeout=600,
+        check=False,
     )
     return result
 
