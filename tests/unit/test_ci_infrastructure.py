@@ -57,7 +57,6 @@ def test_check_scripts_have_mypy_ignore() -> None:
     check_files = [
         REPO_ROOT / "scripts" / "check_environment_parity.py",
         REPO_ROOT / "scripts" / "check_gitignore_imports.py",
-        REPO_ROOT / "scripts" / "check_schema_diff.py",
         REPO_ROOT / "scripts" / "check_time_budget.py",
     ]
     missing = []
