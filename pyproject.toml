@@ -53,8 +53,12 @@ ignore = ["E501", "B006", "B008", "B023", "S101"]
 
 [tool.mypy]
 python_version = "3.14"
-ignore_missing_imports = true
 explicit_package_bases = true
+# strict = true  # TODO: habilitar após remover exclusões
+warn_unused_ignores = true
+check_untyped_defs = true
+disallow_any_unimported = true
+disallow_subclassing_any = true
 exclude = [
     "scripts/archive/",
     "tests/",
@@ -68,10 +72,6 @@ exclude = [
     "main.py",           # supabase-py JSON types
     "check_*.py",        # root-level utility scripts, not typechecked
 ]
-warn_unused_ignores = false
-check_untyped_defs = false
-disallow_any_unimported = false
-disallow_subclassing_any = false
 
 [[tool.mypy.overrides]]
 module = [
