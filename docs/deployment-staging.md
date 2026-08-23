@@ -134,8 +134,8 @@ CUSTODOCE_ENV = "staging"
 # 1. Backup via Supabase Dashboard
 # Project > Database > Backups > Restore
 
-# 2. Gerar diff do schema (via RPC 443)
-python scripts/check_schema_diff.py --from staging --to prod > diff.sql
+# 2. Comparar schema esperado vs real (via RPC 443, manifest-driven)
+python scripts/validate_db_schema.py
 
 # 3. Aplicar no staging primeiro (via RPC 443)
 python scripts/deploy_database.py --execute
@@ -182,4 +182,4 @@ Em `services/alert_service.py`, verificar `CUSTODOCE_ENV`:
 - [ ] NOVO: Se nova API/funcionalidade, doc em docs/api/
 - [ ] Secrets de produção verificados (não staging)
 - [ ] Backup mais recente disponível (restore-test.yml verde)
-- [ ] Diff de schema revisado (`scripts/check_schema_diff.py`)
+- [ ] Schema validado contra manifest (`scripts/validate_db_schema.py` — ALL PHASES VERIFIED)
