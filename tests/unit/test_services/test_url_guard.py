@@ -212,16 +212,77 @@ class TestRedirectRevalidation:
         client = make_safe_client(follow_redirects=False, event_hooks={"response": [existing]})
         # o hook interno foi envolvido (nao eh o mesmo objeto do caller)
         assert client.event_hooks["response"][0] is not existing
-        # simula um response com next_request apontando p/ host perigoso:
+        # simula um response de redirect como o httpx entrega ao hook
+        # (request SEMPRE anexado — _send_single_request popula antes):
         # o hook existente roda no 302 e o nosso hook levanta antes de seguir.
-        resp = httpx.Response(302, headers={"Location": "http://169.254.169.254/meta"})
-        resp.next_request = httpx.Request("GET", "http://169.254.169.254/meta")
+        # (Antes de 2026-08-22 o hook dependia de next_request, que so eh
+        # populado com follow_redirects=False — guard era no-op no modo True.)
+        resp = httpx.Response(
+            302,
+            headers={"Location": "http://169.254.169.254/meta"},
+            request=httpx.Request("GET", "https://scontent.fbcdn.net/a.jpg"),
+        )
         with pytest.raises(httpx.UnsupportedProtocol):
             client.event_hooks["response"][0](resp)
         # existing hook ainda roda em response sem redirect
         ok = httpx.Response(200, content=b"x")
         client.event_hooks["response"][0](ok)
         assert captured == [302, 200]
+
+    # ── Same-site hop policy (LESSONS #111) ───────────────────────────────
+
+    @staticmethod
+    def _redirect_client(location: str):
+        calls = {"n": 0}
+
+        def handler(request):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return httpx.Response(302, headers={"Location": location})
+            return httpx.Response(200, content=b"ok")
+
+        return make_safe_client(transport=httpx.MockTransport(handler), follow_redirects=True)
+
+    def test_registrable_domain_br_multi_label(self):
+        assert ug._registrable_domain("barradoce.com.br") == "barradoce.com.br"
+        assert ug._registrable_domain("www.barradoce.com.br") == "barradoce.com.br"
+        assert ug._registrable_domain("scontent.fbcdn.net") == "fbcdn.net"
+        assert ug._registrable_domain("a.b.marketplace.com.vc") == "marketplace.com.vc"
+        assert ug._registrable_domain("evil.com") == "evil.com"
+
+    def test_same_site_apex_to_www_redirect_allowed(self):
+        # Cenário real do CI run 32614724013 (Barradoce): apex -> www.
+        client = self._redirect_client("https://www.barradoce.com.br/b")
+        try:
+            resp = client.get("https://barradoce.com.br/a")
+        finally:
+            client.close()
+        assert resp.status_code == 200
+
+    def test_same_site_www_to_subdomain_redirect_allowed(self):
+        client = self._redirect_client("https://api.loja.com.br/v2")
+        try:
+            resp = client.get("https://www.loja.com.br/a")
+        finally:
+            client.close()
+        assert resp.status_code == 200
+
+    def test_cross_site_non_allowlisted_still_blocked(self):
+        client = self._redirect_client("https://evil-ssrf.test/x")
+        try:
+            with pytest.raises(httpx.UnsupportedProtocol, match="SSRF guard"):
+                client.get("https://barradoce.com.br/a")
+        finally:
+            client.close()
+
+    def test_same_site_metadata_keyword_still_blocked(self):
+        # Mesmo dentro do mesmo site, keyword de metadata no host bloqueia.
+        client = self._redirect_client("http://metadata.barradoce.com.br/x")
+        try:
+            with pytest.raises(httpx.UnsupportedProtocol, match="SSRF guard"):
+                client.get("https://www.barradoce.com.br/a")
+        finally:
+            client.close()
 
 
 # ─── 6. Integracao com flyer_ocr (allow_http=True) ────────────────────────

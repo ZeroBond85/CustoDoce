@@ -18,6 +18,7 @@ from scrapers.ocr import ocr_image_bytes
 from services.scraper_health import record_failure, record_success
 from scrapers.base_web_scraper import BaseWebScraper
 from scrapers.playwright_pool import get_browser_pool
+from services.url_guard import guard_url, make_safe_async_client
 
 logger = logging.getLogger(__name__)
 
@@ -147,18 +148,25 @@ class FacebookFlyerScraper(BaseWebScraper):
 
     async def _process_post(self, page, post_data: dict, ing: dict) -> list[dict]:
         """Download image, OCR, parse flyer, match ingredient."""
-        import httpx
-
         image_url = post_data["image_url"]
         post_date = post_data["post_date"]
 
+        # SSRF guard (LESSONS #87 / audit A-03): a URL vem do DOM do Facebook
+        # (conteudo de terceiros) — bloqueia hosts fora da allowlist e IPs
+        # privados/metadata ANTES de qualquer request. O client ainda
+        # re-valida cada hop de redirect (CVE-2026-35459).
+        safe_url = guard_url(image_url)
+        if not safe_url:
+            logger.warning("[%s] skipping disallowed image URL: %s", self.name, image_url)
+            return []
+
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                resp = await client.get(image_url)
+            async with make_safe_async_client(timeout=30.0) as client:
+                resp = await client.get(safe_url)
                 resp.raise_for_status()
                 image_bytes = resp.content
         except Exception as e:
-            logger.debug("[%s] Failed to download image %s: %s", self.name, image_url, e)
+            logger.debug("[%s] Failed to download image %s: %s", self.name, safe_url, e)
             return []
 
         # OCR -> lines -> parse flyer
