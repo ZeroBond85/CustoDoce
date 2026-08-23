@@ -1,14 +1,15 @@
 """Limpeza de Falsos Positivos (FPs) + dados de teste na tabela `prices`.
 
-Segue AGENTS.md regra #18 (fluxo correto): path RPC `exec_sql`/`exec_sql_query`
-(porta 443), dry-run antes, validação pós-aplicação.
+Segue AGENTS.md regra #18 (fluxo correto): client nativo PostgREST
+(porta 443), dry-run antes, validação pós-aplicação. Audit item #2:
+NENHUMA f-string SQL — filtros 100% via query builder (`.or_`, `.in_`,
+`count="exact"`), eliminando a classe S608/B608 (SQL injection por
+interpolação) deste script.
 
 Uso:
     python scripts/cleanup_price_fps.py --dry-run    # só mostra o que seria apagado
     python scripts/cleanup_price_fps.py --execute    # aplica o DELETE
 """
-
-# ruff: noqa: S608  # SQL construído com valores de whitelist/IDs locais (safe)
 
 import argparse
 import os
@@ -36,9 +37,6 @@ _NON_FOOD_PATTERNS = [
     "%haste%",
     "%brinquedo%",
 ]
-
-# Lojas onde os FPs foram confirmados nos logs (RIZZO/casa_santa_luzia)
-_TARGET_STORES = ["rizzo_confeitaria", "casa_santa_luzia"]
 
 # Ingredientes de teste que não devem existir em produção
 _TEST_INGREDIENTS = ["_test_hist_unique_ing"]
@@ -76,34 +74,41 @@ _LEGIT_PATTERNS = [
     "trufa",
 ]
 
+# Delete via query builder leva os filtros .in_() na QUERY-STRING (não no
+# body como o RPC) — URL tem limite prático ~8KB. Chunk de 100 UUIDs ≈ 4KB.
+_DELETE_CHUNK = 100
+
 
 def _is_legit(raw_product: str) -> bool:
     low = raw_product.lower()
     return any(p in low for p in _LEGIT_PATTERNS)
 
 
-def _build_where(target_stores: list[str] | None = None) -> str:
-    conditions = []
-    if target_stores:
-        quoted = ",".join(f"'{s}'" for s in target_stores)
-        conditions.append(f"store_id IN ({quoted})")
-    tok_conds = " OR ".join(f"raw_product ILIKE '{t}'" for t in _NON_FOOD_PATTERNS)
-    conditions.append(f"({tok_conds})")
-    return " AND ".join(conditions)
+def _non_food_or_clause() -> str:
+    """Cláusula .or_() com wildcards '*' do PostgREST (ilike).
 
-
-def _count_fps(client, dry_run: bool) -> int:
-    rows = _list_fps(client, limit=5000)
-    return len([r for r in rows if not _is_legit(r.get("raw_product", ""))])
+    O PostgREST traduz '*' para '%' nos operadores embutidos (.or_/.and_) —
+    convenção documentada e segura na query-string (sem ambiguidade de
+    encoding de '%'). Padrões são constantes de módulo (sem input externo).
+    """
+    return ",".join("raw_product.ilike." + p.replace("%", "*") for p in _NON_FOOD_PATTERNS)
 
 
 def _list_fps(client, limit: int = 30) -> list[dict]:
-    sql = (
-        f"SELECT id, store_id, ingredient_id, raw_price, raw_product "
-        f"FROM prices WHERE {_build_where()} ORDER BY created_at DESC LIMIT {limit}"
+    res = (
+        client.table("prices")
+        .select("id,store_id,ingredient_id,raw_price,raw_product")
+        .or_(_non_food_or_clause())
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
     )
-    res = client.rpc("exec_sql_query", {"sql": sql}).execute()
     return res.data or []
+
+
+def _count_fps(client) -> int:
+    rows = _list_fps(client, limit=5000)
+    return len([r for r in rows if not _is_legit(r.get("raw_product", ""))])
 
 
 def _list_fp_ids(client, limit: int = 10000) -> list[str]:
@@ -115,37 +120,40 @@ def _list_fp_ids(client, limit: int = 10000) -> list[str]:
 def _count_by_ingredients(client, ingredient_ids: list[str]) -> int:
     if not ingredient_ids:
         return 0
-    quoted = ",".join(f"'{i}'" for i in ingredient_ids)
-    sql = f"SELECT COUNT(*) AS n FROM prices WHERE ingredient_id IN ({quoted})"
-    res = client.rpc("exec_sql_query", {"sql": sql}).execute()
-    data = res.data
-    if isinstance(data, list) and data:
-        return int(data[0].get("n", 0))
-    if isinstance(data, dict):
-        return int(data.get("n", 0))
-    return 0
+    res = (
+        client.table("prices")
+        .select("id", count="exact")
+        .in_("ingredient_id", ingredient_ids)
+        .execute()
+    )
+    return int(res.count or 0)
+
+
+def _count_total_prices(client) -> int:
+    res = client.table("prices").select("id", count="exact").limit(1).execute()
+    return int(res.count or 0)
+
+
+def _delete_in_chunks(client, column: str, ids: list[str]) -> int:
+    deleted = 0
+    for i in range(0, len(ids), _DELETE_CHUNK):
+        chunk = ids[i : i + _DELETE_CHUNK]
+        res = client.table("prices").delete().in_(column, chunk).execute()
+        deleted += len(res.data or [])
+    return deleted
 
 
 def _delete_by_ingredients(client, ingredient_ids: list[str]) -> int:
     if not ingredient_ids:
         return 0
-    quoted = ",".join(f"'{i}'" for i in ingredient_ids)
-    sql = f"DELETE FROM prices WHERE ingredient_id IN ({quoted})"
-    client.rpc("exec_sql", {"sql": sql}).execute()
-    return len(ingredient_ids)
+    return _delete_in_chunks(client, "ingredient_id", ingredient_ids)
 
 
 def _delete_fps(client) -> int:
     ids = _list_fp_ids(client)
     if not ids:
         return 0
-    # Deleta em lotes de 500 (limite de IN)
-    for i in range(0, len(ids), 500):
-        chunk = ids[i : i + 500]
-        quoted = ",".join(f"'{x}'" for x in chunk)
-        sql = f"DELETE FROM prices WHERE id IN ({quoted})"
-        client.rpc("exec_sql", {"sql": sql}).execute()
-    return len(ids)
+    return _delete_in_chunks(client, "id", ids)
 
 
 def _delete_test_data(client) -> int:
@@ -158,21 +166,11 @@ def _delete_orphans(client) -> int:
 
 def _validate(client) -> dict:
     """Validação pós-aplicação: confirma que FPs, test data e órfãos sumiram."""
-    fps_left = _count_fps(client, dry_run=True)
-    test_left = _count_by_ingredients(client, _TEST_INGREDIENTS)
-    orphan_left = _count_by_ingredients(client, _ORPHAN_INGREDIENTS)
-    total = client.rpc("exec_sql_query", {"sql": "SELECT COUNT(*) AS n FROM prices"}).execute()
-    total_n = 0
-    data = total.data
-    if isinstance(data, list) and data:
-        total_n = int(data[0].get("n", 0))
-    elif isinstance(data, dict):
-        total_n = int(data.get("n", 0))
     return {
-        "fps_remaining": fps_left,
-        "test_data_remaining": test_left,
-        "orphan_remaining": orphan_left,
-        "total_prices": total_n,
+        "fps_remaining": _count_fps(client),
+        "test_data_remaining": _count_by_ingredients(client, _TEST_INGREDIENTS),
+        "orphan_remaining": _count_by_ingredients(client, _ORPHAN_INGREDIENTS),
+        "total_prices": _count_total_prices(client),
         "validated_at": date.today().isoformat(),
     }
 
@@ -188,7 +186,7 @@ def main():
 
     client = get_service_client()
 
-    n_fps = _count_fps(client, dry_run=args.dry_run)
+    n_fps = _count_fps(client)
     n_test = _count_by_ingredients(client, _TEST_INGREDIENTS)
     n_orphan = _count_by_ingredients(client, _ORPHAN_INGREDIENTS)
     print(f"FPs (embalagem/decoração) detectados: {n_fps}")
