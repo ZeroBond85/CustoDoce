@@ -23,6 +23,8 @@ import time
 
 import httpx
 
+from services.url_guard import _inject_redirect_guard
+
 _DEFAULT_TIMEOUT = float(os.environ.get("HTTP_CLIENT_TIMEOUT", "30"))
 _DEFAULT_MAX_RETRIES = int(os.environ.get("HTTP_CLIENT_MAX_RETRIES", "3"))
 _DEFAULT_POOL_SIZE = int(os.environ.get("HTTP_CLIENT_POOL_SIZE", "50"))
@@ -40,25 +42,29 @@ def _make_limits() -> httpx.Limits:
     )
 
 
+def _make_client_kwargs() -> dict:
+    return {
+        "timeout": httpx.Timeout(_DEFAULT_TIMEOUT),
+        "limits": _make_limits(),
+        "follow_redirects": True,
+    }
+
+
 def get_client() -> httpx.Client:
     global _client
     if _client is None:
-        _client = httpx.Client(
-            timeout=httpx.Timeout(_DEFAULT_TIMEOUT),
-            limits=_make_limits(),
-            follow_redirects=True,
-        )
+        kwargs = _make_client_kwargs()
+        _inject_redirect_guard(kwargs, is_async=False)
+        _client = httpx.Client(**kwargs)
     return _client
 
 
 def get_async_client() -> httpx.AsyncClient:
     global _async_client
     if _async_client is None:
-        _async_client = httpx.AsyncClient(
-            timeout=httpx.Timeout(_DEFAULT_TIMEOUT),
-            limits=_make_limits(),
-            follow_redirects=True,
-        )
+        kwargs = _make_client_kwargs()
+        _inject_redirect_guard(kwargs, is_async=True)
+        _async_client = httpx.AsyncClient(**kwargs)
     return _async_client
 
 
