@@ -114,7 +114,7 @@ def render_precos():
             "valid_until": "Válido até",
             "freshness": st.column_config.TextColumn(
                 "Frescor",
-                help="Tempo desde coleta: ✅≤7d ⚠️8–30d ❌>30d",
+                help="Tempo desde a coleta: 🟢 ≤7 dias · 🟡 8–30 dias · 🔴 >30 dias",
             ),
         },
     )

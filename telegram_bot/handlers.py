@@ -57,11 +57,20 @@ def format_price_entry(entry: dict, rank: int) -> str:
     product = entry.get("raw_product", "?")
     price = entry.get("raw_price", 0)
     unit = entry.get("raw_unit", "")
+    brand = entry.get("brand", "Desconhecido")
+    city = entry.get("city", "")
+    valid = entry.get("valid_until", "")
 
     line = f"{medal} <b>{store}</b>\n"
     line += f"   {product}: <b>R$ {price:.2f}</b>/{unit}\n"
+    if brand and brand != "Desconhecido":
+        line += f"   🏷️ <i>{brand}</i>\n"
     if price_kg > 0:
         line += f"   \u2192 <i>R$ {price_kg:.2f}/kg | R$ {price_un:.2f}/un</i>\n"
+    if city:
+        line += f"   📍 <i>{city}</i>\n"
+    if valid:
+        line += f"   📅 <i>Válido até: {valid}</i>\n"
     return line
 
 

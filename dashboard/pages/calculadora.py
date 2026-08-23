@@ -10,17 +10,35 @@ from services.dashboard_queries import get_active_ingredients, get_cheapest_pric
 from services.price_service import upsert_recipe, upsert_recipe_item
 
 
+def _resolve_tab_index(tab_names: list[str]) -> int:
+    """Converte o valor do session_state (label ou índice) em índice válido.
+
+    O widget selectbox com key="calc_tab" guarda o LABEL selecionado (string),
+    não o índice. Aceitar ambos os formatos evita crash no rerun.
+    """
+    raw = st.session_state.get("calc_tab", 0)
+    if isinstance(raw, str):
+        return tab_names.index(raw) if raw in tab_names else 0
+    if isinstance(raw, int) and 0 <= raw < len(tab_names):
+        return raw
+    return 0
+
+
 def _sync_calc_query_params():
+    import contextlib
+
+# ...
+
     qp = st.query_params
     if not qp:
         return
     if "tab" in qp and "calc_tab" not in st.session_state:
-        st.session_state["calc_tab"] = int(qp["tab"])
+        with contextlib.suppress(ValueError):
+            st.session_state["calc_tab"] = max(0, int(qp["tab"]))
 
 
-def _push_calc_query_params():
-    tab = st.session_state.get("calc_tab", 0)
-    st.query_params.from_dict({"tab": str(tab)})
+def _push_calc_query_params(tab_index: int):
+    st.query_params.from_dict({"tab": str(tab_index)})
 
 
 def render_calculadora():
@@ -30,16 +48,17 @@ def render_calculadora():
     st.title("🧮 Calculadora de Receitas")
 
     tab_names = ["📝 Modo Simples", "🔧 Modo Completo", "📚 Receitas Salvas"]
-    tab_index = st.session_state.get("calc_tab", 0)
-    tab_index = st.selectbox(
+    default_idx = _resolve_tab_index(tab_names)
+    tab_label = st.selectbox(
         "Modo de Cálculo",
         tab_names,
-        index=tab_index,
+        index=default_idx,
         key="calc_tab",
         help="Selecione o modo de cálculo: Simples, Completo ou Receitas Salvas",
     )
+    tab_index = tab_names.index(tab_label) if tab_label in tab_names else 0
 
-    _push_calc_query_params()
+    _push_calc_query_params(tab_index)
 
     if tab_index == 0:  # Modo Simples
         st.subheader("Cálculo Rápido de Custo")

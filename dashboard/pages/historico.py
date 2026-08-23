@@ -122,7 +122,16 @@ def render_historico():
     ]
     stats_col = stats_col.sort_values("M\u00e9dia R$/kg")
 
-    st.dataframe(stats_col, use_container_width=True)
+    st.dataframe(
+        stats_col,
+        use_container_width=True,
+        column_config={
+            "Desvio Padr\u00e3o": st.column_config.NumberColumn(
+                help="Quanto os pre\u00e7os desta loja oscilaram no per\u00edodo. Valores altos = pre\u00e7os inst\u00e1veis (muita promo\u00e7\u00e3o ou ru\u00eddo de coleta); pr\u00f3ximo de 0 = pre\u00e7o est\u00e1vel."
+            ),
+            "N\u00ba Coletas": st.column_config.NumberColumn(help="Quantas coletas diferentes alimentaram esta estat\u00edstica."),
+        },
+    )
 
     st.divider()
     st.subheader("Detalhamento")

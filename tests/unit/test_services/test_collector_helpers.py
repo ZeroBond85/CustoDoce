@@ -409,11 +409,12 @@ def test_process_price_match_gray_zone_semantic_persists():
     assert captured[0]["ingredient_id"] == "Gotas de Chocolate Meio Amargo"
 
 
-def test_process_price_match_gray_zone_fp_goes_review():
-    """T1.1: RF 60-79 + semantic 0 (combined < 0.80) deve ir para review_queue.
+def test_process_price_match_gray_zone_fp_discarded_below_threshold():
+    """Gray-zone RF 60-79 + semantic 0 (combined < 0.80) é descartado.
 
-    'Chocolate Seleção Amargo 52%' casa com Barra (RF 79 no gray-zone), mas
-    semantic=0 → combined = 0.793 → review_queue (não upsert).
+    Sprint 18 alinhou review_threshold ao gate de persistência (0.80): itens
+    70-79% nunca persistiriam e inflavam a fila (~646/dia). Política atual:
+    combined < 0.80 → sem upsert E sem review (descarte silencioso).
     """
     store = MOCK_STORES[0]
     with patch.object(collector, "get_matcher", return_value=_fake_matcher(0.0)), \
@@ -427,7 +428,7 @@ def test_process_price_match_gray_zone_fp_goes_review():
         )
     assert entry is None, "combined < 0.80 não deve persistir"
     mock_up.assert_not_called()
-    mock_rev.assert_called_once(), "gray-zone abaixo de 0.80 vai para review_queue"
+    mock_rev.assert_not_called(), "combined < 0.80 não vai mais para review_queue (Sprint 18+)"
 
 
 def test_process_price_match_gray_zone_semantic_zero_still_works():
@@ -443,7 +444,7 @@ def test_process_price_match_gray_zone_semantic_zero_still_works():
             store, "Chocolate Seleção Amargo 52% Cacau - 1,01 kg", 42.9, "1.01kg", _gray_zone_ingredients()
         )
     mock_up.assert_not_called()
-    mock_rev.assert_called_once()
+    mock_rev.assert_not_called(), "combined 0.793 < 0.80: descartado (política Sprint 18+)"
 
 
 def test_process_price_match_high_rf_unaffected():

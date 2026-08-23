@@ -48,7 +48,7 @@ ingredients:
 
   - canonical: "Granulado Ao Leite"
     category: "confeitos"
-    brands: ["Melken"]
+    brands: ["Melken", "Harald"]
     search_terms: ["granulado ao leite", "granulado leite"]
     aliases:
       - "Granulado Ao Leite Melken"
@@ -57,7 +57,7 @@ ingredients:
 
   - canonical: "Granulado Branco"
     category: "confeitos"
-    brands: ["Melken"]
+    brands: ["Melken", "Harald"]
     search_terms: ["granulado branco", "granulado white"]
     aliases:
       - "Granulado Branco Melken"
@@ -86,7 +86,7 @@ ingredients:
 
   - canonical: "Granulado Colorido"
     category: "confeitos"
-    brands: ["Coloretti"]
+    brands: ["Coloretti", "Harald"]
     search_terms: ["granulado colorido", "granulado color", "mil cores"]
     aliases:
       - "Granulado Colorido Coloretti"
@@ -117,7 +117,7 @@ ingredients:
 
   - canonical: "Açúcar Mascavo"
     category: "acucares"
-    brands: ["JR"]
+    brands: ["JR", "Mavalerio"]
     search_terms: ["acucar mascavo", "acucar marrom", "mascavo"]
     aliases:
       - "Açúcar Mascavo JR"

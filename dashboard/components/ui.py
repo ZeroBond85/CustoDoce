@@ -74,7 +74,29 @@ def _freshness_badge_html(collected_at, now=None):
 
 
 def freshness_column(collected_at, now=None):
-    return _freshness_badge_html(collected_at, now)
+    """Frescor como emoji + dias — texto puro (HTML cru aparece literal em st.dataframe)."""
+    from datetime import datetime
+
+    if not collected_at:
+        return "n/d"
+    if isinstance(collected_at, str):
+        s = collected_at.replace("Z", "+00:00")
+        try:
+            ts = datetime.fromisoformat(s)
+        except ValueError:
+            return "n/d"
+    else:
+        ts = collected_at
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=UTC)
+    ref = now or datetime.now(UTC)
+    days = (ref - ts).days
+    if days <= 7:
+        label = f"{days}d" if days > 0 else "hoje"
+        return f"🟢 {label}"
+    elif days <= 30:
+        return f"🟡 {days}d"
+    return f"🔴 {days}d"
 
 
 def info_box(message: str, type: str = "info"):

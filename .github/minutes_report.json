@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-08-23T01:13:09.866388+00:00",
+  "period_days": 7,
+  "total_minutes": 508,
+  "monthly_estimate": 2177,
+  "free_tier_limit": 2000,
+  "workflows": {
+    "CI - Testes e Qualidade": 288,
+    "Scrape": 215,
+    "sanitize-check": 2,
+    "Dependency Audit": 2,
+    "Graph Update: pip in /. #1527600785": 1
+  }
+}

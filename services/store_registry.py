@@ -8,7 +8,7 @@ Used by collector for auto-discovery from aggregator flyers.
 import logging
 import re
 from dataclasses import dataclass
-from datetime import datetime, UTC
+from datetime import datetime, UTC, timedelta
 
 from rapidfuzz import fuzz
 
@@ -212,6 +212,38 @@ def upsert_registry_entry(entry: StoreRegistryEntry) -> StoreRegistryEntry | Non
     return None
 
 
+def expire_stale_pending(days: int = 30) -> int:
+    """Auto-expira entradas pending_review mais antigas que `days` dias.
+
+    Prod tinha 132 pendentes acumuladas (68 aprovadas / 145 rejeitadas ao lado)
+    porque nada expirava. Itens expirados ganham status 'expired' (sem CHECK
+    constraint no enum) e podem ser re-promovidos manualmente se relevantes.
+    Retorna quantas foram expiradas.
+    """
+    try:
+        client = get_service_client()
+    except Exception as exc:
+        logger.warning("store_registry.expire_stale_pending: no supabase client (%s)", exc)
+        return 0
+
+    cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
+    try:
+        res = (
+            client.table("store_registry")
+            .update({"status": "expired", "reviewed_at": datetime.now(UTC).isoformat(), "reviewed_by": "auto-expire"})
+            .eq("status", "pending_review")
+            .lt("created_at", cutoff)
+            .execute()
+        )
+        count = len(res.data or [])
+        if count:
+            logger.info("store_registry: %d pendências >%dd expiradas automaticamente", count, days)
+        return count
+    except Exception as exc:
+        logger.warning("store_registry.expire_stale_pending failed: %s", exc)
+        return 0
+
+
 def get_pending_review(limit: int = 100) -> list[StoreRegistryEntry]:
     """Get registry entries awaiting review."""
     try:
@@ -335,6 +367,9 @@ def discover_stores_from_flyers() -> int:
     except Exception as exc:
         logger.warning("store_registry.discover_stores_from_flyers: no supabase client (%s)", exc)
         return 0
+
+    # Housekeeping: pendências >30d viram 'expired' antes de avaliar novas
+    expire_stale_pending(days=30)
 
     try:
         flyers = client.table("flyers").select("store_name, region, city, address").execute()

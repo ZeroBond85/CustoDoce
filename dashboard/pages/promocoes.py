@@ -70,14 +70,17 @@ def render_promocoes():
 
     stores = sorted({str(p.get("store_name", "N/A")) for p in promos_raw if p.get("store_name")})
     ingredients = sorted({str(p.get("ingredient_id", "N/A")) for p in promos_raw if p.get("ingredient_id")})
+    brands = sorted({str(p.get("brand", "Desconhecido")) for p in promos_raw if p.get("brand")})
 
     st.subheader("Filtros")
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         store_filter = st.multiselect("Loja", stores, default=[])
     with col2:
         ing_filter = st.multiselect("Ingrediente", ingredients, default=[])
     with col3:
+        brand_filter = st.multiselect("Marca", brands, default=[])
+    with col4:
         order = st.selectbox(
             "Ordenar por",
             options=["Menor R$/kg", "Maior economia (R$/un)", "Mais recentes"],
@@ -89,6 +92,8 @@ def render_promocoes():
         filtered = filtered[filtered["store_name"].astype(str).isin(store_filter)]
     if ing_filter and "ingredient_id" in filtered.columns:
         filtered = filtered[filtered["ingredient_id"].astype(str).isin(ing_filter)]
+    if brand_filter and "brand" in filtered.columns:
+        filtered = filtered[filtered["brand"].astype(str).isin(brand_filter)]
 
     if order == "Menor R$/kg" and "price_per_kg" in filtered.columns:
         filtered = filtered.sort_values("price_per_kg", ascending=True)
@@ -114,8 +119,33 @@ def render_promocoes():
     with k1:
         st.metric("Promoções ativas", len(filtered))
     with k2:
-        avg_ppk = filtered["price_per_kg"].mean() if "price_per_kg" in filtered.columns else 0
-        st.metric("R$/kg médio", f"R$ {avg_ppk:.2f}" if avg_ppk else "N/A")
+        # Economia média: compara R$/kg promocional vs normal DO MESMO ingrediente
+        # (média global mistura ingredientes incomparáveis — sem significado).
+        # Baseline = todos os preços não-promo carregados (não só as promoções).
+        normal_by_ing: dict = {}
+        sums: dict = {}
+        counts: dict = {}
+        for p in prices:
+            if _is_promotion(p):
+                continue
+            ing = p.get("ingredient_id")
+            ppk = _safe_ppk(p)
+            if ing and ppk > 0:
+                sums[ing] = sums.get(ing, 0.0) + ppk
+                counts[ing] = counts.get(ing, 0) + 1
+        normal_by_ing = {ing: sums[ing] / counts[ing] for ing in sums}
+        economias = []
+        for p in filtered.to_dict("records") if hasattr(filtered, "to_dict") else []:
+            base = normal_by_ing.get(p.get("ingredient_id"))
+            ppk = p.get("price_per_kg")
+            if base and ppk and base > ppk > 0:
+                economias.append((base - ppk) / base * 100)
+        econ_mean = sum(economias) / len(economias) if economias else 0
+        st.metric(
+            "Economia vs normal",
+            f"{econ_mean:.0f}%" if economias else "N/A",
+            help="Desconto médio das promoções vs preço normal do mesmo ingrediente",
+        )
     with k3:
         st.metric("Última coleta", last_collect[:10] if last_collect else "N/A")
 

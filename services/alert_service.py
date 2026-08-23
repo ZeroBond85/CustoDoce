@@ -65,36 +65,68 @@ def process_proactive_alerts():
         # 1. Handle 'price_drop' trigger
         if trigger == "price_drop":
             # Find ingredients that just had a price update
-            # For simplicity, we check the latest prices vs history
             latest = client.table("v_latest_prices").select("*").execute().data or []
+            if not latest:
+                continue
+
+            # Fix N+1: histórico de TODOS os ingredientes em UMA query
+            ing_ids = list({p["ingredient_id"] for p in latest})
+            hist_rows = (
+                client.table("price_history")
+                .select("ingredient_id,normalized")
+                .in_("ingredient_id", ing_ids)
+                .order("collected_at", desc=True)
+                .limit(min(len(ing_ids) * 30, 5000))
+                .execute()
+                .data
+                or []
+            )
+            hist_by_ing: dict[str, list[dict]] = {}
+            for h in hist_rows:
+                hist_by_ing.setdefault(h.get("ingredient_id"), []).append(h)
+
+            # Endereços das lojas em UMA query (para mensagem acionável)
+            stores_map: dict[str, dict] = {}
+            try:
+                for s in client.table("stores").select("id,address,city").execute().data or []:
+                    stores_map[s["id"]] = s
+            except Exception as e:
+                logger.warning("alert_stores_lookup_failed: %s", e)
+
             for p in latest:
                 ing_id = p["ingredient_id"]
                 current_ppk = p.get("price_per_kg", 0)
                 if current_ppk <= 0:
                     continue
 
-                # Get history for this ingredient
-                hist = (
-                    client.table("price_history")
-                    .select("normalized")
-                    .eq("ingredient_id", ing_id)
-                    .order("collected_at", desc=True)
-                    .limit(30)
-                    .execute()
-                    .data
-                    or []
-                )
-                alert = check_price_drops(ing_id, current_ppk, hist)
+                alert = check_price_drops(ing_id, current_ppk, hist_by_ing.get(ing_id, [])[:30])
 
                 if alert:
+                    store_info = stores_map.get(p.get("store_id"), {})
+                    addr = store_info.get("address") or ""
+                    city = store_info.get("city") or ""
+                    loc = f"{addr} — {city}" if addr and city else (addr or city)
+                    brand = p.get("brand") or ""
+
+                    # Fix: campo Ingrediente usava store_name (bug produção)
                     msg = (
                         f"📉 <b>ALERTA DE PREÇO!</b>\n\n"
-                        f"Ingrediente: {p['store_name']}\n"
+                        f"Ingrediente: <b>{ing_id}</b>\n"
+                        f"Produto: {p.get('raw_product', '')}\n"
+                    )
+                    if brand and brand.lower() not in ("desconhecido", ""):
+                        msg += f"Marca: {brand}\n"
+                    msg += (
                         f"Preço caiu {alert['drop_pct']:.1f}%!\n"
                         f"De: R$ {alert['old_avg']:.2f}/kg\n"
                         f"Para: <b>R$ {alert['new_price']:.2f}/kg</b>\n"
-                        f"Loja: {p['store_name']}"
+                        f"Loja: {p['store_name']}\n"
                     )
+                    if loc:
+                        msg += f"📍 {loc}\n"
+                    if p.get("valid_until"):
+                        msg += f"Válido até: {p['valid_until']}\n"
+
                     # Notify recipients for this rule's channel
                     channel = rule["channel"]
                     recs = get_alert_recipients(channel)

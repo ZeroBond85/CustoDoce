@@ -1,9 +1,9 @@
 # `dashboard_queries` — API
 
-> Última atualização: 2026-08-17 16:20 UTC
+> Última atualização: 2026-08-23 01:22 UTC
 > Gerado por AST parsing dos serviços em `services/dashboard_queries.py`.
 
-## Funções Públicas (53)
+## Funções Públicas (55)
 
 ### approve_review_item_cached(item_id: str, ingredient_id: str, brand_override: str)
 
@@ -14,6 +14,10 @@ T3.1: aprova múltiplos itens da review_queue em lote (mesmo ingrediente).
 ### approve_store_registry_cached(entry_id: str)
 
 Approve a store registry entry and populate store_units.
+
+### auto_approve_high_confidence_cached(threshold: float, dry_run: bool)
+
+Auto-aprova pendentes com confiança >= threshold (candidato top3[0]).
 
 ### cached_get_active_ingredients()
 
@@ -117,7 +121,11 @@ Get prices for an ingredient using the new server-side sorting.
 
 ### get_review_queue_cached(limit: int)
 
-Get review queue using service client for write operations if needed.
+Get review queue (apenas pendentes) usando service client se necessário.
+
+### get_review_queue_pending_count_cached()
+
+Contagem real de pendentes — sem limit, direto do banco.
 
 ### get_scraper_health_dashboard()
 

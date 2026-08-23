@@ -820,10 +820,24 @@ def merge_store_registry_cached(entry_id: str, target_store_id: str) -> bool:
 
 
 def get_review_queue_cached(limit: int = 500):
-    """Get review queue using service client for write operations if needed."""
+    """Get review queue (apenas pendentes) usando service client se necessário."""
     from services.price_service import get_review_queue
 
     return get_review_queue(limit)
+
+
+def get_review_queue_pending_count_cached():
+    """Contagem real de pendentes — sem limit, direto do banco."""
+    from services.price_service import get_review_queue_pending_count
+
+    return get_review_queue_pending_count()
+
+
+def auto_approve_high_confidence_cached(threshold: float = 0.80, dry_run: bool = True):
+    """Auto-aprova pendentes com confiança >= threshold (candidato top3[0])."""
+    from services.price_service import auto_approve_high_confidence
+
+    return auto_approve_high_confidence(threshold=threshold, dry_run=dry_run)
 
 
 def approve_review_item_cached(item_id: str, ingredient_id: str, brand_override: str = ""):
