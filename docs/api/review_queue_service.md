@@ -1,11 +1,13 @@
 # `review_queue_service` — API
 
-> Última atualização: 2026-08-23 01:22 UTC
+> Última atualização: 2026-08-23 19:41 UTC
 > Gerado por AST parsing dos serviços em `services/review_queue_service.py`.
 
 ## Funções Públicas (7)
 
 ### approve_review_item(item_id: str, ingredient_id: str, brand_override: str)
+
+Aprova item da review_queue: resolve ingredient/store, upsert price, auto-learning.
 
 ### auto_approve_high_confidence(threshold: float, limit: int | None, dry_run: bool)
 
