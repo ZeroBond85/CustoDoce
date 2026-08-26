@@ -144,7 +144,8 @@ def _upsert_price_rpc_with_retry(client: Any, params: dict[str, Any], max_retrie
                 time.sleep(1.0 * (attempt + 1))
                 continue
             raise
-    assert last_exc is not None
+    if last_exc is None:
+        raise RuntimeError("upsert failed without capturing an exception")
     raise last_exc
 
 
@@ -167,7 +168,8 @@ def _upsert_price_table_with_retry(data: dict[str, Any] | list[dict[str, Any]], 
                 time.sleep(1.0 * (attempt + 1))
                 continue
             raise
-    assert last_exc is not None
+    if last_exc is None:
+        raise RuntimeError("upsert failed without capturing an exception")
     raise last_exc
 
 
