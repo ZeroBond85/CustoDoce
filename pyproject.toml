@@ -86,8 +86,14 @@ module = [
     "optimum.*",
     "onnxruntime.*",
     "rapidocr_onnxruntime.*",
+    "yaml.*",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "transformers.*"
+ignore_missing_imports = true
+follow_imports = "skip"
 
 [[tool.mypy.overrides]]
 module = "services.rate_limiter"
