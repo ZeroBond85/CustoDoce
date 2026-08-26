@@ -1,6 +1,6 @@
 # `retry_policy` — API
 
-> Última atualização: 2026-08-13 01:28 UTC
+> Última atualização: 2026-08-26 16:42 UTC
 > Gerado por AST parsing dos serviços em `services/retry_policy.py`.
 
 ## Funções Públicas (6)
@@ -13,7 +13,7 @@
 
 ### should_retry(self, exception: Exception, attempt: int)
 
-### with_retry(fn: Callable, policy: RetryPolicy | None, context: str, retryable_exceptions: tuple[type[Exception], ...] | None)
+### with_retry(fn: Callable[..., Any], policy: RetryPolicy | None, context: str, retryable_exceptions: tuple[type[Exception], ...] | None)
 
 ### wrapper()
 

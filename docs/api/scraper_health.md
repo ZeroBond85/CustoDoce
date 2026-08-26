@@ -1,6 +1,6 @@
 # `scraper_health` — API
 
-> Última atualização: 2026-08-13 01:28 UTC
+> Última atualização: 2026-08-26 16:42 UTC
 > Gerado por AST parsing dos serviços em `services/scraper_health.py`.
 
 ## Funções Públicas (8)
@@ -14,11 +14,11 @@ days, evaluate the latest scraping_logs and decide whether to reactivate.
 
 Coarse 1-line classifier used in alerting + scraper_health_log.error_class.
 
-### compute_all_health_scores(health_data: list[dict])
+### compute_all_health_scores(health_data: list[dict[str, Any]])
 
 Enrich a list of store health dicts with health_score + label.
 
-### compute_health_score(data: dict)
+### compute_health_score(data: dict[str, Any])
 
 Compute 0–100 health score for a single scraper from its metric dict.
 
