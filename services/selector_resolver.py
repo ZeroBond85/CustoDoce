@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import yaml
 
-_SELECTORS_DB: dict | None = None
+_SELECTORS_DB: dict[str, Any] | None = None
 _CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 
 
-def _load_selectors_db() -> dict:
+def _load_selectors_db() -> dict[str, Any]:
     global _SELECTORS_DB
     if _SELECTORS_DB is None:
         path = _CONFIG_DIR / "selectors.yaml"
@@ -20,7 +21,7 @@ def _load_selectors_db() -> dict:
     return _SELECTORS_DB
 
 
-def resolve_selectors(store_config: dict) -> dict[str, list[str]]:
+def resolve_selectors(store_config: dict[str, Any]) -> dict[str, list[str]]:
     """Resolve selectors for a store: store-specific > type variant > defaults.
 
     Returns a dict with keys: product_card, product_name, product_price,

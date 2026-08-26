@@ -73,9 +73,9 @@ def _send_email_fallback(text: str) -> bool:
         if not recipient:
             return False
         send_email(
-            to=recipient,
+            to_email=recipient,
             subject="[CustoDoce] Alerta de Scraper",
-            body=text.replace("*", "").replace("`", ""),
+            html_body=text.replace("*", "").replace("`", ""),
         )
         return True
     except Exception as exc:

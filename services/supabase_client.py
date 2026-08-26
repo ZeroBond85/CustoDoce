@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Any, cast
 
 from supabase import Client, create_client
 
@@ -70,3 +71,34 @@ def require_service_client() -> Client:
     except ImportError:
         pass
     return get_service_client()
+
+
+def get_client() -> Client:
+    """Alias compatível para get_supabase()."""
+    return get_supabase()
+
+
+def safe_execute(query: Any) -> list[dict[str, Any]]:
+    """Executa query e garante list[dict] não-None."""
+    result = query.execute()
+    return result.data if result.data is not None else []
+
+
+def safe_single_execute(query: Any) -> dict[str, Any] | None:
+    """Executa query e retorna single dict ou None."""
+    result = query.execute()
+    if result is None:
+        return None
+    data = result.data
+    if not data:
+        return None
+    if isinstance(data, dict):
+        return data
+    if isinstance(data, list):
+        return cast(dict[str, Any], data[0])
+    return None
+
+
+def rpc_execute(client: Any, fn_name: str, params: dict[str, Any]) -> list[dict[str, Any]]:
+    """Executa RPC no client fornecido com safe_execute (DI p/ testabilidade)."""
+    return safe_execute(client.rpc(fn_name, params))

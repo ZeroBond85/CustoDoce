@@ -1,6 +1,6 @@
 # `flyer_service` — API
 
-> Última atualização: 2026-08-13 01:28 UTC
+> Última atualização: 2026-08-26 16:42 UTC
 > Gerado por AST parsing dos serviços em `services/flyer_service.py`.
 
 ## Funções Públicas (9)
@@ -29,5 +29,5 @@ Get detailed flyer information by ID.
 
 ### mark_processed(flyer_id: str, products_count: int)
 
-### upsert_flyer(flyer: dict)
+### upsert_flyer(flyer: Flyer)
 

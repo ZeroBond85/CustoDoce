@@ -2,10 +2,12 @@
 Recipe Service - Management of confectionery recipes and their costing.
 """
 
-from services.supabase_client import get_service_client
+from typing import Any, cast
+
+from services.supabase_client import get_service_client, safe_execute
 
 
-def upsert_recipe(recipe_data: dict) -> str:
+def upsert_recipe(recipe_data: dict[str, Any]) -> str:
     """Insert or update a recipe, return recipe_id."""
     client = get_service_client()
     data = {
@@ -15,23 +17,23 @@ def upsert_recipe(recipe_data: dict) -> str:
         "profit_pct": recipe_data.get("profit_pct", 0),
     }
     try:
-        result = client.table("recipes").upsert(data, on_conflict="name", returning="representation").execute()
-        return result.data[0]["id"] if result.data else ""
+        query = client.table("recipes").upsert(data, on_conflict="name", returning="representation")  # type: ignore[arg-type]
+        res = safe_execute(query)
+        return cast(str, res[0]["id"]) if res else ""
     except Exception:
-        result = client.table("recipes").insert(data, returning="representation").execute()
-        return result.data[0]["id"] if result.data else ""
+        query = client.table("recipes").insert(data, returning="representation")  # type: ignore[arg-type]
+        res = safe_execute(query)
+        return cast(str, res[0]["id"]) if res else ""
 
 
-def upsert_recipe_item(item_data: dict) -> dict:
+def upsert_recipe_item(item_data: dict[str, Any]) -> dict[str, Any]:
     """Insert or update a recipe item."""
     client = get_service_client()
     try:
-        result = (
-            client.table("recipe_items")
-            .upsert(item_data, on_conflict="recipe_id,ingredient_id", returning="representation")
-            .execute()
-        )
-        return result.data[0] if result.data else {}
+        query = client.table("recipe_items").upsert(item_data, on_conflict="recipe_id,ingredient_id", returning="representation")  # type: ignore[arg-type]
+        res = safe_execute(query)
+        return res[0] if res else {}
     except Exception:
-        result = client.table("recipe_items").insert(item_data, returning="representation").execute()
-        return result.data[0] if result.data else {}
+        query = client.table("recipe_items").insert(item_data, returning="representation")  # type: ignore[arg-type]
+        res = safe_execute(query)
+        return res[0] if res else {}

@@ -9,25 +9,25 @@ from pathlib import Path
 
 
 class RateLimiter:
-    def __init__(self, db_path: str = "", max_attempts: int = 5, window_seconds: int = 300):
+    def __init__(self, db_path: str = "", max_attempts: int = 5, window_seconds: int = 300) -> None:
         if not db_path:
             db_path = str(Path(__file__).parent.parent / "data" / "rate_limiter.db")
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self._max_attempts = max_attempts
         self._window = window_seconds
-        self._local: dict[str, list] = {}
+        self._local: dict[str, list[float]] = {}
         self._lock = threading.Lock()
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.execute("CREATE TABLE IF NOT EXISTS attempts (key TEXT PRIMARY KEY, timestamps TEXT)")
         self._conn.commit()
 
-    def _load(self, key: str) -> list:
+    def _load(self, key: str) -> list[float]:
         row = self._conn.execute("SELECT timestamps FROM attempts WHERE key = ?", (key,)).fetchone()
         if row:
             return [float(t) for t in row[0].split(",") if t]
         return []
 
-    def _save(self, key: str, timestamps: list):
+    def _save(self, key: str, timestamps: list[float]) -> None:
         val = ",".join(f"{t:.3f}" for t in timestamps)
         self._conn.execute(
             "INSERT OR REPLACE INTO attempts (key, timestamps) VALUES (?, ?)",
@@ -35,7 +35,7 @@ class RateLimiter:
         )
         self._conn.commit()
 
-    def _prune(self, timestamps: list) -> list:
+    def _prune(self, timestamps: list[float]) -> list[float]:
         cutoff = time.time() - self._window
         return [t for t in timestamps if t > cutoff]
 
@@ -44,7 +44,7 @@ class RateLimiter:
             ts = self._prune(self._load(key))
             return len(ts) >= self._max_attempts
 
-    def record_attempt(self, key: str):
+    def record_attempt(self, key: str) -> None:
         with self._lock:
             now = time.time()
             ts = self._prune(self._load(key))
@@ -52,7 +52,7 @@ class RateLimiter:
             self._local[key] = ts
             self._save(key, ts)
 
-    def clear_attempts(self, key: str):
+    def clear_attempts(self, key: str) -> None:
         with self._lock:
             self._local.pop(key, None)
             self._conn.execute("DELETE FROM attempts WHERE key = ?", (key,))
@@ -112,11 +112,11 @@ class TokenBucket:
             deficit = tokens - state.tokens
             return deficit / self._config.refill_rate
 
-    def reset(self, key: str):
+    def reset(self, key: str) -> None:
         with self._lock:
             self._buckets.pop(key, None)
 
-    def reset_all(self):
+    def reset_all(self) -> None:
         with self._lock:
             self._buckets.clear()
 
@@ -134,7 +134,7 @@ class _BucketState:
     tokens: float
     last_refill: float
 
-    def _refill(self, now: float, config: TokenBucketConfig):
+    def _refill(self, now: float, config: TokenBucketConfig) -> None:
         elapsed = now - self.last_refill
         added = elapsed * config.refill_rate
         self.tokens = min(self.tokens + added, config.capacity + config.max_backlog)

@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import httpx
 import yaml
 from dotenv import load_dotenv
+from typing import Any, cast
 
 from services.config_db import get_all_stores  # noqa: E402
 from services.supabase_client import get_service_client  # noqa: E402
@@ -27,7 +28,7 @@ logger = logging.getLogger(__name__)
 _yaml_stores = None
 
 
-def _get_yaml_stores() -> list[dict]:
+def _get_yaml_stores() -> list[dict[str, Any]]:
     global _yaml_stores
     if _yaml_stores is None:
         with open("config/stores.yaml", "r", encoding="utf-8") as f:
@@ -40,7 +41,7 @@ def _lookup_url_from_yaml(store_name: str) -> str:
     """Busca URL da loja no stores.yaml por nome."""
     for s in _get_yaml_stores():
         if s.get("name", "").lower() == store_name.lower():
-            return (
+            return str(
                 s.get("search_url", "")
                 or s.get("base_url", "")
                 or s.get("url_pattern", "")
@@ -49,14 +50,15 @@ def _lookup_url_from_yaml(store_name: str) -> str:
     return ""
 
 
-def check_disabled_stores_health(timeout: int = 15) -> list[dict]:
+def check_disabled_stores_health(timeout: int = 15) -> list[dict[str, Any]]:
     """Testa HTTP em lojas desativadas. Retorna as que responderam OK."""
     client = get_service_client()
     all_stores = get_all_stores(include_inactive=True)
 
     # Get disabled store IDs from scrape_frequencies
     freq = client.table("scrape_frequencies").select("*").eq("enabled", False).execute()
-    disabled_ids = {f["store_id"] for f in freq.data}
+    freq_data = cast("list[dict[str, Any]]", freq.data)
+    disabled_ids = {f["store_id"] for f in freq_data}
     logger.info("Disabled in scrape_frequencies: %d stores", len(disabled_ids))
 
     logger.info("All stores returned: %d", len(all_stores))

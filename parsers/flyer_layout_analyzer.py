@@ -12,7 +12,10 @@ import os
 import statistics
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
+
+# OCR bounding box: 4 corner points, each [x, y]
+Box = list[list[float]]
 
 # Config file for learned parameters
 LEARNED_CONFIG_PATH = Path("config/flyer_learned_params.json")
@@ -54,7 +57,7 @@ DEFAULT_PARAMS = ClusteringParams(
 )
 
 
-def analyze_layout(regions: list[dict], prices: list[Any]) -> LayoutProfile:
+def analyze_layout(regions: list[dict[str, Any]], prices: list[Any]) -> LayoutProfile:
     """Analisa o layout do flyer a partir das regiões OCR e preços reconstruídos."""
     if not regions or not prices:
         return LayoutProfile(
@@ -70,9 +73,14 @@ def analyze_layout(regions: list[dict], prices: list[Any]) -> LayoutProfile:
             text_height_stats={},
         )
 
-    def cx(box): return sum(p[0] for p in box) / 4
-    def cy(box): return sum(p[1] for p in box) / 4
-    def ch(box): return max(p[1] for p in box) - min(p[1] for p in box)
+    def cx(box: Box) -> float:
+        return sum(p[0] for p in box) / 4
+
+    def cy(box: Box) -> float:
+        return sum(p[1] for p in box) / 4
+
+    def ch(box: Box) -> float:
+        return max(p[1] for p in box) - min(p[1] for p in box)
 
     price_xs = [cx(p.box) for p in prices]
     price_ys = [cy(p.box) for p in prices]
@@ -179,18 +187,18 @@ def params_for_profile(profile: LayoutProfile) -> ClusteringParams:
     )
 
 
-def load_learned_params() -> dict[str, dict]:
+def load_learned_params() -> dict[str, dict[str, Any]]:
     """Carrega parâmetros aprendidos do disco."""
     if LEARNED_CONFIG_PATH.exists():
         try:
             with open(LEARNED_CONFIG_PATH, encoding="utf-8") as f:
-                return json.load(f)
+                return cast("dict[str, dict[str, Any]]", json.load(f))
         except Exception:
             return {}
     return {}
 
 
-def save_learned_params(params: dict[str, dict]) -> None:
+def save_learned_params(params: dict[str, dict[str, Any]]) -> None:
     """Salva parâmetros aprendidos no disco."""
     LEARNED_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(LEARNED_CONFIG_PATH, "w", encoding="utf-8") as f:
@@ -237,7 +245,7 @@ def remember_successful_params(store_id: str, flyer_type: str, params: Clusterin
 USE_LAYOUT_ADAPTATION = os.environ.get("FLYER_USE_LAYOUT_ADAPTATION", "1") not in ("0", "false", "False")
 
 
-def get_adaptive_params_with_learning(regions: list[dict], prices: list[Any], store_id: str = "") -> ClusteringParams | None:
+def get_adaptive_params_with_learning(regions: list[dict[str, Any]], prices: list[Any], store_id: str = "") -> ClusteringParams | None:
     """
     Obtém parâmetros adaptativos com aprendizado:
     1. Tenta params aprendidos para este store
@@ -266,7 +274,7 @@ def get_adaptive_params_with_learning(regions: list[dict], prices: list[Any], st
         return None
 
 
-def evaluate_block_quality(blocks: list[dict]) -> float:
+def evaluate_block_quality(blocks: list[dict[str, Any]]) -> float:
     """Avalia qualidade média dos blocos (0-1)."""
     from parsers.flyer_hybrid import _name_quality
     if not blocks:

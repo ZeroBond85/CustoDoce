@@ -1,6 +1,6 @@
 # `selector_resolver` — API
 
-> Última atualização: 2026-08-13 01:28 UTC
+> Última atualização: 2026-08-26 16:42 UTC
 > Gerado por AST parsing dos serviços em `services/selector_resolver.py`.
 
 ## Funções Públicas (3)
@@ -13,7 +13,7 @@ Return list of available selector variant names.
 
 Force reload of selectors.yaml on next call.
 
-### resolve_selectors(store_config: dict)
+### resolve_selectors(store_config: dict[str, Any])
 
 Resolve selectors for a store: store-specific > type variant > defaults.
 

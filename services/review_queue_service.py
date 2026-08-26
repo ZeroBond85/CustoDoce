@@ -7,8 +7,8 @@ from typing import Any
 
 from services.config_db import add_alias_to_ingredient, get_all_stores, get_store_by_name
 from services.logger import logger
-from services.supabase_client import get_service_client, get_supabase
-from services.types import ReviewItem, Store
+from services.supabase_client import get_service_client, get_supabase, safe_execute, safe_single_execute
+from services.types import ReviewItem
 
 # Reabre itens rejeitados após este período (dias) — contexto pode ter mudado
 _REOPEN_REJECTED_AFTER_DAYS = 90
@@ -22,7 +22,7 @@ def _normalize_text(text: str) -> str:
     return "".join(c for c in nfkd if not unicodedata.combining(c))
 
 
-def _fuzzy_find_store(store_name: str) -> Store | None:
+def _fuzzy_find_store(store_name: str) -> dict[str, Any] | None:
     stores = get_all_stores(include_inactive=True)
     norm_name = _normalize_text(store_name)
     for s in stores:
@@ -37,15 +37,14 @@ def _fuzzy_find_store(store_name: str) -> Store | None:
 def insert_review_item(item: ReviewItem) -> dict[str, Any]:
     client = get_service_client()
     try:
-        existing = (
+        existing = safe_execute(
             client.table("review_queue")
             .select("id,status,reviewed_at")
             .eq("store_name", item.get("store_name", ""))
             .eq("raw_product", item["raw_product"])
-            .execute()
         )
-        if existing.data:
-            row = existing.data[0]
+        if existing:
+            row = existing[0]
             # Re-entry: UNIQUE(store_name, raw_product) impede reinserir. Se o
             # item foi REJEITADO há >= 90 dias, reabre como pending com o
             # contexto atual (marcas/thresholds podem ter mudado desde então).
@@ -57,19 +56,21 @@ def insert_review_item(item: ReviewItem) -> dict[str, Any]:
                 except ValueError:
                     age_days = -1
                 if age_days >= _REOPEN_REJECTED_AFTER_DAYS:
-                    client.table("review_queue").update(
-                        {
-                            "status": "pending",
-                            "confidence": item.get("confidence", 0),
-                            "suggestions": item.get("suggestions", []),
-                            "match_reason": item.get("match_reason", ""),
-                            "match_type": item.get("match_type", ""),
-                            "top3": item.get("top3", []),
-                            "brand": item.get("brand", ""),
-                            "raw_price": item.get("raw_price"),
-                            "validity_raw": item.get("validity_raw", ""),
-                        }
-                    ).eq("id", row["id"]).execute()
+                    safe_execute(
+                        client.table("review_queue").update(
+                            {
+                                "status": "pending",
+                                "confidence": item.get("confidence", 0),
+                                "suggestions": item.get("suggestions", []),
+                                "match_reason": item.get("match_reason", ""),
+                                "match_type": item.get("match_type", ""),
+                                "top3": item.get("top3", []),
+                                "brand": item.get("brand", ""),
+                                "raw_price": item.get("raw_price"),
+                                "validity_raw": item.get("validity_raw", ""),
+                            }
+                        ).eq("id", row["id"])
+                    )
                     logger.info(
                         "review_queue: item rejeitado há %sd reaberto (re-entry): %s",
                         age_days,
@@ -96,30 +97,28 @@ def insert_review_item(item: ReviewItem) -> dict[str, Any]:
         "top3": item.get("top3", []),
     }
     try:
-        result = client.table("review_queue").insert(data).execute()
-        return result.data[0] if result.data else {}
+        result = safe_execute(client.table("review_queue").insert(data))
+        return result[0] if result else {}
     except Exception:
         return {}
 
 
-def get_review_queue(limit: int = 500) -> list[ReviewItem]:
+def get_review_queue(limit: int = 500) -> list[dict[str, Any]]:
     """Retorna apenas itens PENDENTES (fix raiz: antes misturava approved/rejected)."""
     client = get_supabase()
-    result = (
+    return safe_execute(
         client.table("review_queue")
         .select("*")
         .eq("status", "pending")
         .order("collected_at", desc=True)
         .limit(limit)
-        .execute()
     )
-    return result.data if result.data else []
 
 
 def get_review_queue_pending_count() -> int:
     """Contagem real de pendentes (independente do limit da página)."""
     client = get_supabase()
-    result = client.table("review_queue").select("id", count="exact").eq("status", "pending").execute()
+    result = client.table("review_queue").select("id", count="exact").eq("status", "pending").execute()  # type: ignore[arg-type]
     return result.count or 0
 
 
@@ -144,7 +143,7 @@ def auto_approve_high_confidence(
     )
     if limit:
         query = query.limit(limit)
-    items = query.execute().data or []
+    items = safe_execute(query)
 
     stats: dict[str, Any] = {"candidates": len(items), "approved": 0, "failed": 0, "skipped": 0}
     if dry_run:
@@ -163,7 +162,7 @@ def auto_approve_high_confidence(
     return stats
 
 
-def _pick_auto_approve_ingredient(item: ReviewItem) -> str:
+def _pick_auto_approve_ingredient(item: dict[str, Any]) -> str:
     """Escolhe o ingrediente do melhor candidato (top3[0] ou suggestions[0])."""
     top3 = item.get("top3") or []
     if isinstance(top3, str):
@@ -195,7 +194,7 @@ def _pick_auto_approve_ingredient(item: ReviewItem) -> str:
     return ""
 
 
-def _resolve_ingredient(ingredient_id: str) -> tuple[str, dict | None]:
+def _resolve_ingredient(ingredient_id: str) -> tuple[str, dict[str, Any] | None]:
     """Resolve ingredient_id para (ingredient_id_resolvido, ingredient_obj).
 
     Tenta: UUID → by_id → by_name → fuzzy match (score >= 70).
@@ -212,7 +211,7 @@ def _resolve_ingredient(ingredient_id: str) -> tuple[str, dict | None]:
         from rapidfuzz import fuzz
 
         best_score: float = 0.0
-        best_ing = None
+        best_ing: dict[str, Any] | None = None
         norm_input = _normalize_text(ingredient_id)
         for ing in get_all_ingredients():
             names = [ing.get("canonical_name", ""), ing.get("name", "")] + ing.get("aliases", [])
@@ -228,13 +227,10 @@ def _resolve_ingredient(ingredient_id: str) -> tuple[str, dict | None]:
     return resolved_ingredient_id, ingredient_obj
 
 
-def _fetch_review_item(item_id: str) -> dict | None:
+def _fetch_review_item(item_id: str) -> dict[str, Any] | None:
     """Busca item na review_queue."""
-    from services.supabase_client import get_service_client
-
     client = get_service_client()
-    item = client.table("review_queue").select("*").eq("id", item_id).maybe_single().execute()
-    return item.data if item and item.data else None
+    return safe_single_execute(client.table("review_queue").select("*").eq("id", item_id).maybe_single())
 
 
 def _resolve_store(store_name: str) -> str:
@@ -246,7 +242,7 @@ def _resolve_store(store_name: str) -> str:
     store_lookup = get_store_by_name(store_name)
     if not store_lookup:
         best_score = 0.0
-        best_store = None
+        best_store: dict[str, Any] | None = None
         for s in get_all_stores(include_inactive=True):
             score = fuzz.token_set_ratio(store_name, s.get("name", ""))
             if score > best_score:
@@ -257,7 +253,7 @@ def _resolve_store(store_name: str) -> str:
     return store_lookup.get("id", "") if store_lookup else ""
 
 
-def _build_price_entry(item_data: dict, resolved_ingredient_id: str, store_id: str, brand_override: str = "") -> dict:
+def _build_price_entry(item_data: dict[str, Any], resolved_ingredient_id: str, store_id: str, brand_override: str = "") -> dict[str, Any]:
     """Constrói dict price_entry para upsert_price."""
     return {
         "ingredient_id": resolved_ingredient_id,
@@ -277,7 +273,7 @@ def _build_price_entry(item_data: dict, resolved_ingredient_id: str, store_id: s
     }
 
 
-def _auto_learn_alias(resolved_ingredient_id: str, price_entry: dict) -> None:
+def _auto_learn_alias(resolved_ingredient_id: str, price_entry: dict[str, Any]) -> None:
     """Auto-learning: adiciona alias se semantic similarity >= 0.75."""
     try:
         from services.config import get as get_config
@@ -293,7 +289,7 @@ def _auto_learn_alias(resolved_ingredient_id: str, price_entry: dict) -> None:
         ingredient_obj = get_ingredient_by_id(resolved_ingredient_id)
         if not ingredient_obj:
             return
-        sim = sm.get_similarity(price_entry["raw_product"], ingredient_obj)
+        sim = sm.get_similarity(price_entry["raw_product"], ingredient_obj)  # type: ignore[arg-type]
         if sim >= 0.75:
             existing_aliases = ingredient_obj.get("aliases", [])
             if isinstance(existing_aliases, str):
@@ -316,7 +312,6 @@ def _auto_learn_alias(resolved_ingredient_id: str, price_entry: dict) -> None:
 
 def approve_review_item(item_id: str, ingredient_id: str, brand_override: str = "") -> dict[str, Any]:
     """Aprova item da review_queue: resolve ingredient/store, upsert price, auto-learning."""
-    from services.supabase_client import get_service_client
     from services.price_repository import upsert_price
 
     client = get_service_client()
@@ -341,7 +336,7 @@ def approve_review_item(item_id: str, ingredient_id: str, brand_override: str = 
     # 4. Upsert price (only if store resolved)
     if store_id:
         try:
-            upsert_price(price_entry)
+            upsert_price(price_entry)  # type: ignore[arg-type]
         except Exception as e:
             logger.error("approve_review_item upsert_price failed: %s", e)
             return {"error": f"Falha ao inserir preço: {e}"}
@@ -357,10 +352,8 @@ def approve_review_item(item_id: str, ingredient_id: str, brand_override: str = 
     _auto_learn_alias(resolved_ingredient_id, price_entry)
 
     # Update review_queue status
-    from services.supabase_client import get_service_client
-
     client = get_service_client()
-    result = (
+    result = safe_execute(
         client.table("review_queue")
         .update(
             {
@@ -370,17 +363,16 @@ def approve_review_item(item_id: str, ingredient_id: str, brand_override: str = 
             }
         )
         .eq("id", item_id)
-        .execute()
     )
 
-    return result.data[0] if result.data else {}
+    return result[0] if result else {}
 
 
 def reject_review_item(item_id: str) -> dict[str, Any]:
     client = get_service_client()
     try:
-        result = client.table("review_queue").update({"status": "rejected"}).eq("id", item_id).execute()
-        return result.data[0] if result.data else {}
+        result = safe_execute(client.table("review_queue").update({"status": "rejected"}).eq("id", item_id))
+        return result[0] if result else {}
     except Exception as e:
         logger.error("reject_review_item failed: %s", e)
         return {}
@@ -390,15 +382,14 @@ def auto_reject_stale_review_items(max_age_days: int = 7, min_confidence: float 
     client = get_service_client()
     cutoff = (datetime.now(UTC) - timedelta(days=max_age_days)).isoformat()
     try:
-        items = (
+        items = safe_execute(
             client.table("review_queue")
             .select("id,confidence")
             .eq("status", "pending")
             .lt("collected_at", cutoff)
-            .execute()
         )
         rejected = 0
-        for item in items.data or []:
+        for item in items:
             conf = item.get("confidence", 0)
             if isinstance(conf, str):
                 try:
@@ -406,7 +397,7 @@ def auto_reject_stale_review_items(max_age_days: int = 7, min_confidence: float 
                 except (ValueError, TypeError):
                     conf = 0
             if conf < min_confidence:
-                client.table("review_queue").update({"status": "rejected"}).eq("id", item["id"]).execute()
+                safe_execute(client.table("review_queue").update({"status": "rejected"}).eq("id", item["id"]))
                 rejected += 1
         return rejected
     except Exception as e:

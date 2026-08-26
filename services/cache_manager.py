@@ -5,10 +5,11 @@ import json
 import time
 from pathlib import Path
 from threading import Lock
+from typing import cast
 
 
 class CacheEntry:
-    def __init__(self, data: str, etag: str = "", md5: str = "", ttl: float = 0):
+    def __init__(self, data: str, etag: str = "", md5: str = "", ttl: float = 0) -> None:
         self.data = data
         self.etag = etag
         self.md5 = md5
@@ -22,7 +23,7 @@ class CacheEntry:
 
 
 class CacheManager:
-    def __init__(self, cache_dir: str = ""):
+    def __init__(self, cache_dir: str = "") -> None:
         if not cache_dir:
             cache_dir = str(Path(__file__).parent.parent / "data" / "cache")
         self._cache_dir = Path(cache_dir)
@@ -61,7 +62,7 @@ class CacheManager:
                     pass
         return None
 
-    def set(self, key: str, data: str, etag: str = "", md5: str = "", ttl: float = 0):
+    def set(self, key: str, data: str, etag: str = "", md5: str = "", ttl: float = 0) -> None:
         with self._lock:
             entry = CacheEntry(data, etag=etag, md5=md5, ttl=ttl)
             self._memory[key] = entry
@@ -91,7 +92,7 @@ class CacheManager:
             if meta.exists():
                 try:
                     m = json.loads(meta.read_text())
-                    return m.get("etag", "")
+                    return cast(str, m.get("etag", ""))
                 except (OSError, json.JSONDecodeError):
                     pass
         return ""
@@ -105,7 +106,7 @@ class CacheManager:
             if meta.exists():
                 try:
                     m = json.loads(meta.read_text())
-                    return m.get("md5", "")
+                    return cast(str, m.get("md5", ""))
                 except (OSError, json.JSONDecodeError):
                     pass
         return ""
@@ -113,7 +114,7 @@ class CacheManager:
     def has_changed(self, key: str, new_md5: str) -> bool:
         return self.get_md5(key) != new_md5
 
-    def invalidate(self, key: str):
+    def invalidate(self, key: str) -> None:
         with self._lock:
             self._memory.pop(key, None)
             path = self._path(key)
@@ -121,7 +122,7 @@ class CacheManager:
             path.unlink(missing_ok=True)
             meta.unlink(missing_ok=True)
 
-    def clear(self):
+    def clear(self) -> None:
         with self._lock:
             self._memory.clear()
             for f in self._cache_dir.iterdir():

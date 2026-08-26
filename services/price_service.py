@@ -2,6 +2,8 @@
 Price Service Facade - Maintains backward compatibility by routing calls to specialized services.
 """
 
+from typing import Any
+
 from services import maintenance_service, price_analytics, price_repository, recipe_service, review_queue_service
 
 # --- Price Repository ---
@@ -10,7 +12,7 @@ batch_upsert_prices = price_repository.batch_upsert_prices
 search_prices = price_repository.search_prices
 
 
-def get_prices_for_ingredient(ing):
+def get_prices_for_ingredient(ing: str) -> list[dict[str, Any]]:
     return price_repository.search_prices(ing, sort_by="price_per_kg", sort_order="asc")
 
 
@@ -36,7 +38,7 @@ get_price_trends = price_analytics.get_price_trends
 get_cross_ingredient_ranking = price_analytics.get_cross_ingredient_ranking
 
 
-def get_cheapest_prices(ing, top_n=3):
+def get_cheapest_prices(ing: str, top_n: int = 3) -> list[dict[str, Any]]:
     return price_repository.search_prices(ing, sort_by="price_per_kg", sort_order="asc", limit=top_n, valid_only=True)
 
 

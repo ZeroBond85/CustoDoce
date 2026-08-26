@@ -1,5 +1,6 @@
 import re
 import unicodedata
+from typing import Any, cast
 
 from rapidfuzz import fuzz
 
@@ -38,10 +39,10 @@ _KEYWORD_STOPWORDS = {
 }
 
 
-def extract_all_keywords(ingredients: list[Ingredient]) -> set:
-    keywords = set()
+def extract_all_keywords(ingredients: list[Ingredient]) -> set[str]:
+    keywords: set[str] = set()
     for ing in ingredients:
-        for text in [ing.get("canonical_name", "")] + ing.get("aliases", []) + ing.get("search_terms", []):
+        for text in [ing.get("canonical_name", "")] + cast(list[str], ing.get("aliases") or []) + cast(list[str], ing.get("search_terms") or []):
             for w in text.split():
                 clean = re.sub(r"[^A-Z0-9]", "", w.upper())
                 # Ignora tokens com dígitos ("1KG", "500G", "12X395G") — tamanho
@@ -51,7 +52,7 @@ def extract_all_keywords(ingredients: list[Ingredient]) -> set:
     return keywords
 
 
-def has_ingredient_keyword(product_text: str, keywords: set) -> bool:
+def has_ingredient_keyword(product_text: str, keywords: set[str]) -> bool:
     product_words = {re.sub(r"[^A-Z0-9]", "", w.upper()) for w in product_text.split() if len(w) > 2}
     return bool(product_words & keywords)
 
@@ -63,20 +64,20 @@ def clean_text(text: str) -> str:
     return text
 
 
-_INGREDIENT_EXCLUDE_CACHE: dict = {}
+_INGREDIENT_EXCLUDE_CACHE: dict[Any, dict[str, list[str]]] = {}
 
 
 def _load_exclude_terms(ingredients: list[Ingredient]) -> dict[str, list[str]]:
     """Carrega exclude_terms do YAML e cacheia."""
     key = id(ingredients)
     if key not in _INGREDIENT_EXCLUDE_CACHE:
-        _INGREDIENT_EXCLUDE_CACHE[key] = {ing["canonical_name"]: ing.get("exclude_terms", []) for ing in ingredients}
+        _INGREDIENT_EXCLUDE_CACHE[key] = {ing["canonical_name"]: cast(list[str], ing.get("exclude_terms") or []) for ing in ingredients}
     return _INGREDIENT_EXCLUDE_CACHE[key]
 
 
 def has_excluded_terms(product_text: str, ingredient: Ingredient) -> bool:
     """Retorna True se o produto contém termo da exclude_terms do ingrediente."""
-    terms = ingredient.get("exclude_terms", [])
+    terms = cast(list[str], ingredient.get("exclude_terms") or [])
     if not terms:
         return False
     product_lower = product_text.lower()
@@ -84,14 +85,14 @@ def has_excluded_terms(product_text: str, ingredient: Ingredient) -> bool:
 
 
 def build_alias_list(ingredients: list[Ingredient]) -> list[tuple[str, str, list[str]]]:
-    alias_map = []
+    alias_map: list[tuple[str, str, list[str]]] = []
     for ing in ingredients:
         canonical = ing["canonical_name"]
-        aliases = ing.get("aliases", [])
+        aliases = cast(list[str], ing.get("aliases") or [])
         alias_map.append((canonical, canonical, aliases))
         for alias in aliases:
             alias_map.append((canonical, alias, aliases))
-        for search_term in ing.get("search_terms", []):
+        for search_term in cast(list[str], ing.get("search_terms") or []):
             alias_map.append((canonical, search_term, aliases))
     return alias_map
 
@@ -188,7 +189,7 @@ def match_exact(product_text: str, ingredient: Ingredient) -> bool:
             ) or product_deac.startswith(canonical_deac) or product_deac.startswith(canonical_deac + " ")
         return True
 
-    for alias in ingredient.get("aliases", []):
+    for alias in cast(list[str], ingredient.get("aliases") or []):
         alias_upper = alias.upper()
         alias_deac = _deaccent(alias_upper)
         if _is_short_term(alias):
@@ -199,7 +200,7 @@ def match_exact(product_text: str, ingredient: Ingredient) -> bool:
         elif alias_upper in product_upper or alias_deac in product_deac:
             return True
 
-    for search_term in ingredient.get("search_terms", []):
+    for search_term in cast(list[str], ingredient.get("search_terms") or []):
         term_upper = search_term.upper()
         term_deac = _deaccent(term_upper)
         if _is_short_term(search_term):
@@ -223,7 +224,7 @@ def match_ingredient(
 ) -> tuple[Ingredient | None, float, str]:
     product_clean = clean_text(product_text)
 
-    best_ingredient = None
+    best_ingredient: Ingredient | None = None
     best_score = 0.0
     match_type = "none"
 
@@ -246,7 +247,7 @@ def match_ingredient(
             best_ingredient = ing
             match_type = "proximo_nome"
 
-        for alias in ing.get("aliases", []):
+        for alias in cast(list[str], ing.get("aliases") or []):
             alias_clean = clean_text(alias)
             score = _penalize_score(fuzz.token_set_ratio(product_clean, alias_clean), product_clean, alias_clean)
             if score > best_score:
@@ -254,7 +255,7 @@ def match_ingredient(
                 best_ingredient = ing
                 match_type = "proximo_apelido"
 
-        for search_term in ing.get("search_terms", []):
+        for search_term in cast(list[str], ing.get("search_terms") or []):
             search_clean = clean_text(search_term)
             score = _penalize_score(fuzz.token_set_ratio(product_clean, search_clean), product_clean, search_clean)
             if score > best_score:
@@ -275,7 +276,7 @@ def rank_ingredients(
 ) -> list[tuple[Ingredient, float, str, str]]:
     """Returns list of (ingredient, score, match_type, matched_term)"""
     product_clean = clean_text(product_text)
-    candidates = []
+    candidates: list[tuple[Ingredient, float, str, str]] = []
 
     for ing in ingredients:
         canonical_clean = clean_text(ing["canonical_name"])
@@ -283,7 +284,7 @@ def rank_ingredients(
         match_type = "proximo_nome"
         matched_term = ing["canonical_name"]
 
-        for alias in ing.get("aliases", []):
+        for alias in cast(list[str], ing.get("aliases") or []):
             alias_clean = clean_text(alias)
             alias_score = _penalize_score(fuzz.token_set_ratio(product_clean, alias_clean), product_clean, alias_clean)
             if alias_score > score:
@@ -291,7 +292,7 @@ def rank_ingredients(
                 match_type = "proximo_apelido"
                 matched_term = alias
 
-        for search_term in ing.get("search_terms", []):
+        for search_term in cast(list[str], ing.get("search_terms") or []):
             search_clean = clean_text(search_term)
             search_score = _penalize_score(
                 fuzz.token_set_ratio(product_clean, search_clean), product_clean, search_clean

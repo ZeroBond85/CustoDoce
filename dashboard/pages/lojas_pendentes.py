@@ -25,7 +25,7 @@ def _is_pending_food_store(name: str) -> bool:
     return _is_food_store_name(name)
 
 
-def render_lojas_pendentes():
+def render_lojas_pendentes() -> None:
     inject_css()
 
     st.title("Lojas Pendentes de Aprovação")

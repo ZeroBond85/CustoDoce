@@ -4,6 +4,7 @@ Telegram Service - Simple message sending
 
 import os
 from datetime import date
+from typing import Any
 
 import httpx
 
@@ -68,7 +69,9 @@ def _store_info_telegram(store_name: str) -> str:
     return "   " + "  \u2022  ".join(parts)
 
 
-def send_telegram_report(token: str, chat_id: str, ingredients: list[dict], prices_by_ingredient: dict):
+def send_telegram_report(
+    token: str, chat_id: str, ingredients: list[dict[str, Any]], prices_by_ingredient: dict[str, Any]
+) -> None:
     today = date.today().strftime("%d/%m/%Y")
     lines = ["\U0001f4ca *CustoDoce \u2014 Cotação de Preços*", f"\U0001f4c5 {today}\n"]
     n_with_prices = 0
@@ -79,7 +82,7 @@ def send_telegram_report(token: str, chat_id: str, ingredients: list[dict], pric
         if not prices:
             continue
 
-        best_per_store = {}
+        best_per_store: dict[str, Any] = {}
         for p in prices:
             store_id = p.get("store_id", p.get("store_name", "?"))
             raw_norm = p.get("normalized")

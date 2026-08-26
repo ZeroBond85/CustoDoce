@@ -3,6 +3,7 @@ Dashboard Page: Configuração
 """
 
 import streamlit as st
+from typing import Any
 
 from dashboard.components.ui import inject_css
 from services.config import get
@@ -15,7 +16,7 @@ from services.config_db import (
 )
 
 
-def render_config():
+def render_config() -> None:
     inject_css()
 
     st.title("Configuração do Sistema")
@@ -49,7 +50,7 @@ def _render_feature_flags_tab() -> None:
     else:
         with st.form("flags_batch_form", clear_on_submit=False):
             st.markdown("Edite os toggles abaixo e clique em **Salvar Tudo** para persistir todas as flags:")
-            new_states: dict[str, dict] = {}
+            new_states: dict[str, dict[str, Any]] = {}
             for flag in flags:
                 st.markdown(f"**{flag['key']}** — _{flag.get('description', '(sem descrição)')}_")
                 enabled = st.checkbox(
@@ -70,7 +71,7 @@ def _render_feature_flags_tab() -> None:
                     failures: list[str] = []
                     for key, payload in new_states.items():
                         try:
-                            upsert_feature_flag(payload)
+                            upsert_feature_flag(payload["key"], payload["enabled"], payload["description"])
                         except Exception as exc:  # noqa: BLE001
                             failures.append(f"{key}: {exc}")
                     if failures:
@@ -96,7 +97,7 @@ def _render_feature_flags_tab() -> None:
             elif any(f["key"] == key for f in flags):
                 st.error(f"Flag '{key}' já existe. Use o toggler acima para alterar.")
             else:
-                upsert_feature_flag({"key": key, "enabled": enabled, "description": desc})
+                upsert_feature_flag(key, enabled, desc)
                 st.success("Flag adicionada!")
                 st.rerun()
 

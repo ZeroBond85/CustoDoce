@@ -3,6 +3,7 @@ Dashboard Page: Revisão (Review Queue)
 """
 
 import streamlit as st
+from typing import Any
 
 from dashboard.components.ui import inject_css
 from services.config_db import add_alias_to_ingredient
@@ -20,7 +21,7 @@ from services.dashboard_queries import (
 PAGE_SIZE = 50
 
 
-def render_revisao():
+def render_revisao() -> None:
     inject_css()
 
     st.title("Fila de Revisão")
@@ -234,7 +235,7 @@ def render_revisao():
                     else:
                         ing_id = ing_options[selected_ing]
                         brand_val = "" if brand_override == "Manter detecção automática" else brand_override
-                        result = approve_review_item_cached(item["id"], ing_id, brand_val)
+                        result: dict[str, Any] | None = approve_review_item_cached(item["id"], ing_id, brand_val)
                         if result:
                             st.success("Aprovado! Item movido para preços.")
                             st.rerun()

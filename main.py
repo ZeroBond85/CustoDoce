@@ -10,6 +10,10 @@ import time
 from argparse import ArgumentParser, Namespace
 from datetime import UTC, date, datetime
 from pathlib import Path
+from typing import Any, cast
+
+from services.types import Ingredient, PriceEntry
+from collections.abc import Callable
 
 from scripts.sync_all_store_fields import sync_scrape_frequencies, sync_store_fields, sync_store_units
 from services import collector, email_service, flyer_service, otel, price_analytics, price_intelligence, price_service, store_registry
@@ -28,7 +32,7 @@ class CircuitBreaker:
     Auto-closes after `recovery_timeout` seconds when in HALF_OPEN with success.
     """
 
-    def __init__(self, name: str, failure_threshold: int = 3, recovery_timeout: int = 300):
+    def __init__(self, name: str, failure_threshold: int = 3, recovery_timeout: int = 300) -> None:
         self.name = name
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
@@ -40,7 +44,7 @@ class CircuitBreaker:
     @property
     def state(self) -> str:
         with self._lock:
-            if self._state == "OPEN" and time.time() - self._last_failure_time >= self.recovery_timeout:
+            if self._state == "OPEN" and self._last_failure_time is not None and time.time() - self._last_failure_time >= self.recovery_timeout:
                 self._state = "HALF_OPEN"
                 logger.info("circuit_breaker_half_open", name=self.name)
             return self._state
@@ -48,7 +52,7 @@ class CircuitBreaker:
     def is_available(self) -> bool:
         return self.state != "OPEN"
 
-    def record_success(self):
+    def record_success(self) -> None:
         with self._lock:
             if self._state == "HALF_OPEN":
                 self._state = "CLOSED"
@@ -57,7 +61,7 @@ class CircuitBreaker:
             elif self._state == "CLOSED":
                 self._failure_count = 0
 
-    def record_failure(self):
+    def record_failure(self) -> None:
         with self._lock:
             self._failure_count += 1
             self._last_failure_time = time.time()
@@ -97,11 +101,14 @@ def parse_args() -> Namespace:
     return parser.parse_args()
 
 
-def generate_report_html(products: list[dict], ingredients: list[dict]) -> str:
+PriceDict = dict[str, Any]
+
+
+def generate_report_html(products: list[PriceDict], ingredients: list[dict[str, Any]]) -> str:
     import html as _html
     from collections import defaultdict
 
-    by_ingredient = defaultdict(list)
+    by_ingredient: dict[str, list[PriceDict]] = defaultdict(list)
     for p in products:
         by_ingredient[p["ingredient_id"]].append(p)
 
@@ -170,7 +177,7 @@ TIER_PLAN: list[tuple[str, str, bool]] = [
 ]
 
 
-def _collect(args: Namespace, collector, ingredients: list) -> list[dict]:
+def _collect(args: Namespace, collector: Any, ingredients: list[Ingredient]) -> list[dict[str, Any]]:
     """Run only the collectors for the requested --tier (or all if None).
 
     Each collector upserts directly to Supabase, so splitting collection
@@ -182,7 +189,7 @@ def _collect(args: Namespace, collector, ingredients: list) -> list[dict]:
     from parsers.llm_strategies import reset_llm_exhausted
     reset_llm_exhausted()
 
-    collected: list[list] = []
+    collected: list[list[dict[str, Any]]] = []
     for tier, method, needs_ing in TIER_PLAN:
         if args.tier and tier != args.tier:
             continue
@@ -209,12 +216,12 @@ def _collect(args: Namespace, collector, ingredients: list) -> list[dict]:
     return [p for sub in collected for p in sub]
 
 
-def _pull_from_db() -> list[dict]:
+def _pull_from_db() -> list[dict[str, Any]]:
     """Pull all current prices from Supabase for finalize-only mode."""
     try:
         from services.price_repository import get_latest_prices
 
-        prices = get_latest_prices(valid_only=True, limit=2000)
+        prices: list[dict[str, Any]] = get_latest_prices(valid_only=True, limit=2000)
         logger.info("finalize_pulled_from_db", count=len(prices))
         return prices
     except Exception as e:
@@ -222,16 +229,16 @@ def _pull_from_db() -> list[dict]:
         return []
 
 
-def _run_with_timeout(fn, timeout: int, label: str):
+def _run_with_timeout(fn: Callable[[], Any], timeout: int, label: str) -> Any:
     """Roda fn num thread daemon e aborta o espero apos `timeout`s.
 
     Nao mata o thread (nao e seguro), mas libera o finalize para concluir
     e soltar o scrape lock mesmo se fn travar/lento (ex.: N+1 queries ou
     notificacoes externas sob carga).
     """
-    holder: dict = {}
+    holder: dict[str, Any] = {}
 
-    def _target():
+    def _target() -> None:
         try:
             holder["value"] = fn()
         except Exception as e:  # noqa: BLE001
@@ -249,7 +256,7 @@ def _run_with_timeout(fn, timeout: int, label: str):
     return holder.get("value")
 
 
-def _finalize(all_products: list[dict], ingredients: list, args: Namespace) -> None:
+def _finalize(all_products: list[dict[str, Any]], ingredients: list[Ingredient], args: Namespace) -> None:
     """Enrich + snapshot + report + cleanup. Runs once per scrape run."""
     try:
         pi = price_intelligence.PriceIntelligence()
@@ -280,7 +287,7 @@ def _finalize(all_products: list[dict], ingredients: list, args: Namespace) -> N
 
     if all_products and not args.dry_run:
         try:
-            report_html = price_analytics.generate_report_html(all_products, ingredients)
+            report_html = price_analytics.generate_report_html(cast("list[PriceEntry]", all_products), ingredients)
             email_service.send_daily_report(report_html=report_html)
             logger.info("daily_report_sent")
         except Exception as e:
@@ -308,8 +315,8 @@ def _finalize(all_products: list[dict], ingredients: list, args: Namespace) -> N
             logger.warning("cleanup_non_food_flyers_error", error=str(e))
 
         try:
-            result = price_service.auto_reject_stale_review_items(max_age_days=14, min_confidence=0.70)
-            logger.info("cleanup_review_queue_executed", rejected_count=result)
+            rejected_count = price_service.auto_reject_stale_review_items(max_age_days=14, min_confidence=0.70)
+            logger.info("cleanup_review_queue_executed", rejected_count=rejected_count)
         except Exception as e:
             logger.warning("cleanup_review_queue_error", error=str(e))
 
@@ -325,7 +332,7 @@ def _finalize(all_products: list[dict], ingredients: list, args: Namespace) -> N
         logger.info("dry_run_skip_side_effects")
 
 
-def main(args: Namespace | None = None):
+def main(args: Namespace | None = None) -> None:
     if args is None:
         args = parse_args()
     with otel.tracer.start_as_current_span("main_collection_loop"):
@@ -367,7 +374,7 @@ def main(args: Namespace | None = None):
         run_collection = collect_mode or full_local
         run_finalize = args.finalize or full_local
 
-        all_products: list[dict] = []
+        all_products: list[dict[str, Any]] = []
         if run_collection:
             all_products = _collect(args, collector, ingredients)
             logger.info("collection_done", total=len(all_products))

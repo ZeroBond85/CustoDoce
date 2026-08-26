@@ -3,7 +3,7 @@ Import Service - Handles manual data import (Tier 2b/4) from files.
 """
 
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 
@@ -11,6 +11,7 @@ from parsers.normalizer import normalize_price
 from services.config_db import get_all_ingredients, get_all_stores
 from services.logger import logger
 from services.price_service import upsert_price
+from services.types import PriceEntry
 
 
 def import_manual_prices(file_path: str) -> dict[str, Any]:
@@ -64,7 +65,7 @@ def import_manual_prices(file_path: str) -> dict[str, Any]:
                     "confidence": 1.0,
                 }
 
-                upsert_price(entry)
+                upsert_price(cast("PriceEntry", entry))
                 imported_count += 1
             except Exception as e:
                 errors.append(f"Row {index + 2}: {str(e)}")

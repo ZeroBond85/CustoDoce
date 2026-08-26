@@ -1,11 +1,11 @@
 # `alert_service` — API
 
-> Última atualização: 2026-08-13 01:28 UTC
+> Última atualização: 2026-08-26 16:42 UTC
 > Gerado por AST parsing dos serviços em `services/alert_service.py`.
 
 ## Funções Públicas (4)
 
-### check_price_drops(ingredient_id: str, current_price: float, history_prices: list[dict])
+### check_price_drops(ingredient_id: str, current_price: float, history_prices: list[dict[str, Any]])
 
 Check if the current price is a significant drop compared to history.
 

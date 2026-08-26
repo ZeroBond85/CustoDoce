@@ -1,6 +1,6 @@
 # `price_analytics` — API
 
-> Última atualização: 2026-08-13 01:28 UTC
+> Última atualização: 2026-08-26 16:42 UTC
 > Gerado por AST parsing dos serviços em `services/price_analytics.py`.
 
 ## Funções Públicas (6)
@@ -19,7 +19,7 @@ Identify stores that are consistently the cheapest over time.
 
 ### get_telegram_report(ingredients: list[Ingredient], top_n: int)
 
-### otimizar_carrinho_compras(lista_itens: dict, max_sources: int)
+### otimizar_carrinho_compras(lista_itens: dict[str, float], max_sources: int)
 
 Analisa a lista de compras e calcula os cenários Monofonte e Multifonte.
 

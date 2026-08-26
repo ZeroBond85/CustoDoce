@@ -16,7 +16,7 @@ from services.dashboard_queries import (
 RULES_PAGE_SIZE = 25
 
 
-def render_alertas():
+def render_alertas() -> None:
     inject_css()
 
     st.title("Alertas e Regras")

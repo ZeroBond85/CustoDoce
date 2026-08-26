@@ -3,6 +3,7 @@ Dashboard Page: Promoções em Destaque
 """
 
 from datetime import UTC, datetime
+from typing import Any
 
 import pandas as pd
 import streamlit as st
@@ -11,11 +12,11 @@ from dashboard.components.ui import inject_css
 from services.price_service import get_all_current_prices
 
 
-def _is_promotion(p: dict) -> bool:
+def _is_promotion(p: dict[str, Any]) -> bool:
     return bool(p.get("is_promotion"))
 
 
-def _safe_ppk(p: dict) -> float:
+def _safe_ppk(p: dict[str, Any]) -> float:
     norm = p.get("normalized") if isinstance(p.get("normalized"), dict) else None
     if norm and norm.get("price_per_kg"):
         try:
@@ -31,7 +32,7 @@ def _safe_ppk(p: dict) -> float:
     return 0.0
 
 
-def render_promocoes():
+def render_promocoes() -> None:
     inject_css()
 
     st.title("🏷️ Promoções em Destaque")
@@ -122,9 +123,9 @@ def render_promocoes():
         # Economia média: compara R$/kg promocional vs normal DO MESMO ingrediente
         # (média global mistura ingredientes incomparáveis — sem significado).
         # Baseline = todos os preços não-promo carregados (não só as promoções).
-        normal_by_ing: dict = {}
-        sums: dict = {}
-        counts: dict = {}
+        normal_by_ing: dict[str, Any] = {}
+        sums: dict[str, Any] = {}
+        counts: dict[str, Any] = {}
         for p in prices:
             if _is_promotion(p):
                 continue

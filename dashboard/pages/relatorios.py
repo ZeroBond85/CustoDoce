@@ -3,6 +3,7 @@ Dashboard Page: Relatórios
 """
 
 import os
+from typing import Any
 
 import pandas as pd
 import streamlit as st
@@ -37,10 +38,10 @@ def _resolve_recipients() -> list[str]:
 @st.dialog("Confirmar envio de relatório")
 def _confirm_send_report_dialog(
     send_email_opt: bool,
-    recipients: list,
+    recipients: list[str],
     send_tg_opt: bool,
     report_kind: str,
-):
+) -> None:
     st.markdown(
         f"Você está prestes a enviar um relatório **{report_kind}**. "
         "Verifique o preview na aba lateral antes de continuar."
@@ -98,7 +99,7 @@ def _confirm_send_report_dialog(
             st.rerun()
 
 
-def render_relatorios():
+def render_relatorios() -> None:
     inject_css()
 
     st.title("Relatórios & Alertas")
@@ -157,7 +158,7 @@ def render_relatorios():
         col1, col2 = st.columns(2)
         with col1:
             if st.button("📧 Testar SMTP"):
-                from services.email_service import test_smtp_connection
+                from services.email_service import test_smtp_connection  # type: ignore[attr-defined]
 
                 with st.spinner("Testando..."):
                     ok, msg = test_smtp_connection()
@@ -178,7 +179,7 @@ def render_relatorios():
                     st.error(f"Telegram Falhou: {msg}")
 
 
-def _safe_ppk(r: dict) -> float:
+def _safe_ppk(r: dict[str, Any]) -> float:
     norm = r.get("normalized")
     if isinstance(norm, dict):
         try:

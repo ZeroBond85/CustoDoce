@@ -17,7 +17,7 @@ from services.dashboard_queries import (
 )
 
 
-def render_scraper_health():
+def render_scraper_health() -> None:
     inject_css()
 
     st.title("🏥 Scraper Health Dashboard")

@@ -53,25 +53,25 @@ ignore = ["E501", "B006", "B008", "B023", "S101"]
 
 [tool.mypy]
 python_version = "3.14"
-ignore_missing_imports = true
 explicit_package_bases = true
+# strict mode enabled - all core modules must be typed
+strict = true
+warn_unused_ignores = true
+check_untyped_defs = true
+disallow_any_unimported = true
+disallow_subclassing_any = true
+# Only exclude external/stub-less modules and test files
 exclude = [
     "scripts/archive/",
     "tests/",
     "scripts/",        # utility scripts, not core
     "scrapers/",       # network-dependent, many stub issues
-    "services/",       # supabase-py JSON types cause 100+ false positives per file
     "telegram_bot/",   # python-telegram-bot stubs incomplete
     "admin/app.py",      # Streamlit + supabase type issues
     "admin/tabs/",       # dead code, stubs only, no real functions
     "data/",             # diagnostic/utility scripts
-    "main.py",           # supabase-py JSON types
     "check_*.py",        # root-level utility scripts, not typechecked
 ]
-warn_unused_ignores = false
-check_untyped_defs = false
-disallow_any_unimported = false
-disallow_subclassing_any = false
 
 [[tool.mypy.overrides]]
 module = [
@@ -83,14 +83,28 @@ module = [
     "pdfplumber.*",
     "pytesseract.*",
     "playwright.*",
+    "optimum.*",
+    "onnxruntime.*",
+    "rapidocr_onnxruntime.*",
+    "yaml.*",
 ]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
+module = "transformers.*"
+ignore_missing_imports = true
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = "services.rate_limiter"
+follow_imports = "normal"
+ignore_missing_imports = false
+
+[[tool.mypy.overrides]]
 module = [
-    "services.*",
     "admin.app",
     "scrapers.*",
+    "telegram_bot.*",
 ]
 follow_imports = "skip"
 ignore_missing_imports = true

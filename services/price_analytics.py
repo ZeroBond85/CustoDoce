@@ -8,11 +8,11 @@ from itertools import combinations
 from typing import Any
 
 from services.price_repository import get_latest_prices as get_all_current_prices
-from services.supabase_client import get_supabase
+from services.supabase_client import get_supabase, safe_execute
 from services.types import Ingredient, PriceEntry
 
 
-def _fetch_and_index_prices() -> dict[str, dict[str, dict]]:
+def _fetch_and_index_prices() -> dict[str, dict[str, dict[str, Any]]]:
     """
     Busca preços atuais e indexa por (ingredient_id -> store_id -> price_data).
 
@@ -24,7 +24,7 @@ def _fetch_and_index_prices() -> dict[str, dict[str, dict]]:
     except Exception:
         latest_prices = []
 
-    by_ing_store: dict[str, dict[str, dict]] = defaultdict(dict)
+    by_ing_store: dict[str, dict[str, dict[str, Any]]] = defaultdict(dict)
     for p in latest_prices:
         ing = p.get("ingredient_id", "")
         sid = p.get("store_id") or p.get("store_name", "")
@@ -43,7 +43,7 @@ def _fetch_and_index_prices() -> dict[str, dict[str, dict]]:
 
 
 def _validate_ingredients(
-    lista_itens: dict, by_ing_store: dict
+    lista_itens: dict[str, float], by_ing_store: dict[str, dict[str, dict[str, Any]]]
 ) -> tuple[list[str], dict[str, dict[str, float]]]:
     """
     Valida quais ingredientes têm preços e quais faltam.
@@ -53,7 +53,7 @@ def _validate_ingredients(
         candidates: {ing: {sid: price_per_kg}}
     """
     lista_faltando = []
-    candidates = {}
+    candidates: dict[str, dict[str, float]] = {}
     for ing, _qty_kg in lista_itens.items():
         if ing not in by_ing_store or not by_ing_store[ing]:
             lista_faltando.append(ing)
@@ -64,18 +64,18 @@ def _validate_ingredients(
 
 def _compute_monofonte(
     candidates: dict[str, dict[str, float]],
-    lista_itens: dict,
-    by_ing_store: dict,
-) -> dict | None:
+    lista_itens: dict[str, float],
+    by_ing_store: dict[str, dict[str, dict[str, Any]]],
+) -> dict[str, Any] | None:
     """Computa cenário Monofonte: uma loja cobrindo 100% dos itens."""
-    all_store_ids = set()
+    all_store_ids: set[str] = set()
     for stores in candidates.values():
         all_store_ids.update(stores.keys())
 
-    monofonte_per_store = []
+    monofonte_per_store: list[dict[str, Any]] = []
     for sid in all_store_ids:
         total = 0.0
-        itens = []
+        itens: list[dict[str, Any]] = []
         all_present = True
         for ing, store_prices in candidates.items():
             qty = float(lista_itens[ing])
@@ -84,7 +84,13 @@ def _compute_monofonte(
                 cost = price_pkg * qty
                 total += cost
                 itens.append(
-                    {"ingredient": ing, "qty_kg": qty, "cost": cost, "price_per_kg": price_pkg, "store_id": sid}
+                    {
+                        "ingredient": ing,
+                        "qty_kg": qty,
+                        "cost": cost,
+                        "price_per_kg": price_pkg,
+                        "store_id": sid,
+                    }
                 )
             else:
                 all_present = False
@@ -111,26 +117,26 @@ def _compute_monofonte(
 
 def _compute_multifonte(
     candidates: dict[str, dict[str, float]],
-    lista_itens: dict,
-    by_ing_store: dict,
+    lista_itens: dict[str, float],
+    by_ing_store: dict[str, dict[str, dict[str, Any]]],
     max_sources: int,
-) -> dict | None:
+) -> dict[str, Any] | None:
     """Computa cenário Multifonte: combinação de até max_sources lojas."""
     if max_sources <= 1:
         return None
 
-    all_store_ids = set()
+    all_store_ids: set[str] = set()
     for stores in candidates.values():
         all_store_ids.update(stores.keys())
     store_ids_list = list(all_store_ids)
 
-    multifonte_per_combo: list[dict] = []
+    multifonte_per_combo: list[dict[str, Any]] = []
     for r in range(1, max_sources + 1):
         for combo in combinations(store_ids_list, r):
             if not all(any(sid in candidates[ing] for sid in combo) for ing in candidates):
                 continue
             total = 0.0
-            itens = []
+            itens: list[dict[str, Any]] = []
             for ing in candidates:
                 qty = float(lista_itens[ing])
                 best_sid = min(combo, key=lambda sid: candidates[ing].get(sid, float("inf")))
@@ -174,13 +180,13 @@ def _compute_multifonte(
 
 
 def _format_results(
-    lista_itens: dict,
-    lista_faltando: list,
-    monofonte: dict | None,
-    multifonte: dict | None,
+    lista_itens: dict[str, float],
+    lista_faltando: list[str],
+    monofonte: dict[str, Any] | None,
+    multifonte: dict[str, Any] | None,
 ) -> tuple[str, str, float | None]:
     """Gera markdown, HTML e economia."""
-    economia = None
+    economia: float | None = None
     if multifonte and monofonte:
         economia = max(0.0, monofonte["total"] - multifonte["total"])
 
@@ -190,7 +196,7 @@ def _format_results(
 
 
 def get_telegram_report(ingredients: list[Ingredient], top_n: int = 5) -> list[dict[str, Any]]:
-    messages = []
+    messages: list[dict[str, Any]] = []
     try:
         all_prices = get_all_current_prices(valid_only=True, limit=2000)
     except Exception:
@@ -221,17 +227,16 @@ def get_longitudinal_winners(days: int = 90) -> list[dict[str, Any]]:
     """
     client = get_supabase()
     cutoff = (date.today() - timedelta(days=days)).isoformat()
-    result = (
+    result = safe_execute(
         client.table("prices")
         .select("ingredient_id, store_name, raw_price, raw_unit, normalized, collected_at")
         .gte("collected_at", cutoff)
-        .execute()
     )
-    if not result.data:
+    if not result:
         return []
 
-    daily = defaultdict(lambda: defaultdict(list))
-    for p in result.data:
+    daily: dict[str, dict[str, list[dict[str, Any]]]] = defaultdict(lambda: defaultdict(list))
+    for p in result:
         ing = p.get("ingredient_id", "")
         day = p.get("collected_at", "")[:10]
         raw_norm = p.get("normalized")
@@ -241,7 +246,7 @@ def get_longitudinal_winners(days: int = 90) -> list[dict[str, Any]]:
             continue
         daily[ing][day].append({"store": p.get("store_name", "?"), "ppk": ppk})
 
-    wins = defaultdict(lambda: defaultdict(int))
+    wins: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     for ing, days_dict in daily.items():
         for _day, entries in days_dict.items():
             if not entries:
@@ -249,7 +254,7 @@ def get_longitudinal_winners(days: int = 90) -> list[dict[str, Any]]:
             best = min(entries, key=lambda x: x["ppk"])
             wins[ing][best["store"]] += 1
 
-    rows = []
+    rows: list[dict[str, Any]] = []
     for ing, stores in wins.items():
         for store, count in stores.items():
             rows.append({"ingredient_id": ing, "store_name": store, "wins": count})
@@ -260,18 +265,17 @@ def get_longitudinal_winners(days: int = 90) -> list[dict[str, Any]]:
 def get_price_trends(ingredient_id: str, days: int = 90) -> list[dict[str, Any]]:
     client = get_supabase()
     cutoff = (date.today() - timedelta(days=days)).isoformat()
-    result = (
+    result = safe_execute(
         client.table("prices")
         .select("store_name, raw_price, normalized, collected_at")
         .eq("ingredient_id", ingredient_id)
         .gte("collected_at", cutoff)
-        .execute()
     )
-    if not result.data:
+    if not result:
         return []
 
-    daily = defaultdict(list)
-    for p in result.data:
+    daily: dict[str, list[float]] = defaultdict(list)
+    for p in result:
         day = p.get("collected_at", "")[:10]
         raw_norm = p.get("normalized")
         norm = raw_norm if isinstance(raw_norm, dict) else {}
@@ -279,7 +283,7 @@ def get_price_trends(ingredient_id: str, days: int = 90) -> list[dict[str, Any]]
         if ppk > 0:
             daily[day].append(ppk)
 
-    trends = []
+    trends: list[dict[str, Any]] = []
     for day in sorted(daily):
         vals = daily[day]
         trends.append(
@@ -297,17 +301,16 @@ def get_price_trends(ingredient_id: str, days: int = 90) -> list[dict[str, Any]]
 def get_cross_ingredient_ranking(days: int = 90) -> list[dict[str, Any]]:
     client = get_supabase()
     cutoff = (date.today() - timedelta(days=days)).isoformat()
-    result = (
+    result = safe_execute(
         client.table("prices")
         .select("ingredient_id, store_name, normalized, collected_at")
         .gte("collected_at", cutoff)
-        .execute()
     )
-    if not result.data:
+    if not result:
         return []
 
-    per_ing = defaultdict(list)
-    for p in result.data:
+    per_ing: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for p in result:
         ing = p.get("ingredient_id", "")
         raw_norm = p.get("normalized")
         norm = raw_norm if isinstance(raw_norm, dict) else {}
@@ -315,7 +318,7 @@ def get_cross_ingredient_ranking(days: int = 90) -> list[dict[str, Any]]:
         if ppk > 0:
             per_ing[ing].append({"store": p.get("store_name", "?"), "ppk": ppk})
 
-    store_scores = defaultdict(lambda: {"top1": 0, "top3": 0, "total": 0})
+    store_scores: dict[str, dict[str, int]] = defaultdict(lambda: {"top1": 0, "top3": 0, "total": 0})
     for _ing, entries in per_ing.items():
         sorted_entries = sorted(entries, key=lambda x: x["ppk"])
         seen = set()
@@ -329,7 +332,7 @@ def get_cross_ingredient_ranking(days: int = 90) -> list[dict[str, Any]]:
             if rank <= 3:
                 store_scores[e["store"]]["top3"] += 1
 
-    rows = []
+    rows: list[dict[str, Any]] = []
     for store, scores in store_scores.items():
         rows.append(
             {
@@ -348,7 +351,7 @@ def generate_report_html(products: list[PriceEntry], ingredients: list[Ingredien
     import html as _html
     from collections import defaultdict
 
-    by_ingredient = defaultdict(list)
+    by_ingredient: dict[str, list[PriceEntry]] = defaultdict(list)
     for p in products:
         ing = p["ingredient_id"]
         if ing not in by_ingredient:
@@ -359,12 +362,12 @@ def generate_report_html(products: list[PriceEntry], ingredients: list[Ingredien
     for ing_name, prices in sorted(by_ingredient.items()):
         best = min(
             prices,
-            key=lambda x: (x.get("normalized") if isinstance(x.get("normalized"), dict) else {}).get(
+            key=lambda x: (x.get("normalized") if isinstance(x.get("normalized"), dict) else {}).get(  # type: ignore[union-attr,call-overload]
                 "price_per_kg", 999999
             ),
         )
         raw_norm = best.get("normalized")
-        norm = raw_norm if isinstance(raw_norm, dict) else {}
+        norm: dict[str, Any] = raw_norm if isinstance(raw_norm, dict) else {}  # type: ignore[assignment]
         price_kg = norm.get("price_per_kg", 0)
         unique_stores = len({p.get("store_id", "") for p in prices})
         safe_ing = _html.escape(ing_name)
@@ -404,7 +407,7 @@ def generate_report_html(products: list[PriceEntry], ingredients: list[Ingredien
 # ====================================================================
 
 
-def otimizar_carrinho_compras(lista_itens: dict, max_sources: int = 2) -> dict:
+def otimizar_carrinho_compras(lista_itens: dict[str, float], max_sources: int = 2) -> dict[str, Any]:
     """
     Analisa a lista de compras e calcula os cenários Monofonte e Multifonte.
 
@@ -468,7 +471,7 @@ def otimizar_carrinho_compras(lista_itens: dict, max_sources: int = 2) -> dict:
     }
 
 
-def _format_cart_md(itens, faltando, monofonte, multifonte) -> str:
+def _format_cart_md(itens: dict[str, float], faltando: list[str], monofonte: dict[str, Any] | None, multifonte: dict[str, Any] | None) -> str:
     import io
 
     out = io.StringIO()
@@ -496,9 +499,7 @@ def _format_cart_md(itens, faltando, monofonte, multifonte) -> str:
                 f"R$ {multifonte['total']:.2f}\n"
             )
         for it in multifonte["itens"]:
-            store_name = it.get("store_id", "?")  # Use store_id as default
-            # Look up via items list - we don't have direct name mapping
-            # Defaults to store_id if not found
+            store_name = it.get("store_id", "?")
             out.write(
                 f"  - {it['ingredient']} {it['qty_kg']}kg @ "
                 f"{store_name} "
@@ -507,10 +508,10 @@ def _format_cart_md(itens, faltando, monofonte, multifonte) -> str:
     return out.getvalue()
 
 
-def _format_cart_html(itens, faltando, monofonte, multifonte) -> str:
+def _format_cart_html(itens: dict[str, float], faltando: list[str], monofonte: dict[str, Any] | None, multifonte: dict[str, Any] | None) -> str:
     import html as _html
 
-    out = []
+    out: list[str] = []
     out.append(
         f"<h3>🛒 Carrinho de Compras (otimizado)</h3>"
         f"<p>Itens: {len(itens)}. Quantidade total solicitada com base em kg.</p>"

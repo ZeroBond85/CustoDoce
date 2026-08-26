@@ -1,6 +1,6 @@
 # `price_intelligence` — API
 
-> Última atualização: 2026-08-13 01:28 UTC
+> Última atualização: 2026-08-26 16:42 UTC
 > Gerado por AST parsing dos serviços em `services/price_intelligence.py`.
 
 ## Funções Públicas (3)
@@ -10,7 +10,7 @@
 Detecta se um preço é anômalo.
 Retorna: {is_anomaly, severity, tag, expected_range}
 
-### enrich_prices(self, prices: list[dict])
+### enrich_prices(self, prices: list[dict[str, Any]])
 
 Enriquece lista de preços com tags de inteligência.
 

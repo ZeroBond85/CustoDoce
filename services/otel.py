@@ -1,4 +1,5 @@
 import os
+from typing import Any, cast
 
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
@@ -6,14 +7,14 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 
 
-def setup_otel():
+def setup_otel() -> Any:
     resource = Resource.create({"service.name": "custodoce-collector"})
 
     provider = TracerProvider(resource=resource)
 
     otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     if otlp_endpoint:
-        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter  # type: ignore[import-not-found]
 
         exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
     else:
@@ -28,4 +29,4 @@ def setup_otel():
 
 
 # Singleton tracer instance
-tracer = setup_otel()
+tracer = cast(Any, setup_otel())

@@ -1,6 +1,6 @@
 # `dashboard_queries` — API
 
-> Última atualização: 2026-08-23 01:22 UTC
+> Última atualização: 2026-08-26 16:42 UTC
 > Gerado por AST parsing dos serviços em `services/dashboard_queries.py`.
 
 ## Funções Públicas (55)
@@ -21,21 +21,21 @@ Auto-aprova pendentes com confiança >= threshold (candidato top3[0]).
 
 ### cached_get_active_ingredients()
 
-### cached_get_active_recipients(channel)
+### cached_get_active_recipients(channel: str | None)
 
-### cached_get_all_alert_rules(include_disabled)
+### cached_get_all_alert_rules(include_disabled: bool)
 
 ### cached_get_all_feature_flags()
 
-### cached_get_all_ingredients(include_inactive)
+### cached_get_all_ingredients(include_inactive: bool)
 
-### cached_get_all_recipients(include_inactive)
+### cached_get_all_recipients(include_inactive: bool)
 
-### cached_get_all_schedules(include_disabled)
+### cached_get_all_schedules(include_disabled: bool)
 
-### cached_get_all_stores(include_inactive)
+### cached_get_all_stores(include_inactive: bool)
 
-### cached_get_enabled_alert_rules(trigger)
+### cached_get_enabled_alert_rules(trigger: str | None)
 
 ### cached_get_enabled_schedules()
 
@@ -51,17 +51,17 @@ Decorator: @st.cache_data(ttl=...) dentro do Streamlit; lru_cache fora.
 
 Decorator para dados DINÂMICOS (preços): st.cache_data no runtime, sem cache fora.
 
-### decorator(func)
+### decorator(func: Callable[..., Any])
 
 ### detect_outliers_cached(days: int)
 
 Detect price outliers using DB-side RPC (z-score > 2 per ingredient).
 
-### extract_ppk(row: dict)
+### extract_ppk(row: dict[str, Any])
 
 Extract price_per_kg from a row, handling both nested and flat schemas.
 
-### extract_pun(row: dict)
+### extract_pun(row: dict[str, Any])
 
 Extract price_per_un from a row, handling both nested and flat schemas.
 

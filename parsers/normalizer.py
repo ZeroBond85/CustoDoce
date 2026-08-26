@@ -1,16 +1,19 @@
 import re
-from typing import Any
+
+from services.types import PriceNormalized
 
 
 class NormalizedPrice:
-    def __init__(self, qty: int, unit_kg: float, total_kg: float, price_per_kg: float, price_per_un: float):
+    def __init__(
+        self, qty: int, unit_kg: float, total_kg: float, price_per_kg: float, price_per_un: float
+    ) -> None:
         self.qty = qty
         self.unit_kg = unit_kg
         self.total_kg = total_kg
         self.price_per_kg = price_per_kg
         self.price_per_un = price_per_un
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_dict(self) -> PriceNormalized:
         return {
             "qty": self.qty,
             "unit_kg": round(self.unit_kg, 4),
@@ -19,7 +22,7 @@ class NormalizedPrice:
             "price_per_un": round(self.price_per_un, 2),
         }
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"<Normalized: R${self.price_per_kg:.2f}/kg, "
             f"R${self.price_per_un:.2f}/un, "
@@ -70,7 +73,9 @@ def parse_unit(raw_unit: str) -> NormalizedPrice | None:
 
             if weight_unit and weight_unit.lower() in ("kg", "kilo", "kilograma"):
                 unit_kg = weight
-            elif weight_unit and weight_unit.lower() in ("g", "gr", "grama") or weight_unit and weight_unit.lower() in ("ml", "mililitro"):
+            elif weight_unit and weight_unit.lower() in ("g", "gr", "grama") or (
+                weight_unit and weight_unit.lower() in ("ml", "mililitro")
+            ):
                 unit_kg = weight / 1000
             elif weight_unit and weight_unit.lower() in ("litro", "litros"):
                 unit_kg = weight  # 1 litro ~ 1kg for liquids

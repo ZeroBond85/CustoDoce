@@ -6,6 +6,7 @@ CPU-only, determinístico, cache em disco e suporte a ONNX para performance.
 import hashlib
 import logging
 from pathlib import Path
+from typing import Any, cast
 
 import numpy as np
 
@@ -18,23 +19,23 @@ _ONNX_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class SemanticMatcher:
-    def __init__(self, model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"):
+    def __init__(self, model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2") -> None:
         self.model_name = model_name
-        self._model = None
-        self._onnx_model = None
+        self._model: Any = None
+        self._onnx_model: tuple[Any, Any] | None = None
         self._ingredient_embeddings: dict[str, np.ndarray] = {}
         self._loaded = False
         # Pre-warm ONNX model at startup (PyTorch fallback se ONNX falhar)
         self._get_onnx_model()
 
-    def _get_model(self):
+    def _get_model(self) -> Any:
         if self._model is None:
             from sentence_transformers import SentenceTransformer
 
             self._model = SentenceTransformer(self.model_name)
         return self._model
 
-    def _get_onnx_model(self):
+    def _get_onnx_model(self) -> tuple[Any, Any] | None:
         """Load or export the model to ONNX format."""
         if self._onnx_model is not None:
             return self._onnx_model
@@ -65,10 +66,10 @@ class SemanticMatcher:
     def _get_cached_embedding(self, text: str) -> np.ndarray | None:
         path = _CACHE_DIR / f"{self._cache_key(text)}.npy"
         if path.exists():
-            return np.load(path)
+            return cast(np.ndarray, np.load(path))
         return None
 
-    def _cache_embedding(self, text: str, embedding: np.ndarray):
+    def _cache_embedding(self, text: str, embedding: np.ndarray) -> None:
         path = _CACHE_DIR / f"{self._cache_key(text)}.npy"
         np.save(path, embedding)
 
@@ -91,9 +92,9 @@ class SemanticMatcher:
         self._cache_embedding(text, emb)
         return emb
 
-    def load_ingredients(self, ingredients: list[Ingredient]):
+    def load_ingredients(self, ingredients: list[Ingredient]) -> None:
         for ing in ingredients:
-            texts = [ing["canonical_name"]] + ing.get("aliases", []) + ing.get("search_terms", [])
+            texts = [ing["canonical_name"]] + cast(list[str], ing.get("aliases") or []) + cast(list[str], ing.get("search_terms") or [])
             for t in texts:
                 self._ingredient_embeddings[t] = self.get_embedding(t)
         self._loaded = True
@@ -107,9 +108,9 @@ class SemanticMatcher:
             self.load_ingredients([ingredient])
 
         prod_emb = self.get_embedding(product_text)
-        texts = [ingredient["canonical_name"]] + ingredient.get("aliases", [])
+        texts = [ingredient["canonical_name"]] + cast(list[str], ingredient.get("aliases") or [])
 
-        embeddings = []
+        embeddings: list[np.ndarray] = []
         for t in texts:
             emb = self._ingredient_embeddings.get(t)
             if emb is None:

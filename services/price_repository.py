@@ -10,7 +10,7 @@ import re
 import time
 
 from services.logger import logger
-from services.supabase_client import get_service_client, get_supabase
+from services.supabase_client import get_service_client, get_supabase, safe_execute, rpc_execute
 from services.types import PriceEntry
 
 
@@ -66,34 +66,26 @@ def upsert_price(price_entry: PriceEntry) -> dict[str, Any]:
     }
     try:
         result = _upsert_price_rpc_with_retry(client, params)
-        data = result.data
-        if isinstance(data, dict):
-            return data
-        if isinstance(data, list) and data:
-            return data[0]
+        if isinstance(result, dict):
+            return result
+        if isinstance(result, list) and result:
+            return result[0]
         return {}
     except Exception as e_rpc:
         logger.warning("upsert_price RPC failed, trying table fallback: %s", e_rpc)
         data = _build_price_row(price_entry)
-        # [Errno 11] Resource temporarily unavailable = exaustão transitória de
-        # recurso do PostgREST sob pressão do scrape. Retry com backoff antes de
-        # desistir — evita perder preços coletados por ruído de rede.
         try:
-            result = _upsert_price_table_with_retry(client, data)
-            return result.data[0] if result.data else {}
+            result = _upsert_price_table_with_retry(data)
+            if isinstance(result, list) and result:
+                return result[0]
+            return {}
         except Exception as e_fallback:
             logger.error("upsert_price fallback failed: %s", e_fallback)
             raise e_fallback
 
 
 def _build_price_row(price_entry: PriceEntry) -> dict[str, Any]:
-    """Converte um PriceEntry no formato da tabela `prices` (fallback/batch).
-
-    Centraliza a transformação entry → row para que o upsert unitário (fallback)
-    e o batch upsert usem EXATAMENTE a mesma lógica (validação de promoção,
-    valid_until default, weekday). Qualquer divergência aqui gera inconsistência
-    entre os dois caminhos de escrita.
-    """
+    """Converte um PriceEntry no formato da tabela `prices` (fallback/batch)."""
     today = date.today().isoformat()
     valid_until = price_entry.get("valid_until")
     if valid_until is None or not isinstance(valid_until, str):
@@ -136,13 +128,13 @@ def _is_transient_net_err(exc: Exception) -> bool:
     )
 
 
-def _upsert_price_rpc_with_retry(client, params, max_retries: int = 3) -> Any:
+def _upsert_price_rpc_with_retry(client: Any, params: dict[str, Any], max_retries: int = 3) -> list[dict[str, Any]]:
     """Chama upsert_price_rpc com retry em erros de rede/recurso transitórios."""
     last_exc: Exception | None = None
     for attempt in range(max_retries):
         try:
-            return client.rpc("upsert_price_rpc", params).execute()
-        except Exception as exc:  # noqa: BLE001 - erro de rede precisa de retry
+            return rpc_execute(client, "upsert_price_rpc", params)
+        except Exception as exc:
             last_exc = exc
             if _is_transient_net_err(exc) and attempt < max_retries - 1:
                 logger.info(
@@ -152,21 +144,21 @@ def _upsert_price_rpc_with_retry(client, params, max_retries: int = 3) -> Any:
                 time.sleep(1.0 * (attempt + 1))
                 continue
             raise
-    assert last_exc is not None  # nosec
+    if last_exc is None:
+        raise RuntimeError("upsert failed without capturing an exception")
     raise last_exc
 
 
-def _upsert_price_table_with_retry(client, data, max_retries: int = 3) -> Any:
+def _upsert_price_table_with_retry(data: dict[str, Any] | list[dict[str, Any]], max_retries: int = 3) -> list[dict[str, Any]]:
     """Fallback via table.upsert com retry em erros de rede/recurso transitórios."""
     last_exc: Exception | None = None
     for attempt in range(max_retries):
         try:
-            return (
-                client.table("prices")
+            return safe_execute(
+                get_service_client().table("prices")
                 .upsert(data, on_conflict="ingredient_id,store_id,collected_at")
-                .execute()
             )
-        except Exception as exc:  # noqa: BLE001 - erro de rede precisa de retry
+        except Exception as exc:
             last_exc = exc
             if _is_transient_net_err(exc) and attempt < max_retries - 1:
                 logger.info(
@@ -176,7 +168,8 @@ def _upsert_price_table_with_retry(client, data, max_retries: int = 3) -> Any:
                 time.sleep(1.0 * (attempt + 1))
                 continue
             raise
-    assert last_exc is not None  # nosec
+    if last_exc is None:
+        raise RuntimeError("upsert failed without capturing an exception")
     raise last_exc
 
 
@@ -209,8 +202,7 @@ def search_prices(
         query = query.order("raw_price", desc=(sort_order == "desc"))
     else:
         query = query.order(sort_by, desc=(sort_order == "desc"))
-    result = query.limit(limit).execute()
-    return result.data if result.data else []
+    return safe_execute(query.limit(limit))
 
 
 def get_latest_prices(valid_only: bool = True, limit: int = 2000) -> list[dict[str, Any]]:
@@ -219,8 +211,7 @@ def get_latest_prices(valid_only: bool = True, limit: int = 2000) -> list[dict[s
     if valid_only:
         today = date.today().isoformat()
         query = query.lte("valid_from", today).gte("valid_until", today)
-    result = query.order("collected_at", desc=True).limit(limit).execute()
-    return result.data if result.data else []
+    return safe_execute(query.order("collected_at", desc=True).limit(limit))
 
 
 def get_price_history(ingredient_canonical: str, days: int = 30, valid_only: bool = False) -> list[dict[str, Any]]:
@@ -230,11 +221,10 @@ def get_price_history(ingredient_canonical: str, days: int = 30, valid_only: boo
         today = date.today().isoformat()
         query = query.lte("valid_from", today).gte("valid_until", today)
     cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
-    result = query.gte("collected_at", cutoff).order("collected_at", desc=True).execute()
-    return result.data if result.data else []
+    return safe_execute(query.gte("collected_at", cutoff).order("collected_at", desc=True))
 
 
-def _extract_price_per_kg(row: dict) -> float:
+def _extract_price_per_kg(row: dict[str, Any]) -> float:
     """Menor custo por kg da row (normalized.price_per_kg > estimativa raw)."""
     norm = row.get("normalized")
     if isinstance(norm, dict):
@@ -270,14 +260,9 @@ def _extract_price_per_kg(row: dict) -> float:
     return float("inf")
 
 
-def _deduplicate_price_rows(rows: list[dict]) -> list[dict]:
-    """Remove duplicatas por (ingredient_id, store_id, collected_at), mantendo o melhor preço.
-
-    Melhor = menor price_per_kg (calculado de normalized.price_per_kg se disponível,
-    senão raw_price / total_kg estimado). Sem dedup, o mesmo chunk levava a
-    "ON CONFLICT DO UPDATE command cannot affect row a second time" (erro 21000).
-    """
-    seen: dict[tuple, dict] = {}
+def _deduplicate_price_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Remove duplicatas por (ingredient_id, store_id, collected_at), mantendo o melhor preço."""
+    seen: dict[tuple[str, str, str], dict[str, Any]] = {}
     for row in rows:
         key = (row["ingredient_id"], row["store_id"], row["collected_at"])
         price_per_kg = _extract_price_per_kg(row)
@@ -288,40 +273,20 @@ def _deduplicate_price_rows(rows: list[dict]) -> list[dict]:
 
 
 def batch_upsert_prices(price_entries: list[PriceEntry], chunk_size: int = 50) -> dict[str, int]:
-    """Upsert em lote de preços na tabela `prices` via único `table.upsert`.
-
-    Substitui N chamadas HTTP unitárias por ~N/chunk_size chamadas em batch —
-    elimina o gargalo de round-trips do scrape em massa (Centro de Custo: o
-    `upsert_price` unitário dispara 1 request RPC + 1 fallback por produto).
-
-    O batch usa a MESMA lógica de `_build_price_row()` do fallback unitário e o
-    mesmo `ON CONFLICT (ingredient_id, store_id, collected_at)`. O trigger
-    `trg_price_history` dispara por row em qualquer INSERT/UPDATE — histórico
-    preservado. `price_per_kg` é generated column derivada de `normalized`.
-
-    **NOVO**: Deduplica entradas por (ingredient_id, store_id, collected_at) antes
-    do upsert, mantendo o menor price_per_kg — evita erro "ON CONFLICT DO UPDATE
-    command cannot affect row a second time".
-
-    Retorna {"total": ..., "inserted": ..., "failed": ...}. Em erro transitório
-    de rede cada chunk tem retry com backoff; erro persistente conta como failed
-    (não derruba o pipeline — o caller loga e segue).
-    """
+    """Upsert em lote de preços na tabela `prices` via único `table.upsert`."""
     if not price_entries:
         return {"total": 0, "inserted": 0, "failed": 0}
-    client = get_service_client()
     rows = [_build_price_row(e) for e in price_entries]
-    # Deduplica por chave única do upsert
     rows = _deduplicate_price_rows(rows)
     inserted = 0
     failed = 0
     for i in range(0, len(rows), chunk_size):
         chunk = rows[i : i + chunk_size]
         try:
-            result = _upsert_price_table_with_retry(client, chunk)
-            data = result.data if isinstance(result.data, list) else []
-            inserted += len(data) if data else 0
-        except Exception as exc:  # noqa: BLE001 - erro de rede/recurso já com retry interno
+            result = _upsert_price_table_with_retry(chunk)
+            if isinstance(result, list):
+                inserted += len(result)
+        except Exception as exc:
             failed += len(chunk)
             logger.warning("batch_upsert_prices chunk failed (%d rows): %s", len(chunk), exc)
     logger.info(

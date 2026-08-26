@@ -14,7 +14,7 @@ from services.dashboard_queries import (
 )
 
 
-def render_ranking():
+def render_ranking() -> None:
     st.title("Ranking de Preços")
 
     tab1, tab2, tab3 = st.tabs(["Vencedores Históricos", "Tendências", "Ranking Cruzado"])

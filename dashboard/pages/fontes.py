@@ -5,6 +5,7 @@ Dashboard Page: Fontes
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+from typing import Any
 
 from dashboard.components.ui import inject_css
 from services.dashboard_queries import (
@@ -15,7 +16,7 @@ from services.dashboard_queries import (
 )
 
 
-def _fmt_frequency(freq: dict | str | None) -> str:
+def _fmt_frequency(freq: dict[str, Any] | str | None) -> str:
     """Converte scrape_frequency (dict) em rótulo legível."""
     if not freq or not isinstance(freq, dict):
         return "—"
@@ -36,7 +37,7 @@ def _fmt_frequency(freq: dict | str | None) -> str:
     return f"A cada {minutes // (60 * 24)} dias"
 
 
-def render_fontes():
+def render_fontes() -> None:
     inject_css()
 
     st.title("Fontes de Dados")
@@ -93,10 +94,10 @@ def render_fontes():
         stores = get_stores_with_frequencies()
     if stores:
         # Nº Preços e Última Coleta por loja — do cache de preços já carregado.
-        price_counts: dict = {}
-        last_collect: dict = {}
+        price_counts: dict[str, Any] = {}
+        last_collect: dict[str, Any] = {}
         for p in prices:
-            sid = p.get("store_id")
+            sid = str(p.get("store_id") or "")
             if not sid:
                 continue
             price_counts[sid] = price_counts.get(sid, 0) + 1
@@ -106,7 +107,7 @@ def render_fontes():
 
         rows = []
         for s in stores:
-            sid = s.get("id")
+            sid = str(s.get("id") or "")
             rows.append(
                 {
                     "Loja": s.get("name"),

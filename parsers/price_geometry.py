@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Any
 
 # --- geometry helpers --------------------------------------------------------
 
@@ -104,7 +105,7 @@ class _Num:
 
 
 def reconstruct_prices(
-    regions: list[dict],
+    regions: list[dict[str, Any]],
     *,
     min_reais_height: float = 55.0,
 ) -> list[Price]:

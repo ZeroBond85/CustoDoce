@@ -4,9 +4,11 @@ Extracted from admin/app.py to separate query logic from UI.
 All functions use cached Supabase clients for performance.
 """
 
+from collections.abc import Callable
 from contextlib import suppress
 from datetime import UTC, datetime
 from functools import lru_cache
+from typing import Any, cast
 
 from services.logger import logger
 
@@ -25,14 +27,78 @@ from services.config_db import (
 from services.flyer_service import get_recent_flyers
 from services.price_service import (
     get_all_current_prices,
-    get_cheapest_prices,
     get_cross_ingredient_ranking,
     get_longitudinal_winners,
     get_price_history,
     get_price_trends,
     search_prices,
 )
-from services.supabase_client import get_supabase
+from services.supabase_client import get_supabase, safe_execute, safe_single_execute
+
+__all__ = [
+    "load_ingredients_yaml",
+    "load_stores_yaml",
+    "cached_get_all_stores",
+    "cached_get_all_ingredients",
+    "cached_get_all_schedules",
+    "cached_get_all_recipients",
+    "cached_get_all_alert_rules",
+    "cached_get_all_feature_flags",
+    "cached_get_active_ingredients",
+    "cached_get_enabled_schedules",
+    "cached_get_active_recipients",
+    "cached_get_enabled_alert_rules",
+    "get_prices_for_ingredient_cached",
+    "get_latest_prices_cached",
+    "get_price_history_cached",
+    "get_longitudinal_winners_cached",
+    "get_price_trends_cached",
+    "get_cross_ingredient_ranking_cached",
+    "get_cheapest_prices_cached",
+    "get_stores_with_frequencies",
+    "get_active_stores_by_tier",
+    "get_active_stores",
+    "get_store_scraper_config",
+    "get_ingredients_with_brands",
+    "get_ingredient_by_canonical",
+    "get_recent_flyers_cached",
+    "get_dashboard_kpis",
+    "get_coverage_by_ingredient",
+    "get_active_promotions",
+    "get_recent_scraper_logs",
+    "get_store_health",
+    "get_store_coverage_health",
+    "get_coverage_summary",
+    "get_scraper_health_dashboard",
+    "get_store_registry_pending_cached",
+    "get_store_registry_approved_cached",
+    "approve_store_registry_cached",
+    "reject_store_registry_cached",
+    "reject_store_registry_bulk_by_prefix_cached",
+    "reject_store_registry_non_food_bulk_cached",
+    "merge_store_registry_cached",
+    "get_review_queue_cached",
+    "get_review_queue_pending_count_cached",
+    "auto_approve_high_confidence_cached",
+    "approve_review_item_cached",
+    "reject_review_item_cached",
+    "reject_review_queue_bulk_cached",
+    "approve_review_queue_bulk_cached",
+    "extract_ppk",
+    "extract_pun",
+    "detect_outliers_cached",
+    "clear_all_caches",
+    # Re-exported from config_db (no-implicit-reexport)
+    "get_active_ingredients",
+    "get_all_ingredients",
+    "get_all_stores",
+    "get_active_recipients",
+    "get_all_alert_rules",
+    "get_all_feature_flags",
+    "get_all_schedules",
+    "get_enabled_alert_rules",
+    "get_enabled_schedules",
+]
 
 # ============================================================
 # Cache híbrido: @st.cache_data em runtime Streamlit, fallback local fora dele
@@ -65,7 +131,7 @@ def _register(fn: object) -> None:
         _CACHE_REGISTRY.append(fn)
 
 
-def dashboard_cache(ttl: int | None = None, maxsize: int = 1):
+def dashboard_cache(ttl: int | None = None, maxsize: int = 1) -> Callable[..., Any]:
     """Decorator: @st.cache_data(ttl=...) dentro do Streamlit; lru_cache fora.
 
     O dashboard roda em processo Streamlit persistente onde ``@lru_cache`` nunca
@@ -74,11 +140,11 @@ def dashboard_cache(ttl: int | None = None, maxsize: int = 1):
     TTL + limpeza global. Fora do runtime cai em ``lru_cache`` — scripts,
     telegram e testes unitários mantêm o comportamento atual.
     """
-    def decorator(func):
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         if _streamlit_runtime_active():
             import streamlit as st
 
-            cached = st.cache_data(ttl=ttl)(func)
+            cached: Callable[..., Any] = st.cache_data(ttl=ttl)(func)
             _register(cached)
             return cached
         cached = lru_cache(maxsize=maxsize)(func)
@@ -88,7 +154,7 @@ def dashboard_cache(ttl: int | None = None, maxsize: int = 1):
     return decorator
 
 
-def dashboard_data_cache(ttl: int | None = None):
+def dashboard_data_cache(ttl: int | None = None) -> Callable[..., Any]:
     """Decorator para dados DINÂMICOS (preços): st.cache_data no runtime, sem cache fora.
 
     Diferente de ``dashboard_cache`` (config estática), dados de preço NÃO podem
@@ -96,11 +162,11 @@ def dashboard_data_cache(ttl: int | None = None):
     lru_cache devolveria resultado velho. Aqui, fora do Streamlit o decorator é
     identidade (sem cache); dentro, ``st.cache_data`` com TTL.
     """
-    def decorator(func):
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         if _streamlit_runtime_active():
             import streamlit as st
 
-            cached = st.cache_data(ttl=ttl)(func)
+            cached: Callable[..., Any] = st.cache_data(ttl=ttl)(func)
             _register(cached)
             return cached
         return func
@@ -122,7 +188,7 @@ def _clear_cached_functions() -> None:
 
 
 @dashboard_cache(ttl=3600)
-def load_ingredients_yaml():
+def load_ingredients_yaml() -> Any:
     import yaml
 
     with open("config/ingredients.yaml", encoding="utf-8") as f:
@@ -131,7 +197,7 @@ def load_ingredients_yaml():
 
 
 @dashboard_cache(ttl=3600)
-def load_stores_yaml():
+def load_stores_yaml() -> Any:
     import yaml
 
     with open("config/stores.yaml", encoding="utf-8") as f:
@@ -140,52 +206,52 @@ def load_stores_yaml():
 
 
 @dashboard_cache(ttl=300)
-def cached_get_all_stores(include_inactive=False):
+def cached_get_all_stores(include_inactive: bool = False) -> list[dict[str, Any]]:
     return get_all_stores(include_inactive)
 
 
 @dashboard_cache(ttl=300)
-def cached_get_all_ingredients(include_inactive=False):
+def cached_get_all_ingredients(include_inactive: bool = False) -> list[dict[str, Any]]:
     return get_all_ingredients(include_inactive)
 
 
 @dashboard_cache(ttl=300)
-def cached_get_all_schedules(include_disabled=False):
+def cached_get_all_schedules(include_disabled: bool = False) -> list[dict[str, Any]]:
     return get_all_schedules(include_disabled)
 
 
 @dashboard_cache(ttl=300)
-def cached_get_all_recipients(include_inactive=False):
+def cached_get_all_recipients(include_inactive: bool = False) -> list[dict[str, Any]]:
     return get_all_recipients(include_inactive)
 
 
 @dashboard_cache(ttl=300)
-def cached_get_all_alert_rules(include_disabled=False):
+def cached_get_all_alert_rules(include_disabled: bool = False) -> list[dict[str, Any]]:
     return get_all_alert_rules(include_disabled)
 
 
 @dashboard_cache(ttl=300)
-def cached_get_all_feature_flags():
+def cached_get_all_feature_flags() -> list[dict[str, Any]]:
     return get_all_feature_flags()
 
 
 @dashboard_cache(ttl=300)
-def cached_get_active_ingredients():
+def cached_get_active_ingredients() -> list[dict[str, Any]]:
     return get_active_ingredients()
 
 
 @dashboard_cache(ttl=300)
-def cached_get_enabled_schedules():
+def cached_get_enabled_schedules() -> list[dict[str, Any]]:
     return get_enabled_schedules()
 
 
 @dashboard_cache(ttl=300)
-def cached_get_active_recipients(channel=None):
+def cached_get_active_recipients(channel: str | None = None) -> list[dict[str, Any]]:
     return get_active_recipients(channel)
 
 
 @dashboard_cache(ttl=300)
-def cached_get_enabled_alert_rules(trigger=None):
+def cached_get_enabled_alert_rules(trigger: str | None = None) -> list[dict[str, Any]]:
     return get_enabled_alert_rules(trigger)
 
 
@@ -195,7 +261,9 @@ def cached_get_enabled_alert_rules(trigger=None):
 
 
 @dashboard_data_cache(ttl=600)
-def get_prices_for_ingredient_cached(ingredient: str, valid_only: bool = True, tier: int | None = None):
+def get_prices_for_ingredient_cached(
+    ingredient: str, valid_only: bool = True, tier: int | None = None
+) -> list[dict[str, Any]]:
     """Get prices for an ingredient using the new server-side sorting.
 
     Filtra por ingrediente (e tier, quando informado) no PostgREST — o dashboard
@@ -207,34 +275,38 @@ def get_prices_for_ingredient_cached(ingredient: str, valid_only: bool = True, t
 
 
 @dashboard_data_cache(ttl=600)
-def get_latest_prices_cached(valid_only: bool = True, limit: int = 2000):
+def get_latest_prices_cached(valid_only: bool = True, limit: int = 2000) -> list[dict[str, Any]]:
     """Get latest prices using materialized view."""
     return get_all_current_prices(valid_only=valid_only, limit=limit)
 
 
 @dashboard_data_cache(ttl=600)
-def get_price_history_cached(ingredient: str, days: int = 30, valid_only: bool = False):
+def get_price_history_cached(
+    ingredient: str, days: int = 30, valid_only: bool = False
+) -> list[dict[str, Any]]:
     return get_price_history(ingredient, days, valid_only)
 
 
 @dashboard_data_cache(ttl=600)
-def get_longitudinal_winners_cached(days: int = 90):
+def get_longitudinal_winners_cached(days: int = 90) -> list[dict[str, Any]]:
     return get_longitudinal_winners(days)
 
 
 @dashboard_data_cache(ttl=600)
-def get_price_trends_cached(ingredient: str, days: int = 90):
+def get_price_trends_cached(ingredient: str, days: int = 90) -> list[dict[str, Any]]:
     return get_price_trends(ingredient, days)
 
 
 @dashboard_data_cache(ttl=600)
-def get_cross_ingredient_ranking_cached(days: int = 90):
+def get_cross_ingredient_ranking_cached(days: int = 90) -> list[dict[str, Any]]:
     return get_cross_ingredient_ranking(days)
 
 
 @dashboard_cache(maxsize=128)
-def get_cheapest_prices_cached(ingredient: str, top_n: int = 3):
-    return get_cheapest_prices(ingredient, top_n)
+def get_cheapest_prices_cached(ingredient: str, top_n: int = 3) -> list[dict[str, Any]]:
+    return search_prices(
+        ingredient, sort_by="price_per_kg", sort_order="asc", limit=top_n, valid_only=True
+    )
 
 
 # ============================================================
@@ -242,13 +314,13 @@ def get_cheapest_prices_cached(ingredient: str, top_n: int = 3):
 # ============================================================
 
 
-def get_stores_with_frequencies():
+def get_stores_with_frequencies() -> list[dict[str, Any]]:
     """Get all stores with their scrape frequencies merged."""
-    stores = cached_get_all_stores(include_inactive=True)
-    freq_data = {}
+    stores: list[dict[str, Any]] = cached_get_all_stores(include_inactive=True)
+    freq_data: dict[str, Any] = {}
     client = get_supabase()
-    freq = client.table("scrape_frequencies").select("*").execute()
-    for f in freq.data or []:
+    rows = safe_execute(client.table("scrape_frequencies").select("*"))
+    for f in rows:
         freq_data[f["store_id"]] = f
     for s in stores:
         sid = s.get("id")
@@ -257,9 +329,9 @@ def get_stores_with_frequencies():
     return stores
 
 
-def get_active_stores_by_tier(tier: int | None = None):
+def get_active_stores_by_tier(tier: int | None = None) -> list[dict[str, Any]]:
     """Get active stores, optionally filtered by tier."""
-    stores = cached_get_all_stores(include_inactive=False)
+    stores: list[dict[str, Any]] = cached_get_all_stores(include_inactive=False)
     if tier:
         stores = [s for s in stores if s.get("tier") == tier]
     return stores
@@ -271,7 +343,7 @@ def get_active_stores() -> dict[str, str]:
     return {s["name"]: s["id"] for s in stores}
 
 
-def get_store_scraper_config(store_name: str):
+def get_store_scraper_config(store_name: str) -> dict[str, Any] | None:
     """Get scraper configuration for a store."""
     stores = cached_get_all_stores(include_inactive=True)
     for s in stores:
@@ -293,14 +365,15 @@ def get_store_scraper_config(store_name: str):
 # ============================================================
 
 
-def get_ingredients_with_brands():
+def get_ingredients_with_brands() -> list[dict[str, Any]]:
     """Get ingredients with their brands and search terms."""
-    return cached_get_all_ingredients(include_inactive=True)
+    ingredients: list[dict[str, Any]] = cached_get_all_ingredients(include_inactive=True)
+    return ingredients
 
 
-def get_ingredient_by_canonical(canonical: str):
+def get_ingredient_by_canonical(canonical: str) -> dict[str, Any] | None:
     """Find ingredient by canonical name."""
-    ingredients = cached_get_all_ingredients(include_inactive=True)
+    ingredients: list[dict[str, Any]] = cached_get_all_ingredients(include_inactive=True)
     for ing in ingredients:
         if ing.get("canonical_name") == canonical:
             return ing
@@ -312,7 +385,7 @@ def get_ingredient_by_canonical(canonical: str):
 # ============================================================
 
 
-def get_recent_flyers_cached(days: int = 7, source: str | None = None):
+def get_recent_flyers_cached(days: int = 7, source: str | None = None) -> list[dict[str, Any]]:
     return get_recent_flyers(days, source)
 
 
@@ -321,13 +394,13 @@ def get_recent_flyers_cached(days: int = 7, source: str | None = None):
 # ============================================================
 
 
-def get_dashboard_kpis():
+def get_dashboard_kpis() -> dict[str, Any]:
     """Calculate KPIs for dashboard overview."""
     prices = get_latest_prices_cached(valid_only=True, limit=5000)
     return _kpis_from_prices(prices)
 
 
-def _kpis_from_prices(prices):
+def _kpis_from_prices(prices: list[dict[str, Any]]) -> dict[str, Any]:
     """KPIs a partir de preços já carregados — dashboard reusa 1 query de 5000."""
     if not prices:
         return {
@@ -357,7 +430,7 @@ def _kpis_from_prices(prices):
     }
 
 
-def get_coverage_by_ingredient():
+def get_coverage_by_ingredient() -> list[dict[str, Any]]:
     """Get coverage statistics per ingredient.
 
     Single-pass O(N) sobre os preços — evita o loop O(N²) anterior
@@ -368,7 +441,7 @@ def get_coverage_by_ingredient():
     return _coverage_from_prices(prices)
 
 
-def _coverage_from_prices(prices):
+def _coverage_from_prices(prices: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Computa cobertura por ingrediente a partir de preços já carregados.
 
     Expor a versão com preços prontos permite que o dashboard faça UMA query
@@ -381,7 +454,12 @@ def _coverage_from_prices(prices):
     from collections import defaultdict
 
     # Passo único: agrega por ingrediente sem re-scan da lista.
-    by_ing = defaultdict(lambda: {"stores": set(), "prices": 0, "ppk_sum": 0.0, "ppk_count": 0, "min_ppk": float("inf")})
+    by_ing: dict[str, dict[str, Any]] = defaultdict(
+        lambda: cast(
+            "dict[str, Any]",
+            {"stores": set(), "prices": 0, "ppk_sum": 0.0, "ppk_count": 0, "min_ppk": float("inf")},
+        )
+    )
     for p in prices:
         ing = p.get("ingredient_id", "")
         store = p.get("store_id", "")
@@ -409,13 +487,13 @@ def _coverage_from_prices(prices):
     return sorted(coverage, key=lambda x: x["ingredient"])
 
 
-def get_active_promotions():
+def get_active_promotions() -> list[dict[str, Any]]:
     """Get currently active promotions."""
     prices = get_latest_prices_cached(valid_only=True, limit=5000)
     return _promotions_from_prices(prices)
 
 
-def _promotions_from_prices(prices):
+def _promotions_from_prices(prices: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Promoções ativas a partir de preços já carregados (sem 2ª query)."""
     return [p for p in prices if p.get("is_promotion")]
 
@@ -425,31 +503,35 @@ def _promotions_from_prices(prices):
 # ============================================================
 
 
-def get_recent_scraper_logs(limit: int = 50):
+def get_recent_scraper_logs(limit: int = 50) -> list[dict[str, Any]]:
     client = get_supabase()
-    result = client.table("scraping_logs").select("*").order("started_at", desc=True).limit(limit).execute()
-    return result.data or []
+    rows = safe_execute(
+        client.table("scraping_logs").select("*").order("started_at", desc=True).limit(limit)
+    )
+    return rows
 
 
-def get_store_health():
+def get_store_health() -> list[dict[str, Any]]:
     """Get health status for all stores based on recent logs."""
     client = get_supabase()
-    logs = (
+    rows = safe_execute(
         client.table("scraping_logs")
         .select("store_name, status, started_at, finished_at, items_found, items_matched")
         .order("started_at", desc=True)
         .limit(200)
-        .execute()
     )
 
     import statistics
     from collections import defaultdict
 
-    health = defaultdict(
-        lambda: {"runs": 0, "errors": 0, "total_found": 0, "total_matched": 0, "last_run": None, "latencies": []}
+    health: dict[str, dict[str, Any]] = defaultdict(
+        lambda: cast(
+            "dict[str, Any]",
+            {"runs": 0, "errors": 0, "total_found": 0, "total_matched": 0, "last_run": None, "latencies": []},
+        )
     )
 
-    for log in logs.data or []:
+    for log in rows:
         store = log.get("store_name", "")
         health[store]["runs"] += 1
         if log.get("status") in ("error", "failed"):
@@ -498,7 +580,7 @@ def get_store_health():
     return sorted(result, key=lambda x: x["last_run"] or "", reverse=True)
 
 
-def get_store_coverage_health(stale_days: int = 3):
+def get_store_coverage_health(stale_days: int = 3) -> list[dict[str, Any]]:
     """Visão de cobertura de PREÇOS por loja (não só sucesso do scraper).
 
     Cruza lojas ativas com os preços válidos mais recentes. Retorna, por loja:
@@ -516,7 +598,7 @@ def get_store_coverage_health(stale_days: int = 3):
     stores = cached_get_all_stores(include_inactive=False)
     prices = get_latest_prices_cached(valid_only=True, limit=5000)
 
-    by_store: dict[str, dict] = {}
+    by_store: dict[str, dict[str, Any]] = {}
     for p in prices:
         sid = p.get("store_id", "")
         rec = by_store.setdefault(
@@ -564,7 +646,7 @@ def get_store_coverage_health(stale_days: int = 3):
     return sorted(result, key=lambda x: (x["is_stale"], x["days_since_price"] is None, -(x["days_since_price"] or 0)))
 
 
-def get_coverage_summary(stale_days: int = 3):
+def get_coverage_summary(stale_days: int = 3) -> dict[str, Any]:
     """Resumo de cobertura para banner de alerta no dashboard."""
     data = get_store_coverage_health(stale_days=stale_days)
     total = len(data)
@@ -580,7 +662,7 @@ def get_coverage_summary(stale_days: int = 3):
     }
 
 
-def get_scraper_health_dashboard():
+def get_scraper_health_dashboard() -> list[dict[str, Any]]:
     """Get dashboard-ready scraper health with color-coded status."""
     data = get_store_health()
     for item in data:
@@ -610,23 +692,26 @@ def get_scraper_health_dashboard():
 # ============================================================
 
 
-def get_store_registry_pending_cached() -> list[dict]:
+def get_store_registry_pending_cached() -> list[dict[str, Any]]:
     """Get stores pending review from store_registry."""
     client = get_supabase()
-    res = client.table("store_registry").select("*").eq("status", "pending_review").order("created_at", desc=True).execute()
-    return res.data or []
+    return safe_execute(
+        client.table("store_registry").select("*").eq("status", "pending_review").order("created_at", desc=True)
+    )
 
 
-def get_store_registry_approved_cached() -> list[dict]:
+def get_store_registry_approved_cached() -> list[dict[str, Any]]:
     """Get approved stores from store_registry, ordered by updated_at."""
     client = get_supabase()
     try:
-        res = client.table("store_registry").select("*").eq("status", "approved").order("updated_at", desc=True).execute()
-        return res.data or []
+        return safe_execute(
+            client.table("store_registry").select("*").eq("status", "approved").order("updated_at", desc=True)
+        )
     except Exception:
         # Fallback: try ordering by updated_at
-        res = client.table("store_registry").select("*").eq("status", "approved").order("created_at", desc=True).execute()
-        return res.data or []
+        return safe_execute(
+            client.table("store_registry").select("*").eq("status", "approved").order("created_at", desc=True)
+        )
 
 
 def approve_store_registry_cached(entry_id: str) -> bool:
@@ -635,35 +720,39 @@ def approve_store_registry_cached(entry_id: str) -> bool:
     try:
         now_iso = datetime.now(UTC).isoformat()
         # Fetch entry data before updating
-        entry = client.table("store_registry").select("*").eq("id", entry_id).single().execute()
-        if not entry.data:
+        entry = safe_single_execute(client.table("store_registry").select("*").eq("id", entry_id))
+        if not entry:
             return False
 
-        client.table("store_registry").update({
-            "status": "approved",
-            "reviewed_at": now_iso,
-            "promoted_at": now_iso,
-        }).eq("id", entry_id).execute()
+        client.table("store_registry").update(
+            {
+                "status": "approved",
+                "reviewed_at": now_iso,
+                "promoted_at": now_iso,
+            }
+        ).eq("id", entry_id).execute()
 
         # Populate store_units if address exists
-        if entry.data.get("address"):
-            _populate_store_unit(entry.data)
+        if entry.get("address"):
+            _populate_store_unit(entry)
 
         return True
     except Exception:
         # Fallback without promoted_at column
         try:
-            client.table("store_registry").update({
-                "status": "approved",
-                "reviewed_at": datetime.now(UTC).isoformat(),
-            }).eq("id", entry_id).execute()
+            client.table("store_registry").update(
+                {
+                    "status": "approved",
+                    "reviewed_at": datetime.now(UTC).isoformat(),
+                }
+            ).eq("id", entry_id).execute()
             return True
         except Exception as e:
             logger.error(f"Failed to approve store registry {entry_id}: {e}")
             return False
 
 
-def _populate_store_unit(entry: dict):
+def _populate_store_unit(entry: dict[str, Any]) -> None:
     """Upsert a store_units row from a store_registry entry."""
     client = get_supabase()
     store_id = entry.get("matched_store_id") or entry.get("id", "")
@@ -703,15 +792,14 @@ def reject_store_registry_bulk_by_prefix_cached(prefix: str) -> int:
     start = 0
     now_iso = datetime.now(UTC).isoformat()
     while True:
-        batch = (
+        rows = safe_execute(
             client.table("store_registry")
             .select("id")
             .eq("status", "pending_review")
             .ilike("name", f"{prefix}%")
             .range(start, start + 999)
-            .execute()
         )
-        ids = [r["id"] for r in (batch.data or [])]
+        ids = [r["id"] for r in rows]
         if not ids:
             break
         try:
@@ -739,14 +827,12 @@ def reject_store_registry_non_food_bulk_cached() -> int:
     rejected = 0
     start = 0
     while True:
-        batch = (
+        rows = safe_execute(
             client.table("store_registry")
             .select("id, name")
             .eq("status", "pending_review")
             .range(start, start + 999)
-            .execute()
         )
-        rows = batch.data or []
         if not rows:
             break
         bad_ids = [r["id"] for r in rows if not _is_food_store_name(r.get("name", ""))]
@@ -767,31 +853,33 @@ def merge_store_registry_cached(entry_id: str, target_store_id: str) -> bool:
     try:
         now_iso = datetime.now(UTC).isoformat()
         # Fetch entry data before updating
-        entry = client.table("store_registry").select("*").eq("id", entry_id).single().execute()
-        if not entry.data:
+        entry = safe_single_execute(client.table("store_registry").select("*").eq("id", entry_id))
+        if not entry:
             return False
 
         # Update the registry entry
-        client.table("store_registry").update({
-            "status": "approved",
-            "matched_store_id": target_store_id,
-            "reviewed_at": now_iso,
-            "promoted_at": now_iso,
-        }).eq("id", entry_id).execute()
+        client.table("store_registry").update(
+            {
+                "status": "approved",
+                "matched_store_id": target_store_id,
+                "reviewed_at": now_iso,
+                "promoted_at": now_iso,
+            }
+        ).eq("id", entry_id).execute()
 
         # Update the store's address if the registry has one
-        if entry.data.get("address"):
-            client.table("stores").update({"address": entry.data["address"]}).eq("id", target_store_id).execute()
+        if entry.get("address"):
+            client.table("stores").update({"address": entry.get("address")}).eq("id", target_store_id).execute()
 
         # Populate store_units
         unit_data = {
             "store_id": target_store_id,
-            "unit_name": entry.data.get("name", ""),
-            "address": entry.data.get("address", ""),
-            "neighborhood": entry.data.get("neighborhood", ""),
-            "city": entry.data.get("city", ""),
+            "unit_name": entry.get("name", ""),
+            "address": entry.get("address", ""),
+            "neighborhood": entry.get("neighborhood", ""),
+            "city": entry.get("city", ""),
             "source": "store_registry",
-            "confidence": entry.data.get("address_confidence", 0.5),
+            "confidence": entry.get("address_confidence", 0.5),
             "is_active": True,
         }
         try:
@@ -803,11 +891,13 @@ def merge_store_registry_cached(entry_id: str, target_store_id: str) -> bool:
     except Exception:
         # Fallback without promoted_at column
         try:
-            client.table("store_registry").update({
-                "status": "approved",
-                "matched_store_id": target_store_id,
-                "reviewed_at": datetime.now(UTC).isoformat(),
-            }).eq("id", entry_id).execute()
+            client.table("store_registry").update(
+                {
+                    "status": "approved",
+                    "matched_store_id": target_store_id,
+                    "reviewed_at": datetime.now(UTC).isoformat(),
+                }
+            ).eq("id", entry_id).execute()
             return True
         except Exception as e:
             logger.error(f"Failed to merge store registry {entry_id}: {e}")
@@ -819,34 +909,34 @@ def merge_store_registry_cached(entry_id: str, target_store_id: str) -> bool:
 # ============================================================
 
 
-def get_review_queue_cached(limit: int = 500):
+def get_review_queue_cached(limit: int = 500) -> list[dict[str, Any]]:
     """Get review queue (apenas pendentes) usando service client se necessário."""
     from services.price_service import get_review_queue
 
     return get_review_queue(limit)
 
 
-def get_review_queue_pending_count_cached():
+def get_review_queue_pending_count_cached() -> int:
     """Contagem real de pendentes — sem limit, direto do banco."""
     from services.price_service import get_review_queue_pending_count
 
     return get_review_queue_pending_count()
 
 
-def auto_approve_high_confidence_cached(threshold: float = 0.80, dry_run: bool = True):
+def auto_approve_high_confidence_cached(threshold: float = 0.80, dry_run: bool = True) -> dict[str, Any]:
     """Auto-aprova pendentes com confiança >= threshold (candidato top3[0])."""
     from services.price_service import auto_approve_high_confidence
 
     return auto_approve_high_confidence(threshold=threshold, dry_run=dry_run)
 
 
-def approve_review_item_cached(item_id: str, ingredient_id: str, brand_override: str = ""):
+def approve_review_item_cached(item_id: str, ingredient_id: str, brand_override: str = "") -> dict[str, Any]:
     from services.price_service import approve_review_item
 
     return approve_review_item(item_id, ingredient_id, brand_override)
 
 
-def reject_review_item_cached(item_id: str):
+def reject_review_item_cached(item_id: str) -> dict[str, Any]:
     from services.price_service import reject_review_item
 
     return reject_review_item(item_id)
@@ -891,7 +981,7 @@ def approve_review_queue_bulk_cached(
 # ============================================================
 
 
-def _safe_ppk(r: dict) -> float:
+def _safe_ppk(r: dict[str, Any]) -> float:
     """Extract price_per_kg with isinstance guard (normalized may be bool)."""
     norm = r.get("normalized")
     if isinstance(norm, dict):
@@ -902,7 +992,7 @@ def _safe_ppk(r: dict) -> float:
     return 0.0
 
 
-def extract_ppk(row: dict) -> float:
+def extract_ppk(row: dict[str, Any]) -> float:
     """Extract price_per_kg from a row, handling both nested and flat schemas.
 
     Sprint 8 fallback chain:
@@ -931,7 +1021,7 @@ def extract_ppk(row: dict) -> float:
     return 0.0
 
 
-def extract_pun(row: dict) -> float:
+def extract_pun(row: dict[str, Any]) -> float:
     """Extract price_per_un from a row, handling both nested and flat schemas.
 
     Sprint 8 fallback chain:
@@ -961,7 +1051,7 @@ def extract_pun(row: dict) -> float:
 
 
 @dashboard_data_cache(ttl=300)
-def detect_outliers_cached(days: int = 90):
+def detect_outliers_cached(days: int = 90) -> list[dict[str, Any]]:
     """Detect price outliers using DB-side RPC (z-score > 2 per ingredient).
 
     Replaces frontend Python loop with database computation for performance.
@@ -975,14 +1065,13 @@ def detect_outliers_cached(days: int = 90):
     """
     client = get_supabase()
     try:
-        result = client.rpc("detect_price_outliers", {"p_days": days}).execute()
-        return result.data or []
+        return safe_execute(client.rpc("detect_price_outliers", {"p_days": days}))
     except Exception as e:
         logger.warning(f"Outlier detection RPC failed, falling back to empty: {e}")
         return []
 
 
-def clear_all_caches():
+def clear_all_caches() -> None:
     """Clear all caches - useful after data mutations.
 
     Percorre o registro de funções cacheadas (híbrido lru_cache/st.cache_data)

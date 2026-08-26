@@ -10,7 +10,7 @@ from services.flyer_service import delete_flyer, get_flyer_detail
 
 
 @st.dialog("Confirmar exclusão")
-def _confirm_delete_dialog(flyer_id: str):
+def _confirm_delete_dialog(flyer_id: str) -> None:
     detail = get_flyer_detail(flyer_id) or {}
     store_name = detail.get("store_name", "N/A")
     products_count = detail.get("products_extracted", 0)
@@ -35,7 +35,7 @@ def _confirm_delete_dialog(flyer_id: str):
             st.rerun()
 
 
-def render_flyers():
+def render_flyers() -> None:
     inject_css()
 
     st.title("Panfletos (Flyers)")

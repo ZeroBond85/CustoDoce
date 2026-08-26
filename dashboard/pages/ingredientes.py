@@ -5,6 +5,7 @@ Dashboard Page: Ingredientes
 import shutil
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, cast
 
 import pandas as pd
 import streamlit as st
@@ -14,17 +15,19 @@ from dashboard.components.ui import inject_css
 from parsers.matcher import match_ingredient
 from services.config_db import upsert_ingredient
 from services.dashboard_queries import get_active_ingredients, get_all_ingredients
+from services.types import Ingredient
 
 INGREDIENTS_YAML = Path("config/ingredients.yaml")
 INGREDIENTS_BACKUP_DIR = Path("data/ingredient_backups")
 
 
-def _load_yaml() -> list[dict]:
+def _load_yaml() -> list[dict[str, Any]]:
     if not INGREDIENTS_YAML.exists():
         return []
     with INGREDIENTS_YAML.open(encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
-    return data.get("ingredients", [])
+    ingredients_list: list[dict[str, Any]] = data.get("ingredients", [])
+    return ingredients_list
 
 
 def _backup_yaml() -> Path | None:
@@ -37,7 +40,7 @@ def _backup_yaml() -> Path | None:
     return backup_path
 
 
-def _save_ingredient(ing_dict: dict, is_new: bool) -> bool:
+def _save_ingredient(ing_dict: dict[str, Any], is_new: bool) -> bool:
     ingredients_yaml = _load_yaml()
     new_yaml = list(ingredients_yaml)
     updated = False
@@ -76,7 +79,7 @@ def _save_ingredient(ing_dict: dict, is_new: bool) -> bool:
     return True
 
 
-def _coerce_editor_df(df: pd.DataFrame, col_map: dict[str, str]) -> pd.DataFrame:
+def _coerce_editor_df(df: Any, col_map: dict[str, str]) -> Any:
     """Normaliza dtypes para o st.data_editor (evita StreamlitAPIException).
 
     Colunas JSONB chegam do Supabase como listas Python (object dtype), que
@@ -97,7 +100,7 @@ def _coerce_editor_df(df: pd.DataFrame, col_map: dict[str, str]) -> pd.DataFrame
     return out
 
 
-def render_ingredientes():
+def render_ingredientes() -> None:
     inject_css()
     st.title("🥄 Ingredientes")
 
@@ -160,7 +163,7 @@ def render_ingredientes():
             for _, row in edited.iterrows():
                 canonical = row["Nome Canônico"]
 
-                def parse_free(text):
+                def parse_free(text: str) -> list[str]:
                     if not text:
                         return []
                     return [x.strip() for x in str(text).replace(";", ",").replace("\n", ",").split(",") if x.strip()]
@@ -212,7 +215,7 @@ def render_ingredientes():
                 elif any(i.get("canonical_name") == canonical for i in _load_yaml()):
                     st.error("Já existe ingrediente com este nome")
                 else:
-                    def parse_free(text):
+                    def parse_free(text: str) -> list[str]:
                         """Aceita vírgula, ponto-e-vírgula, nova linha, espaços extras."""
                         if not text:
                             return []
@@ -248,14 +251,14 @@ def render_ingredientes():
                 st.warning("Digite um nome de produto")
             else:
                 with st.spinner("Comparando..."):
-                    ingredients = get_active_ingredients()
-                    if not ingredients:
+                    active_ingredients = cast("list[Ingredient]", get_active_ingredients())
+                    if not active_ingredients:
                         st.error("Nenhum ingrediente ativo cadastrado")
                     else:
-                        result = match_ingredient(test_product, ingredients)
+                        result = match_ingredient(test_product, active_ingredients)
                         st.divider()
-                        if result[0]:
-                            ing, score, mtype = result
+                        ing, score, mtype = result
+                        if ing is not None:
                             col1, col2, col3 = st.columns(3)
                             col1.metric("Match", ing["canonical_name"])
                             col2.metric("Score", f"{score:.1f}%")

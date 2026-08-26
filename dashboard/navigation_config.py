@@ -13,7 +13,7 @@ Usage:
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from typing import Any
 
 # ── MENU_GROUPS: st.navigation() source of truth ──────────────────────────
 MENU_GROUPS: dict[str, list[tuple[str, str, str]]] = {
@@ -84,7 +84,7 @@ _PAGE_MODULES: dict[str, str] = {
 }
 
 
-def get_page_function(page_id: str) -> Callable:
+def get_page_function(page_id: str) -> Any:
     """Lazy-load a page's render function by page_id.
 
     Avoids importing all page modules at startup — only loads when needed.

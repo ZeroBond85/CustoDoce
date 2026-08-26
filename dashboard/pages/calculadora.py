@@ -4,6 +4,8 @@ Dashboard Page: Calculadora de Receitas
 
 import pandas as pd
 import streamlit as st
+from collections.abc import Callable
+from typing import Any, cast
 
 from dashboard.components.ui import inject_css
 from services.dashboard_queries import get_active_ingredients, get_cheapest_prices_cached
@@ -24,7 +26,7 @@ def _resolve_tab_index(tab_names: list[str]) -> int:
     return 0
 
 
-def _sync_calc_query_params():
+def _sync_calc_query_params() -> None:
     import contextlib
 
 # ...
@@ -37,11 +39,11 @@ def _sync_calc_query_params():
             st.session_state["calc_tab"] = max(0, int(qp["tab"]))
 
 
-def _push_calc_query_params(tab_index: int):
+def _push_calc_query_params(tab_index: int) -> None:
     st.query_params.from_dict({"tab": str(tab_index)})
 
 
-def render_calculadora():
+def render_calculadora() -> None:
     inject_css()
     _sync_calc_query_params()
 
@@ -198,7 +200,7 @@ def render_calculadora():
                 # Cenários
                 st.subheader("📊 Cenários de Preço")
 
-                scenarios = [
+                scenarios: list[tuple[str, Callable[[Any], float]]] = [
                     ("Melhor Caso (Menor preço)", lambda c: c[0]["price_per_kg"] if c else 0),
                     ("Médio (Média top 3)", lambda c: sum(x["price_per_kg"] for x in c) / len(c) if c else 0),
                     ("Pior Caso (Maior preço top 3)", lambda c: c[-1]["price_per_kg"] if c else 0),
@@ -261,9 +263,10 @@ def render_calculadora():
 
         client = get_supabase()
         recipes = client.table("recipes").select("*").execute()
+        recipe_rows = cast("list[dict[str, Any]]", recipes.data) or []
 
-        if recipes.data:
-            df = pd.DataFrame(recipes.data)
+        if recipe_rows:
+            df = pd.DataFrame(recipe_rows)
             st.dataframe(
                 df[["name", "yield_qty", "overhead_pct", "profit_pct", "created_at"]], use_container_width=True
             )
@@ -273,8 +276,9 @@ def render_calculadora():
             if sel_recipe:
                 recipe_id = df[df["name"] == sel_recipe].iloc[0]["id"]
                 items = client.table("recipe_items").select("*").eq("recipe_id", recipe_id).execute()
-                if items.data:
-                    st.dataframe(pd.DataFrame(items.data), use_container_width=True)
+                item_rows = cast("list[dict[str, Any]]", items.data) or []
+                if item_rows:
+                    st.dataframe(pd.DataFrame(item_rows), use_container_width=True)
         else:
             st.info("Nenhuma receita salva ainda.")
 
