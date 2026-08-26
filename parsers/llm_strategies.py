@@ -19,6 +19,7 @@ import threading
 import time
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
+from typing import Any, cast
 
 from services.http_client import get_client
 from services.logger import logger
@@ -88,14 +89,14 @@ class LLMResult:
     reason: str
     provider: str
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
 class CircuitOpenError(Exception):
     """Raised when the circuit breaker is open for a provider."""
 
-    def __init__(self, provider: str):
+    def __init__(self, provider: str) -> None:
         super().__init__(f"Circuit breaker open for provider '{provider}'")
         self.provider = provider
 
@@ -105,14 +106,14 @@ class LLMStrategy(ABC):
 
     provider_name: str = "abstract"
 
-    def __init__(self, provider_name: str | None = None):
+    def __init__(self, provider_name: str | None = None) -> None:
         if provider_name is not None:
             self.provider_name = provider_name
         self.failure_count = 0
         self.last_failure_ts: float = 0.0
         self._cooldown_seconds = _get_cooldown_seconds()
         self._consecutive_openings = 0
-        self._token_bucket = TokenBucket(
+        self._token_bucket: TokenBucket = TokenBucket(
             TokenBucketConfig(
                 capacity=TOKEN_BUCKET_CAPACITY,
                 refill_rate=TOKEN_BUCKET_RATE / 60.0,
@@ -130,12 +131,13 @@ class LLMStrategy(ABC):
         return True
 
     @abstractmethod
-    def classify(self, product_text: str, candidates: list) -> LLMResult | None: ...
+    def classify(self, product_text: str, candidates: list[dict[str, Any]]) -> LLMResult | None:
+        pass
 
     @abstractmethod
     def is_configured(self) -> bool:
         """True if this provider has credentials / configuration available."""
-        return True
+        pass
 
     def is_circuit_open(self) -> bool:
         """Returns True if the circuit breaker should be treated as open.
@@ -181,13 +183,19 @@ class LLMStrategy(ABC):
             self._cooldown_seconds,
         )
 
-    def _handle_429(self, response) -> None:
+    def _handle_429(self, response: httpx.Response) -> None:
         """429: abre circuit e fallthrough. NAO faz retry interno."""
         logger.info("[%s] 429 rate limited, opening circuit (fallthrough)", self.provider_name)
         self.open_circuit()
         return None
 
-    def _safe_api_call(self, url: str, headers: dict, payload: dict, params: dict | None = None) -> httpx.Response | None:
+    def _safe_api_call(
+        self,
+        url: str,
+        headers: dict[str, str],
+        payload: dict[str, Any],
+        params: dict[str, Any] | None = None,
+    ) -> httpx.Response | None:
         """Unified API call with TokenBucket + 429->circuit + Circuit Breaker.
 
         Returns response on success (2xx), None on fallthrough (429/500/timeout).
@@ -203,7 +211,7 @@ class LLMStrategy(ABC):
             return None
 
         try:
-            resp = get_client().post(url, headers=headers, json=payload, params=params, timeout=DEFAULT_TIMEOUT)
+            resp: httpx.Response = get_client().post(url, headers=headers, json=payload, params=params, timeout=DEFAULT_TIMEOUT)
 
             if resp.status_code == 429:
                 self._handle_429(resp)
@@ -234,7 +242,7 @@ class LLMStrategy(ABC):
             self.record_failure()
             return None
 
-    def _safe_parse(self, content: str) -> dict | None:
+    def _safe_parse(self, content: str) -> dict[str, Any] | None:
         """Parses JSON content robustly, handling markdown fences and malformed responses."""
         if not content:
             return None
@@ -249,7 +257,8 @@ class LLMStrategy(ABC):
         if start == -1 or end == -1 or end <= start:
             return None
         try:
-            return json.loads(text[start : end + 1])
+            parsed = json.loads(text[start : end + 1])
+            return cast(dict[str, Any], parsed)
         except Exception:
             return None
 
@@ -257,7 +266,7 @@ class LLMStrategy(ABC):
 class GroqStrategy(LLMStrategy):
     provider_name = "groq"
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.api_key = os.environ.get("GROQ_API_KEY", "")
         self.url = "https://api.groq.com/openai/v1/chat/completions"
@@ -266,7 +275,7 @@ class GroqStrategy(LLMStrategy):
     def is_configured(self) -> bool:
         return bool(self.api_key)
 
-    def classify(self, product_text: str, candidates: list) -> LLMResult | None:
+    def classify(self, product_text: str, candidates: list[dict[str, Any]]) -> LLMResult | None:
         if not self.api_key:
             logger.debug("groq_skipped_no_api_key")
             return None
@@ -285,7 +294,7 @@ class GroqStrategy(LLMStrategy):
             "Se nenhum ingrediente corresponder, retorne match=false."
         )
         user_prompt = f"Produto: {product_text}\n\nIngredientes candidatos:\n{candidates_str}"
-        payload = {
+        payload: dict[str, Any] = {
             "model": self.model,
             "messages": [
                 {"role": "system", "content": system_prompt},
@@ -295,7 +304,7 @@ class GroqStrategy(LLMStrategy):
             "max_tokens": 200,
             "response_format": {"type": "json_object"},
         }
-        headers = {
+        headers: dict[str, str] = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
@@ -307,6 +316,7 @@ class GroqStrategy(LLMStrategy):
             data = resp.json()
             content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
             parsed = self._safe_parse(content)
+
             if not parsed:
                 logger.warning("groq_invalid_json_response")
                 self.record_failure()
@@ -328,7 +338,7 @@ class GroqStrategy(LLMStrategy):
 class OpenRouterStrategy(LLMStrategy):
     provider_name = "openrouter"
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.api_key = os.environ.get("OPENROUTER_API_KEY", "")
         self.url = "https://openrouter.ai/api/v1/chat/completions"
@@ -337,7 +347,7 @@ class OpenRouterStrategy(LLMStrategy):
     def is_configured(self) -> bool:
         return bool(self.api_key)
 
-    def classify(self, product_text: str, candidates: list) -> LLMResult | None:
+    def classify(self, product_text: str, candidates: list[dict[str, Any]]) -> LLMResult | None:
         if not self.api_key:
             logger.debug("openrouter_skipped_no_api_key")
             return None
@@ -351,13 +361,13 @@ class OpenRouterStrategy(LLMStrategy):
             '{"match": bool, "canonical_name": str, "confidence_score": float, "reason": str}\n\n'
             f"Product: {product_text}\nCandidates:\n{candidates_str}"
         )
-        payload = {
+        payload: dict[str, Any] = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.1,
             "response_format": {"type": "json_object"},
         }
-        headers = {
+        headers: dict[str, str] = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }

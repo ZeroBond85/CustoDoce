@@ -5,10 +5,11 @@ Usa Z-score + Isolation Forest. Puramente estatístico, sem IA generativa.
 
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
-import joblib
+import joblib  # type: ignore[import-untyped]
 import numpy as np
-from sklearn.ensemble import IsolationForest
+from sklearn.ensemble import IsolationForest  # type: ignore[import-untyped]
 
 from services.logger import logger
 from services.price_service import get_price_history
@@ -22,14 +23,14 @@ class PriceIntelligence:
     def __init__(self, zscore_threshold: float = 2.0, history_days: int = 90):
         self.zscore_threshold = zscore_threshold
         self.history_days = history_days
-        self._if_models: dict[str, IsolationForest] = {}
+        self._if_models: dict[str, Any] = {}
 
     def _get_cache_path(self, ingredient_id: str, store_id: str) -> Path:
         safe_ing = ingredient_id.replace("/", "_").replace(" ", "_")
         safe_store = store_id.replace("/", "_").replace(" ", "_") or "global"
         return _IF_CACHE_DIR / f"if_{safe_ing}_{safe_store}.json"
 
-    def _load_if_model(self, ingredient_id: str, store_id: str) -> IsolationForest | None:
+    def _load_if_model(self, ingredient_id: str, store_id: str) -> Any | None:
         """Load cached IF model if not expired."""
         cache_path = self._get_cache_path(ingredient_id, store_id).with_suffix(".joblib")
         if not cache_path.exists():
@@ -43,7 +44,7 @@ class PriceIntelligence:
         except Exception:
             return None
 
-    def _save_if_model(self, ingredient_id: str, store_id: str, model: IsolationForest, X_train: np.ndarray):
+    def _save_if_model(self, ingredient_id: str, store_id: str, model: Any, X_train: np.ndarray) -> None:
         """Save IF model to cache using joblib."""
         cache_path = self._get_cache_path(ingredient_id, store_id).with_suffix(".joblib")
         try:
@@ -52,7 +53,7 @@ class PriceIntelligence:
         except Exception as e:
             logger.debug("Failed to save IF model cache: %s", e)
 
-    def get_historical_stats(self, ingredient_id: str, store_id: str = "") -> dict:
+    def get_historical_stats(self, ingredient_id: str, store_id: str = "") -> dict[str, Any]:
         """Retorna média, std, min, max do histórico de preços."""
         prices = get_price_history(ingredient_id, days=self.history_days)
         if store_id:
@@ -74,7 +75,7 @@ class PriceIntelligence:
             "n": len(values),
         }
 
-    def _get_if_model(self, ingredient_id: str, store_id: str, values: list[float]) -> IsolationForest:
+    def _get_if_model(self, ingredient_id: str, store_id: str, values: list[float]) -> Any:
         """Get or train Isolation Forest model with caching."""
         cache_key = f"{ingredient_id}|{store_id or 'global'}"
         if cache_key in self._if_models:
@@ -94,7 +95,7 @@ class PriceIntelligence:
         self._save_if_model(ingredient_id, store_id, model, X)
         return model
 
-    def detect_anomaly(self, ingredient_id: str, store_id: str, price_per_kg: float) -> dict:
+    def detect_anomaly(self, ingredient_id: str, store_id: str, price_per_kg: float) -> dict[str, Any]:
         """
         Detecta se um preço é anômalo.
         Retorna: {is_anomaly, severity, tag, expected_range}
@@ -138,9 +139,9 @@ class PriceIntelligence:
             "zscore": round(zscore, 2),
         }
 
-    def enrich_prices(self, prices: list[dict]) -> list[dict]:
+    def enrich_prices(self, prices: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Enriquece lista de preços com tags de inteligência."""
-        enriched = []
+        enriched: list[dict[str, Any]] = []
         # Group by ingredient+store for batch IF scoring
         from collections import defaultdict
 

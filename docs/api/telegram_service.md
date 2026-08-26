@@ -1,6 +1,6 @@
 # `telegram_service` — API
 
-> Última atualização: 2026-08-13 01:28 UTC
+> Última atualização: 2026-08-26 16:42 UTC
 > Gerado por AST parsing dos serviços em `services/telegram_service.py`.
 
 ## Funções Públicas (3)
@@ -9,7 +9,7 @@
 
 Send a simple message via Telegram Bot API.
 
-### send_telegram_report(token: str, chat_id: str, ingredients: list[dict], prices_by_ingredient: dict)
+### send_telegram_report(token: str, chat_id: str, ingredients: list[dict[str, Any]], prices_by_ingredient: dict[str, Any])
 
 ### test_telegram_connection()
 

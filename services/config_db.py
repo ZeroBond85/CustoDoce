@@ -7,66 +7,63 @@ All functions use service_client for write operations.
 from datetime import UTC, datetime
 from typing import Any
 
-from services.supabase_client import get_service_client, get_supabase
-from services.types import Ingredient, Store
+from services.supabase_client import get_service_client, get_supabase, safe_execute, safe_single_execute
 
 
 # ============================================================
 # INGREDIENTS
 # ============================================================
-def get_active_ingredients() -> list[Ingredient]:
+def get_active_ingredients() -> list[dict[str, Any]]:
     client = get_supabase()
-    result = client.table("ingredients").select("*").eq("active", True).order("canonical_name").execute()
-    return result.data or []
+    return safe_execute(
+        client.table("ingredients").select("*").eq("active", True).order("canonical_name")
+    )
 
 
-def get_all_ingredients(include_inactive: bool = False) -> list[Ingredient]:
+def get_all_ingredients(include_inactive: bool = False) -> list[dict[str, Any]]:
     client = get_supabase()
     query = client.table("ingredients").select("*").order("canonical_name")
     if not include_inactive:
         query = query.eq("active", True)
-    result = query.execute()
-    return result.data or []
+    return safe_execute(query)
 
 
-def get_ingredient_by_id(ingredient_id: str) -> Ingredient | None:
+def get_ingredient_by_id(ingredient_id: str) -> dict[str, Any] | None:
     client = get_supabase()
-    result = client.table("ingredients").select("*").eq("id", ingredient_id).maybe_single().execute()
-    if result is None:
-        return None
-    return result.data if result.data else None
+    return safe_single_execute(
+        client.table("ingredients").select("*").eq("id", ingredient_id).maybe_single()
+    )
 
 
-def get_ingredient_by_name(canonical_name: str) -> Ingredient | None:
+def get_ingredient_by_name(canonical_name: str) -> dict[str, Any] | None:
     client = get_supabase()
-    result = client.table("ingredients").select("*").eq("canonical_name", canonical_name).maybe_single().execute()
-    if result is None:
-        return None
-    return result.data if result.data else None
+    return safe_single_execute(
+        client.table("ingredients").select("*").eq("canonical_name", canonical_name).maybe_single()
+    )
 
 
-def upsert_ingredient(data: dict[str, Any]) -> Ingredient:
+def upsert_ingredient(data: dict[str, Any]) -> dict[str, Any]:
     client = get_service_client()
     data["updated_at"] = datetime.now(UTC).isoformat()
     try:
-        result = (
-            client.table("ingredients").upsert(data, on_conflict="canonical_name", returning="representation").execute()
+        result = safe_execute(
+            client.table("ingredients").upsert(data, on_conflict="canonical_name", returning="representation")  # type: ignore[arg-type]
         )
-        return result.data[0] if result.data else {}
+        return result[0] if result else {}
     except Exception:
         return {}
 
 
 def delete_ingredient(ingredient_id: str) -> bool:
     client = get_service_client()
-    client.table("prices").delete().eq("ingredient_id", ingredient_id).execute()
-    client.table("price_history").delete().eq("ingredient_id", ingredient_id).execute()
-    client.table("review_queue").delete().eq("resolved_ingredient", ingredient_id).execute()
-    result = client.table("ingredients").delete().eq("id", ingredient_id).execute()
-    return bool(result.data)
+    safe_execute(client.table("prices").delete().eq("ingredient_id", ingredient_id))
+    safe_execute(client.table("price_history").delete().eq("ingredient_id", ingredient_id))
+    safe_execute(client.table("review_queue").delete().eq("resolved_ingredient", ingredient_id))
+    result = safe_execute(client.table("ingredients").delete().eq("id", ingredient_id))
+    return bool(result)
 
 
-def add_alias_to_ingredient(canonical_name_or_id: str, new_alias: str) -> Ingredient | None:
+def add_alias_to_ingredient(canonical_name_or_id: str, new_alias: str) -> dict[str, Any] | None:
     import re
 
     is_uuid = re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", canonical_name_or_id, re.I)
@@ -81,13 +78,13 @@ def add_alias_to_ingredient(canonical_name_or_id: str, new_alias: str) -> Ingred
         aliases.append(new_alias)
         ingredient["aliases"] = aliases
         return upsert_ingredient(ingredient)
-    return ingredient  # Return the existing ingredient if alias already present
+    return ingredient
 
 
 # ============================================================
 # STORES
 # ============================================================
-def get_active_stores(tier: int | None = None, store_type: str | None = None) -> list[Store]:
+def get_active_stores(tier: int | None = None, store_type: str | None = None) -> list[dict[str, Any]]:
     client = get_supabase()
     query = client.table("stores").select("*").eq("is_active", True).order("priority")
     if tier:
@@ -96,11 +93,11 @@ def get_active_stores(tier: int | None = None, store_type: str | None = None) ->
         query = query.eq("type", store_type)
     # PostgREST caps a single response at 1000 rows; paginate to avoid silently
     # dropping active stores once the table grows past that (e.g. test fixtures).
-    all_data: list[Store] = []
+    all_data: list[dict[str, Any]] = []
     page = 0
     while True:
-        batch = query.range(page * 1000, page * 1000 + 999).execute()
-        rows = batch.data or []
+        batch = safe_execute(query.range(page * 1000, page * 1000 + 999))
+        rows = batch
         all_data.extend(rows)
         if len(rows) < 1000:
             break
@@ -108,32 +105,29 @@ def get_active_stores(tier: int | None = None, store_type: str | None = None) ->
     return all_data
 
 
-def get_all_stores(include_inactive: bool = False) -> list[Store]:
+def get_all_stores(include_inactive: bool = False) -> list[dict[str, Any]]:
     client = get_supabase()
     query = client.table("stores").select("*").order("priority")
     if not include_inactive:
         query = query.eq("is_active", True)
-    result = query.execute()
-    return result.data or []
+    return safe_execute(query)
 
 
-def get_store_by_id(store_id: str) -> Store | None:
+def get_store_by_id(store_id: str) -> dict[str, Any] | None:
     client = get_supabase()
-    result = client.table("stores").select("*").eq("id", store_id).maybe_single().execute()
-    if result is None:
-        return None
-    return result.data if result.data else None
+    return safe_single_execute(
+        client.table("stores").select("*").eq("id", store_id).maybe_single()
+    )
 
 
-def get_store_by_name(name: str) -> Store | None:
+def get_store_by_name(name: str) -> dict[str, Any] | None:
     client = get_supabase()
-    result = client.table("stores").select("*").eq("name", name).maybe_single().execute()
-    if result is None:
-        return None
-    return result.data if result.data else None
+    return safe_single_execute(
+        client.table("stores").select("*").eq("name", name).maybe_single()
+    )
 
 
-def upsert_store(data: dict[str, Any]) -> Store:
+def upsert_store(data: dict[str, Any]) -> dict[str, Any]:
     client = get_service_client()
     data["updated_at"] = datetime.now(UTC).isoformat()
     # Validate tier
@@ -157,173 +151,178 @@ def upsert_store(data: dict[str, Any]) -> Store:
         except (ValueError, TypeError) as e:
             raise ValueError(f"Invalid priority: {priority}") from e
     try:
-        result = client.table("stores").upsert(data, on_conflict="id", returning="representation").execute()
-        return result.data[0] if result.data else {}
+        result = safe_execute(
+            client.table("stores").upsert(data, on_conflict="id", returning="representation")  # type: ignore[arg-type]
+        )
+        return result[0] if result else {}
     except Exception:
         return {}
 
 
 def delete_store(store_id: str) -> bool:
     client = get_service_client()
-    client.table("prices").delete().eq("store_id", store_id).execute()
-    client.table("price_history").delete().eq("store_id", store_id).execute()
-    client.table("scraping_logs").delete().eq("store_id", store_id).execute()
-    client.table("flyers").delete().eq("store_id", store_id).execute()
-    client.table("scrape_frequencies").delete().eq("store_id", store_id).execute()
-    result = client.table("stores").delete().eq("id", store_id).execute()
-    return bool(result.data)
+    safe_execute(client.table("prices").delete().eq("store_id", store_id))
+    safe_execute(client.table("price_history").delete().eq("store_id", store_id))
+    safe_execute(client.table("scraping_logs").delete().eq("store_id", store_id))
+    safe_execute(client.table("flyers").delete().eq("store_id", store_id))
+    safe_execute(client.table("scrape_frequencies").delete().eq("store_id", store_id))
+    result = safe_execute(client.table("stores").delete().eq("id", store_id))
+    return bool(result)
 
 
 # ============================================================
 # SCHEDULES
 # ============================================================
-def get_enabled_schedules() -> list[dict]:
+def get_enabled_schedules() -> list[dict[str, Any]]:
     client = get_supabase()
-    result = client.table("schedules").select("*").eq("enabled", True).order("name").execute()
-    return result.data or []
+    return safe_execute(
+        client.table("schedules").select("*").eq("enabled", True).order("name")
+    )
 
 
-def get_all_schedules(include_disabled: bool = False) -> list[dict]:
+def get_all_schedules(include_disabled: bool = False) -> list[dict[str, Any]]:
     client = get_supabase()
     query = client.table("schedules").select("*").order("name")
     if not include_disabled:
         query = query.eq("enabled", True)
-    result = query.execute()
-    return result.data or []
+    return safe_execute(query)
 
 
-def upsert_schedule(data: dict) -> dict:
+def upsert_schedule(data: dict[str, Any]) -> dict[str, Any]:
     client = get_service_client()
     data["updated_at"] = datetime.now(UTC).isoformat()
     try:
-        result = client.table("schedules").upsert(data, on_conflict="name", returning="representation").execute()
-        return result.data[0] if result.data else {}
+        result = safe_execute(
+            client.table("schedules").upsert(data, on_conflict="name", returning="representation")  # type: ignore[arg-type]
+        )
+        return result[0] if result else {}
     except Exception:
         return {}
 
 
 def delete_schedule(schedule_id: str) -> bool:
     client = get_service_client()
-    result = client.table("schedules").delete().eq("id", schedule_id).execute()
-    return bool(result.data)
+    result = safe_execute(client.table("schedules").delete().eq("id", schedule_id))
+    return bool(result)
 
 
-def update_schedule_run(schedule_id: str, last_run: datetime, next_run: datetime | None = None) -> dict:
+def update_schedule_run(schedule_id: str, last_run: datetime, next_run: datetime | None = None) -> dict[str, Any]:
     client = get_service_client()
     data = {"last_run": last_run.isoformat(), "updated_at": datetime.now(UTC).isoformat()}
     if next_run:
         data["next_run"] = next_run.isoformat()
     try:
-        result = client.table("schedules").update(data).eq("id", schedule_id).execute()
-        return result.data[0] if result.data else {}
+        result = safe_execute(client.table("schedules").update(data).eq("id", schedule_id))
+        return result[0] if result else {}
     except Exception:
         return {}
 
 
 # ============================================================
-# SCRAPE FREQUENCIES
+# SCRAPE FREQUENCES
 # ============================================================
-def get_scrape_frequency(store_id: str | None = None, tier: int | None = None) -> list[dict]:
+def get_scrape_frequency(store_id: str | None = None, tier: int | None = None) -> list[dict[str, Any]]:
     client = get_supabase()
     query = client.table("scrape_frequencies").select("*").eq("enabled", True)
     if store_id:
         query = query.eq("store_id", store_id)
     if tier:
         query = query.eq("tier", tier)
-    result = query.execute()
-    return result.data or []
+    return safe_execute(query)
 
 
-def upsert_scrape_frequency(data: dict) -> dict:
+def upsert_scrape_frequency(data: dict[str, Any]) -> dict[str, Any]:
     client = get_service_client()
     data["updated_at"] = datetime.now(UTC).isoformat()
     try:
-        result = client.table("scrape_frequencies").upsert(
-            data, on_conflict="store_id", returning="representation"
-        ).execute()
-        return result.data[0] if result.data else {}
+        result = safe_execute(
+            client.table("scrape_frequencies").upsert(
+                data, on_conflict="store_id", returning="representation"  # type: ignore[arg-type]
+            )
+        )
+        return result[0] if result else {}
     except Exception:
         return {}
 
 
 def delete_scrape_frequency(freq_id: str) -> bool:
     client = get_service_client()
-    result = client.table("scrape_frequencies").delete().eq("id", freq_id).execute()
-    return bool(result.data)
+    result = safe_execute(client.table("scrape_frequencies").delete().eq("id", freq_id))
+    return bool(result)
 
 
 # ============================================================
 # ALERT RECIPIENTS
 # ============================================================
-def get_active_recipients(channel: str | None = None) -> list[dict]:
+def get_active_recipients(channel: str | None = None) -> list[dict[str, Any]]:
     client = get_supabase()
     query = client.table("alert_recipients").select("*").eq("active", True)
     if channel:
         query = query.eq("channel", channel)
-    result = query.execute()
-    return result.data or []
+    return safe_execute(query)
 
 
-def get_all_recipients(include_inactive: bool = False) -> list[dict]:
+def get_all_recipients(include_inactive: bool = False) -> list[dict[str, Any]]:
     client = get_supabase()
     query = client.table("alert_recipients").select("*").order("channel, name")
     if not include_inactive:
         query = query.eq("active", True)
-    result = query.execute()
-    return result.data or []
+    return safe_execute(query)
 
 
-def upsert_recipient(data: dict) -> dict:
+def upsert_recipient(data: dict[str, Any]) -> dict[str, Any]:
     client = get_service_client()
     data["updated_at"] = datetime.now(UTC).isoformat()
     try:
-        result = client.table("alert_recipients").upsert(data, returning="representation").execute()
-        return result.data[0] if result.data else {}
+        result = safe_execute(
+            client.table("alert_recipients").upsert(data, returning="representation")  # type: ignore[arg-type]
+        )
+        return result[0] if result else {}
     except Exception:
         return {}
 
 
 def delete_recipient(recipient_id: str) -> bool:
     client = get_service_client()
-    result = client.table("alert_recipients").delete().eq("id", recipient_id).execute()
-    return bool(result.data)
+    result = safe_execute(client.table("alert_recipients").delete().eq("id", recipient_id))
+    return bool(result)
 
 
 # ============================================================
 # ALERT RULES
 # ============================================================
-def get_enabled_alert_rules(trigger: str | None = None) -> list[dict]:
+def get_enabled_alert_rules(trigger: str | None = None) -> list[dict[str, Any]]:
     client = get_supabase()
     query = client.table("alert_rules").select("*").eq("enabled", True)
     if trigger:
         query = query.eq("trigger", trigger)
-    result = query.execute()
-    return result.data or []
+    return safe_execute(query)
 
 
-def get_all_alert_rules(include_disabled: bool = False) -> list[dict]:
+def get_all_alert_rules(include_disabled: bool = False) -> list[dict[str, Any]]:
     client = get_supabase()
     query = client.table("alert_rules").select("*").order("trigger, name")
     if not include_disabled:
         query = query.eq("enabled", True)
-    result = query.execute()
-    return result.data or []
+    return safe_execute(query)
 
 
-def upsert_alert_rule(data: dict) -> dict:
+def upsert_alert_rule(data: dict[str, Any]) -> dict[str, Any]:
     client = get_service_client()
     data["updated_at"] = datetime.now(UTC).isoformat()
     try:
-        result = client.table("alert_rules").upsert(data, returning="representation").execute()
-        return result.data[0] if result.data else {}
+        result = safe_execute(
+            client.table("alert_rules").upsert(data, returning="representation")  # type: ignore[arg-type]
+        )
+        return result[0] if result else {}
     except Exception:
         return {}
 
 
 def delete_alert_rule(rule_id: str) -> bool:
     client = get_service_client()
-    result = client.table("alert_rules").delete().eq("id", rule_id).execute()
-    return bool(result.data)
+    result = safe_execute(client.table("alert_rules").delete().eq("id", rule_id))
+    return bool(result)
 
 
 # ============================================================
@@ -331,19 +330,22 @@ def delete_alert_rule(rule_id: str) -> bool:
 # ============================================================
 def get_feature_flag(key: str, default: bool = False) -> bool:
     client = get_supabase()
-    result = client.table("feature_flags").select("enabled").eq("key", key).maybe_single().execute()
-    if result is None:
+    result = safe_single_execute(
+        client.table("feature_flags").select("enabled").eq("key", key).maybe_single()
+    )
+    if not result:
         return default
-    return result.data["enabled"] if result.data else default
+    return bool(result.get("enabled", default))
 
 
-def get_all_feature_flags() -> list[dict]:
+def get_all_feature_flags() -> list[dict[str, Any]]:
     client = get_supabase()
-    result = client.table("feature_flags").select("*").order("key").execute()
-    return result.data or []
+    return safe_execute(
+        client.table("feature_flags").select("*").order("key")
+    )
 
 
-def upsert_feature_flag(key: str, enabled: bool, description: str = "") -> dict:
+def upsert_feature_flag(key: str, enabled: bool, description: str = "") -> dict[str, Any]:
     client = get_service_client()
     data = {
         "key": key,
@@ -352,7 +354,9 @@ def upsert_feature_flag(key: str, enabled: bool, description: str = "") -> dict:
         "updated_at": datetime.now(UTC).isoformat(),
     }
     try:
-        result = client.table("feature_flags").upsert(data, on_conflict="key", returning="representation").execute()
-        return result.data[0] if result.data else {}
+        result = safe_execute(
+            client.table("feature_flags").upsert(data, on_conflict="key", returning="representation")  # type: ignore[arg-type]
+        )
+        return result[0] if result else {}
     except Exception:
         return {}

@@ -16,6 +16,7 @@ import re
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Any
 
 import httpx
 from PIL import Image
@@ -74,7 +75,7 @@ def _downscale_image(image_bytes: bytes) -> bytes:
 
 @dataclass
 class VisionResult:
-    products: list[dict]
+    products: list[dict[str, Any]]
     raw_text: str
     provider: str
 
@@ -86,7 +87,7 @@ class VisionStrategy(ABC):
     min_interval: float = 0.0
     timeout: float = 90.0
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._failure_count = 0
         self._last_failure = 0.0
         self._circuit_open = False
@@ -103,27 +104,27 @@ class VisionStrategy(ABC):
     @abstractmethod
     def api_key(self) -> str: ...
 
-    def record_failure(self):
+    def record_failure(self) -> None:
         self._failure_count += 1
         self._last_failure = time.time()
         if self._failure_count >= CB_THRESHOLD:
             self._circuit_open = True
             logger.info("[%s_vision] Circuit breaker OPEN after %d failures", self.provider_name, CB_THRESHOLD)
 
-    def open_circuit(self):
+    def open_circuit(self) -> None:
         """Abre o circuit breaker imediatamente (usado em 429 quando ha fallback)."""
         self._failure_count = CB_THRESHOLD
         self._circuit_open = True
         self._last_failure = time.time()
         logger.debug("[%s_vision] Circuit breaker OPEN (ceding to next provider)", self.provider_name)
 
-    def record_success(self):
+    def record_success(self) -> None:
         self._failure_count = 0
         self._circuit_open = False
 
 
 
-    def _throttle(self):
+    def _throttle(self) -> None:
         if self.min_interval <= 0 or self._last_request_time <= 0:
             self._last_request_time = time.time()
             return
@@ -143,14 +144,14 @@ class VisionStrategy(ABC):
         return True
 
     @abstractmethod
-    def _get_payload(self, image_bytes: bytes) -> dict:
+    def _get_payload(self, image_bytes: bytes) -> dict[str, Any]:
         pass
 
     @abstractmethod
     def _parse_response(self, response_text: str) -> VisionResult | None:
         pass
 
-    def _retry_after(self, resp, attempt: int) -> float:
+    def _retry_after(self, resp: Any, attempt: int) -> float:
         """Segundos de espera antes do proximo retry (respeita Retry-After)."""
         header = resp.headers.get("Retry-After") or resp.headers.get("retry-after")
         if header:
@@ -158,7 +159,7 @@ class VisionStrategy(ABC):
                 return min(float(header), 30.0)
             except (TypeError, ValueError):
                 pass
-        return VISION_RETRY_BASE * (2**attempt)
+        return float(VISION_RETRY_BASE * (2**attempt))
 
     def extract(self, image_bytes: bytes) -> VisionResult | None:
         if not self.is_available():
@@ -220,12 +221,12 @@ class VisionStrategy(ABC):
                 return None
         return None
 
-    def _get_headers(self) -> dict:
+    def _get_headers(self) -> dict[str, Any]:
         return {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
 
-    def _extract_content(self, data: dict) -> str:
+    def _extract_content(self, data: dict[str, Any]) -> str:
         """Extrai o texto da resposta (formato OpenAI-compatible por padrao)."""
-        return data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        return str(data.get("choices", [{}])[0].get("message", {}).get("content", ""))
 
     def _encode_image(self, image_bytes: bytes) -> str:
         return base64.b64encode(_downscale_image(image_bytes)).decode()
@@ -282,7 +283,7 @@ class GroqVisionStrategy(VisionStrategy):
     provider_name = "groq"
     min_interval = 3.0  # 20 req/min max (segurado)
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._api_key = os.environ.get("GROQ_API_KEY", "")
         self._url = "https://api.groq.com/openai/v1/chat/completions"
@@ -296,7 +297,7 @@ class GroqVisionStrategy(VisionStrategy):
     def url(self) -> str:
         return self._url
 
-    def _get_payload(self, image_bytes: bytes) -> dict:
+    def _get_payload(self, image_bytes: bytes) -> dict[str, Any]:
         b64 = self._encode_image(image_bytes)
         return {
             "model": self.model,
@@ -322,7 +323,7 @@ class OpenRouterVisionStrategy(VisionStrategy):
     provider_name = "openrouter"
     timeout = 10.0
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._api_key = os.environ.get("OPENROUTER_API_KEY", "")
         self._url = "https://openrouter.ai/api/v1/chat/completions"
@@ -336,7 +337,7 @@ class OpenRouterVisionStrategy(VisionStrategy):
     def url(self) -> str:
         return self._url
 
-    def _get_payload(self, image_bytes: bytes) -> dict:
+    def _get_payload(self, image_bytes: bytes) -> dict[str, Any]:
         b64 = self._encode_image(image_bytes)
         return {
             "model": self.model,
@@ -354,7 +355,7 @@ class OpenRouterVisionStrategy(VisionStrategy):
             "response_format": {"type": "json_object"},
         }
 
-    def _get_headers(self) -> dict:
+    def _get_headers(self) -> dict[str, Any]:
         return {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -374,7 +375,7 @@ class NvidiaVisionStrategy(VisionStrategy):
     provider_name = "nvidia"
     timeout = 10.0
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._api_key = os.environ.get("NVIDIA_API_KEY", "")
         self._url = "https://integrate.api.nvidia.com/v1/chat/completions"
@@ -388,7 +389,7 @@ class NvidiaVisionStrategy(VisionStrategy):
     def url(self) -> str:
         return self._url
 
-    def _get_payload(self, image_bytes: bytes) -> dict:
+    def _get_payload(self, image_bytes: bytes) -> dict[str, Any]:
         b64 = self._encode_image(image_bytes)
         return {
             "model": self.model,
@@ -406,7 +407,7 @@ class NvidiaVisionStrategy(VisionStrategy):
             "response_format": {"type": "json_object"},
         }
 
-    def _get_headers(self) -> dict:
+    def _get_headers(self) -> dict[str, Any]:
         return {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -438,13 +439,13 @@ class TesseractVisionStrategy(VisionStrategy):
     def api_key(self) -> str:
         return ""
 
-    def _get_payload(self, image_bytes: bytes) -> dict:
+    def _get_payload(self, image_bytes: bytes) -> dict[str, Any]:
         return {}
 
     def _parse_response(self, content: str) -> VisionResult | None:
         return None
 
-    def _get_headers(self) -> dict:
+    def _get_headers(self) -> dict[str, Any]:
         return {}
 
     def is_available(self) -> bool:
@@ -481,12 +482,12 @@ class TesseractVisionStrategy(VisionStrategy):
             return None
 
 
-def _ocr_text_to_products(raw_text: str) -> list[dict]:
+def _ocr_text_to_products(raw_text: str) -> list[dict[str, Any]]:
     """Tentativa simples de extrair produtos do texto bruto do OCR.
 
     Procura linhas com padrao <nome> + <preco> no mesmo paragrafo.
     """
-    products: list[dict] = []
+    products: list[dict[str, Any]] = []
     lines = raw_text.splitlines()
     price_pattern = re.compile(r"R?\$?\s*(\d+[.,]\d{2})")
     current_name: list[str] = []
@@ -522,7 +523,7 @@ class GeminiVisionStrategy(VisionStrategy):
     timeout = 15.0
     min_interval = 6.0  # ~10 RPM
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._api_key = os.environ.get("GOOGLE_API_KEY", "")
         base_url = "https://generativelanguage.googleapis.com/v1beta/models"
@@ -536,7 +537,7 @@ class GeminiVisionStrategy(VisionStrategy):
     def url(self) -> str:
         return self._url
 
-    def _get_payload(self, image_bytes: bytes) -> dict:
+    def _get_payload(self, image_bytes: bytes) -> dict[str, Any]:
         b64 = self._encode_image(image_bytes)
         return {
             "contents": [{
@@ -551,19 +552,19 @@ class GeminiVisionStrategy(VisionStrategy):
             },
         }
 
-    def _get_headers(self) -> dict:
+    def _get_headers(self) -> dict[str, Any]:
         return {"Content-Type": "application/json"}
 
-    def _get_request_params(self) -> dict:
+    def _get_request_params(self) -> dict[str, Any]:
         return {"key": self.api_key}
 
     def _parse_response(self, content: str) -> VisionResult | None:
         return _safe_parse(content)
 
-    def _extract_content(self, data: dict) -> str:
+    def _extract_content(self, data: dict[str, Any]) -> str:
         """Gemini response format: candidates[].content.parts[].text"""
         try:
-            return data["candidates"][0]["content"]["parts"][0]["text"]
+            return str(data["candidates"][0]["content"]["parts"][0]["text"])
         except (KeyError, IndexError, TypeError):
             return ""
 
@@ -661,7 +662,7 @@ def _get_cached_chain() -> list[VisionStrategy]:
     return _CACHED_CHAIN
 
 
-def extract_products_via_vision(image_bytes: bytes) -> list[dict] | None:
+def extract_products_via_vision(image_bytes: bytes) -> list[dict[str, Any]] | None:
     """Try each vision strategy in order until one succeeds.
 
     Usa a cadeia em cache (estado de circuit breaker compartilhado entre todas

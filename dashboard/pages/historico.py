@@ -11,7 +11,7 @@ from services.dashboard_queries import (
 )
 
 
-def _sync_query_params():
+def _sync_query_params() -> None:
     qp = st.query_params
     if not qp:
         return
@@ -22,15 +22,16 @@ def _sync_query_params():
         ("chart_type", "hist_chart"),
     ]:
         if key in qp and widget_key not in st.session_state:
-            val = qp[key]
+            raw_val = qp[key]
             if key == "valid_only":
-                val = val.lower() == "true"
+                st.session_state[widget_key] = raw_val.lower() == "true"
             elif key == "days":
-                val = int(val)
-            st.session_state[widget_key] = val
+                st.session_state[widget_key] = int(raw_val)
+            else:
+                st.session_state[widget_key] = raw_val
 
 
-def _push_query_params():
+def _push_query_params() -> None:
     ing = st.session_state.get("hist_ingredient", "")
     days = st.session_state.get("hist_days", 90)
     valid = st.session_state.get("hist_valid", False)
@@ -45,7 +46,7 @@ def _push_query_params():
     st.query_params.from_dict(qp)
 
 
-def render_historico():
+def render_historico() -> None:
     inject_css()
     _sync_query_params()
 

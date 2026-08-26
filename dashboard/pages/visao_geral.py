@@ -17,7 +17,7 @@ from services.dashboard_queries import (
 )
 
 
-def render_visao_geral():
+def render_visao_geral() -> None:
     inject_css()
 
     st.title("Visão Geral")

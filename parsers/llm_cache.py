@@ -14,6 +14,7 @@ import os
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any, cast
 
 from services.logger import logger
 
@@ -60,7 +61,7 @@ def _hash_key(product_name: str, brand: str = "") -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def get_cache(product_name: str, brand: str = "") -> dict | None:
+def get_cache(product_name: str, brand: str = "") -> dict[str, Any] | None:
     """
     Recupera decisão cacheada no SQLite local.
     Returns:
@@ -85,13 +86,13 @@ def get_cache(product_name: str, brand: str = "") -> dict | None:
                 conn.execute("DELETE FROM cache WHERE hash_key = ?", (h,))
                 conn.commit()
                 return None
-            return json.loads(row["decision"])
+            return cast(dict[str, Any], json.loads(row["decision"]))
     except Exception as e:
         logger.debug("llm_cache_get_failed", error=str(e))
         return None
 
 
-def set_cache(product_name: str, brand: str, decision: dict, ttl_days: int | None = None) -> None:
+def set_cache(product_name: str, brand: str, decision: dict[str, Any], ttl_days: int | None = None) -> None:
     """
     Salva decisão no cache local.
     """
@@ -130,7 +131,6 @@ def cleanup_ttl(ttl_days: int | None = None) -> int:
     _init_schema()
     try:
         with _get_conn() as conn:
-            datetime.now().isoformat()
             expiry_ts = (datetime.now() - timedelta(days=ttl_days or _CACHE_TTL_DAYS)).isoformat()
             cur = conn.execute(
                 "DELETE FROM cache WHERE datetime(created_at) < datetime(?)",
@@ -143,7 +143,7 @@ def cleanup_ttl(ttl_days: int | None = None) -> int:
         return 0
 
 
-def cache_stats() -> dict:
+def cache_stats() -> dict[str, Any]:
     """
     Estatísticas do cache local para diagnóstico.
     """

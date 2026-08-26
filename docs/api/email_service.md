@@ -1,11 +1,11 @@
 # `email_service` — API
 
-> Última atualização: 2026-08-13 01:28 UTC
+> Última atualização: 2026-08-26 16:42 UTC
 > Gerado por AST parsing dos serviços em `services/email_service.py`.
 
 ## Funções Públicas (6)
 
-### build_full_report_html(prices_by_ingredient: dict)
+### build_full_report_html(prices_by_ingredient: dict[str, Any])
 
 Gera relatório HTML responsivo - melhor preço por loja por ingrediente.
 

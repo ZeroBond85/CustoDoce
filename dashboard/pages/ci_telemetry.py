@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import streamlit as st
 
@@ -15,13 +16,14 @@ import streamlit as st
 REPORT_FILE = Path(".github/minutes_report.json")
 
 
-def _load_report() -> dict | None:
+def _load_report() -> dict[str, Any] | None:
     """Load the CI minutes report from JSON file."""
     if not REPORT_FILE.exists():
         return None
     try:
         with REPORT_FILE.open("r", encoding="utf-8") as f:
-            return json.load(f)
+            data: dict[str, Any] = json.load(f)
+            return data
     except json.JSONDecodeError:
         return None
 

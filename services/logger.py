@@ -1,10 +1,11 @@
 import logging
 import os
+from typing import Any, cast
 
 import structlog
 
 
-def setup_logger():
+def setup_logger() -> structlog.BoundLogger:
     """
     Configures structlog for structured logging.
     - Local: Pretty colored console output.
@@ -14,7 +15,7 @@ def setup_logger():
     env = os.environ.get("APP_ENV", "local").lower()
 
     # Shared processors
-    processors = [
+    processors: list[Any] = [
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
@@ -37,8 +38,8 @@ def setup_logger():
         cache_logger_on_first_use=True,
     )
 
-    return structlog.get_logger()
+    return cast(structlog.BoundLogger, structlog.get_logger())
 
 
 # Singleton logger instance
-logger = setup_logger()
+logger: structlog.BoundLogger = setup_logger()

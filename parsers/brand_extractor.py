@@ -1,5 +1,6 @@
 import re
 import unicodedata
+from typing import cast
 
 from rapidfuzz import fuzz
 
@@ -24,7 +25,7 @@ def _brand_pattern(brand_norm: str) -> str:
     return rf"(?<![A-Z]){body}(?![A-Z])"
 
 
-def _dedup_brands(brands: list[str], seen: set) -> list[str]:
+def _dedup_brands(brands: list[str], seen: set[str]) -> list[str]:
     out = []
     for brand in brands or []:
         key = brand.upper()
@@ -88,11 +89,11 @@ def extract_brand(
         return "Desconhecido"
 
     text_norm = _normalize_accents(product_text.upper())
-    brands = ingredient.get("brands") or []
+    brands = cast(list[str], ingredient.get("brands") or [])
 
     result = _match_brands(text_norm, brands)
     if result is None and not brands and all_ingredients:
-        global_brands = [b for ing in all_ingredients for b in (ing.get("brands") or [])]
+        global_brands = [b for ing in all_ingredients for b in cast(list[str], ing.get("brands") or [])]
         result = _match_brands(text_norm, global_brands)
 
     return result if result is not None else "Desconhecido"
@@ -103,10 +104,10 @@ def extract_brand_from_all(product_text: str, ingredients: list[Ingredient], thr
         return None
 
     text_norm = _normalize_accents(product_text.upper())
-    seen: set = set()
+    seen: set[str] = set()
     all_brands: list[str] = []
     for ing in ingredients:
-        for brand in ing.get("brands") or []:
+        for brand in cast(list[str], ing.get("brands") or []):
             if brand and brand.upper() not in seen:
                 seen.add(brand.upper())
                 all_brands.append(brand)

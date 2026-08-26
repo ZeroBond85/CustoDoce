@@ -30,10 +30,10 @@ def _client_key() -> str:
         headers = _get_websocket_headers() or {}
         fwd = headers.get("X-Forwarded-For")
         if fwd:
-            return "ip:" + fwd.split(",")[0].strip()
+            return "ip:" + str(fwd).split(",")[0].strip()
         real = headers.get("X-Real-IP")
         if real:
-            return "ip:" + real.strip()
+            return "ip:" + str(real).strip()
     with contextlib.suppress(Exception):
         ctx = getattr(st, "context", None)
         remote = getattr(ctx, "remote_ip", None) if ctx else None
@@ -113,7 +113,7 @@ div[data-testid="stTabs"] > div > div > div > div {
 """
 
 
-def render_login():
+def render_login() -> bool:
     st.markdown(_LOGIN_CSS, unsafe_allow_html=True)
 
     _left, _center, _right = st.columns([1, 2.5, 1])
@@ -211,7 +211,7 @@ def render_login():
                 )
                 return False
 
-            if totp_needed and (not totp_code or not verify_totp(config.totp_secret, totp_code)):
+            if totp_needed and (not totp_code or not verify_totp(config.totp_secret or "", totp_code or "")):
                 _limiter.record_attempt(ip)
                 st.markdown(
                     '<div class="cd-login-error">Codigo 2FA invalido.</div>',
@@ -227,7 +227,7 @@ def render_login():
     return False
 
 
-def render_setup_first_user():
+def render_setup_first_user() -> None:
     st.markdown(_LOGIN_CSS, unsafe_allow_html=True)
 
     _left, _center, _right = st.columns([1, 2.5, 1])

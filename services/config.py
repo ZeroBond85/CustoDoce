@@ -1,5 +1,6 @@
 import os
 from functools import lru_cache
+from typing import Any
 
 import yaml
 
@@ -7,15 +8,15 @@ _CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config", "features
 
 
 @lru_cache(maxsize=1)
-def _load_config():
+def _load_config() -> dict[str, Any]:
     if os.path.exists(_CONFIG_PATH):
         with open(_CONFIG_PATH, encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
     return {}
 
 
-def get(key: str, default=None):
-    data = _load_config()
+def get(key: str, default: Any = None) -> Any:
+    data: Any = _load_config()
     parts = key.split(".")
     for part in parts:
         if isinstance(data, dict):
@@ -31,7 +32,7 @@ def get(key: str, default=None):
     return data
 
 
-def get_feature(path: str, ingredient: str = None, default=None):
+def get_feature(path: str, ingredient: str | None = None, default: Any = None) -> Any:
     """
     Gets a feature flag. If an ingredient is provided, it checks for a
     per-ingredient override in 'features.overrides[ingredient]'.
@@ -47,5 +48,5 @@ def get_feature(path: str, ingredient: str = None, default=None):
     return get(path, default)
 
 
-def reload():
+def reload() -> None:
     _load_config.cache_clear()

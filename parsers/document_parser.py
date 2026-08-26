@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 from collections.abc import Callable
+from typing import Any, cast
 
 from services.logger import logger
 
@@ -85,7 +86,8 @@ def _ocr_image_bytes(image_bytes: bytes, lang: str = "por") -> str:
     try:
         from PIL import Image
         from pytesseract import image_to_string
-        return image_to_string(Image.open(io.BytesIO(image_bytes)), lang=lang, config="--psm 6 --oem 3").strip()
+        raw = image_to_string(Image.open(io.BytesIO(image_bytes)), lang=lang, config="--psm 6 --oem 3")
+        return str(raw).strip()
     except Exception as e:
         logger.warning("pytesseract error: %s", e)
         return ""
@@ -98,8 +100,8 @@ def ocr_image(image_bytes: bytes, lang: str = "por") -> str:
 
 def extract_from_regions(
     pdf_bytes: bytes,
-    region_detector: Callable | None = None,
-) -> list[dict]:
+    region_detector: Callable[..., Any] | None = None,
+) -> list[dict[str, Any]]:
     """Extract price blocks from a PDF using region detection.
 
     Args:
@@ -118,6 +120,6 @@ def extract_from_regions(
     if region_detector:
         regions = region_detector(text)
         if regions:
-            return regions
+            return cast("list[dict[str, Any]]", regions)
 
     return [{"text": text, "bbox": None}]

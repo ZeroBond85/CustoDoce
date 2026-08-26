@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import random
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from collections.abc import Callable
+from typing import Any
 
 import httpx
 
@@ -24,7 +25,7 @@ class RetryableError(Enum):
     SERVER_ERROR = "server_error"
 
 
-_NON_RETRYABLE_STATUSES = frozenset({400, 401, 403, 404, 405, 413, 422})  # noqa: S104
+_NON_RETRYABLE_STATUSES = frozenset({400, 401, 403, 404, 405, 413, 422})
 
 
 @dataclass
@@ -67,8 +68,8 @@ class RetryPolicy:
             return float(retry_after)
         delay = min(self.base_delay * (2 ** attempt), self.max_delay)
         if self.jitter:
-            delay = delay * (0.5 + random.random() * 0.5)  # noqa: S311  # nosec B311
-        return delay
+            delay = delay * (0.5 + float(random.random()) * 0.5)  # noqa: S311  # nosec B311
+        return float(delay)
 
     def classify(self, exception: Exception) -> RetryableError | None:
         if isinstance(exception, httpx.TimeoutException):
@@ -99,16 +100,16 @@ def get_policy(name: str = "default") -> RetryPolicy:
 
 
 def with_retry(
-    fn: Callable,
+    fn: Callable[..., Any],
     policy: RetryPolicy | None = None,
     context: str = "",
     retryable_exceptions: tuple[type[Exception], ...] | None = None,
-) -> Callable:
+) -> Callable[..., Any]:
     policy = policy or get_policy()
     retryable = retryable_exceptions or policy.retryable_exceptions
 
-    def wrapper(*args, **kwargs):
-        last_exc = None
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        last_exc: Exception | None = None
         for attempt in range(policy.max_retries):
             try:
                 return fn(*args, **kwargs)
@@ -130,5 +131,7 @@ def with_retry(
                 delay = policy.get_delay(attempt)
                 if attempt < policy.max_retries - 1:
                     time.sleep(delay)
-        raise last_exc  # type: ignore[misc]
+        if last_exc:
+            raise last_exc
+        raise RuntimeError("Retry loop exhausted without exception")
     return wrapper

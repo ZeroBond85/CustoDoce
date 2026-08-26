@@ -8,7 +8,10 @@ from email.mime.application import MIMEApplication
 from email.mime.image import MIMEImage
 from pathlib import Path
 
+from typing import Any
+
 from services.logger import logger as _LOG
+from services.supabase_client import get_service_client, rpc_execute
 
 # ── Brand ( cores do logo CustoDoce ) ─────────────────────────────────
 _BRAND = {
@@ -33,7 +36,7 @@ _LOGO_PATH = _BASE_DIR / "dashboard" / "assets" / "Logocustodocepqueno.png"
 _STORES_YAML = _BASE_DIR / "config" / "stores.yaml"
 
 
-def _get_smtp_config():
+def _get_smtp_config() -> tuple[str, int, str, str, str]:
     """Retorna config SMTP das env vars com fallback para Gmail."""
     host = os.environ.get("SMTP_HOST") or "smtp.gmail.com"
     port = int(os.environ.get("SMTP_PORT") or "587")
@@ -57,25 +60,23 @@ def _logo_cid() -> str | None:
 
 
 # ── Store info cache ────────────────────────────────────────────────────
-_STORES_CACHE: dict | None = None
+_STORES_CACHE: dict[str, Any] | None = None
 
 
-def _load_stores() -> dict:
+def _load_stores() -> dict[str, Any]:
     """Carrega lojas do DB (fonte única) com fallback YAML p/ phone/whatsapp."""
     global _STORES_CACHE
     if _STORES_CACHE is not None:
         return _STORES_CACHE
 
     # 1. DB (address, city, phone, neighborhood)
-    from services.supabase_client import get_service_client
-
     try:
         client = get_service_client()
-        r = client.rpc("exec_sql_query", {
+        rows = rpc_execute(client, "exec_sql_query", {
             "sql": "SELECT name, address, city, phone, neighborhood FROM stores"
-        }).execute()
-        db_stores = {}
-        for row in r.data or []:
+        })
+        db_stores: dict[str, Any] = {}
+        for row in rows:
             name = row.get("name", "")
             if name:
                 db_stores[name] = {
@@ -237,12 +238,12 @@ def _wrap_html(title: str, preheader: str, body_inner: str) -> str:
 
 
 # ── Relatório completo (email) ────────────────────────────────────────
-def build_full_report_html(prices_by_ingredient: dict) -> str:
+def build_full_report_html(prices_by_ingredient: dict[str, Any]) -> str:
     """Gera relatório HTML responsivo - melhor preço por loja por ingrediente."""
     # Deduplica: melhor preço por loja por ingrediente
-    deduped = {}
+    deduped: dict[str, Any] = {}
     for ing_name, prices in prices_by_ingredient.items():
-        best_per_store = {}
+        best_per_store: dict[str, Any] = {}
         for p in prices:
             store_id = p.get("store_id", p.get("store_name", "?"))
             raw_norm = p.get("normalized")
@@ -338,7 +339,7 @@ def send_critical_alert(
     price: float,
     store: str,
     to_email: str | None = None,
-):
+) -> None:
     safe_name = _html.escape(ingredient_name)
     safe_store = _html.escape(store)
     body = f"""
@@ -364,7 +365,7 @@ def send_critical_alert(
 
 
 # ── Erro de scraper (email) ───────────────────────────────────────────
-def send_scraper_error(store_name: str, error: str, to_email: str | None = None):
+def send_scraper_error(store_name: str, error: str, to_email: str | None = None) -> None:
     safe_store = _html.escape(store_name)
     safe_error = _html.escape(error)
     body = f"""
@@ -391,7 +392,7 @@ def send_scraper_error(store_name: str, error: str, to_email: str | None = None)
 
 
 # ── Envio genérico ────────────────────────────────────────────────────
-def send_email(to_email: str, subject: str, html_body: str):
+def send_email(to_email: str, subject: str, html_body: str) -> None:
     """Simple email sender using the existing SMTP config."""
     if not is_email_configured():
         _LOG.warning("email_skipped: SMTP credentials not configured")
@@ -439,7 +440,7 @@ def send_daily_report(
     csv_bytes: bytes | None = None,
     to_email: str | None = None,
     subject: str | None = None,
-):
+) -> None:
     if not is_email_configured():
         _LOG.warning("daily_report_skipped", reason="SMTP credentials not configured")
         return

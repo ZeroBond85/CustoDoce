@@ -15,7 +15,7 @@ def resolve_hostname(hostname: str, max_retries: int = 3, delay: float = 2.0) ->
     for attempt in range(max_retries):
         try:
             infos = socket.getaddrinfo(hostname, None)
-            ips = list({info[4][0].split("%", 1)[0] for info in infos})
+            ips = list({str(info[4][0]).split("%", 1)[0] for info in infos})
             if ips:
                 return ips
         except (socket.gaierror, UnicodeError, OSError) as e:

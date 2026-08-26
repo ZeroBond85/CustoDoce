@@ -10,6 +10,7 @@ Cada métrica retorna um widget `st.metric` e `st.progress` para limite.
 """
 
 from datetime import date, datetime, timedelta
+from typing import Any, cast
 
 import streamlit as st
 
@@ -34,8 +35,9 @@ def _get_disk_usage_mb() -> tuple[float, int]:
             "FROM pg_tables WHERE schemaname = 'public'"
         )
         result = client.rpc("exec_sql_query", {"sql": sql}).execute()
-        if result.data and len(result.data) > 0:
-            row = result.data[0]
+        rows = cast("list[dict[str, Any]]", result.data) or []
+        if rows:
+            row = rows[0]
             bytes_total = float(row.get("total_bytes") or 0)
             return bytes_total / (1024 * 1024), 1
     except Exception as e:
@@ -55,9 +57,10 @@ def _get_actions_minutes_used() -> tuple[float, int]:
         # Get logs started within current month
         first_day = date.today().replace(day=1).isoformat()
         result = client.table("scraping_logs").select("duration_seconds").gte("started_at", first_day).execute()
-        if result.data:
-            total_seconds = sum(r.get("duration_seconds") or 0 for r in result.data)
-            return total_seconds / 60.0, len(result.data)
+        rows = cast("list[dict[str, Any]]", result.data) or []
+        if rows:
+            total_seconds = sum(r.get("duration_seconds") or 0 for r in rows)
+            return total_seconds / 60.0, len(rows)
         return 0.0, 0
     except Exception:
         return 0.0, 0
@@ -79,13 +82,14 @@ def _get_smtp_quota_used() -> int:
         # We cap based on the assumption of e-mail frequency.
         # Replace with real email log table if it exists.
         # Conservative estimate: nr_scrapes_success_proxy * 1.
-        proxy_count = len(result.data or [])
+        rows = cast("list[dict[str, Any]]", result.data) or []
+        proxy_count = len(rows)
         return proxy_count
     except Exception:
         return 0
 
 
-def render_capacity_planning():
+def render_capacity_planning() -> None:
     """
     Render the capacity planning section with Free Tier limits.
     """

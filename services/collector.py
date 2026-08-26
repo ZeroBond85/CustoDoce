@@ -11,6 +11,7 @@ from contextlib import suppress
 from datetime import UTC, date
 from datetime import datetime as dt_now
 from inspect import signature
+from typing import Any, cast
 
 import httpx
 
@@ -45,8 +46,8 @@ from services.flyer_service import upsert_flyer
 from services.logger import logger
 from services.price_service import insert_review_item, log_scraper_run, upsert_price
 from services.scraper_health import TRANSIENT_ERROR_CLASSES, classify_error_for_alert
-from services.supabase_client import get_service_client, get_supabase
-from services.types import Ingredient, PriceEntry, Store
+from services.supabase_client import get_service_client, get_supabase, safe_execute, safe_single_execute
+from services.types import Flyer, Ingredient, PriceEntry, ReviewItem, Store
 from services.url_guard import guard_url
 
 API_SCRAPER_MAP = {
@@ -63,7 +64,7 @@ LAST_RUN_STATS: dict[str, dict[str, int]] = {}
 
 
 def load_ingredients() -> list[Ingredient]:
-    return get_active_ingredients()
+    return cast("list[Ingredient]", get_active_ingredients())
 
 
 def _merge_store_config(store: Store) -> Store:
@@ -79,8 +80,7 @@ def _merge_store_config(store: Store) -> Store:
     cfg = store.get("config")
     if not isinstance(cfg, dict) or not cfg:
         return store
-    merged = {**cfg, **store}
-    return merged
+    return cast("Store", {**cfg, **store})
 
 
 def _filter_by_env_stores(stores: list[Store]) -> list[Store]:
@@ -116,13 +116,13 @@ def _filter_by_env_stores(stores: list[Store]) -> list[Store]:
 
 
 def load_stores() -> list[Store]:
-    all_stores = get_active_stores()
+    all_stores = cast("list[Store]", get_active_stores())
     if not all_stores:
         return []
     client = get_supabase()
-    freq = client.table("scrape_frequencies").select("store_id, enabled").execute()
+    freq = safe_execute(client.table("scrape_frequencies").select("store_id, enabled"))
     freq_by_store = {}
-    for f in freq.data or []:
+    for f in freq:
         sid = f.get("store_id")
         if sid:
             freq_by_store[sid] = f.get("enabled", True)
@@ -159,7 +159,7 @@ def build_product_entry(
     normalized = normalize_price(raw_price, raw_unit)
     validity = validity_raw or _extract_validity_from_product(raw_product)
     brand = brand or extract_brand(raw_product, ingredient, all_ingredients=all_ingredients)
-    return {
+    entry: dict[str, Any] = {
         "ingredient_id": ingredient["canonical_name"],
         "store_id": store.get("id") or store["name"].lower().replace(" ", "_"),
         "source": store.get("type", "automated"),
@@ -172,17 +172,21 @@ def build_product_entry(
         "is_promotion": _detect_promotion(raw_product, raw_unit),
         "tier": store.get("tier", 3),
         "confidence": confidence,
-        "normalized": normalized.to_dict() if normalized else None,
-        "city": store.get("cities", [""])[0] if isinstance(store.get("cities"), list) else store.get("city", ""),
+        "city": cast("dict[str, Any]", store).get("cities", [""])[0]
+        if isinstance(cast("dict[str, Any]", store).get("cities"), list)
+        else store.get("city", ""),
         "logistics": store.get("logistics", "pickup_local"),
         "brand": brand,
     }
+    if normalized is not None:
+        entry["normalized"] = normalized.to_dict()
+    return cast("PriceEntry", entry)
 
 
-_keyword_cache: tuple[str, set] | None = None
+_keyword_cache: tuple[Any, set[str]] | None = None
 
 
-def _get_ingredient_keywords(ingredients: list[Ingredient]) -> set:
+def _get_ingredient_keywords(ingredients: list[Ingredient]) -> set[str]:
     """Retorna o conjunto de keywords de busca dos ingredientes (com cache).
 
     O cache é chaveado por uma assinatura CONTEÚDO-baseada (nomes canônicos +
@@ -419,7 +423,7 @@ def _queue_for_review(
     if not candidates:
         match_type_local = ""
         match_reason = f"Score {score:.0f}% - nenhum candidato acima de 55%"
-        top3_summary = []
+        top3_summary: list[dict[str, Any]] = []
         brand_extracted = brand
     else:
         top = candidates[0]
@@ -486,7 +490,7 @@ def _queue_for_review(
         "top3": top3_summary,
     }
     try:
-        insert_review_item(review_item)
+        insert_review_item(cast("ReviewItem", review_item))
     except Exception as e:
         logger.warning("Review queue error: %s", e)
 
@@ -505,27 +509,26 @@ def _should_skip_store(store: Store) -> tuple[bool, str]:
     try:
         client = get_supabase()
         # Get frequency
-        freq = (
-            client.table("scrape_frequencies").select("frequency_minutes").eq("store_id", store_id).limit(1).execute()
+        freq = safe_execute(
+            client.table("scrape_frequencies").select("frequency_minutes").eq("store_id", store_id).limit(1)
         )
         frequency_minutes = (
-            freq.data[0]["frequency_minutes"]
-            if freq.data and freq.data[0].get("frequency_minutes")
+            freq[0]["frequency_minutes"]
+            if freq and freq[0].get("frequency_minutes")
             else _get_default_frequency_minutes(store)
         )
         # Get last successful run
-        last = (
+        last = safe_execute(
             client.table("scraping_logs")
             .select("started_at")
             .eq("store_name", store["name"])
             .eq("status", "completed")
             .order("started_at", desc=True)
             .limit(1)
-            .execute()
         )
-        if not last.data:
+        if not last:
             return False, ""  # Never scraped before
-        last_run = dt_now.fromisoformat(last.data[0]["started_at"].replace("Z", "+00:00"))
+        last_run = dt_now.fromisoformat(last[0]["started_at"].replace("Z", "+00:00"))
         elapsed = (dt_now.now(UTC) - last_run).total_seconds() / 60
         if elapsed < frequency_minutes * 0.8:
             remaining = int(frequency_minutes * 0.8 - elapsed)
@@ -539,42 +542,42 @@ def _should_skip_store(store: Store) -> tuple[bool, str]:
         return False, ""
 
 
-def _auto_disable_if_needed(store_name: str, threshold: int = 3):
+def _auto_disable_if_needed(store_name: str, threshold: int = 3) -> None:
     try:
         client = get_service_client()
-        logs = (
+        logs = safe_execute(
             client.table("scraping_logs")
             .select("status")
             .eq("store_name", store_name)
             .order("started_at", desc=True)
             .limit(threshold)
-            .execute()
         )
-        if not logs.data or len(logs.data) < threshold:
+        if not logs or len(logs) < threshold:
             return
-        if all(log["status"] in ("error", "failed") for log in logs.data):
-            store = client.table("stores").select("id, is_active").eq("name", store_name).single().execute()
-            if store.data and store.data.get("is_active") is not False:
-                client.table("stores").update({"is_active": False}).eq("id", store.data["id"]).execute()
+        if all(log["status"] in ("error", "failed") for log in logs):
+            store = safe_single_execute(
+                client.table("stores").select("id, is_active").eq("name", store_name)
+            )
+            if store and store.get("is_active") is not False:
+                client.table("stores").update({"is_active": False}).eq("id", store["id"]).execute()
                 logger.warning("[AUTO-DISABLE] %s desativada apos %d falhas consecutivas", store_name, threshold)
     except Exception as e:
         logger.debug("auto-disable check failed for %s: %s", store_name, e)
 
 
-def _check_zero_products_alert(store_name: str, threshold: int = 3):
+def _check_zero_products_alert(store_name: str, threshold: int = 3) -> None:
     try:
         client = get_service_client()
-        logs = (
+        logs = safe_execute(
             client.table("scraping_logs")
             .select("status, items_found")
             .eq("store_name", store_name)
             .order("started_at", desc=True)
             .limit(threshold)
-            .execute()
         )
-        if not logs.data or len(logs.data) < threshold:
+        if not logs or len(logs) < threshold:
             return
-        if all(log["status"] == "completed" and log.get("items_found", 0) == 0 for log in logs.data):
+        if all(log["status"] == "completed" and log.get("items_found", 0) == 0 for log in logs):
             logger.warning(
                 "[ZERO-PRODUCTS ALERT] %s retornou 0 produtos por %d coletas consecutivas", store_name, threshold
             )
@@ -603,7 +606,7 @@ def _verify_scrape_results(all_products: list[PriceEntry], store_count: int, ski
         )
 
 
-def _mp_worker(q, kind, target_mod, target_name, store, extra):
+def _mp_worker(q: Any, kind: str, target_mod: str, target_name: str, store: Any, extra: Any) -> None:
     """Roda alvo isolado em processo filho e devolve resultado via queue.
 
     Rodar em processo (e nao thread) garante que, em caso de travamento
@@ -627,7 +630,9 @@ def _mp_worker(q, kind, target_mod, target_name, store, extra):
         q.put(("err", str(exc)))
 
 
-def _spawn_isolated(kind, target_mod, target_name, store, store_name, timeout_seconds, extra=None):
+def _spawn_isolated(
+    kind: str, target_mod: str, target_name: str, store: Any, store_name: str, timeout_seconds: int, extra: Any = None
+) -> Any:
     """Spawn de processo filho com timeout hard; termina o processo no expiry."""
     mp_q = mp.get_context("spawn").Queue()
     p = mp.get_context("spawn").Process(
@@ -659,7 +664,14 @@ def _spawn_isolated(kind, target_mod, target_name, store, store_name, timeout_se
     return payload
 
 
-def _run_scraper_isolated(scraper_cls, store, ingredients, needs_ingredients, store_name, timeout_seconds=300):
+def _run_scraper_isolated(
+    scraper_cls: type,
+    store: Any,
+    ingredients: list[Ingredient],
+    needs_ingredients: bool,
+    store_name: str,
+    timeout_seconds: int = 300,
+) -> Any:
     """Executa o scraper em processo filho com timeout hard.
 
     O launch do browser (``cls(store)``) e o ``scraper.run()`` ficam DENTRO do
@@ -681,7 +693,7 @@ def _run_scraper_isolated(scraper_cls, store, ingredients, needs_ingredients, st
     return res
 
 
-def _run_callable_isolated(func, store, store_name, timeout_seconds=300):
+def _run_callable_isolated(func: Any, store: Any, store_name: str, timeout_seconds: int = 300) -> Any:
     """Executa ``func(store)`` em processo filho com timeout hard (agregadores)."""
     res = _spawn_isolated("callable", func.__module__, func.__name__, store, store_name, timeout_seconds)
     if res is None:
@@ -695,7 +707,7 @@ def _scrape_store(
     ingredients: list[Ingredient],
     label: str,
     needs_ingredients_param: bool,
-    post_process,
+    post_process: Any,
     store_timeout: int,
 ) -> tuple[str, list[PriceEntry]]:
     """Coleta UMA loja (thread-safe). Retorna (nome, produtos)."""
@@ -762,14 +774,17 @@ def _scrape_store(
                 thumb_url = _upload_flyer_thumbnail(store_name, thumbnail)
                 if thumb_url:
                     upsert_flyer(
-                        {
-                            "store_name": store_name,
-                            "region": store.get("region", ""),
-                            "city": store.get("city", ""),
-                            "flyer_title": f"Panfleto {date.today().strftime('%d/%m/%Y')}",
-                            "image_url": thumb_url,
-                            "source": "pdf_scrape",
-                        }
+                        cast(
+                            "Flyer",
+                            {
+                                "store_name": store_name,
+                                "region": store.get("region", ""),
+                                "city": store.get("city", ""),
+                                "flyer_title": f"Panfleto {date.today().strftime('%d/%m/%Y')}",
+                                "image_url": thumb_url,
+                                "source": "pdf_scrape",
+                            },
+                        )
                     )
             except Exception as e:
                 logger.debug("[%s] Flyer record save failed: %s", store_name, e)
@@ -840,7 +855,7 @@ def _scrape_store(
                 error_class,
                 e,
             )
-            log_scraper_run(store_name, "transient", 0, 0, str(e), started_at=started_at)
+            log_scraper_run(store_name, "transient", 0, 0, [str(e)], started_at=started_at)
             with suppress(Exception):
                 from services.scraper_health import record_transient_failure
 
@@ -852,7 +867,7 @@ def _scrape_store(
                 )
             return store_name, []
         logger.error("[%s] %s: %s", label, store_name, e)
-        log_scraper_run(store_name, "error", 0, 0, str(e), started_at=started_at)
+        log_scraper_run(store_name, "error", 0, 0, [str(e)], started_at=started_at)
         with suppress(Exception):
             from services.email_service import send_scraper_error
 
@@ -878,7 +893,7 @@ def _collect_generic(
     ingredients: list[Ingredient],
     label: str,
     needs_ingredients_param: bool = True,
-    post_process=None,
+    post_process: Any = None,
     store_timeout: int = 300,
     max_workers: int = 2,
 ) -> list[PriceEntry]:
@@ -944,9 +959,9 @@ def _collect_flyers(
     stores: list[Store],
     scraper_cls: type | None,
     label: str,
-    run_fn=None,
-) -> list[dict]:
-    all_flyers: list[dict] = []
+    run_fn: Any = None,
+) -> list[dict[str, Any]]:
+    all_flyers: list[dict[str, Any]] = []
     for store in stores:
         store_name = store.get("name", "unknown")
         try:
@@ -986,7 +1001,7 @@ def _collect_flyers(
                     error_class,
                     e,
                 )
-                log_scraper_run(store_name, "transient", 0, 0, str(e))
+                log_scraper_run(store_name, "transient", 0, 0, [str(e)])
                 with suppress(Exception):
                     from services.scraper_health import record_transient_failure
 
@@ -1042,7 +1057,7 @@ def collect_pao_flyers(ingredients: list[Ingredient]) -> list[PriceEntry]:
     return _collect_prices(stores, PaoFlyerScraper, ingredients, "PaoFlyer")
 
 
-def collect_tier1_api_flyers(ingredients: list[dict]) -> list[dict]:
+def collect_tier1_api_flyers(ingredients: list[Ingredient]) -> list[PriceEntry]:
     """Coleta lojas api_flyer (Max/Roldão/Tenda) pelo pipeline de PREÇOS.
 
     Estes scrapers extraem produtos (name+price) via vision-LLM a partir dos
@@ -1057,7 +1072,7 @@ def collect_tier1_api_flyers(ingredients: list[dict]) -> list[dict]:
     if not stores:
         return []
     # Agrupa por classe de scraper resolvida (cada loja pode usar Max/Roldão/Tenda).
-    by_cls: dict[type, list[Store]] = {}
+    by_cls: dict[Any, list[Store]] = {}
     for s in stores:
         scraper_name = (s.get("scraper") or "").strip().lower()
         cls = API_SCRAPER_MAP.get(scraper_name)
@@ -1066,9 +1081,9 @@ def collect_tier1_api_flyers(ingredients: list[dict]) -> list[dict]:
             continue
         by_cls.setdefault(cls, []).append(s)
 
-    all_products: list[dict] = []
+    all_products: list[PriceEntry] = []
     for cls, cls_stores in by_cls.items():
-        timeout = int(cls_stores[0].get("vision_timeout_seconds", 300))
+        timeout = int(cast("dict[str, Any]", cls_stores[0]).get("vision_timeout_seconds", 300))
         all_products.extend(_collect_prices(cls_stores, cls, ingredients, "API-Flyer", store_timeout=timeout))
     return all_products
 
@@ -1111,24 +1126,24 @@ def collect_tier2_js(ingredients: list[Ingredient]) -> list[PriceEntry]:
         # Playwright stores need more time: browser launch + page rendering.
         # Cada loja pode sobrepor playwright_timeout (default 600 p/ Playwright, 300 ecomplus).
         default_pw = 600 if store.get("scraper") == "playwright_price_scraper" else 300
-        store_timeout = int(store.get("playwright_timeout", default_pw))
+        store_timeout = int(cast("dict[str, Any]", store).get("playwright_timeout", default_pw))
         all_products += _collect_prices([store], scraper_cls, ingredients, "WebJS", store_timeout=store_timeout)
     return all_products
 
 
-def collect_aggregators_ssr() -> list[dict]:
+def collect_aggregators_ssr() -> list[dict[str, Any]]:
     stores = [s for s in load_stores() if s.get("scraper") == "aggregator_scraper" and s.get("type") == "aggregator"]
     return _collect_flyers(stores, None, "SSR", run_fn=_run_ssr_scraper)
 
 
-def _run_ssr_scraper(store: dict) -> list[dict]:
+def _run_ssr_scraper(store: dict[str, Any]) -> list[dict[str, Any]]:
     # Tiendeo bloqueava HTTP SSR com 403 (Cloudflare) — agora usa curl_cffi
     # (impersonate="chrome") que bypassa a detecção TLS. Playwright fica como
     # fallback caso o curl_cffi ainda seja bloqueado (ex.: IP datacenter).
     from scrapers.aggregator_scraper import TiendeoPlaywrightScraper, TiendeoScraper
 
     try:
-        flyers = TiendeoScraper(store).run()
+        flyers: list[dict[str, Any]] = TiendeoScraper(store).run()
         if flyers:
             logger.info("[%s] TiendeoScraper (curl_cffi) coletou %d flyers", store.get("name", "unknown"), len(flyers))
             return flyers
@@ -1142,19 +1157,19 @@ def _run_ssr_scraper(store: dict) -> list[dict]:
         )
 
     scraper = TiendeoPlaywrightScraper(store)
-    return scraper.run()
+    return cast("list[dict[str, Any]]", scraper.run())
 
 
-def collect_aggregators_js() -> list[dict]:
+def collect_aggregators_js() -> list[dict[str, Any]]:
     stores = [s for s in load_stores() if s.get("scraper") == "playwright_scraper" and s.get("type") == "aggregator_js"]
     return _collect_flyers(stores, None, "JS", run_fn=_run_js_scraper)
 
 
-def _run_js_scraper(store: dict) -> list[dict]:
+def _run_js_scraper(store: dict[str, Any]) -> list[dict[str, Any]]:
     from scrapers.playwright_scraper import PlaywrightAggregatorScraper
 
     scraper = PlaywrightAggregatorScraper(store)
-    return scraper.run()
+    return cast("list[dict[str, Any]]", scraper.run())
 
 
 def collect_roldao_flyer(ingredients: list[Ingredient]) -> list[PriceEntry]:
@@ -1170,7 +1185,7 @@ def collect_giga_flyer(ingredients: list[Ingredient]) -> list[PriceEntry]:
     # (default 300). O download do encarte em si é rápido; o gargalo é o LLM.
     timeout = 300
     if stores:
-        timeout = int(stores[0].get("vision_timeout_seconds", 300))
+        timeout = int(cast("dict[str, Any]", stores[0]).get("vision_timeout_seconds", 300))
     return _collect_prices(stores, GigaFlyerScraper, ingredients, "GigaFlyer", store_timeout=timeout)
 
 
@@ -1185,7 +1200,7 @@ def collect_facebook_flyers(ingredients: list[Ingredient]) -> list[PriceEntry]:
     return _collect_prices(stores, FacebookFlyerScraper, ingredients, "FacebookFlyer")
 
 
-def _resolve_flyer_image(http: httpx.Client, flyer: dict) -> dict:
+def _resolve_flyer_image(http: httpx.Client, flyer: dict[str, Any]) -> dict[str, Any]:
     """Resolve flyer_url → real image_url by downloading the catalog page (SSR)."""
     flyer_url = flyer.get("flyer_url", "")
     if not flyer_url or flyer.get("image_url", ""):
@@ -1255,7 +1270,7 @@ def process_ocr_queue() -> int:
 
                 addr = best_address(raw_text)
                 if addr:
-                    from services.flyer_service import get_service_client
+                    from services.supabase_client import get_service_client
 
                     try:
                         sc = get_service_client()
@@ -1289,7 +1304,7 @@ def process_ocr_queue() -> int:
             matched = 0
             for prod in products:
                 entry = process_price_match(
-                    store={"name": store_name, "type": "aggregator", "tier": 3},
+                    store=cast("Store", {"name": store_name, "type": "aggregator", "tier": 3}),
                     product_text=prod.get("product", ""),
                     raw_price=prod.get("price", 0),
                     raw_unit=prod.get("unit", ""),

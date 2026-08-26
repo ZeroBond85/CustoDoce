@@ -10,7 +10,7 @@ from services.config_db import upsert_store
 from services.dashboard_queries import cached_get_all_schedules, cached_get_all_stores
 
 
-def render_lojas():
+def render_lojas() -> None:
     inject_css()
 
     st.title("Gerenciamento de Lojas")

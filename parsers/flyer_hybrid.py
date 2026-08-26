@@ -30,6 +30,8 @@ re-confirmed. This costs ~+20s/flyer, so it is env-gated via
 """
 from __future__ import annotations
 
+from typing import Any
+
 import io
 import json
 import os
@@ -106,7 +108,7 @@ CENTS_CROP_UPSCALE = int(os.environ.get("FLYER_HYBRID_CENTS_UPSCALE", "6"))
 QUALITY_THRESHOLD = float(os.environ.get("FLYER_RAW_QUALITY_THRESHOLD", "0.3"))
 
 # Circuit breaker state per provider name.
-_cb_state: dict[str, dict] = {}
+_cb_state: dict[str, dict[str, Any]] = {}
 
 
 def _provider_available(name: str) -> bool:
@@ -121,7 +123,7 @@ def _provider_available(name: str) -> bool:
     return not state["open"]
 
 
-def _provider_failed(name: str):
+def _provider_failed(name: str) -> None:
     state = _cb_state.setdefault(name, {"open": False, "count": 0, "since": 0.0})
     state["count"] += 1
     if state["count"] >= LLM_CB_THRESHOLD:
@@ -130,14 +132,14 @@ def _provider_failed(name: str):
         logger.info("flyer_hybrid_cb_open", provider=name, count=state["count"])
 
 
-def _provider_succeeded(name: str):
+def _provider_succeeded(name: str) -> None:
     state = _cb_state.get(name)
     if state:
         state["count"] = 0
         state["open"] = False
 
 
-def _reset_cb():
+def _reset_cb() -> None:
     _cb_state.clear()
 
 
@@ -151,7 +153,7 @@ _engine_lock = threading.Lock()
 _engine_unavailable = False
 
 
-def _get_engine():
+def _get_engine() -> Any:
     """Lazily build (and cache) a single RapidOCR engine.
 
     Returns None if RapidOCR is not installed. The engine is thread-safe to
@@ -180,7 +182,7 @@ def _get_engine():
     return _engine
 
 
-def run_rapidocr(image_bytes: bytes) -> list[dict] | None:
+def run_rapidocr(image_bytes: bytes) -> list[dict[str, Any]] | None:
     """Run RapidOCR on image bytes and return region dicts.
 
     Each region has the shape consumed by ``price_geometry``::
@@ -211,7 +213,7 @@ def run_rapidocr(image_bytes: bytes) -> list[dict] | None:
     if boxes is None or txts is None:
         return None
 
-    regions: list[dict] = []
+    regions: list[dict[str, Any]] = []
     for i, txt in enumerate(txts):
         try:
             box = [[float(x), float(y)] for x, y in boxes[i]]
@@ -227,7 +229,7 @@ def run_rapidocr(image_bytes: bytes) -> list[dict] | None:
     return regions
 
 
-def is_dense(regions: list[dict]) -> bool:
+def is_dense(regions: list[dict[str, Any]]) -> bool:
     """True if the flyer has enough OCR regions to warrant the hybrid path."""
     return len(regions) >= DENSITY_THRESHOLD
 
@@ -243,7 +245,7 @@ def _cy(box: list[list[float]]) -> float:
     return sum(p[1] for p in box) / 4
 
 
-def build_price_blocks(regions: list[dict]) -> list[dict]:
+def build_price_blocks(regions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Pair each reconstructed price with its nearby product-name texts.
 
     Returns a list of ``{"price": float, "texts": [str, ...]}`` blocks ordered
@@ -277,7 +279,7 @@ def _is_promo(text: str) -> bool:
     return bool(_PROMO_PATTERNS.search(text.lower().strip()))
 
 
-def _get_adaptive_params(regions: list[dict], prices: list[Price]):
+def _get_adaptive_params(regions: list[dict[str, Any]], prices: list[Price]) -> ClusteringParams | None:
     """Get adaptive clustering parameters for this flyer's layout."""
     if not GLOBAL_USE_LAYOUT_ADAPTATION:
         return None
@@ -291,9 +293,9 @@ def _get_adaptive_params(regions: list[dict], prices: list[Price]):
 
 def _blocks_from_prices(
     prices: list[Price],
-    regions: list[dict],
+    regions: list[dict[str, Any]],
     adaptive_params: ClusteringParams | None = None,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     names = [r for r in regions if is_product_name(r.get("text", ""))]
 
     # Get adaptive parameters if not explicitly provided
@@ -316,7 +318,7 @@ def _blocks_from_prices(
         block_dy_below = BLOCK_DY_BELOW
         block_max_texts = BLOCK_MAX_TEXTS
 
-    blocks: list[dict] = []
+    blocks: list[dict[str, Any]] = []
     for price in prices:
         px, py = _cx(price.box), _cy(price.box)
         nearby_raw: list[tuple[float, float, str]] = []
@@ -473,13 +475,13 @@ _NAME_PROMPT = (
 )
 
 
-def _text_llm_providers() -> list[dict]:
+def _text_llm_providers() -> list[dict[str, Any]]:
     """Ordered text-LLM providers for name resolution (OpenAI-compatible).
 
     Reuses the same free-tier keys as the rest of the pipeline. Skipped silently
     when a key is absent.
     """
-    providers: list[dict] = []
+    providers: list[dict[str, Any]] = []
     groq = os.environ.get("GROQ_API_KEY", "")
     if groq:
         providers.append(
@@ -503,7 +505,7 @@ def _text_llm_providers() -> list[dict]:
     return providers
 
 
-def _parse_llm_json(content: str) -> list[dict] | None:
+def _parse_llm_json(content: str) -> list[dict[str, Any]] | None:
     """Extract the produtos list from an LLM JSON response, robust to fences."""
     if not content:
         return None
@@ -543,7 +545,7 @@ def _name_quality(name: str) -> float:
     return max(0.0, min(1.0, long_ratio * 0.8 + (1 - digits_ratio) * 0.2))
 
 
-def _raw_ocr_fallback(blocks: list[dict]) -> list[dict]:
+def _raw_ocr_fallback(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Fallback when all text-LLM providers fail: use raw OCR texts as names.
 
     Each block already has the correct price from geometry and a list of
@@ -560,7 +562,7 @@ def _raw_ocr_fallback(blocks: list[dict]) -> list[dict]:
     return products
 
 
-def resolve_names(blocks: list[dict]) -> list[dict]:
+def resolve_names(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Resolve product names from OCR price blocks (raw-OCR-first strategy).
 
     Guarantees 100 % coverage by always starting with raw-OCR names. LLM
@@ -658,9 +660,9 @@ def resolve_names(blocks: list[dict]) -> list[dict]:
     return products
 
 
-def _to_products(items: list[dict]) -> list[dict]:
+def _to_products(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Normalize LLM output into the product shape flyer_ocr expects."""
-    products: list[dict] = []
+    products: list[dict[str, Any]] = []
     for it in items:
         if not isinstance(it, dict):
             continue
@@ -681,7 +683,7 @@ def _to_products(items: list[dict]) -> list[dict]:
 # --- orchestration -----------------------------------------------------------
 
 
-def extract_from_regions(regions: list[dict], image_bytes: bytes | None = None) -> list[dict] | None:
+def extract_from_regions(regions: list[dict[str, Any]], image_bytes: bytes | None = None) -> list[dict[str, Any]] | None:
     """Full hybrid pipeline from OCR regions to products (blocks + text-LLM).
 
     When ``image_bytes`` is provided and cents refinement is enabled, each
@@ -700,7 +702,7 @@ def extract_from_regions(regions: list[dict], image_bytes: bytes | None = None) 
     return products or None
 
 
-def extract_products_hybrid(image_bytes: bytes) -> list[dict] | None:
+def extract_products_hybrid(image_bytes: bytes) -> list[dict[str, Any]] | None:
     """Run the whole hybrid path from image bytes.
 
     Returns None when RapidOCR is unavailable, the flyer is not dense, or no

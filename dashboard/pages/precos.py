@@ -11,7 +11,7 @@ from services.dashboard_queries import (
 )
 
 
-def _sync_query_params():
+def _sync_query_params() -> None:
     qp = st.query_params
     if not qp:
         return
@@ -20,7 +20,7 @@ def _sync_query_params():
             st.session_state[widget_key] = qp[key]
 
 
-def _push_query_params():
+def _push_query_params() -> None:
     ing = st.session_state.get("precos_ingredient", "")
     store = st.session_state.get("precos_store", "Todas")
     tier = st.session_state.get("precos_tier", "Todos")
@@ -34,7 +34,7 @@ def _push_query_params():
     st.query_params.from_dict(qp)
 
 
-def render_precos():
+def render_precos() -> None:
     inject_css()
     _sync_query_params()
 

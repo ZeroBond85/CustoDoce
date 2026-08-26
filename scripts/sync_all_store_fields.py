@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import yaml
 from dotenv import load_dotenv
 
-from services.supabase_client import get_service_client
+from services.supabase_client import get_service_client, safe_single_execute
 
 load_dotenv()
 
@@ -58,11 +58,13 @@ def sync_store_fields() -> int:
     updated = 0
     for s in data["stores"]:
         name = s.get("name", "")
-        r = c.table("stores").select("id,name").ilike("name", name).maybe_single().execute()
-        if not r or not r.data:
+        row = safe_single_execute(
+            c.table("stores").select("id,name").ilike("name", name).maybe_single()
+        )
+        if not row:
             logger.info("MISSING store in DB: %s", name)
             continue
-        store_id = r.data["id"]
+        store_id = row["id"]
         updates = {}
         for field in FIELDS:
             val = s.get(field)
@@ -104,12 +106,14 @@ def sync_scrape_frequencies() -> int:
         name = s.get("name", "")
         if not name:
             continue
-        r = c.table("stores").select("id, tier").ilike("name", name).maybe_single().execute()
-        if not r or not r.data:
+        row = safe_single_execute(
+            c.table("stores").select("id, tier").ilike("name", name).maybe_single()
+        )
+        if not row:
             logger.info("MISSING store in DB: %s — skipping freq", name)
             continue
-        store_id = r.data["id"]
-        tier = r.data["tier"]
+        store_id = row["id"]
+        tier = row["tier"]
         freq = _default_frequency_by_tier(tier)
         c.table("scrape_frequencies").upsert(
             {
@@ -147,11 +151,13 @@ def sync_store_units() -> int:
         name = s.get("name", "")
         if not name:
             continue
-        r = c.table("stores").select("id").ilike("name", name).maybe_single().execute()
-        if not r or not r.data:
+        row = safe_single_execute(
+            c.table("stores").select("id").ilike("name", name).maybe_single()
+        )
+        if not row:
             logger.info("MISSING store in DB: %s — cannot sync units", name)
             continue
-        store_id = r.data["id"]
+        store_id = row["id"]
 
         for unit in units:
             unit_name = unit.get("name", "") if isinstance(unit, dict) else ""

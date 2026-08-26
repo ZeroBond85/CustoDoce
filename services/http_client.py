@@ -20,6 +20,7 @@ from __future__ import annotations
 import os
 import secrets
 import time
+from typing import Any
 
 import httpx
 
@@ -42,7 +43,7 @@ def _make_limits() -> httpx.Limits:
     )
 
 
-def _make_client_kwargs() -> dict:
+def _make_client_kwargs() -> dict[str, Any]:
     return {
         "timeout": httpx.Timeout(_DEFAULT_TIMEOUT),
         "limits": _make_limits(),
@@ -68,7 +69,7 @@ def get_async_client() -> httpx.AsyncClient:
     return _async_client
 
 
-def close_clients():
+def close_clients() -> None:
     global _client, _async_client
     if _client is not None:
         _client.close()
@@ -90,7 +91,7 @@ def retry_with_backoff(
     url: str,
     max_retries: int = _DEFAULT_MAX_RETRIES,
     base_delay: float = _DEFAULT_RETRY_BACKOFF,
-    **kwargs,
+    **kwargs: Any,
 ) -> httpx.Response:
     """GET with exponential backoff retry. Uses shared client."""
     client = get_client()
@@ -116,7 +117,7 @@ async def retry_with_backoff_async(
     url: str,
     max_retries: int = _DEFAULT_MAX_RETRIES,
     base_delay: float = _DEFAULT_RETRY_BACKOFF,
-    **kwargs,
+    **kwargs: Any,
 ) -> httpx.Response:
     """Async GET with exponential backoff retry."""
     import asyncio

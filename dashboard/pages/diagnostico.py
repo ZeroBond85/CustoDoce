@@ -3,6 +3,7 @@ Dashboard Page: Diagnóstico
 """
 
 import time
+from typing import Any, cast
 
 import pandas as pd
 import streamlit as st
@@ -18,7 +19,7 @@ from services.dashboard_queries import (
 from services.supabase_client import get_supabase
 
 
-def render_diagnostico():
+def render_diagnostico() -> None:
     inject_css()
 
     st.title("🔬 Diagnóstico do Sistema")
@@ -67,7 +68,7 @@ def render_diagnostico():
             if st.button("Testar Supabase", key="test_sb"):
                 try:
                     client = get_supabase()
-                    client.table("stores").select("id", count="exact").limit(1).execute()
+                    client.table("stores").select("id", count="exact").limit(1).execute()  # type: ignore[arg-type]
                     st.success("✅ OK")
                 except Exception as e:
                     st.error(f"❌ ERRO: {e}")
@@ -75,7 +76,7 @@ def render_diagnostico():
         with col2:
             st.markdown("**SMTP (Gmail)**")
             if st.button("Testar SMTP", key="test_smtp"):
-                from services.email_service import test_smtp_connection
+                from services.email_service import test_smtp_connection  # type: ignore[attr-defined]
 
                 ok, msg = test_smtp_connection()
                 if ok:
@@ -105,36 +106,40 @@ def render_diagnostico():
                 prices = client.table("prices").select("ingredient_id, store_id").limit(2000).execute()
                 ingredients = client.table("ingredients").select("id").execute()
                 stores = client.table("stores").select("id").execute()
-                ing_ids = {i["id"] for i in ingredients.data}
-                store_ids = {s["id"] for s in stores.data}
+                price_rows = cast("list[dict[str, Any]]", prices.data) or []
+                ing_rows = cast("list[dict[str, Any]]", ingredients.data) or []
+                store_rows = cast("list[dict[str, Any]]", stores.data) or []
+                ing_ids = {i["id"] for i in ing_rows}
+                store_ids = {s["id"] for s in store_rows}
 
-                orphans_ing = [p["ingredient_id"] for p in prices.data if p["ingredient_id"] not in ing_ids]
-                orphans_store = [p["store_id"] for p in prices.data if p["store_id"] not in store_ids]
+                orphans_ing = [p["ingredient_id"] for p in price_rows if p["ingredient_id"] not in ing_ids]
+                orphans_store = [p["store_id"] for p in price_rows if p["store_id"] not in store_ids]
 
                 col1, col2 = st.columns(2)
                 with col1:
                     if orphans_ing:
                         st.warning(f"⚠️ {len(orphans_ing)} preços com ingredient_id órfão")
-                        st.write(set(orphans_ing)[:20])
+                        st.write(list(set(orphans_ing))[:20])
                     else:
                         st.success("✅ Nenhum ingrediente órfão")
 
                 with col2:
                     if orphans_store:
                         st.warning(f"⚠️ {len(orphans_store)} preços com store_id órfão")
-                        st.write(set(orphans_store)[:20])
+                        st.write(list(set(orphans_store))[:20])
                     else:
                         st.success("✅ Nenhuma loja órfã")
 
                 # Check price distribution
-                df = pd.DataFrame(prices.data)
+                df = pd.DataFrame(price_rows)
                 if not df.empty:
                     st.write("**Distribuição de preços por ingrediente (Amostra 2000):**")
                     st.bar_chart(df["ingredient_id"].value_counts())
 
                 # Check review queue
-                rq = client.table("review_queue").select("id", count="exact").limit(1).execute()
-                st.info(f"📋 Fila de revisão: {rq.count if hasattr(rq, 'count') else len(rq.data)} itens")
+                rq = client.table("review_queue").select("id", count="exact").limit(1).execute()  # type: ignore[arg-type]
+                rq_data = cast("list[dict[str, Any]]", rq.data) or []
+                st.info(f"📋 Fila de revisão: {rq.count if hasattr(rq, 'count') else len(rq_data)} itens")
 
     with tabs[3]:  # Capacity Planning
         render_capacity_planning()

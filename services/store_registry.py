@@ -9,10 +9,11 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime, UTC, timedelta
+from typing import Any, cast
 
 from rapidfuzz import fuzz
 
-from services.supabase_client import get_service_client
+from services.supabase_client import get_service_client, safe_execute, safe_single_execute
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ def normalize_name(raw: str) -> str:
     return re.sub(r"[^A-Z0-9 ]", "", raw.upper())
 
 
-def _best_store_match(norm: str, stores_pool: list[dict], threshold: int) -> tuple[float, str | None]:
+def _best_store_match(norm: str, stores_pool: list[dict[str, Any]], threshold: int) -> tuple[float, str | None]:
     """Retorna (match_score, matched_store_id) do melhor match por token_set_ratio
     contra o pool de lojas. Pool ampliado (todas lojas, não só is_active) para
     recuperar matches legítimos que antes ficavam sem matched_store_id."""
@@ -50,7 +51,7 @@ def _best_store_match(norm: str, stores_pool: list[dict], threshold: int) -> tup
     return best_score, best_id
 
 
-def find_similar_stores(name: str, threshold: int = DEDUP_THRESHOLD, limit: int = 3) -> list[dict]:
+def find_similar_stores(name: str, threshold: int = DEDUP_THRESHOLD, limit: int = 3) -> list[dict[str, Any]]:
     """Find existing stores with name similarity >= threshold using RapidFuzz.
     Returns list of {id, name, similarity} sorted by similarity desc.
     """
@@ -66,7 +67,7 @@ def find_similar_stores(name: str, threshold: int = DEDUP_THRESHOLD, limit: int 
         logger.warning("store_registry.find_similar_stores: no supabase client (%s)", exc)
         return []
 
-    stores = client.table("stores").select("id, name").eq("is_active", True).execute().data or []
+    stores = safe_execute(client.table("stores").select("id, name").eq("is_active", True)) or []
     results = []
     for s in stores:
         score = fuzz.token_set_ratio(norm, normalize_name(s["name"]))
@@ -94,7 +95,7 @@ class StoreRegistryEntry:
     status: str = "pending_review"
     match_score: float = 0.0
     matched_store_id: str | None = None
-    config: dict = None
+    config: dict[str, Any] | None = None
     address: str = ""
     neighborhood: str = ""
     phone: str = ""
@@ -102,7 +103,7 @@ class StoreRegistryEntry:
     discovery_source: str = "flyer"
     region: str = ""
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.config is None:
             self.config = {}
         if not self.normalized_name:
@@ -142,23 +143,26 @@ def upsert_registry_entry(entry: StoreRegistryEntry) -> StoreRegistryEntry | Non
 
     try:
         if entry.id:
-            res = client.table("store_registry").update(data).eq("id", entry.id).execute()
+            res = safe_execute(client.table("store_registry").update(data).eq("id", entry.id))  # type: ignore[arg-type]
         else:
             # Check for exact normalized_name conflict (pending/approved)
-            existing = client.table("store_registry")\
-                .select("id")\
-                .eq("normalized_name", data["normalized_name"])\
-                .in_("status", ["pending_review", "approved"])\
-                .limit(1)\
-                .execute()
-            if existing.data:
+            existing = safe_execute(
+                client.table("store_registry")
+                .select("id")
+                .eq("normalized_name", data["normalized_name"])
+                .in_("status", ["pending_review", "approved"])
+                .limit(1)
+            )
+            if existing:
                 # Conflict: return existing, merge address if incoming has it
-                eid = existing.data[0]["id"]
-                conflict_data = {k: v for k, v in data.items() if k != "normalized_name"}
+                eid = existing[0]["id"]
+                conflict_data = cast("dict[str, Any]", {k: v for k, v in data.items() if k != "normalized_name"})
                 try:
-                    existing_row = client.table("store_registry")\
-                        .select("address, neighborhood, phone, address_confidence, discovery_source, region, matched_store_id, match_score")\
-                        .eq("id", eid).single().execute().data or {}
+                    existing_row = safe_single_execute(
+                        client.table("store_registry")
+                        .select("address, neighborhood, phone, address_confidence, discovery_source, region, matched_store_id, match_score")
+                        .eq("id", eid).single()
+                    ) or {}
                     # Backfill matched_store_id/match_score no conflito: antes o
                     # match só era calculado UMA vez no insert (contra pool
                     # is_active=true) e nunca re-avaliado — lojas reais ficavam
@@ -167,7 +171,7 @@ def upsert_registry_entry(entry: StoreRegistryEntry) -> StoreRegistryEntry | Non
                     if not existing_row.get("matched_store_id") and (data.get("matched_store_id") or entry.matched_store_id):
                         conflict_data["matched_store_id"] = data.get("matched_store_id") or entry.matched_store_id
                         conflict_data["match_score"] = data.get("match_score", 0)
-                        client.table("store_registry").update(conflict_data).eq("id", eid).execute()
+                        safe_execute(client.table("store_registry").update(conflict_data).eq("id", eid))
                     if not existing_row.get("address") and data.get("address"):
                         conflict_data["address"] = data["address"]
                         conflict_data["neighborhood"] = data.get("neighborhood", "")
@@ -175,15 +179,15 @@ def upsert_registry_entry(entry: StoreRegistryEntry) -> StoreRegistryEntry | Non
                         conflict_data["address_confidence"] = data.get("address_confidence", 0)
                         conflict_data["discovery_source"] = data.get("discovery_source", "flyer")
                         conflict_data["region"] = data.get("region", "")
-                        client.table("store_registry").update(conflict_data).eq("id", eid).execute()
+                        safe_execute(client.table("store_registry").update(conflict_data).eq("id", eid))
                 except Exception as exc:
                     logger.debug("[store_registry] conflict address merge: %s", exc)
                 return StoreRegistryEntry(id=eid, **conflict_data)
 
-            res = client.table("store_registry").insert(data).execute()
+            res = safe_execute(client.table("store_registry").insert(data))  # type: ignore[arg-type]
 
-        if res.data:
-            row = res.data[0]
+        if res:
+            row = res[0]
             return StoreRegistryEntry(
                 id=row["id"],
                 name=row["name"],
@@ -228,14 +232,13 @@ def expire_stale_pending(days: int = 30) -> int:
 
     cutoff = (datetime.now(UTC) - timedelta(days=days)).isoformat()
     try:
-        res = (
+        res = safe_execute(
             client.table("store_registry")
             .update({"status": "expired", "reviewed_at": datetime.now(UTC).isoformat(), "reviewed_by": "auto-expire"})
             .eq("status", "pending_review")
             .lt("created_at", cutoff)
-            .execute()
         )
-        count = len(res.data or [])
+        count = len(res or [])
         if count:
             logger.info("store_registry: %d pendências >%dd expiradas automaticamente", count, days)
         return count
@@ -252,12 +255,13 @@ def get_pending_review(limit: int = 100) -> list[StoreRegistryEntry]:
         logger.warning("store_registry.get_pending_review: no supabase client (%s)", exc)
         return []
 
-    res = client.table("store_registry")\
-        .select("*")\
-        .eq("status", "pending_review")\
-        .order("created_at", desc=False)\
-        .limit(limit)\
-        .execute()
+    res = safe_execute(
+        client.table("store_registry")
+        .select("*")
+        .eq("status", "pending_review")
+        .order("created_at", desc=False)
+        .limit(limit)
+    )
 
     return [StoreRegistryEntry(
         id=row["id"],
@@ -281,7 +285,7 @@ def get_pending_review(limit: int = 100) -> list[StoreRegistryEntry]:
         address_confidence=row.get("address_confidence", 0),
         discovery_source=row.get("discovery_source", "flyer"),
         region=row.get("region", ""),
-    ) for row in res.data or []]
+    ) for row in res or []]
 
 
 def approve_registry_entry(entry_id: str, ingredient_id: str = "", brand_override: str = "") -> bool:
@@ -294,7 +298,7 @@ def approve_registry_entry(entry_id: str, ingredient_id: str = "", brand_overrid
 
     try:
         # Call DB function to merge
-        client.rpc("merge_approved_store", {"p_registry_id": entry_id}).execute()
+        safe_execute(client.rpc("merge_approved_store", {"p_registry_id": entry_id}))
         return True
     except Exception as exc:
         logger.warning("approve_registry_entry merge failed for %s: %s", entry_id, exc)
@@ -310,7 +314,7 @@ def reject_registry_entry(entry_id: str) -> bool:
         return False
 
     try:
-        client.table("store_registry").update({"status": "rejected"}).eq("id", entry_id).execute()
+        safe_execute(client.table("store_registry").update({"status": "rejected"}).eq("id", entry_id))
         return True
     except Exception as exc:
         logger.warning("reject_registry_entry failed for %s: %s", entry_id, exc)
@@ -356,16 +360,16 @@ def _is_food_store_name(name: str) -> bool:
     return not any(kw in name_lower for kw in NON_FOOD_KEYWORDS)
 
 
-def _fetch_and_dedup_flyers(client) -> dict[str, dict]:
+def _fetch_and_dedup_flyers(client: Any) -> dict[str, dict[str, Any]]:
     """Busca flyers e deduplica por normalized_name, filtrando não-food."""
     try:
-        flyers = client.table("flyers").select("store_name, region, city, address").execute()
+        flyers = safe_execute(client.table("flyers").select("store_name, region, city, address"))
     except Exception as exc:
         logger.warning("discover_stores_from_flyers: query failed: %s", exc)
         return {}
 
-    seen: dict[str, dict] = {}
-    for f in flyers.data or []:
+    seen: dict[str, dict[str, Any]] = {}
+    for f in flyers or []:
         name = (f.get("store_name") or "").strip()
         if not name:
             continue
@@ -381,22 +385,21 @@ def _fetch_and_dedup_flyers(client) -> dict[str, dict]:
     return seen
 
 
-def _load_existing_data(client) -> tuple[list[dict], list[dict], set[str]]:
+def _load_existing_data(client: Any) -> tuple[list[dict[str, Any]], list[dict[str, Any]], set[str]]:
     """Carrega lojas existentes e registry entries para dedup/match."""
-    existing_stores: list[dict] = []
+    existing_stores: list[dict[str, Any]] = []
     try:
-        stores_resp = client.table("stores").select("id, name").execute()
-        existing_stores = stores_resp.data or []
+        existing_stores = safe_execute(client.table("stores").select("id, name"))
     except Exception as exc:
         logger.debug("[store_registry] Could not fetch existing stores: %s", exc)
 
-    existing_registry: list[dict] = []
+    existing_registry: list[dict[str, Any]] = []
     try:
-        reg_resp = client.table("store_registry") \
-            .select("id, name, normalized_name, status, matched_store_id") \
-            .in_("status", ["pending_review", "approved"]) \
-            .execute()
-        existing_registry = reg_resp.data or []
+        existing_registry = safe_execute(
+            client.table("store_registry")
+            .select("id, name, normalized_name, status, matched_store_id")
+            .in_("status", ["pending_review", "approved"])
+        )
     except Exception as exc:
         logger.debug("[store_registry] Could not fetch existing registry: %s", exc)
 
@@ -405,7 +408,7 @@ def _load_existing_data(client) -> tuple[list[dict], list[dict], set[str]]:
     return existing_stores, existing_registry, existing_norms
 
 
-def _find_store_match(norm: str, existing_stores: list[dict], existing_registry: list[dict]) -> tuple[float, str | None]:
+def _find_store_match(norm: str, existing_stores: list[dict[str, Any]], existing_registry: list[dict[str, Any]]) -> tuple[float, str | None]:
     """Encontra melhor match (loja ou registry) via fuzzy token_set_ratio ≥ 70%."""
     match_score = 0.0
     matched_store_id = None
@@ -426,7 +429,7 @@ def _find_store_match(norm: str, existing_stores: list[dict], existing_registry:
     return match_score, matched_store_id
 
 
-def _build_registry_entry(norm: str, info: dict, match_score: float, matched_store_id: str | None) -> StoreRegistryEntry:
+def _build_registry_entry(norm: str, info: dict[str, Any], match_score: float, matched_store_id: str | None) -> StoreRegistryEntry:
     """Constrói StoreRegistryEntry padronizada para descoberta via flyer."""
     entry = StoreRegistryEntry(
         name=info["name"],
@@ -452,11 +455,11 @@ def _build_registry_entry(norm: str, info: dict, match_score: float, matched_sto
 
 def _process_new_store(
     norm: str,
-    info: dict,
-    client,
+    info: dict[str, Any],
+    client: Any,
     existing_norms: set[str],
-    existing_stores: list[dict],
-    existing_registry: list[dict],
+    existing_stores: list[dict[str, Any]],
+    existing_registry: list[dict[str, Any]],
 ) -> int:
     """Processa uma nova loja candidata: match, upsert, address merge. Retorna 1 se inseriu."""
     if norm in existing_norms:
@@ -517,13 +520,13 @@ def merge_store_address_from_registry(entry: StoreRegistryEntry) -> bool:
         return False
     try:
         client = get_service_client()
-        store = client.table("stores").select("address, id").eq("id", entry.matched_store_id).single().execute()
-        if store.data and not store.data.get("address"):
-            client.table("stores").update({
+        store = safe_single_execute(client.table("stores").select("address, id").eq("id", entry.matched_store_id).single())
+        if store and not store.get("address"):
+            safe_execute(client.table("stores").update({
                 "address": entry.address,
                 "neighborhood": entry.neighborhood,
                 "phone": entry.phone,
-            }).eq("id", entry.matched_store_id).execute()
+            }).eq("id", entry.matched_store_id))
             logger.info("[store_registry] Address merged into store %s", entry.matched_store_id)
             return True
     except Exception as exc:
@@ -549,15 +552,16 @@ def auto_promote_discovered_stores(min_matched_products: int = 2) -> int:
 
     try:
         # Get pending stores that already have a matched_store_id
-        pending = client.table("store_registry")\
-            .select("id, name, matched_store_id, source, discovery_source, tier")\
-            .eq("status", "pending_review")\
-            .execute()
-        if not pending.data:
+        pending = safe_execute(
+            client.table("store_registry")
+            .select("id, name, matched_store_id, source, discovery_source, tier")
+            .eq("status", "pending_review")
+        )
+        if not pending:
             return 0
 
         promoted = 0
-        for entry in pending.data:
+        for entry in pending:
             store_name = entry["name"]
             matched_id = entry.get("matched_store_id")
             entry_id = entry["id"]
@@ -574,19 +578,20 @@ def auto_promote_discovered_stores(min_matched_products: int = 2) -> int:
                 if not is_aggregator:
                     continue
                 # Sem matched_store_id: conta ingredientes por store_name direto
-                prices = client.table("prices")\
-                    .select("ingredient_id")\
-                    .eq("store_name", store_name)\
-                    .execute()
-                matched_count = len({p.get("ingredient_id") for p in (prices.data or []) if p.get("ingredient_id")})
+                prices = safe_execute(
+                    client.table("prices")
+                    .select("ingredient_id")
+                    .eq("store_name", store_name)
+                )
+                matched_count = len({p.get("ingredient_id") for p in prices if p.get("ingredient_id")})
                 if matched_count < min_matched_products:
                     continue
                 now_iso = datetime.now(UTC).isoformat()
-                client.table("store_registry").update({
+                safe_execute(client.table("store_registry").update({
                     "status": "approved",
                     "promoted_at": now_iso,
                     "reviewed_at": now_iso,
-                }).eq("id", entry_id).execute()
+                }).eq("id", entry_id))
                 logger.info("[store_registry] Auto-promoted aggregator %s (%d products)", store_name, matched_count)
                 promoted += 1
                 continue
@@ -596,20 +601,21 @@ def auto_promote_discovered_stores(min_matched_products: int = 2) -> int:
             # nome do scraper config). Conta por matched_store_id quando
             # disponível — antes contava só por store_name == registry, que
             # quase nunca batia (matched_count=0 → nenhuma promoção).
-            prices = client.table("prices")\
-                .select("ingredient_id")\
-                .eq("store_id", matched_id)\
-                .execute()
-            matched_count = len({p.get("ingredient_id") for p in (prices.data or []) if p.get("ingredient_id")})
+            prices = safe_execute(
+                client.table("prices")
+                .select("ingredient_id")
+                .eq("store_id", matched_id)
+            )
+            matched_count = len({p.get("ingredient_id") for p in prices if p.get("ingredient_id")})
             if matched_count < min_matched_products:
                 continue
 
             now_iso = datetime.now(UTC).isoformat()
-            client.table("store_registry").update({
+            safe_execute(client.table("store_registry").update({
                 "status": "approved",
                 "promoted_at": now_iso,
                 "reviewed_at": now_iso,
-            }).eq("id", entry_id).execute()
+            }).eq("id", entry_id))
             logger.info("[store_registry] Auto-promoted %s (matched to store %s, %d products)",
                         store_name, matched_id, matched_count)
             promoted += 1
@@ -631,11 +637,9 @@ def get_registry_entry(entry_id: str) -> StoreRegistryEntry | None:
         logger.warning("store_registry.get_registry_entry: no supabase client (%s)", exc)
         return None
 
-    res = client.table("store_registry").select("*").eq("id", entry_id).single().execute()
-    if not res.data:
+    row = safe_single_execute(client.table("store_registry").select("*").eq("id", entry_id).single())
+    if not row:
         return None
-
-    row = res.data
     return StoreRegistryEntry(
         id=row["id"],
         name=row["name"],

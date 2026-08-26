@@ -9,6 +9,7 @@ API key ausente → degrada silenciosamente sem crash.
 """
 
 import logging
+from typing import Any
 
 from services.config import get_feature
 
@@ -17,7 +18,7 @@ from .vision_strategies import extract_products_via_vision as _extract_via_visio
 logger = logging.getLogger(__name__)
 
 
-def extract_products_via_vision(image_bytes: bytes) -> list[dict] | None:
+def extract_products_via_vision(image_bytes: bytes) -> list[dict[str, Any]] | None:
     """Tenta extrair produtos da imagem via LLM multimodal.
     Returns lista de produtos ou None se nenhum strategy funcionar.
     """

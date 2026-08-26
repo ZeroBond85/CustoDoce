@@ -5,6 +5,7 @@ Dashboard Page: Scrapers
 import json
 import pandas as pd
 import streamlit as st
+from typing import Any
 
 from dashboard.components.ui import inject_css
 from services.dashboard_queries import (
@@ -14,7 +15,7 @@ from services.dashboard_queries import (
 )
 
 
-def _sanitize_df_for_display(df: pd.DataFrame) -> pd.DataFrame:
+def _sanitize_df_for_display(df: Any) -> Any:
     """Converte colunas object que contenham listas/dicts (JSONB do
     Supabase) para string, evitando pyarrow ArrowInvalid no
     st.dataframe ('cannot mix list and non-list'). Licao #51.
@@ -31,7 +32,7 @@ def _sanitize_df_for_display(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def render_scrapers():
+def render_scrapers() -> None:
     inject_css()
 
     st.title("Scrapers & Coleta")
@@ -113,7 +114,7 @@ def render_scrapers():
         st.subheader("Health Check Manual")
 
         if st.button("🔍 Executar Health Check Completo"):
-            from scripts.store_health_check import main as health_check_main
+            from scripts.store_health_check import main as health_check_main  # type: ignore[attr-defined]
 
             with st.spinner("Testando lojas desativadas..."):
                 results = health_check_main()

@@ -1,6 +1,6 @@
 # `config_db` — API
 
-> Última atualização: 2026-08-13 01:28 UTC
+> Última atualização: 2026-08-26 16:42 UTC
 > Gerado por AST parsing dos serviços em `services/config_db.py`.
 
 ## Funções Públicas (32)
@@ -55,17 +55,17 @@
 
 ### update_schedule_run(schedule_id: str, last_run: datetime, next_run: datetime | None)
 
-### upsert_alert_rule(data: dict)
+### upsert_alert_rule(data: dict[str, Any])
 
 ### upsert_feature_flag(key: str, enabled: bool, description: str)
 
 ### upsert_ingredient(data: dict[str, Any])
 
-### upsert_recipient(data: dict)
+### upsert_recipient(data: dict[str, Any])
 
-### upsert_schedule(data: dict)
+### upsert_schedule(data: dict[str, Any])
 
-### upsert_scrape_frequency(data: dict)
+### upsert_scrape_frequency(data: dict[str, Any])
 
 ### upsert_store(data: dict[str, Any])
 

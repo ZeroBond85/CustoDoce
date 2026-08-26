@@ -3,31 +3,31 @@ Alert Service - Proactive notifications for price drops and system status.
 """
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from services.email_service import is_email_configured, send_email as send_email_notification
 from services.logger import logger
-from services.supabase_client import get_supabase
+from services.supabase_client import get_supabase, safe_execute
 from services.telegram_service import send_telegram_message
 
-# removed logger = logging.getLogger(__name__)
 
-
-def get_active_alert_rules() -> list[dict]:
+def get_active_alert_rules() -> list[dict[str, Any]]:
     client = get_supabase()
-    return client.table("alert_rules").select("*").eq("enabled", True).execute().data or []
+    return safe_execute(client.table("alert_rules").select("*").eq("enabled", True))
 
 
-def get_alert_recipients(channel: str) -> list[dict]:
+def get_alert_recipients(channel: str) -> list[dict[str, Any]]:
     client = get_supabase()
-    return client.table("alert_recipients").select("*").eq("channel", channel).eq("active", True).execute().data or []
+    return safe_execute(
+        client.table("alert_recipients").select("*").eq("channel", channel).eq("active", True)
+    )
 
 
-def check_price_drops(ingredient_id: str, current_price: float, history_prices: list[dict]) -> dict | None:
+def check_price_drops(ingredient_id: str, current_price: float, history_prices: list[dict[str, Any]]) -> dict[str, Any] | None:
     """Check if the current price is a significant drop compared to history."""
     if not history_prices:
         return None
 
-    # Get average of last 30 days
     prices = [
         p["normalized"]["price_per_kg"]
         for p in history_prices
@@ -44,7 +44,7 @@ def check_price_drops(ingredient_id: str, current_price: float, history_prices: 
     return None
 
 
-def process_proactive_alerts():
+def process_proactive_alerts() -> None:
     """
     Core loop to check all active rules and notify recipients.
     Should be called at the end of main.py.
@@ -65,30 +65,29 @@ def process_proactive_alerts():
         # 1. Handle 'price_drop' trigger
         if trigger == "price_drop":
             # Find ingredients that just had a price update
-            latest = client.table("v_latest_prices").select("*").execute().data or []
+            latest = safe_execute(client.table("v_latest_prices").select("*"))
             if not latest:
                 continue
 
             # Fix N+1: histórico de TODOS os ingredientes em UMA query
             ing_ids = list({p["ingredient_id"] for p in latest})
-            hist_rows = (
+            hist_rows = safe_execute(
                 client.table("price_history")
                 .select("ingredient_id,normalized")
                 .in_("ingredient_id", ing_ids)
                 .order("collected_at", desc=True)
                 .limit(min(len(ing_ids) * 30, 5000))
-                .execute()
-                .data
-                or []
             )
-            hist_by_ing: dict[str, list[dict]] = {}
+            hist_by_ing: dict[str, list[dict[str, Any]]] = {}
             for h in hist_rows:
-                hist_by_ing.setdefault(h.get("ingredient_id"), []).append(h)
+                ing_id = h.get("ingredient_id")
+                if ing_id:
+                    hist_by_ing.setdefault(ing_id, []).append(h)
 
             # Endereços das lojas em UMA query (para mensagem acionável)
-            stores_map: dict[str, dict] = {}
+            stores_map: dict[str, dict[str, Any]] = {}
             try:
-                for s in client.table("stores").select("id,address,city").execute().data or []:
+                for s in safe_execute(client.table("stores").select("id,address,city")):
                     stores_map[s["id"]] = s
             except Exception as e:
                 logger.warning("alert_stores_lookup_failed: %s", e)
@@ -102,7 +101,8 @@ def process_proactive_alerts():
                 alert = check_price_drops(ing_id, current_ppk, hist_by_ing.get(ing_id, [])[:30])
 
                 if alert:
-                    store_info = stores_map.get(p.get("store_id"), {})
+                    store_id = p.get("store_id")
+                    store_info = stores_map.get(store_id, {}) if store_id else {}
                     addr = store_info.get("address") or ""
                     city = store_info.get("city") or ""
                     loc = f"{addr} — {city}" if addr and city else (addr or city)
@@ -145,14 +145,11 @@ def process_proactive_alerts():
         elif trigger == "scrape_failure":
             # Check logs for errors in the last hour
             one_hour_ago = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
-            failures = (
+            failures = safe_execute(
                 client.table("scraping_logs")
                 .select("store_name,errors")
                 .eq("status", "error")
                 .gte("started_at", one_hour_ago)
-                .execute()
-                .data
-                or []
             )
 
             if failures:

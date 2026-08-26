@@ -6,6 +6,7 @@ import struct
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import jwt as pyjwt
 
@@ -55,7 +56,7 @@ def create_token(user_id: str, secret_key: str, expiry_hours: int = JWT_EXPIRY_H
     return pyjwt.encode(payload, secret_key, algorithm=JWT_ALGORITHM)
 
 
-def verify_token(token: str, secret_key: str) -> dict | None:
+def verify_token(token: str, secret_key: str) -> dict[str, Any] | None:
     try:
         return pyjwt.decode(token, secret_key, algorithms=[JWT_ALGORITHM])
     except pyjwt.ExpiredSignatureError:
@@ -73,8 +74,8 @@ def _totp_int(secret: str, time_slice: int) -> int:
     msg = struct.pack(">Q", time_slice)
     h = hmac.new(key, msg, hashlib.sha1).digest()
     offset = h[-1] & 0x0F
-    code = struct.unpack(">I", h[offset : offset + 4])[0] & 0x7FFFFFFF
-    return code % (10**TOTP_DIGITS)
+    code = int.from_bytes(h[offset : offset + 4], "big") & 0x7FFFFFFF
+    return int(code % (10**TOTP_DIGITS))
 
 
 def verify_totp(secret: str, code: str, window: int = 1) -> bool:

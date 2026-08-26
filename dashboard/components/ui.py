@@ -1,6 +1,7 @@
 import base64
 from datetime import UTC
 from pathlib import Path
+from typing import Any
 
 import streamlit as st
 
@@ -41,13 +42,13 @@ def _load_css() -> str:
     return ""
 
 
-def inject_css():
+def inject_css() -> None:
     css = _load_css()
     if css:
         st.markdown(f"<style>\n{css}\n</style>", unsafe_allow_html=True)
 
 
-def _freshness_badge_html(collected_at, now=None):
+def _freshness_badge_html(collected_at: Any, now: Any = None) -> str:
     from datetime import datetime
 
     if not collected_at:
@@ -73,7 +74,7 @@ def _freshness_badge_html(collected_at, now=None):
         return f'<span class="cd-badge danger">{days}d stale</span>'
 
 
-def freshness_column(collected_at, now=None):
+def freshness_column(collected_at: Any, now: Any = None) -> str:
     """Frescor como emoji + dias — texto puro (HTML cru aparece literal em st.dataframe)."""
     from datetime import datetime
 
@@ -99,7 +100,7 @@ def freshness_column(collected_at, now=None):
     return f"🔴 {days}d"
 
 
-def info_box(message: str, type: str = "info"):
+def info_box(message: str, type: str = "info") -> None:
     """Caixa de informação com role=alert para screen readers."""
     type_classes = {"info": "cd-info-box-info", "success": "cd-info-box-success", "warning": "cd-info-box-warning", "error": "cd-info-box-error"}
     type_map = {"info": "Informação", "success": "Sucesso", "warning": "Aviso", "error": "Erro"}
@@ -110,7 +111,7 @@ def info_box(message: str, type: str = "info"):
     )
 
 
-def render_user_badge(username: str):
+def render_user_badge(username: str) -> None:
     st.markdown(
         f'<div style="text-align:center;padding:0.5rem 0;font-size:0.78rem;"><strong>{username}</strong></div>',
         unsafe_allow_html=True,

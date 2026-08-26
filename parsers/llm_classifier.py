@@ -17,6 +17,7 @@ Compatibilidade:
 """
 
 import contextlib
+from typing import Any
 
 from parsers.llm_cache import get_cache, set_cache
 from parsers.llm_strategies import (
@@ -30,7 +31,7 @@ from parsers.llm_strategies import (
 from services.logger import logger
 
 
-def _legacy_shape(result: LLMResult) -> dict:
+def _legacy_shape(result: LLMResult) -> dict[str, Any]:
     """Bridge entre o novo schema e o antigo usado por matcher pipeline."""
     return {
         "ingredient": result.canonical_name if result.match else None,
@@ -41,7 +42,7 @@ def _legacy_shape(result: LLMResult) -> dict:
     }
 
 
-def _fallback_result(reason: str = "Fallback: All LLM providers unavailable") -> dict:
+def _fallback_result(reason: str = "Fallback: All LLM providers unavailable") -> dict[str, Any]:
     """Retorno seguro quando todos os providers falham."""
     return {
         "ingredient": None,
@@ -57,7 +58,7 @@ class LLMClassifier:
 
     def __init__(
         self,
-        strategies: list | None = None,
+        strategies: list[Any] | None = None,
     ):
         # Apenas 2 providers confiáveis no free-tier (Groq + OpenRouter)
         # Menos providers = menos latência, menos 429, fallback mais rápido
@@ -66,7 +67,7 @@ class LLMClassifier:
             OpenRouterStrategy(),
         ]
 
-    def classify_sync(self, product_text: str, candidates: list) -> dict | None:
+    def classify_sync(self, product_text: str, candidates: list[Any]) -> dict[str, Any] | None:
         """
         Compat entry-point — retorna None se ai/llm_classifier está desativado
         ou se nenhum provider tiver credencial configurada. Caso contrário
@@ -124,13 +125,13 @@ class LLMClassifier:
         # 5. Graceful degradation
         return _fallback_result()
 
-    def flush_cache(self):
+    def flush_cache(self) -> Any:
         """Helper for cleanup routines."""
         from parsers.llm_cache import cleanup_ttl
 
         return cleanup_ttl()
 
-    def reset_circuits(self):
+    def reset_circuits(self) -> None:
         """Reseta circuit breakers + session exhausted flag (novo scrape)."""
         for s in self.strategies:
             if hasattr(s, "failure_count"):
@@ -150,7 +151,7 @@ class LLMClassifier:
 _default_classifier = LLMClassifier()
 
 
-def classify(product_text: str, candidates: list) -> dict | None:
+def classify(product_text: str, candidates: list[Any]) -> dict[str, Any] | None:
     """Module-level convenience wrapper, mirrors old API."""
     return _default_classifier.classify_sync(product_text, candidates)
 

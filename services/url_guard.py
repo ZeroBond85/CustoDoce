@@ -4,6 +4,7 @@ import httpx
 import ipaddress
 import socket
 import urllib.parse
+from typing import Any
 
 """SSRF guard for URLs fetched server-side from untrusted/DB sources.
 
@@ -224,7 +225,7 @@ def _registrable_domain(host: str) -> str:
     return ".".join(labels[-n:])
 
 
-def _inject_redirect_guard(client_kwargs: dict, *, is_async: bool = False) -> dict:
+def _inject_redirect_guard(client_kwargs: dict[str, Any], *, is_async: bool = False) -> dict[str, Any]:
     """Add a response event hook that re-validates every redirect target.
 
     Shared by make_safe_client() and make_safe_async_client(). The hook runs
@@ -274,25 +275,26 @@ def _inject_redirect_guard(client_kwargs: dict, *, is_async: bool = False) -> di
 
     if is_async:
 
-        async def _hook(resp: httpx.Response) -> None:
+        async def _async_hook(resp: httpx.Response) -> None:
             for h in existing:
                 result = h(resp)
                 if hasattr(result, "__await__"):
                     await result
             _on_response(resp)
 
-    else:
+        hooks["response"] = [_async_hook]
+        return client_kwargs
 
-        def _hook(resp: httpx.Response) -> None:
-            for h in existing:
-                h(resp)
-            _on_response(resp)
+    def _sync_hook(resp: httpx.Response) -> None:
+        for h in existing:
+            h(resp)
+        _on_response(resp)
 
-    hooks["response"] = [_hook]
+    hooks["response"] = [_sync_hook]
     return client_kwargs
 
 
-def make_safe_client(**client_kwargs) -> httpx.Client:
+def make_safe_client(**client_kwargs: Any) -> httpx.Client:
     """Build an httpx.Client that re-validates every redirect hop (SSRF-safe).
 
     Usage::
@@ -304,7 +306,7 @@ def make_safe_client(**client_kwargs) -> httpx.Client:
     return httpx.Client(**_inject_redirect_guard(client_kwargs))
 
 
-def make_safe_async_client(**client_kwargs) -> httpx.AsyncClient:
+def make_safe_async_client(**client_kwargs: Any) -> httpx.AsyncClient:
     """Build an httpx.AsyncClient that re-validates every redirect hop (SSRF-safe).
 
     Async mirror of make_safe_client() — same event-hook semantics::

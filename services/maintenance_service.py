@@ -5,10 +5,10 @@ Maintenance Service - Database cleanup and health checks.
 import json
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from services.logger import logger
-from services.supabase_client import get_service_client
+from services.supabase_client import get_service_client, rpc_execute, safe_execute
 
 _CLEANUP_TRACK_FILE = Path("data/cleanup_track.json")
 
@@ -16,13 +16,14 @@ _CLEANUP_TRACK_FILE = Path("data/cleanup_track.json")
 def _load_cleanup_track() -> dict[str, Any]:
     if _CLEANUP_TRACK_FILE.exists():
         try:
-            return json.loads(_CLEANUP_TRACK_FILE.read_text(encoding="utf-8"))
+            data = json.loads(_CLEANUP_TRACK_FILE.read_text(encoding="utf-8"))
+            return cast("dict[str, Any]", data)
         except Exception:
             return {}
     return {}
 
 
-def _save_cleanup_track(data: dict[str, Any]):
+def _save_cleanup_track(data: dict[str, Any]) -> None:
     _CLEANUP_TRACK_FILE.parent.mkdir(parents=True, exist_ok=True)
     _CLEANUP_TRACK_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -45,8 +46,8 @@ def _check_cleanup_alert(cleanup_name: str, deleted: int) -> None:
 def cleanup_old_prices(retention_days: int = 90) -> dict[str, int]:
     client = get_service_client()
     try:
-        result = client.rpc("cleanup_old_prices", {"retention_days": retention_days}).execute()
-        deleted = result.data if result.data else 0
+        result = rpc_execute(client, "cleanup_old_prices", {"retention_days": retention_days})
+        deleted = int(result) if isinstance(result, (int, float)) else 0
         _check_cleanup_alert("cleanup_old_prices", deleted)
         return {"deleted": deleted}
     except Exception:
@@ -57,8 +58,8 @@ def cleanup_old_prices(retention_days: int = 90) -> dict[str, int]:
 def cleanup_old_logs(retention_days: int = 30) -> dict[str, int]:
     client = get_service_client()
     try:
-        result = client.rpc("cleanup_old_logs", {"retention_days": retention_days}).execute()
-        deleted = result.data if result.data else 0
+        result = rpc_execute(client, "cleanup_old_logs", {"retention_days": retention_days})
+        deleted = int(result) if isinstance(result, (int, float)) else 0
         _check_cleanup_alert("cleanup_old_logs", deleted)
         return {"deleted": deleted}
     except Exception:
@@ -69,8 +70,8 @@ def cleanup_old_logs(retention_days: int = 30) -> dict[str, int]:
 def cleanup_old_flyers_all(retention_days: int = 180) -> dict[str, int]:
     client = get_service_client()
     try:
-        result = client.rpc("cleanup_old_flyers_all", {"retention_days": retention_days}).execute()
-        deleted = result.data if result.data else 0
+        result = rpc_execute(client, "cleanup_old_flyers_all", {"retention_days": retention_days})
+        deleted = int(result) if isinstance(result, (int, float)) else 0
         _check_cleanup_alert("cleanup_old_flyers_all", deleted)
         return {"deleted": deleted}
     except Exception:
@@ -81,8 +82,8 @@ def cleanup_old_flyers_all(retention_days: int = 180) -> dict[str, int]:
 def cleanup_resolved_review_items(retention_days: int = 30) -> dict[str, int]:
     client = get_service_client()
     try:
-        result = client.rpc("cleanup_resolved_review_items", {"retention_days": retention_days}).execute()
-        deleted = result.data if result.data else 0
+        result = rpc_execute(client, "cleanup_resolved_review_items", {"retention_days": retention_days})
+        deleted = int(result) if isinstance(result, (int, float)) else 0
         _check_cleanup_alert("cleanup_resolved_review_items", deleted)
         return {"deleted": deleted}
     except Exception:
@@ -114,13 +115,13 @@ def log_scraper_run(
         "errors": errors or [],
     }
     try:
-        result = client.table("scraping_logs").insert(data).execute()
-        return result.data[0] if result.data else {}
+        res = safe_execute(client.table("scraping_logs").insert(data))  # type: ignore[arg-type]
+        return res[0] if res else {}
     except Exception:
         return {}
 
 
-def _retry_delete(client, table: str, name_col: str, prefix: str, max_retries: int = 3) -> int:
+def _retry_delete(client: Any, table: str, name_col: str, prefix: str, max_retries: int = 3) -> int:
     """Deleta registros com retry em erros de rede transitórios (HTTP/2 flaky).
 
     Supabase REST sobre HTTP/2 derruba conexões silenciosamente (RemoteProtocolError),
@@ -143,7 +144,7 @@ def _retry_delete(client, table: str, name_col: str, prefix: str, max_retries: i
     return 0
 
 
-def cleanup_test_data(client=None) -> dict[str, int]:
+def cleanup_test_data(client: Any | None = None) -> dict[str, int]:
     """Remove test data from all safe tables.
 
     Args:

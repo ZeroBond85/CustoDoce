@@ -6,7 +6,7 @@ from dashboard.components.ui import get_logo_sidebar_base64, render_user_badge
 from dashboard.navigation_config import DEFAULT_PAGE, PAGES
 
 
-def render_legacy_sidebar():
+def render_legacy_sidebar() -> None:
     """Fallback sidebar using manual buttons (pre-1.36 Streamlit)."""
     with st.sidebar:
         logo_b64 = get_logo_sidebar_base64()
@@ -69,7 +69,7 @@ def render_legacy_sidebar():
                     st.rerun()
 
 
-def render_sidebar():
+def render_sidebar() -> None:
     """Sidebar renderer.
 
     Streamlit 1.36+: native `st.navigation()` owns the sidebar content, so the
@@ -87,7 +87,7 @@ def render_sidebar():
     render_legacy_sidebar()
 
 
-def _render_nav_footer():
+def _render_nav_footer() -> None:
     """Logout / clear cache controls appended below st.navigation() sidebar."""
     auth = st.session_state.get("authenticated", False)
     if not auth:
@@ -109,7 +109,7 @@ def _render_nav_footer():
                 st.rerun()
 
 
-def render_skip_link():
+def render_skip_link() -> None:
     st.markdown(
         '<a href="#main-content" class="skip-link" tabindex="1">Pular para conteúdo</a><div id="main-content"></div>',
         unsafe_allow_html=True,

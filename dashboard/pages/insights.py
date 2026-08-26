@@ -4,6 +4,7 @@ Dashboard Page: Insights
 
 import pandas as pd
 import streamlit as st
+from typing import Any
 
 from services.dashboard_queries import (
     detect_outliers_cached,
@@ -11,7 +12,7 @@ from services.dashboard_queries import (
 )
 
 
-def _safe_ppk(r: dict) -> float:
+def _safe_ppk(r: dict[str, Any]) -> float:
     norm = r.get("normalized")
     if isinstance(norm, dict):
         try:
@@ -21,7 +22,7 @@ def _safe_ppk(r: dict) -> float:
     return 0.0
 
 
-def render_insights():
+def render_insights() -> None:
     st.title("Insights & Análises")
 
     with st.spinner("Carregando preços…"):

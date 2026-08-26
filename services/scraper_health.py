@@ -39,9 +39,10 @@ from __future__ import annotations
 
 import os
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from services.logger import logger
-from services.supabase_client import get_service_client
+from services.supabase_client import get_service_client, safe_execute, safe_single_execute
 
 # Caller can override via env or features.yaml reading later.
 THRESHOLD_FAILURES = int(os.environ.get("SCRAPER_HEALTH_THRESHOLD", "3"))
@@ -78,19 +79,18 @@ def _utcnow_iso() -> str:
     return datetime.now(tz=UTC).isoformat()
 
 
-def _count_consecutive_failures(client, scraper_name: str) -> int:
+def _count_consecutive_failures(client: Any, scraper_name: str) -> int:
     """Returns how many of the most-recent successive logs are failures
     (limited to THRESHOLD_FAILURES rows; if any early row is non-failure, returns 0).
     """
-    res = (
+    res = safe_execute(
         client.table("scraping_logs")
         .select("status")
         .eq("store_name", scraper_name)
         .order("started_at", desc=True)
         .limit(THRESHOLD_FAILURES)
-        .execute()
     )
-    rows = res.data or []
+    rows = res
     count = 0
     for r in rows:
         if r.get("status") in ("error", "failed"):
@@ -135,7 +135,7 @@ def classify_error_for_alert(reason: str | None) -> str:
 # ─── Health Score ─────────────────────────────────────────────────────────────
 
 
-def compute_health_score(data: dict) -> int:
+def compute_health_score(data: dict[str, Any]) -> int:
     """Compute 0–100 health score for a single scraper from its metric dict.
 
     Factors:
@@ -151,7 +151,7 @@ def compute_health_score(data: dict) -> int:
 
     # 1. Success rate (30 pts)
     sr = data.get("success_rate", 0)
-    score += int(sr * 30)
+    score = int(sr * 30)
 
     # 2. Recent failures (25 pts)
     failures_count = data.get("failures_count", 0)
@@ -199,7 +199,7 @@ def health_score_label(score: int) -> str:
     return "🔴 Critical"
 
 
-def compute_all_health_scores(health_data: list[dict]) -> list[dict]:
+def compute_all_health_scores(health_data: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Enrich a list of store health dicts with health_score + label."""
     for item in health_data:
         item["health_score"] = compute_health_score(item)
@@ -218,7 +218,7 @@ def record_transient_failure(
     products_matched: int = 0,
     flyer_count: int = 0,
     attempted_by: str = "auto",
-) -> dict:
+) -> dict[str, Any]:
     """Registra falha TRANSITÓRIA (rede/timeout/rate-limit/recurso).
 
     NÃO conta para o auto-disable e NÃO desativa a loja — é um erro
@@ -238,20 +238,22 @@ def record_transient_failure(
         failures_count = 0
 
     try:
-        client.table("scraper_health_log").insert(
-            {
-                "scraper_name": scraper_name,
-                "event_type": "transient_failure",
-                "failures_count": failures_count,
-                "is_active": True,
-                "reason": (reason or "")[:512],
-                "items_found": items_found,
-                "products_matched": products_matched,
-                "flyer_count": flyer_count,
-                "error_class": error_class,
-                "attempted_by": attempted_by,
-            }
-        ).execute()
+        safe_execute(
+            client.table("scraper_health_log").insert(
+                {
+                    "scraper_name": scraper_name,
+                    "event_type": "transient_failure",
+                    "failures_count": failures_count,
+                    "is_active": True,
+                    "reason": (reason or "")[:512],
+                    "items_found": items_found,
+                    "products_matched": products_matched,
+                    "flyer_count": flyer_count,
+                    "error_class": error_class,
+                    "attempted_by": attempted_by,
+                }
+            )
+        )
     except Exception as exc:
         logger.debug("scraper_health_log transient insert failed for %s: %s", scraper_name, exc)
     return {"recorded": True, "transient": True, "auto_disabled": False, "error_class": error_class}
@@ -264,7 +266,7 @@ def record_failure(
     products_matched: int = 0,
     flyer_count: int = 0,
     attempted_by: str = "auto",
-) -> dict:
+) -> dict[str, Any]:
     """Record a failure and auto-disable the scraper if THRESHOLD_FAILURES hit.
 
     Returns a small summary of what happened (used by scripts/heal_scrapers.py).
@@ -292,24 +294,26 @@ def record_failure(
         return {"recorded": False, "reason": "no-client"}
 
     failures_count = _count_consecutive_failures(client, scraper_name)
-    regressions = []
+    regressions: list[str] = []
 
     # Insert into scraper_health_log
     try:
-        client.table("scraper_health_log").insert(
-            {
-                "scraper_name": scraper_name,
-                "event_type": "failure",
-                "failures_count": failures_count,
-                "is_active": True,
-                "reason": (reason or "")[:512],
-                "items_found": items_found,
-                "products_matched": products_matched,
-                "flyer_count": flyer_count,
-                "error_class": error_class,
-                "attempted_by": attempted_by,
-            }
-        ).execute()
+        safe_execute(
+            client.table("scraper_health_log").insert(
+                {
+                    "scraper_name": scraper_name,
+                    "event_type": "failure",
+                    "failures_count": failures_count,
+                    "is_active": True,
+                    "reason": (reason or "")[:512],
+                    "items_found": items_found,
+                    "products_matched": products_matched,
+                    "flyer_count": flyer_count,
+                    "error_class": error_class,
+                    "attempted_by": attempted_by,
+                }
+            )
+        )
         regressions.append("log_inserted")
     except Exception as exc:
         logger.debug("scraper_health_log insert failed for %s: %s", scraper_name, exc)
@@ -318,15 +322,14 @@ def record_failure(
     auto_disabled_this_call = False
     if failures_count >= THRESHOLD_FAILURES:
         try:
-            store = (
+            store = safe_single_execute(
                 client.table("stores")
                 .select("id, is_active")
                 .eq("name", scraper_name)
                 .single()
-                .execute()
             )
-            if store.data and store.data.get("is_active") is not False:
-                client.table("stores").update({"is_active": False}).eq("id", store.data["id"]).execute()
+            if store and store.get("is_active") is not False:
+                safe_execute(client.table("stores").update({"is_active": False}).eq("id", store["id"]))
                 logger.warning(
                     "[AUTO-DISABLE] %s desativada apos %d falhas consecutivas",
                     scraper_name,
@@ -336,17 +339,19 @@ def record_failure(
                 auto_disabled_this_call = True
                 # Log the auto-disable event
                 try:
-                    client.table("scraper_health_log").insert(
-                        {
-                            "scraper_name": scraper_name,
-                            "event_type": "auto_disabled",
-                            "failures_count": failures_count,
-                            "is_active": False,
-                            "reason": f"threshold {THRESHOLD_FAILURES} failures hit",
-                            "error_class": error_class,
-                            "attempted_by": attempted_by,
-                        }
-                    ).execute()
+                    safe_execute(
+                        client.table("scraper_health_log").insert(
+                            {
+                                "scraper_name": scraper_name,
+                                "event_type": "auto_disabled",
+                                "failures_count": failures_count,
+                                "is_active": False,
+                                "reason": f"threshold {THRESHOLD_FAILURES} failures hit",
+                                "error_class": error_class,
+                                "attempted_by": attempted_by,
+                            }
+                        )
+                    )
                 except Exception as exc:
                     logger.debug(
                         "auto_disabled log insert failed for %s: %s",
@@ -380,7 +385,7 @@ def record_success(
     products_matched: int = 0,
     flyer_count: int = 0,
     attempted_by: str = "auto",
-) -> dict:
+) -> dict[str, Any]:
     """Record a successful run; resets failure counter."""
     try:
         client = get_service_client()
@@ -389,18 +394,20 @@ def record_success(
         return {"recorded": False}
 
     try:
-        client.table("scraper_health_log").insert(
-            {
-                "scraper_name": scraper_name,
-                "event_type": "success",
-                "failures_count": 0,
-                "is_active": True,
-                "items_found": items_found,
-                "products_matched": products_matched,
-                "flyer_count": flyer_count,
-                "attempted_by": attempted_by,
-            }
-        ).execute()
+        safe_execute(
+            client.table("scraper_health_log").insert(
+                {
+                    "scraper_name": scraper_name,
+                    "event_type": "success",
+                    "failures_count": 0,
+                    "is_active": True,
+                    "items_found": items_found,
+                    "products_matched": products_matched,
+                    "flyer_count": flyer_count,
+                    "attempted_by": attempted_by,
+                }
+            )
+        )
         return {"recorded": True, "scraper": scraper_name}
     except Exception as exc:
         logger.debug(
@@ -411,7 +418,7 @@ def record_success(
         return {"recorded": False}
 
 
-def attempt_heal(scraper_name: str | None = None, dry_run: bool = False) -> dict:
+def attempt_heal(scraper_name: str | None = None, dry_run: bool = False) -> dict[str, Any]:
     """For every currently-disabled scraper older than MIN_IDLE_DAYS_BEFORE_HEAL
     days, evaluate the latest scraping_logs and decide whether to reactivate.
 
@@ -425,7 +432,7 @@ def attempt_heal(scraper_name: str | None = None, dry_run: bool = False) -> dict
         logger.warning("scraper_health.attempt_heal: no db (%s)", exc)
         return {"error": "no-client"}
 
-    summary: dict = {
+    summary: dict[str, Any] = {
         "candidates": [],
         "reactivated": [],
         "skipped": [],
@@ -436,7 +443,7 @@ def attempt_heal(scraper_name: str | None = None, dry_run: bool = False) -> dict
     q = client.table("stores").select("id, name, is_active").eq("is_active", False)
     if scraper_name:
         q = q.eq("name", scraper_name)
-    inactive = q.execute().data or []
+    inactive = safe_execute(q)
 
     if not inactive:
         return summary
@@ -446,15 +453,14 @@ def attempt_heal(scraper_name: str | None = None, dry_run: bool = False) -> dict
 
     for s in inactive:
         # Has ANY log entry more recent than the cutoff?
-        logs = (
+        logs = safe_execute(
             client.table("scraping_logs")
             .select("status, items_found, started_at")
             .eq("store_name", s["name"])
             .order("started_at", desc=True)
             .limit(THRESHOLD_FAILURES)
-            .execute()
         )
-        rows = logs.data or []
+        rows = logs
         if not rows:
             summary["missing_facts"].append(s["name"])
             continue
@@ -465,17 +471,16 @@ def attempt_heal(scraper_name: str | None = None, dry_run: bool = False) -> dict
 
         # Heuristic: reactivate ONLY if scraper_health_log has a recent
         # 'auto_disabled' event older than MIN_IDLE_DAYS, AND no recent failures
-        log_done = (
+        log_done = safe_execute(
             client.table("scraper_health_log")
             .select("event_type, created_at")
             .eq("scraper_name", s["name"])
             .eq("event_type", "auto_disabled")
             .order("created_at", desc=True)
             .limit(1)
-            .execute()
         )
-        last_disabled = (log_done.data or [None])[0]
-        if not last_disabled or last_disabled["created_at"] > cutoff:
+        last_disabled = (log_done[0] if log_done else None)
+        if not last_disabled or last_disabled.get("created_at", "") > cutoff:
             summary["skipped"].append({"scraper": s["name"], "reason": "disabled_recently"})
             continue
 
@@ -496,17 +501,19 @@ def attempt_heal(scraper_name: str | None = None, dry_run: bool = False) -> dict
             summary["reactivated"].append({"scraper": s["name"], "dry_run": True})
         else:
             try:
-                client.table("stores").update({"is_active": True}).eq("id", s["id"]).execute()
-                client.table("scraper_health_log").insert(
-                    {
-                        "scraper_name": s["name"],
-                        "event_type": "auto_reactivated",
-                        "failures_count": 0,
-                        "is_active": True,
-                        "reason": "heal attempt succeeded",
-                        "attempted_by": "auto",
-                    }
-                ).execute()
+                safe_execute(client.table("stores").update({"is_active": True}).eq("id", s["id"]))
+                safe_execute(
+                    client.table("scraper_health_log").insert(
+                        {
+                            "scraper_name": s["name"],
+                            "event_type": "auto_reactivated",
+                            "failures_count": 0,
+                            "is_active": True,
+                            "reason": "heal attempt succeeded",
+                            "attempted_by": "auto",
+                        }
+                    )
+                )
                 summary["reactivated"].append({"scraper": s["name"]})
                 logger.info("[AUTO-REACTIVATE] %s reactivated", s["name"])
                 # Send recovery alert
