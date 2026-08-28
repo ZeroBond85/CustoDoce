@@ -176,7 +176,7 @@ def _resolve_python() -> str:
 - **WSL**: `/usr/local/bin/python3.14` (Python 3.14.6 NATIVO — sem conda)
 - **macOS**: `/usr/local/bin/python3.14` (similar)
 
-Fallback `sys.executable` só ocorre se nenhum Python com deps existir — nesse caso o hook emite AVISO. CI: 16 workflows Python 3.14 (single source of truth).
+Fallback `sys.executable` só ocorre se nenhum Python com deps existir — nesse caso o hook emite AVISO. CI: 14 workflows Python 3.14 (single source of truth).
 
 Opt-in Unit Tests: `set CI_LOCAL_UNIT=1` (cmd) ou `$env:CI_LOCAL_UNIT="1"` (ps).
 

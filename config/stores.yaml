@@ -711,6 +711,9 @@ stores:
     wait_selector: ".brochure-thumb, [data-testid='flyer-card'], [class*='flyer']"
     # API: Shopfully backend (api-viewer-zmags.shopfully.cloud) requires client-side auth
     # The api/v2/offers endpoint is dead (404). Playwright fallback is the default.
+    # 2026-08-28: Tiendeo bloqueando todas as requests (HTTP 403 nas 8 cidades,
+    # incluindo o IP Azure do runner macos). Desativado até surgir proxy/rotate.
+    is_active: false
     api_fallback: true
 
   # ============================================================================

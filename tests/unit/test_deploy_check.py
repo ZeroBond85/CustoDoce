@@ -50,12 +50,17 @@ class TestAuth:
 
 
 class TestRateLimiter:
+    @pytest.fixture(autouse=True)
+    def _rate_db(self, tmp_path_factory):
+        db_path = str(tmp_path_factory.mktemp("rate_limiter") / "deploy.db")
+        self._db_path = db_path
+
     def test_not_limited(self):
-        rl = RateLimiter()
+        rl = RateLimiter(db_path=self._db_path)
         assert rl.is_limited("new_key") is False
 
     def test_limited_after_many_attempts(self):
-        rl = RateLimiter()
+        rl = RateLimiter(db_path=self._db_path)
         key = "test_rate_key_123"
         for _ in range(5):
             rl.record_attempt(key)
@@ -63,7 +68,7 @@ class TestRateLimiter:
         rl.clear_attempts(key)
 
     def test_not_limited_below_threshold(self):
-        rl = RateLimiter()
+        rl = RateLimiter(db_path=self._db_path)
         key = "test_rate_key_not_limited"
         for _ in range(4):
             rl.record_attempt(key)
