@@ -113,7 +113,7 @@ CustoDoce/
 ├── requirements.lock       # = requirements-test.lock (backward compat)
 ├── requirements.txt        # = requirements-prod.in (pip-audit source)
 ├── AGENTS.md          # ← este arquivo (vivo, ~340 linhas)
-├── LESSONS.md         # 115 lições aprendidas
+├── LESSONS.md         # 99 lições aprendidas
 └── REGRAS.md          # Ambiente, hooks, comandos
 ```
 
@@ -127,7 +127,7 @@ CustoDoce/
 | 3 | Agregadores (Tiendeo, Kimbino, Portafolhetos) | Fallback | Playwright / SSR |
 | 4 | Manual (WhatsApp, visita) | Sob demanda | Planilha .xlsx |
 
-## Ingredientes Monitorados (23)
+## Ingredientes Monitorados (27)
 
 [Leite Condensado, Creme de Leite, Chocolate 50%, Leite em Pó, Granulado Ao Leite, Granulado Branco, Granulado Meio Amargo, Creme de Avelã, Granulado Colorido, Coco Ralado, Chocolate Nobre Blend, Açúcar Mascavo, Açúcar Confeiteiro, Chocolate 70%, Farinha de Trigo, Micro Ball, Top Confete, Gotas Branco, Manteiga, Gotas Meio Amargo, Chocolate Barra, Fermento, Baunilha] — detalhes completos em `config/ingredients.yaml`.
 
@@ -250,7 +250,7 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 | Schema manifest | 17 tabelas/views com types, not_null, defaults, constraints |
 | Mock validation tests | 121 parametrizados (colunas, tipos, not_null, FKs, CHECK, jsonb) |
 | AGENTS.md | ~357 linhas (Sprint 18 + docs gaps) |
-| LESSONS.md | 115 lições |
+| LESSONS.md | 99 lições |
 | REGRAS.md | Ambiente + hooks + comandos |
 | CI lint/type/test | ✅ Todos verdes — mypy **strict** (Python 3.14.6) |
 | E2E (cloud) | ✅ Validade (run 31806929724) |
@@ -303,7 +303,7 @@ Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarbal
 
 ## Documentação Relacionada
 
-- `LESSONS.md` — 115 lições (CI, mocks, schema, scrapers, monitoração, segurança)
+- `LESSONS.md` — 99 lições (CI, mocks, schema, scrapers, monitoração, segurança)
 - `REGRAS.md` — Ambiente, hooks, comandos, arquitetura
 - `docs/skills.md` — Skills OpenCode (globais + overlays locais)
 - `docs/changelog.md` — Histórico por fase/sprint; `config/agents_schema.yaml` — Schema deste arquivo

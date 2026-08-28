@@ -48,6 +48,8 @@ def render_insights() -> None:
 
     if outliers:
         df_out = pd.DataFrame(outliers)
+        if "brand" not in df_out.columns:
+            df_out["brand"] = "Desconhecido"
         st.dataframe(
             df_out[["ingredient_id", "store_name", "raw_product", "brand", "ppk", "zscore"]].sort_values(
                 "zscore", key=abs, ascending=False
@@ -63,6 +65,8 @@ def render_insights() -> None:
     st.subheader("Top 10 Melhores Ofertas (R$/kg)")
     if prices:
         df = pd.DataFrame(prices)
+        if "brand" not in df.columns:
+            df["brand"] = "Desconhecido"
         df["ppk"] = df.apply(_safe_ppk, axis=1)
         df = df[df["ppk"] > 0].nsmallest(10, "ppk")
         st.dataframe(
