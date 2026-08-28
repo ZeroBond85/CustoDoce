@@ -271,9 +271,12 @@ class TestApproveReviewItem:
         client = real_supabase
         product = f"Test Approve UUID {_uuid.uuid4().hex[:8]} 200g"
 
-        # Isolamento: remove resquicios de runs anteriores p/ este produto/loja
+        # Isolamento: remove resquicios de runs anteriores p/ este produto/loja.
+        # Apaga TODOS os preços da loja de teste (qualquer source) — resíduo de run
+        # cancelada (ex.: timeout do job) colide com o ON CONFLICT (ingredient, store)
+        # e mantém raw_product/source antigos no row, quebrando o assert abaixo.
         client.table("review_queue").delete().eq("raw_product", product).execute()
-        client.table("prices").delete().eq("store_id", test_store["id"]).eq("source", "approve_test").execute()
+        client.table("prices").delete().eq("store_id", test_store["id"]).execute()
         client.table("price_history").delete().eq("store_id", test_store["id"]).execute()
 
         # Insert review item
