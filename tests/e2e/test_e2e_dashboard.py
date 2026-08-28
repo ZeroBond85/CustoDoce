@@ -240,8 +240,15 @@ def test_supabase_connection():
     assert r.count is not None and r.count >= 0, "D3: review_queue pending"
     r = client.table("scrape_frequencies").select("store_id", count="exact").eq("enabled", True).execute()
     assert r.count and r.count >= 10, f"D4: scrape_frequencies enabled >= 10 (got {r.count})"
+    import yaml
+
+    _expected_ingredients = len(
+        yaml.safe_load(
+            (Path(__file__).resolve().parent.parent.parent / "config" / "ingredients.yaml").read_text(encoding="utf-8")
+        )["ingredients"]
+    )
     r = client.table("ingredients").select("id", count="exact").execute()
-    assert r.count and r.count == 23, f"D5: ingredients count == 23 (got {r.count})"
+    assert r.count and r.count == _expected_ingredients, f"D5: ingredients count == {_expected_ingredients} (got {r.count})"
     r = client.table("flyers").select("id", count="exact").neq("image_url", "").execute()
     assert r.count and r.count > 0, "D6: flyers with image_url > 0"
     r = client.table("scrape_frequencies").select("store_id", count="exact").eq("enabled", True).execute()

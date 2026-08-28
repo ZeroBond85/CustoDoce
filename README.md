@@ -2,7 +2,7 @@
 > Última atualização: 2026-08-12 14:22 UTC
 
 ![Build Status](https://img.shields.io/github/actions/workflow/status/CustoDoce/ci.yml?branch=master)
-![Version](https://img.shields.io/badge/version-21.1467.94--mvp-blue)
+![Version](https://img.shields.io/badge/version-21.1466.94--mvp-blue)
 ![License](https://img.shields.io/badge/license-Personal-green)
 ![Deploy](https://img.shields.io/badge/deploy-production%20%7C%20staging-brightgreen)
 

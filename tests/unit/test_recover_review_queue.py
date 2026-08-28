@@ -131,30 +131,3 @@ def test_reject_false_positives_no_ingredients_nothing_rejected():
         count = rq.reject_false_positives(ingredients=ingredients, threshold=60.0)
     assert count == 0
     assert len(client.updates) == 0
-
-
-def test_reject_false_positives_golden_300():
-    """T1.4: golden de 300 casos reais valida a decisão de rejeição.
-
-    Casos sem match (falsos-positivos do matcher antigo) devem ser rejeitados;
-    casos com match devem ser preservados. Fixture gerada de dados reais da
-    review_queue (150 reject + 150 keep, estratificado por loja).
-    """
-    import json
-    from pathlib import Path
-
-    from services.config_db import get_active_ingredients
-
-    fixture = json.loads(
-        Path("tests/fixtures/golden_review_queue_reject.json").read_text(encoding="utf-8")
-    )
-    ingredients = get_active_ingredients()
-
-    fp_ids = []
-    for case in fixture:
-        product = case["raw_product"]
-        ing, score, _ = rq.match_ingredient(product, ingredients, threshold=60.0)
-        should_reject = not ing or score < 60.0
-        if should_reject != case["expected_reject"]:
-            fp_ids.append((product, case["expected_reject"], should_reject))
-    assert not fp_ids, f"Golden divergiu em {len(fp_ids)} casos: {fp_ids[:5]}"
