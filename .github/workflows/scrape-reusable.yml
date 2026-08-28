@@ -92,12 +92,16 @@ on:
         default: false
 
 env:
+  PYTHON_VERSION: '3.14.6'
   PIP_EXTRA_INDEX_URL: https://download.pytorch.org/whl/cpu
   PYTHONPATH: ${{ github.workspace }}
   PIP_NO_WARN_YANKED: 1
   PYTHONUNBUFFERED: '1'
   STREAMLIT_DISABLE_CACHING_WARNING: 1
   APP_ENV: ci
+  # Fonte única da versão do Playwright no pipeline. Precisa casar com o lock
+  # (requirements-test.lock). Manter em sincronia ao atualizar o lock.
+  PW_VERSION: 1.62.0
 
 permissions:
   contents: read
@@ -105,6 +109,7 @@ permissions:
 jobs:
   setup:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       stores: ${{ steps.sync_stores.outputs.stores }}
     steps:
@@ -112,7 +117,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
-          python-version: '3.14.6'
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
           cache-dependency-path: requirements-prod.lock
         
@@ -149,7 +154,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
-          python-version: '3.14.6'
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
           cache-dependency-path: requirements-prod.lock
         
@@ -159,12 +164,12 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-pw-1.61.0-${{ hashFiles('requirements-prod.lock') }}
+          key: ${{ runner.os }}-pw-${{ env.PW_VERSION }}-${{ hashFiles('requirements-prod.lock') }}
       - name: Install system deps (tesseract, poppler, playwright)
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq tesseract-ocr tesseract-ocr-por poppler-utils
-          pip install playwright==1.61.0
+          pip install playwright==${{ env.PW_VERSION }}
           playwright install chromium
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
@@ -258,7 +263,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
-          python-version: '3.14.6'
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
           cache-dependency-path: requirements-prod.lock
 
@@ -273,11 +278,11 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/Library/Caches/ms-playwright
-          key: ${{ runner.os }}-pw-1.61.0-${{ hashFiles('requirements-prod.lock') }}
+          key: ${{ runner.os }}-pw-${{ env.PW_VERSION }}-${{ hashFiles('requirements-prod.lock') }}
       - name: Install system deps (tesseract, poppler, playwright)
         run: |
           brew install tesseract poppler
-          pip install playwright==1.61.0
+          pip install playwright==${{ env.PW_VERSION }}
           playwright install chromium
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
@@ -329,14 +334,14 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
-          python-version: '3.14.6'
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
           cache-dependency-path: requirements-prod.lock
 
       - name: Install dependencies
         run: pip install -r requirements-prod.lock
       - name: Install playwright (required by services.collector import)
-        run: pip install playwright==1.61.0
+        run: pip install playwright==${{ env.PW_VERSION }}
       - name: Record start time
         run: echo "CI_JOB_START=$(date +%s)" >> $GITHUB_ENV
       - name: Enrich + report + cleanup (finalize, runs once)

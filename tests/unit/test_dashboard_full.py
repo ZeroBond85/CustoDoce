@@ -98,10 +98,11 @@ def test_auth():
     assert cfg.secret_key is not None
 
 
-def test_rate_limiter():
+def test_rate_limiter(tmp_path):
     from services.rate_limiter import RateLimiter
 
-    rl = RateLimiter(max_attempts=3, window_seconds=60)
+    db_path = str(tmp_path / "rate_limiter_test.db")
+    rl = RateLimiter(db_path=db_path, max_attempts=3, window_seconds=60)
 
     assert not rl.is_limited("test-key")
     assert rl.remaining_attempts("test-key") == 3
@@ -122,7 +123,7 @@ def test_rate_limiter():
 
     # Persistência SQLite
     rl.record_attempt("persist-test")
-    rl2 = RateLimiter(max_attempts=3, window_seconds=60)
+    rl2 = RateLimiter(db_path=db_path, max_attempts=3, window_seconds=60)
     assert rl2.remaining_attempts("persist-test") == 2
     rl2.clear_attempts("persist-test")
 
@@ -194,10 +195,10 @@ def test_setup_render_function():
     assert callable(render_setup_first_user)
 
 
-def test_login_limiter_integration():
+def test_login_limiter_integration(tmp_path):
     from services.rate_limiter import RateLimiter
 
-    rl = RateLimiter(max_attempts=5, window_seconds=60)
+    rl = RateLimiter(db_path=str(tmp_path / "login.db"), max_attempts=5, window_seconds=60)
     ip = "192.168.1.1"
     assert not rl.is_limited(ip)
     for _ in range(5):
@@ -478,7 +479,7 @@ def test_generate_secret_key():
     assert len(key) >= 32, f"Chave muito curta: {len(key)}"
 
 
-def test_rate_limiter_window_expires(monkeypatch):
+def test_rate_limiter_window_expires(monkeypatch, tmp_path):
     import time as _time
 
     from services.rate_limiter import RateLimiter
@@ -486,7 +487,7 @@ def test_rate_limiter_window_expires(monkeypatch):
     clock_t = _time.time()
     monkeypatch.setattr("services.rate_limiter.time.time", lambda: clock_t)
 
-    rl = RateLimiter(max_attempts=1, window_seconds=1)
+    rl = RateLimiter(db_path=str(tmp_path / "expire.db"), max_attempts=1, window_seconds=1)
     rl.record_attempt("expire-test")
     assert rl.remaining_attempts("expire-test") == 0
     assert rl.is_limited("expire-test")
@@ -495,10 +496,10 @@ def test_rate_limiter_window_expires(monkeypatch):
     rl.clear_attempts("expire-test")
 
 
-def test_rate_limiter_independent_keys():
+def test_rate_limiter_independent_keys(tmp_path):
     from services.rate_limiter import RateLimiter
 
-    rl = RateLimiter(max_attempts=3, window_seconds=60)
+    rl = RateLimiter(db_path=str(tmp_path / "keys.db"), max_attempts=3, window_seconds=60)
     rl.record_attempt("key-a")
     rl.record_attempt("key-a")
     rl.record_attempt("key-a")

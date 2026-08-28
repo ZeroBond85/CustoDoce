@@ -80,7 +80,7 @@ jobs:
             git diff --exit-code "$f" && echo "$f is up to date" || {
               echo "::error::$f is out of sync with .in files"
               echo "::error::CRITICAL: Lock files MUST be generated on WSL/Linux (NOT Windows)."
-              echo "::error::Run in WSL: cd /mnt/c/Zerobond/Code/CustoDoce && conda activate custodoce-314"
+              echo "::error::Run in WSL: cd /mnt/c/Zerobond/Code/CustoDoce && source ~/.venv314/bin/activate (ou /usr/local/bin/python3.14 -m venv)"
               echo "::error::Then: PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu pip-compile --allow-unsafe --no-strip-extras --output-file=$f ..."
               echo "::error::See LESSONS.md #52, REGRAS.md rule 5."
               exit 1

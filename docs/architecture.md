@@ -9,7 +9,7 @@ O sistema opera em um ciclo de coleta, processamento, armazenamento e consumo.
 
 ```mermaid
 graph TD
-    subgraph "Camada de Coleta (GitHub Actions — 16 workflows)"
+    subgraph "Camada de Coleta (GitHub Actions — 14 workflows)"
         A[Cron 2x/dia<br/>+ On-Demand] --> B{CollectorPipeline}
         B --> C[Tier 1: PDF Scrapers<br/>pdfplumber + OCR]
         B --> D[Tier 2: VTEX/Web/API Scrapers]

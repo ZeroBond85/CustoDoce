@@ -70,11 +70,14 @@ graph LR
 ```
 CustoDoce/
 ├── .github/workflows/
-│   ├── scrape.yml, ci.yml, e2e.yml, backup.yml, restore-test.yml
-│   ├── on_demand_scrape.yml, ci-e2e-only.yml
-│   ├── heal-scrapers.yml                             # Cron 15d auto-heal
-│   ├── skills-maintenance.yml                       # Cron mensal (dia 1, 9am UTC)
-│   └── dependency-audit.yml                         # Cron mensal (dia 1, 9am UTC) — pip-audit + deptry + licenses
+│   ├── scrape.yml, scrape-reusable.yml               # Coleta cron + reusable (4 jobs)
+│   ├── ci.yml, ci-e2e-only.yml                       # CI lint/type/test + e2e smoke
+│   ├── e2e.yml, teste_full_manual.yml               # E2E full + teste manual (~55min)
+│   ├── backup.yml, restore-test.yml                  # Backup semanal + restore test
+│   ├── on_demand_scrape.yml, heal-scrapers.yml      # On-demand + auto-heal (mensal dia 1)
+│   ├── sanitize-check.yml, test_store_recovery.yml   # Sanitize semanal + recovery test
+│   ├── skills-maintenance.yml                        # Cron mensal (dia 1, 9am UTC)
+│   └── dependency-audit.yml                          # Cron mensal (dia 1, 9am UTC) — pip-audit + deptry + licenses
 ├── .githooks/
 │   ├── pre-commit                                     # 14 camadas (SECRET GUARD, GITIGNORE IMPORTS, DETECT-SECRETS, RUFF LINT, DOC SYNC, DOC SYNC --STRICT, SIZE GUARD, DOC WATCHDOG, AGENTS SCHEMA, MD AUTO-COMPRESS, SKILL DRIFT, RESIDUE GUARD, CRLF GUARD, WINDOWS-ONLY PACKAGES GUARD)
 │   └── pre-push                                       # Python, 9 checks paralelos (block + auto-fix sync_docs)
@@ -110,7 +113,7 @@ CustoDoce/
 ├── requirements.lock       # = requirements-test.lock (backward compat)
 ├── requirements.txt        # = requirements-prod.in (pip-audit source)
 ├── AGENTS.md          # ← este arquivo (vivo, ~340 linhas)
-├── LESSONS.md         # 96 lições aprendidas
+├── LESSONS.md         # 97 lições aprendidas
 └── REGRAS.md          # Ambiente, hooks, comandos
 ```
 
@@ -247,7 +250,7 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 | Schema manifest | 17 tabelas/views com types, not_null, defaults, constraints |
 | Mock validation tests | 121 parametrizados (colunas, tipos, not_null, FKs, CHECK, jsonb) |
 | AGENTS.md | ~357 linhas (Sprint 18 + docs gaps) |
-| LESSONS.md | 96 lições |
+| LESSONS.md | 97 lições |
 | REGRAS.md | Ambiente + hooks + comandos |
 | CI lint/type/test | ✅ Todos verdes — mypy **strict** (Python 3.14.6) |
 | E2E (cloud) | ✅ Validade (run 31806929724) |
@@ -260,7 +263,7 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 | requirements-test.lock | 130+ packages (prod + dev + test) |
 | OpenCode Skills | 35 installed (todas no projeto) |
 | Dashboard pages | 21 módulos (inclui CI Telemetria) |
-| Workflows GitHub Actions | 16 otimizados, validados, com check_time_budget |
+| Workflows GitHub Actions | 14 otimizados, validados, com check_time_budget |
 
 ## OpenCode Skills
 
@@ -300,7 +303,7 @@ Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarbal
 
 ## Documentação Relacionada
 
-- `LESSONS.md` — 96 lições (CI, mocks, schema, scrapers, monitoração, segurança)
+- `LESSONS.md` — 97 lições (CI, mocks, schema, scrapers, monitoração, segurança)
 - `REGRAS.md` — Ambiente, hooks, comandos, arquitetura
 - `docs/skills.md` — Skills OpenCode (globais + overlays locais)
 - `docs/changelog.md` — Histórico por fase/sprint; `config/agents_schema.yaml` — Schema deste arquivo

@@ -31,7 +31,7 @@ class PlaywrightPriceScraper(BaseWebScraper):
     # ── Route interception ────────────────────────────────────────────
     _HEAVY_RESOURCE_TYPES = ("image", "font", "media", "stylesheet", "texttrack")
 
-    def _setup_route_blocking(self, context) -> None:
+    async def _setup_route_blocking(self, context) -> None:
         """Bloqueia download de recursos pesados via ``context.route``.
 
         Os filtros de produtos são extraídos do DOM (selectolax) após o
@@ -51,7 +51,7 @@ class PlaywrightPriceScraper(BaseWebScraper):
                 await route.continue_()
 
         with contextlib.suppress(Exception):
-            context.route("**/*", _abort_heavy)
+            await context.route("**/*", _abort_heavy)
 
     def run(self, ingredients: list[dict]) -> list[dict]:
         return asyncio.run(self._run_async(ingredients))
@@ -66,7 +66,7 @@ class PlaywrightPriceScraper(BaseWebScraper):
                 "Chrome/125.0.0.0 Safari/537.36"
             )
         )
-        self._setup_route_blocking(context)
+        await self._setup_route_blocking(context)
         try:
             if self.browse_urls:
                 logger.info("[%s] browse mode: %d category URLs (asyncio.gather paralelo)", self.name, len(self.browse_urls))

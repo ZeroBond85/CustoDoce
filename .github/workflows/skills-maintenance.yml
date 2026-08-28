@@ -25,6 +25,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  PYTHON_VERSION: '3.14.6'
   PIP_NO_WARN_YANKED: 1
 
 permissions:
@@ -33,13 +34,14 @@ permissions:
 jobs:
   maintenance:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
-          python-version: '3.14.6'
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
           cache-dependency-path: requirements-dev.lock
 

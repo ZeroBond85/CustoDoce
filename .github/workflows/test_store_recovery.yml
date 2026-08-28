@@ -26,11 +26,13 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  PYTHON_VERSION: '3.14.6'
   PYTHONPATH: ${{ github.workspace }}
 
 jobs:
   prepare:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       matrix: ${{ steps.set.outputs.matrix }}
     steps:
@@ -51,12 +53,13 @@ jobs:
   setup:
     needs: [prepare]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: ${{ github.event.inputs.pause_regular == 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
-          python-version: '3.14.6'
+          python-version: ${{ env.PYTHON_VERSION }}
       - name: Instalar deps
         run: |
           python -m pip install --upgrade pip
@@ -92,7 +95,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
-          python-version: '3.14.6'
+          python-version: ${{ env.PYTHON_VERSION }}
       - name: Instalar sistema (tesseract/poppler)
         run: |
           sudo apt-get update
@@ -114,11 +117,12 @@ jobs:
     needs: [prepare, test-store]
     if: ${{ always() && github.event.inputs.pause_regular == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
-          python-version: '3.14.6'
+          python-version: ${{ env.PYTHON_VERSION }}
       - name: Instalar deps
         run: |
           python -m pip install --upgrade pip

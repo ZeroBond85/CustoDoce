@@ -41,14 +41,14 @@ class _FakeContext:
     def __init__(self):
         self.routes = []
 
-    def route(self, pattern, handler):
+    async def route(self, pattern, handler):
         self.routes.append((pattern, handler))
 
 
 def test_route_blocking_aborts_heavy_resources():
     sc = _make_scraper()
     ctx = _FakeContext()
-    sc._setup_route_blocking(ctx)
+    asyncio.run(sc._setup_route_blocking(ctx))
     assert len(ctx.routes) == 1
     pattern, handler = ctx.routes[0]
     assert pattern == "**/*"
@@ -63,7 +63,7 @@ def test_route_blocking_aborts_heavy_resources():
 def test_route_blocking_continues_document_and_scripts():
     sc = _make_scraper()
     ctx = _FakeContext()
-    sc._setup_route_blocking(ctx)
+    asyncio.run(sc._setup_route_blocking(ctx))
     _, handler = ctx.routes[0]
 
     for rtype in ("document", "xhr", "script", "fetch"):
@@ -76,5 +76,5 @@ def test_route_blocking_continues_document_and_scripts():
 def test_route_blocking_disabled_when_config_false():
     sc = _make_scraper(block_resources=False)
     ctx = _FakeContext()
-    sc._setup_route_blocking(ctx)
+    asyncio.run(sc._setup_route_blocking(ctx))
     assert ctx.routes == []
