@@ -99,7 +99,7 @@ jobs:
       - name: Instalar sistema (tesseract/poppler)
         run: |
           sudo apt-get update
-          sudo apt-get install -y tesseract-ocr poppler-utils
+          sudo apt-get install -y tesseract-ocr tesseract-ocr-por poppler-utils
       - name: Instalar deps
         run: |
           python -m pip install --upgrade pip
