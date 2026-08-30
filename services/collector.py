@@ -8,6 +8,7 @@ import os
 import re
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from queue import Empty
 from contextlib import suppress
 from datetime import UTC, date
 from datetime import datetime as dt_now
@@ -649,10 +650,19 @@ def _spawn_isolated(
     result: list[tuple[str, Any]] = []
 
     def _drain() -> None:
+        # Lê enquanto o filho viver: um get() único com timeout curto morreria
+        # antes do filho fazer o put (ex.: download+OCR de flyer leva ~45s) e o
+        # deadlock voltaria. Após o filho sair, tenta uma última leitura curta.
+        while p.is_alive():
+            try:
+                result.append(mp_q.get(timeout=1))
+                return
+            except Empty:
+                continue
         try:
-            result.append(mp_q.get(timeout=15))
-        except Exception as e:  # noqa: BLE001 - filho morreu sem colocar nada
-            logger.debug("spawn worker queue drain vazio/expirou: %s", e)
+            result.append(mp_q.get(timeout=0.2))
+        except Empty:
+            logger.debug("spawn worker final drain vazio (filho sem mensagem)")
 
     reader = threading.Thread(target=_drain, daemon=True)
     reader.start()
