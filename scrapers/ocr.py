@@ -24,7 +24,9 @@ def ocr_pdf(pdf_bytes: bytes, lang: str = "por") -> str:
     for page_num, img in enumerate(images, 1):
         try:
             # Preprocess each page
-            processed = preprocess_image(img.tobytes())
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            processed = preprocess_image(buf.getvalue())
             img_clean = Image.open(io.BytesIO(processed))
             t = image_to_string(img_clean, lang=lang)
             if t:

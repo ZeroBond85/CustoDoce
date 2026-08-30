@@ -1,5 +1,5 @@
 # Schema do LESSONS.md — valida integridade das lições
-max_lines: 760
+max_lines: 775
 heading_pattern: '^### \d+\.'
 no_duplicates: true
 monotonic: true

@@ -188,7 +188,9 @@ def _ocr_pdf(content: bytes, lang: str) -> str:
         images = convert_from_bytes(content, dpi=300, fmt="jpeg", thread_count=2)
         text_parts = []
         for img in images:
-            processed = preprocess_image(img.tobytes())
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            processed = preprocess_image(buf.getvalue())
             img_clean = Image.open(io.BytesIO(processed))
             t = image_to_string(img_clean, lang=lang)
             if t:
