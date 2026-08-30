@@ -1,56 +1,37 @@
-# Plano de Validação de CI — workflows não disparados (pós-merge #79)
+# Plano de Validação de CI — workflows disparados no fechamento do Sprint 18
 
-> **Contexto**: merge da reconciliação YAML↔DB (PR #79 → `master`, commit `30ace99`).
-> Mudança: `config/ingredients.yaml` (regenerado do DB) + `LESSONS.md` + `AGENTS.md` (sync).
-> Sem alteração de lógica de código, sem alteração de dependências.
+> **Contexto**: fechamento Sprint 18 — após a reconciliação YAML↔DB (PR #79, merge `30ace99`),
+> os fixes de infra do Store Recovery Test (PR #80 OCR PIL, PR #81 tesseract-por, PR #82/83
+> dreno de queue) e o scraper com `--force` por último. Todos os workflows dispatching
+> foram disparados um a um e monitorados até o status FINAL (regra #12).
 
-## Status dos workflows de VALIDAÇÃO (todos ✅ para este change)
+## Resultado final (17/08/2026)
 
-| Workflow | Arquivo | Trigger | Rodou p/ #79 | Run | Result |
-|----------|---------|---------|--------------|-----|--------|
-| CI - Testes e Qualidade | `ci.yml` | push/PR | ✅ PR + master | 33224869009 / 33225278324 | success |
-| Teste_Full_Manual | `teste_full_manual.yml` | dispatch | ✅ (sessão anterior) | 33217252374 | success |
-| E2E - Teste Completo | `e2e.yml` | cron(1º)+dispatch | ✅ | 33225929022 | success |
-| Dependency Audit | `dependency-audit.yml` | cron(1º)+dispatch | ✅ | 33225930190 | success |
-| CI - E2E Smoke Only | `ci-e2e-only.yml` | dispatch | ✅ | 33226458822 | success |
+| Workflow | Archive | Rodou | Run | Result |
+|----------|---------|-------|-----|--------|
+| CI - Testes e Qualidade | `ci.yml` | PR #80/81/82/83 + master | 33285016525, 33287353077, 33288682115, 33331011455 | success |
+| Teste_Full_Manual | `teste_full_manual.yml` | sessão anterior (pós reconciliação) | 33217252374 | success |
+| E2E - Teste Completo | `e2e.yml` | pós #79 | 33225929022 | success |
+| Dependency Audit | `dependency-audit.yml` | pós #79 | 33225930190 | success |
+| CI - E2E Smoke Only | `ci-e2e-only.yml` | pós #79 | 33226458822 | success |
+| sanitize-check | `sanitize-check.yml` | rerun sequencial | 33231411097 | success |
+| Skills Maintenance | `skills-maintenance.yml` | rerun sequencial | 33231521930 | success |
+| Store Recovery Test | `test_store_recovery.yml` | sequência de corridas | ##13 33231625239 FAIL → ##17 33331476932 **SUCCESS** | success (final) |
+| On Demand Scrape (`--force`) | `on_demand_scrape.yml` → `scrape-reusable` | **último** | 33331866993 | success |
+| Heal Scrapers | `heal-scrapers.yml` | — | — | cron-only (422 sem workflow_dispatch) |
+| Backup - Restore Test | `backup.yml` + `restore-test.yml` | — | — | cron-only (422 sem workflow_dispatch) |
+| Scrape (`scrape.yml`) | `scrape-reusable` | — | — | reusable (roda dentro do On Demand) |
 
-> Observação: `Teste_Full_Manual` 33217252374 rodou ANTES do merge da reconciliação, mas cobre todo o path (e2e-full/real/visual/diagnostics/deploy-check). O `E2E - Teste Completo` 33225929022 rodou APÓS o merge e valida o dashboard D5 (YAML=27) no master atual. Ambos green.
+## Cadeia de fix do Store Recovery Test (Atacadão) — 3 camadas de causa raiz
 
-## Workflows NÃO disparados (lista para validação manual)
+1. **OCR nunca rodava** (`cannot identify image file`): `img.tobytes()` é o pixel buffer cru,
+   `Image.open` não identifica formato → salvar como PNG antes do preprocess. PR #80.
+   Regression: `tests/unit/test_ocr.py`.
+2. **Runner sem `por.traineddata`**: `test_store_recovery.yml` instalava `tesseract-ocr` sem
+   `tesseract-ocr-por` (os outros workflows tinham) → OCR levanta run-time em pt-BR. PR #81. Lição #120.
+3. **Deadlock `mp.Queue`**: filho `q.put(thumbnail)` sem leitor no pai → primeira versão do dreno
+   (one-shot 15s, PR #82) foi insuficiente — filho `put` aos ~46s (download+OCR); versão final
+   loopa até `p.is_alive()` (PR #83). Regressions: `test_collector_isolation.py` (big + delayed).
+   Lições #121/#122.
 
-Estes são **operacionais/agendados** — NÃO validam a mudança de `ingredients.yaml` (config/doc).
-Rodam automaticamente por cron. Dispará-los manualmente consome quota de scrape / faz
-restore de backup / roda manutenção — use só para validar INFRA, não o change.
-
-| Workflow | Arquivo | Trigger (cron) | Recomendação p/ #79 |
-|----------|---------|----------------|---------------------|
-| Scrape | `scrape.yml` (+`scrape-reusable.yml`) | 2x/dia (00:00/12:00 UTC) | ❌ Não rodar (queima quota) — roda sózinho |
-| On Demand Scrape | `on_demand_scrape.yml` | dispatch | ❌ Não rodar (scrape real) |
-| Heal Scrapers | `heal-scrapers.yml` | mensal (dia 1) | ⚠️ Opcional (infra) |
-| Backup - Restore Test | `backup.yml` + `restore-test.yml` | semanal | ⚠️ Opcional (infra) |
-| sanitize-check | `sanitize-check.yml` | semanal | ⚠️ Opcional (infra) |
-| Store Recovery Test | `test_store_recovery.yml` | teste | ⚠️ Opcional (infra) |
-| Skills Maintenance | `skills-maintenance.yml` | mensal (dia 1) | ⚠️ Opcional (infra) |
-
-## Comandos para disparar (sob demanda, validação de INFRA)
-
-```bash
-# Via WSL (gh autenticado):
-gh workflow run "Scrape" --ref master
-gh workflow run "On Demand Scrape" --ref master
-gh workflow run "Heal Scrapers" --ref master
-gh workflow run "Backup - Restore Test" --ref master
-gh workflow run "sanitize-check" --ref master
-gh workflow run "Store Recovery Test" --ref master
-gh workflow run "Skills Maintenance" --ref master
-```
-
-### Critérios de aceite (qualquer um dos acima, se rodado)
-- `gh run view <id> --json conclusion` → `"success"`.
-- Sem job `failure`/`cancelled` (exceto cancelamento intencional por concorrência).
-
-## Conclusão
-Para a mudança de config/doc do PR #79, **toda a suíte de validação de código está verde**
-(ci.yml, Teste_Full_Manual, E2E - Teste Completo, Dependency Audit, CI - E2E Smoke Only).
-Os workflows restantes são operacionais por cron e não precisam ser disparados manualmente
-para este change — listados acima apenas para validação de infra, se desejado.
+Master CI green em todos os merges. On Demand Scrape (force) rodou por último, success.
