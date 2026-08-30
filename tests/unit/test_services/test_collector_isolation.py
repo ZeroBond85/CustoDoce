@@ -62,6 +62,30 @@ class _HangLaunchScraper:
         return []
 
 
+class _BigThumbnailScraper:
+    """Produces a large thumbnail — exposes the q.put()/join() deadlock.
+
+    ``_spawn_isolated`` used to block in ``p.join(timeout)`` WITHOUT draining the
+    result queue while the child blocked in ``q.put()`` (pipe full with the
+    thumbnail PNG). The child never exited; the timeout then "solved" the deadlock
+    by killing the process and returning 0 products. The parent now drains the
+    queue in a background thread, so large payloads flow.
+    """
+
+    def __init__(self, store):
+        self.store = store
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def run(self, ingredients=None):
+        self._thumbnail = b"x" * 2_000_000
+        return [{"product": "Leite Condensado 395g", "price": 4.5, "unit": "un"}]
+
+
 def test_isolated_happy_path_returns_products_and_thumbnail():
     raw, thumb = _run_scraper_isolated(_GoodScraper, {"name": "X"}, [], True, "X", timeout_seconds=10)
     assert len(raw) == 1
@@ -86,3 +110,15 @@ def test_isolated_timeout_on_launch_does_not_wedge():
     assert raw == []
     assert thumb is None
     assert elapsed < 20
+
+
+def test_isolated_big_thumbnail_does_not_deadlock_queue():
+    t0 = time.time()
+    raw, thumb = _run_scraper_isolated(_BigThumbnailScraper, {"name": "X"}, [], True, "X", timeout_seconds=10)
+    elapsed = time.time() - t0
+    assert len(raw) == 1
+    assert len(thumb) == 2_000_000
+    # Proves the parent drained the queue while the child was still running;
+    # without the drain thread the child blocks forever in q.put() and the
+    # timeout (10s) returns 0 products instead.
+    assert elapsed < 10

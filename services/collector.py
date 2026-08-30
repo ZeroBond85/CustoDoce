@@ -6,6 +6,7 @@ import importlib
 import multiprocessing as mp
 import os
 import re
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import suppress
 from datetime import UTC, date
@@ -641,6 +642,20 @@ def _spawn_isolated(
         daemon=True,
     )
     p.start()
+    # Drena a queue numa thread desde o início. Sem isso, um payload grande
+    # (ex.: thumbnail PNG de flyer) enche o pipe e o filho fica bloqueado em
+    # q.put() enquanto o pai espera em join() — deadlock que o timeout "resolve"
+    # matando o processo e devolvendo 0 produtos.
+    result: list[tuple[str, Any]] = []
+
+    def _drain() -> None:
+        try:
+            result.append(mp_q.get(timeout=15))
+        except Exception as e:  # noqa: BLE001 - filho morreu sem colocar nada
+            logger.debug("spawn worker queue drain vazio/expirou: %s", e)
+
+    reader = threading.Thread(target=_drain, daemon=True)
+    reader.start()
     p.join(timeout=timeout_seconds)
     if p.is_alive():
         scraper_type = target_mod.replace("scrapers.", "")
@@ -655,10 +670,10 @@ def _spawn_isolated(
         with suppress(Exception):
             p.join(timeout=10)
         return None
-    try:
-        status, payload = mp_q.get(timeout=15)
-    except Exception:  # noqa: BLE001
+    reader.join(timeout=15)
+    if not result:
         return None
+    status, payload = result[0]
     if status == "err":
         raise RuntimeError(f"falha no scraper: {payload}")
     return payload
