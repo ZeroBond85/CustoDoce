@@ -86,6 +86,30 @@ class _BigThumbnailScraper:
         return [{"product": "Leite Condensado 395g", "price": 4.5, "unit": "un"}]
 
 
+class _SlowBigThumbnailScraper:
+    """Big thumbnail AFTER a long run — exposes a one-shot 15s drain thread.
+
+    A drain that calls ``mp_q.get(timeout=15)`` once dies before a slow scraper
+    (download + OCR of a flyer takes ~45s) ever calls ``q.put()``; the child then
+    blocks forever in ``put`` and the timeout kills it. The reader must loop for
+    the whole child lifetime, not just the first 15s.
+    """
+
+    def __init__(self, store):
+        self.store = store
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def run(self, ingredients=None):
+        time.sleep(25)
+        self._thumbnail = b"x" * 2_000_000
+        return [{"product": "Leite Condensado 395g", "price": 4.5, "unit": "un"}]
+
+
 def test_isolated_happy_path_returns_products_and_thumbnail():
     raw, thumb = _run_scraper_isolated(_GoodScraper, {"name": "X"}, [], True, "X", timeout_seconds=10)
     assert len(raw) == 1
@@ -122,3 +146,13 @@ def test_isolated_big_thumbnail_does_not_deadlock_queue():
     # without the drain thread the child blocks forever in q.put() and the
     # timeout (10s) returns 0 products instead.
     assert elapsed < 10
+
+
+def test_isolated_delayed_big_thumbnail_does_not_deadlock_queue():
+    t0 = time.time()
+    raw, thumb = _run_scraper_isolated(_SlowBigThumbnailScraper, {"name": "X"}, [], True, "X", timeout_seconds=45)
+    elapsed = time.time() - t0
+    # The child sleeps 25s before putting — well past a one-shot 15s drain.
+    assert len(raw) == 1
+    assert len(thumb) == 2_000_000
+    assert 20 < elapsed < 45
