@@ -16,3 +16,20 @@ def reset_supabase_globals():
     sc._supabase_client = None
     sc._service_client = None
     yield
+
+
+@pytest.fixture(autouse=True)
+def cleanup_test_ingredients():
+    """Clean up test ingredients from DB after each test to prevent pollution."""
+    yield
+    # Function-scoped teardown for integration tests
+    try:
+        from services.supabase_client import get_service_client
+        client = get_service_client()
+        # Clean test ingredients (prefix _test_)
+        client.table("ingredients").delete().like("canonical_name", "_test_%").execute()
+        # Clean test stores
+        client.table("stores").delete().like("name", "%Test Store%").execute()
+        client.table("stores").delete().like("name", "%Test%").execute()
+    except Exception:
+        pass  # Best effort cleanup

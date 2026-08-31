@@ -1,5 +1,5 @@
-"""Regressão Sprint 19 — F4 estrutural:
-1. review_threshold default 0.70 → 0.80 (alinhado ao gate de persistência)
+"""Testes de regressão Sprint 19 — F4 estrutural:
+1. review_threshold default 0.70 → 0.82 (alinhado ao gate de persistência e5-large)
 2. insert_review_item reabre rejeitados >=90d (re-entry sob UNIQUE constraint)
 3. store_registry.expire_stale_pending expira pendências >30d
 """
@@ -14,13 +14,14 @@ import services.store_registry as registry
 
 # ── 1. Threshold default ─────────────────────────────────────────────────
 def test_review_threshold_default_literal():
-    # Garante que o LITERAL default no código é 0.80 (não o legado 0.70)
+    # Garante que o LITERAL default no código é 0.82 (e5 gate recalibrado)
     import inspect
 
     src = inspect.getsource(collector)
-    assert 'default=0.80' in src
-    # O legado 0.70 não pode voltar como default do review_threshold
+    assert 'default=0.82' in src
+    # O legado 0.70/0.80 não pode voltar como default do review_threshold
     assert 'default=0.70' not in src
+    assert 'default=0.80' not in src
 
 
 # ── 2. Re-entry de rejeitados ────────────────────────────────────────────
