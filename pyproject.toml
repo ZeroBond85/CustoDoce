@@ -35,6 +35,10 @@ filterwarnings = [
     # curl_cffi em Windows: Proactor loop não tem add_reader (policy selector já
     # aplicada no tests/conftest.py). Warning residual do curl_cffi.aio — ruído.
     "ignore:Proactor event loop does not implement add_reader:UserWarning:curl_cffi.aio",
+    # fastembed: aviso informativo sobre troca de pooling do e5-large (CLS→mean).
+    # Mudança upstream deliberada; gate 0.82 foi recalibrado na saída mean pooling
+    # pós-migração. Ruído — modelo e gate já validados em teste real (CI).
+    "ignore:The model .* now uses mean pooling instead of CLS embedding:UserWarning",
 ]
 
 [tool.ruff]

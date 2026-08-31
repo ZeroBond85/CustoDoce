@@ -357,6 +357,9 @@ class _FakeMatcher:
     def combined_score(self, rf_score: float, semantic_score: float) -> float:
         return 0.6 * (rf_score / 100.0) + 0.4 * semantic_score
 
+    def get_gate(self) -> float:
+        return 0.82  # e5 gate recalibrado
+
 
 def _gray_zone_ingredients() -> list[dict]:
     """Ingredientes com candidato de chocolate (RF ~71 no gray-zone 60-79)."""

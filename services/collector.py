@@ -260,21 +260,25 @@ def process_price_match(
     semantic_score = 0.0
     combined = score / 100.0
 
+    # Gate do matcher atual (e5 = 0.82, minilm = 0.80)
+    sm = get_matcher()
+    gate = sm.get_gate()
+
     # ─── Semantic matching (se habilitado e houver candidato RF 60-79) ───
     if ingredient and score >= 60.0:
         combined = _apply_semantic_matching(
             product_text, ingredient, score, combined
         )
 
-    # ─── LLM classifier para gray-zone 70-79% (se habilitado) ───
-    if ingredient and 0.70 <= combined < 0.80:
+    # ─── LLM classifier para gray-zone 70-82% (gate e5 recalibrado) ───
+    if ingredient and 0.70 <= combined < gate:
         combined = _apply_llm_classifier(
             store, product_text, ingredient, ingredients, raw_price, raw_unit,
             validity_raw, brand, combined
         )
 
-    # ─── Persistência direta se combined >= 0.80 (gate alinhado Sprint 18+) ───
-    if ingredient and combined >= 0.80:
+    # ─── Persistência direta se combined >= gate (0.82 p/ e5) ───
+    if ingredient and combined >= gate:
         entry = build_product_entry(
             store,
             ingredient,
@@ -288,7 +292,7 @@ def process_price_match(
         )
         return _persist(entry)
 
-    # ─── Review queue (combined < 0.80 — threshold alinhado ao gate 0.80) ───
+    # ─── Review queue (combined < gate) ───
     # O original não exigia `ingredient` para enfileirar — usava rank_ingredients
     # com a lista completa de ingredients. Mantemos essa semântica.
     _queue_for_review(
@@ -387,7 +391,7 @@ def _apply_llm_classifier(
                 upsert_price(entry)
             except Exception as e_upsert:
                 logger.warning("[%s] upsert_price failed for LLM entry: %s", store.get("name", "?"), e_upsert)
-            return 1.0  # força combined >= 0.80 para indicar persistência
+            return 1.0  # força combined >= gate (0.82 p/ e5) para indicar persistência
     return combined
 
 
@@ -413,7 +417,7 @@ def _queue_for_review(
     threshold = get_feature(
         "features.matcher.review_threshold",
         ingredient=ingredient["canonical_name"] if ingredient else None,
-        default=0.80,
+        default=0.82,  # e5 gate recalibrado
     )
     if combined < threshold:
         return
@@ -570,18 +574,35 @@ def _auto_disable_if_needed(store_name: str, threshold: int = 3) -> None:
 def _check_zero_products_alert(store_name: str, threshold: int = 3) -> None:
     try:
         client = get_service_client()
+        # Get store info to check if it's a flyer-type store
+        store = safe_single_execute(
+            client.table("stores").select("tier, type").eq("name", store_name).maybe_single()
+        )
+        is_flyer_store = False
+        if store:
+            tier = store.get("tier")
+            stype = store.get("type", "")
+            is_flyer_store = tier in (1, 2) or "flyer" in str(stype).lower()
+
+        # For flyer stores (tier 1/2 or flyer types), cache hits are normal - increase threshold
+        effective_threshold = threshold * 3 if is_flyer_store else threshold
+
         logs = safe_execute(
             client.table("scraping_logs")
             .select("status, items_found")
             .eq("store_name", store_name)
             .order("started_at", desc=True)
-            .limit(threshold)
+            .limit(effective_threshold)
         )
-        if not logs or len(logs) < threshold:
+        if not logs or len(logs) < effective_threshold:
             return
         if all(log["status"] == "completed" and log.get("items_found", 0) == 0 for log in logs):
             logger.warning(
-                "[ZERO-PRODUCTS ALERT] %s retornou 0 produtos por %d coletas consecutivas", store_name, threshold
+                "[ZERO-PRODUCTS ALERT] %s retornou 0 produtos por %d coletas consecutivas (flyer=%s, threshold=%d)",
+                store_name,
+                effective_threshold,
+                is_flyer_store,
+                threshold,
             )
     except Exception as e:
         logger.debug("zero-products check failed for %s: %s", store_name, e)
@@ -962,6 +983,9 @@ def _collect_generic(
             _name, prods = fut.result()
             if prods:
                 logger.info("[%s] coleta OK: %d produtos", store_name, len(prods))
+                with suppress(Exception):
+                    from services.scraper_health import record_success
+                    record_success(store_name, items_found=len(prods), products_matched=len(prods), attempted_by="collector")
             else:
                 logger.warning("[%s] coleta vazia: 0 produtos", store_name)
             all_products.extend(prods)
@@ -1016,6 +1040,10 @@ def _collect_flyers(
                     logger.warning("Flyer save error: %s", e)
 
             logger.info("[%s] %d flyer entries, %d saved", store_name, len(entries), saved)
+            if saved > 0:
+                with suppress(Exception):
+                    from services.scraper_health import record_success
+                    record_success(store_name, items_found=len(entries), flyer_count=saved, attempted_by="collector")
 
         except Exception as e:
             error_class = classify_error_for_alert(str(e))

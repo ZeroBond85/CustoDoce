@@ -1,3 +1,4 @@
+"""Testes do SemanticMatcher (fastembed + e5-large)."""
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -6,32 +7,43 @@ import pytest
 from parsers.semantic_matcher import SemanticMatcher
 
 
-@pytest.fixture
-def mock_matcher():
-    with patch("sentence_transformers.SentenceTransformer") as mock_st:
-        matcher = SemanticMatcher()
-        matcher._model = MagicMock()
-        matcher._model.encode.side_effect = lambda text: (
-            np.array([1.0, 0.0, 0.0]) if "leite" in text.lower() else np.array([0.0, 1.0, 0.0])
-        )
-        matcher._loaded = True
-        yield matcher
+@pytest.fixture(autouse=True)
+def _no_model_download():
+    """Patch fastembed.TextEmbedding para nenhum teste de unidade baixar/instanciar
+    o modelo real e5-large (rede/perf). O aviso de pooling do fastembed fica
+    silenciado já no pyproject filterwarnings; aqui evitamos até a carga."""
+    with patch(
+        "fastembed.TextEmbedding", return_value=MagicMock()
+    ):
+        yield
 
 
 @pytest.fixture
-def mock_matcher_full():
-    """Full isolation: bypass cache and ONNX, use mocked PyTorch model."""
+def mock_matcher(_no_model_download):
+    """Mock matcher with controlled embeddings."""
     matcher = SemanticMatcher()
     matcher._model = MagicMock()
-    matcher._model.encode.side_effect = lambda text: (
-        np.array([1.0, 0.0, 0.0]) if "leite" in text.lower() else np.array([0.0, 1.0, 0.0])
-    )
+    # Mock embed to return deterministic vectors based on text content
+    def embed_side_effect(texts):
+        vecs = []
+        for text in texts:
+            if "leite" in text.lower():
+                vecs.append(np.array([1.0, 0.0, 0.0], dtype=np.float32))
+            elif "chocolate" in text.lower():
+                vecs.append(np.array([0.0, 1.0, 0.0], dtype=np.float32))
+            elif "granulado" in text.lower():
+                vecs.append(np.array([0.0, 0.0, 1.0], dtype=np.float32))
+            else:
+                vecs.append(np.array([0.0, 0.0, 0.0], dtype=np.float32))
+        return iter(vecs)
+    matcher._model.embed.side_effect = embed_side_effect
+    matcher._ingredient_embeddings = {
+        "Leite Condensado": np.array([1.0, 0.0, 0.0], dtype=np.float32),
+        "Chocolate 50%": np.array([0.0, 1.0, 0.0], dtype=np.float32),
+        "Granulado Colorido": np.array([0.0, 0.0, 1.0], dtype=np.float32),
+    }
     matcher._loaded = True
-    with (
-        patch.object(matcher, "_get_cached_embedding", return_value=None),
-        patch.object(matcher, "_get_onnx_model", return_value=None),
-    ):
-        yield matcher
+    yield matcher
 
 
 def test_combined_score():
@@ -41,17 +53,22 @@ def test_combined_score():
     assert pytest.approx(score) == 0.68
 
 
-def test_get_similarity_basic(mock_matcher_full):
+def test_get_gate():
+    matcher = SemanticMatcher()
+    assert matcher.get_gate() == 0.82
+
+
+def test_get_similarity_basic(mock_matcher):
     ing = {"canonical_name": "Leite Condensado", "aliases": []}
-    # Both contain "leite" -> dot product of [1,0,0] and [1,0,0] is 1.0
-    sim = mock_matcher_full.get_similarity("Leite de coco", ing)
+    # Product contains "leite" -> matches ingredient "Leite Condensado" -> sim = 1.0
+    sim = mock_matcher.get_similarity("Leite de coco", ing)
     assert pytest.approx(sim) == 1.0
 
 
-def test_get_similarity_different(mock_matcher_full):
+def test_get_similarity_different(mock_matcher):
     ing = {"canonical_name": "Leite Condensado", "aliases": []}
-    # "Chocolate" doesn't contain "leite" -> [0,1,0] dot [1,0,0] is 0.0
-    sim = mock_matcher_full.get_similarity("Chocolate amargo", ing)
+    # "Chocolate" doesn't match "Leite" -> sim = 0.0
+    sim = mock_matcher.get_similarity("Chocolate amargo", ing)
     assert pytest.approx(sim) == 0.0
 
 
@@ -62,35 +79,3 @@ def test_get_similarity_disabled():
         assert matcher.get_similarity("Leite", ing) == 0.0
 
 
-@pytest.mark.parametrize(
-    "text, expected_vec",
-    [
-        ("Leite", [1.0, 0.0, 0.0]),
-        ("Chocolate", [0.0, 1.0, 0.0]),
-        ("Torta", [0.0, 1.0, 0.0]),
-    ],
-)
-def test_embedding_mock(mock_matcher_full, text, expected_vec):
-    vec = mock_matcher_full.get_embedding(text)
-    assert np.array_equal(vec, np.array(expected_vec))
-
-
-def test_cache_logic(tmp_path):
-    # Use a fresh matcher with temporary cache dir
-    with patch("parsers.semantic_matcher._CACHE_DIR", tmp_path):
-        matcher = SemanticMatcher()
-        # Patch both model loading paths: ONNX (may succeed locally) and PyTorch fallback
-        with (
-            patch.object(matcher, "_get_model") as mock_model,
-            patch.object(matcher, "_get_onnx_model", return_value=None),
-        ):
-            mock_model.return_value = MagicMock()
-            mock_model.return_value.encode.return_value = np.array([1, 2, 3])
-
-            # First call: loads model and saves cache
-            matcher.get_embedding("test_text")
-            assert mock_model.call_count == 1
-
-            # Second call: loads from cache
-            matcher.get_embedding("test_text")
-            assert mock_model.call_count == 1

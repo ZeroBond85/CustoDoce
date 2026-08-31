@@ -1,64 +1,30 @@
 """
-Matching semântico via embeddings locais (sentence-transformers).
-CPU-only, determinístico, cache em disco e suporte a ONNX para performance.
+Matching semântico via embeddings locais (fastembed + e5-large).
+CPU-only, determinístico, cache em disco. Prefixos e5: query (produto) / passage (ingredientes).
+Gate de persistência recalibrado: 0.82 para e5 (era 0.80 para MiniLM).
 """
-
 import hashlib
-import logging
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
 import numpy as np
 
 from services.types import Ingredient
 
 _CACHE_DIR = Path(__file__).resolve().parent.parent / "data" / "embedding_cache"
-_ONNX_DIR = Path(__file__).resolve().parent.parent / "data" / "onnx_models"
 _CACHE_DIR.mkdir(parents=True, exist_ok=True)
-_ONNX_DIR.mkdir(parents=True, exist_ok=True)
+
+_E5_MODEL = "intfloat/multilingual-e5-large"
+_E5_GATE = 0.82  # recalibrado p/ e5 (MiniLM era 0.80)
 
 
 class SemanticMatcher:
-    def __init__(self, model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2") -> None:
-        self.model_name = model_name
-        self._model: Any = None
-        self._onnx_model: tuple[Any, Any] | None = None
+    def __init__(self) -> None:
+        from fastembed import TextEmbedding
+
+        self._model = TextEmbedding(_E5_MODEL)
         self._ingredient_embeddings: dict[str, np.ndarray] = {}
         self._loaded = False
-        # Pre-warm ONNX model at startup (PyTorch fallback se ONNX falhar)
-        self._get_onnx_model()
-
-    def _get_model(self) -> Any:
-        if self._model is None:
-            from sentence_transformers import SentenceTransformer
-
-            self._model = SentenceTransformer(self.model_name)
-        return self._model
-
-    def _get_onnx_model(self) -> tuple[Any, Any] | None:
-        """Load or export the model to ONNX format."""
-        if self._onnx_model is not None:
-            return self._onnx_model
-
-        onnx_path = _ONNX_DIR / self.model_name.replace("/", "_")
-        try:
-            from optimum.onnxruntime import ORTModelForFeatureExtraction
-            from transformers import AutoTokenizer
-
-            if not onnx_path.exists():
-                model = ORTModelForFeatureExtraction.from_pretrained(self.model_name, export=True)
-                tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-                model.save_pretrained(str(onnx_path))
-                tokenizer.save_pretrained(str(onnx_path))
-            else:
-                model = ORTModelForFeatureExtraction.from_pretrained(str(onnx_path))
-                tokenizer = AutoTokenizer.from_pretrained(str(onnx_path))
-
-            self._onnx_model = (model, tokenizer)
-            return self._onnx_model
-        except Exception as e:
-            logging.getLogger(__name__).warning("ONNX load failed, falling back to PyTorch: %s", e)
-            return None
 
     def _cache_key(self, text: str) -> str:
         return hashlib.sha256(text.encode()).hexdigest()
@@ -73,30 +39,21 @@ class SemanticMatcher:
         path = _CACHE_DIR / f"{self._cache_key(text)}.npy"
         np.save(path, embedding)
 
-    def get_embedding(self, text: str) -> np.ndarray:
-        cached = self._get_cached_embedding(text)
-        if cached is not None:
-            return cached
-
-        onnx_data = self._get_onnx_model()
-        if onnx_data:
-            model, tokenizer = onnx_data
-            inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
-            outputs = model(**inputs)
-            emb = outputs.last_hidden_state.mean(dim=1).detach().numpy()[0]
-        else:
-            model = self._get_model()
-            emb = model.encode(text)
-
-        emb = np.asarray(emb).ravel()
-        self._cache_embedding(text, emb)
-        return emb
+    def _embed_batch(self, texts: list[str], prefix: str) -> dict[str, np.ndarray]:
+        """Embed a batch of texts with given prefix (query:/passage:)."""
+        prefixed = [prefix + t for t in texts]
+        vecs = list(self._model.embed(prefixed, batch_size=32))
+        return {t: np.asarray(v, dtype=np.float32) for t, v in zip(texts, vecs, strict=True)}
 
     def load_ingredients(self, ingredients: list[Ingredient]) -> None:
+        """Pre-embed all ingredient canonical names + aliases + search_terms with passage: prefix."""
+        texts: set[str] = set()
         for ing in ingredients:
-            texts = [ing["canonical_name"]] + cast(list[str], ing.get("aliases") or []) + cast(list[str], ing.get("search_terms") or [])
-            for t in texts:
-                self._ingredient_embeddings[t] = self.get_embedding(t)
+            texts.add(ing["canonical_name"])
+            texts.update(ing.get("aliases") or [])
+            texts.update(ing.get("search_terms") or [])
+        text_list = sorted(texts)
+        self._ingredient_embeddings = self._embed_batch(text_list, "passage: ")
         self._loaded = True
 
     def get_similarity(self, product_text: str, ingredient: Ingredient) -> float:
@@ -107,14 +64,16 @@ class SemanticMatcher:
         if not self._loaded:
             self.load_ingredients([ingredient])
 
-        prod_emb = self.get_embedding(product_text)
-        texts = [ingredient["canonical_name"]] + cast(list[str], ingredient.get("aliases") or [])
+        # Embed product with query: prefix
+        prod_emb = list(self._model.embed(["query: " + product_text]))[0]
+        prod_emb = np.asarray(prod_emb, dtype=np.float32)
 
+        texts = [ingredient["canonical_name"]] + cast(list[str], ingredient.get("aliases") or [])
         embeddings: list[np.ndarray] = []
         for t in texts:
             emb = self._ingredient_embeddings.get(t)
             if emb is None:
-                emb = self.get_embedding(t)
+                emb = self._embed_batch([t], "passage: ")[t]
                 self._ingredient_embeddings[t] = emb
             embeddings.append(emb)
 
@@ -123,7 +82,7 @@ class SemanticMatcher:
 
         embs_matrix = np.array(embeddings)
         norms = np.linalg.norm(embs_matrix, axis=1)
-        prod_norm = np.linalg.norm(prod_emb)
+        prod_norm = float(np.linalg.norm(prod_emb))
 
         if prod_norm == 0:
             return 0.0
@@ -133,6 +92,11 @@ class SemanticMatcher:
 
     def combined_score(self, rapidfuzz_score: float, semantic_score: float) -> float:
         return 0.6 * (rapidfuzz_score / 100.0) + 0.4 * semantic_score
+
+    @staticmethod
+    def get_gate() -> float:
+        """Gate de persistência recalibrado para e5-large (0.82)."""
+        return _E5_GATE
 
 
 _matcher_instance: SemanticMatcher | None = None
