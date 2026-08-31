@@ -17,6 +17,10 @@ env:
   # Reusar o mesmo pin do requirements-prod.in para não haver drift silencioso.
   FASTEMBED_VERSION: '0.8.0'
 
+concurrency:
+  group: embedding-benchmark
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
