@@ -169,7 +169,10 @@ def check_sync_docs() -> tuple[str, subprocess.CompletedProcess]:
       - Arquivo criado (``??`` em git status).
       - Arquivo deletado (``D`` em git status).
     """
-    r = run([THIS_PYTHON, "scripts/sync_docs.py", "--check", "--strict"], timeout=120)
+    # O strict fit exige paciência extra na primeira passada (v1 + v2 + API docs).
+    # Medido: ~2m07s em /mnt/c (WSL, mount 9p). 120s estourava de forma
+    # determinística, bloqueando todo push. 300s dá folga confortável.
+    r = run([THIS_PYTHON, "scripts/sync_docs.py", "--check", "--strict"], timeout=300)
     if r.returncode == 0:
         if "[DRIFT]" not in r.stdout:
             return "sync_docs", r
@@ -185,7 +188,7 @@ def check_sync_docs() -> tuple[str, subprocess.CompletedProcess]:
         file=sys.stderr,
     )
 
-    fix = run([THIS_PYTHON, "scripts/sync_docs.py", "--sync"], timeout=120)
+    fix = run([THIS_PYTHON, "scripts/sync_docs.py", "--sync"], timeout=300)
     if fix.returncode != 0:
         print("  [sync_docs] live apply falhou — abortando pre-push", file=sys.stderr)
         return "sync_docs", fix

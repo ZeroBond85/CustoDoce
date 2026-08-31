@@ -69,6 +69,7 @@ data/llm_cache.db
 data/test_runs/
 data/probe_results.json
 data/probe_screenshots/
+data/embedding_benchmark_results.json
 *.log
 
 # Output local de testes de scrape

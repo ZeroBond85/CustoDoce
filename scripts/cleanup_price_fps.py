@@ -41,6 +41,15 @@ _NON_FOOD_PATTERNS = [
 # Ingredientes de teste que não devem existir em produção
 _TEST_INGREDIENTS = ["_test_hist_unique_ing"]
 
+# Lojas de teste que não devem ter preços em produção (hermeticidade E2E)
+_TEST_STORES = [
+    "Pipeline Test Store fuzzy",
+    "Hist Constraint Store",
+    "Constraint Test Store",
+    "Dedup Test Store",
+    "Trigger Test Store",
+]
+
 # Ingredientes órfãos: existiam em versões antigas do ingredients.yaml e foram
 # removidos/renomeados. Qualquer preço associado a eles é dado morto.
 _ORPHAN_INGREDIENTS = ["Leite Condensado"]
@@ -129,6 +138,18 @@ def _count_by_ingredients(client, ingredient_ids: list[str]) -> int:
     return int(res.count or 0)
 
 
+def _count_by_stores(client, store_names: list[str]) -> int:
+    if not store_names:
+        return 0
+    res = (
+        client.table("prices")
+        .select("id", count="exact")
+        .in_("store_name", store_names)
+        .execute()
+    )
+    return int(res.count or 0)
+
+
 def _count_total_prices(client) -> int:
     res = client.table("prices").select("id", count="exact").limit(1).execute()
     return int(res.count or 0)
@@ -147,6 +168,12 @@ def _delete_by_ingredients(client, ingredient_ids: list[str]) -> int:
     if not ingredient_ids:
         return 0
     return _delete_in_chunks(client, "ingredient_id", ingredient_ids)
+
+
+def _delete_by_stores(client, store_names: list[str]) -> int:
+    if not store_names:
+        return 0
+    return _delete_in_chunks(client, "store_name", store_names)
 
 
 def _delete_fps(client) -> int:
