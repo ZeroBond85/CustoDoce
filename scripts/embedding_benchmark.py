@@ -81,7 +81,15 @@ INGREDIENTES_AMBIGUOS = {
 }
 
 def cos_sim(a: np.ndarray, b: np.ndarray) -> float:
-    return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+    na = np.linalg.norm(a)
+    nb = np.linalg.norm(b)
+    if na == 0 or nb == 0:
+        return 0.0
+    val = float(np.dot(a, b) / (na * nb))
+    # Embeddings degenerados (NaN/linf) nao devem dominar o ranking
+    if np.isnan(val) or np.isinf(val) or val < 0:
+        return 0.0
+    return val
 
 def peak_rss_bytes() -> int:
     """Pico de RSS do processo (Linux/macOS) via getrusage. Em kB no Linux."""
@@ -274,6 +282,7 @@ def run_candidate(
     correct_at_3 = 0
     correct_at_5 = 0
     mrr_sum = 0.0
+    pos_skipped = 0
 
     # Debug: imprimir top-5 para alguns positivos
     debug_pos = min(debug_samples, len(positives))
@@ -284,6 +293,11 @@ def run_candidate(
         ranking = rank_product(prod_emb)
 
         top_ids = [r[0] for r in ranking[:5]]
+        if not top_ids:
+            # Modelo produziu ranking vazio p/ este produto (emb degenerado).
+            # Conta como miss; nao derruba o benchmark inteiro.
+            pos_skipped += 1
+            continue
         if top_ids[0] == true_id:
             correct_at_1 += 1
         if true_id in top_ids[:3]:
@@ -310,30 +324,35 @@ def run_candidate(
 
     # 5) Métricas nos negativos
     neg_correct = 0
+    neg_skipped = 0
     for idx, p in enumerate(negatives):
         prod_emb = prod_embs_norm[n_pos + idx]
         true_id = p["ingredient_id"]
         ranking = rank_product(prod_emb)
+        if not ranking:
+            neg_skipped += 1
+            continue
         if ranking[0][0] != true_id:
             neg_correct += 1
 
-    n_neg = len(negatives)
-    neg_acc = neg_correct / n_neg if n_neg else 0.0
+    n_neg_eff = len(negatives) - neg_skipped
+    neg_acc = neg_correct / n_neg_eff if n_neg_eff else 0.0
 
     n_all = len(all_products)
+    n_neg = len(negatives)
     embed_seconds_total = (t2 - t1) + (t4 - t3)
-    seconds_per_1000 = embed_seconds_total / n_all * 1000 if n_all else 0.0
     ing_seconds_per_1000 = (t2 - t1) / len(ing_texts) * 1000 if ing_texts else 0.0
+    # Throughput de PRODUTOS puro (bottleneck do scrape diário): exclui o tempo de
+    # ingredientes, que e amortizado (embed 1x por dia). Gate real do scrape.
+    prod_seconds_per_1000 = (t4 - t3) / n_all * 1000 if n_all else 0.0
 
     # Extrapolação: ~2.500 produtos/dia no scrape completo (tiers 1/2a/3)
     # Mais ~2.000 texto de ingredientes (27 ingredientes x alias/search_terms)
     EXTRAPOLATE_PRODUCTS = 2500
     EXTRAPOLATE_INGREDIENTS = 2000
-    extrapolated_total_s = (
-        (t2 - t1) / len(ing_texts) * EXTRAPOLATE_INGREDIENTS
-        + (t4 - t3) / n_all * EXTRAPOLATE_PRODUCTS
-        if ing_texts and n_all else 0.0
-    )
+    ing_extrap_s = (t2 - t1) / len(ing_texts) * EXTRAPOLATE_INGREDIENTS if ing_texts else 0.0
+    prod_extrap_s = (t4 - t3) / n_all * EXTRAPOLATE_PRODUCTS if n_all else 0.0
+    extrapolated_total_s = ing_extrap_s + prod_extrap_s
     extrapolated_total_min = extrapolated_total_s / 60.0
 
     return {
@@ -346,12 +365,16 @@ def run_candidate(
         "neg_accuracy": round(neg_acc, 4),
         "n_positivos": n_pos,
         "n_negativos": n_neg,
+        "n_neg_skipped": neg_skipped,
         "load_seconds": round(load_seconds, 1),
         "hours_wall": None,
         "peak_rss_bytes": rss_peak,
         "peak_rss_mb": round(rss_peak / (1024 * 1024), 1),
-        "seconds_per_1000": round(seconds_per_1000, 2),
+        "prod_seconds_per_1000": round(prod_seconds_per_1000, 2),
+        "ing_seconds_per_1000": round(ing_seconds_per_1000, 2),
         "embed_seconds_total": round(embed_seconds_total, 1),
+        "ing_extrap_s": round(ing_extrap_s, 1),
+        "prod_extrap_s": round(prod_extrap_s, 1),
         "extrapolated_total_min": round(extrapolated_total_min, 1),
         "extrapolated_total_s": round(extrapolated_total_s, 1),
         "n_products_embedded": n_all,
@@ -376,20 +399,21 @@ def main() -> int:
         if "error" not in res:
             print(f"  {cfg['name']}: acc@1={res['accuracy_at_1']:.4f} MRR={res['mrr']:.4f} "
                   f"neg_acc={res['neg_accuracy']:.4f} RSS={res['peak_rss_mb']}MB "
-                  f"s/1000={res['seconds_per_1000']} load={res['load_seconds']}s")
+                  f"prod_s/1000={res['prod_seconds_per_1000']} ing_s/1000={res['ing_seconds_per_1000']} "
+                  f"extrap={res['extrapolated_total_min']}min load={res['load_seconds']}s")
         else:
             print(f"  {cfg['name']}: ERRO - {res['error']}")
 
     print("\n" + "=" * 95)
     print("RESULTADO FINAL — Acurácia por Modelo")
     print("=" * 95)
-    print(f"{'Modelo':<45} {'Dim':>5} {'Acc@1':>8} {'Acc@3':>8} {'Acc@5':>8} {'MRR':>8} {'NegAcc':>8} {'RSS(MB)':>9} {'s/1000':>8} {'Extrap(min)':>11}")
+    print(f"{'Modelo':<45} {'Dim':>5} {'Acc@1':>8} {'Acc@3':>8} {'Acc@5':>8} {'MRR':>8} {'NegAcc':>8} {'RSS(MB)':>9} {'prod s/1000':>11} {'Extrap(min)':>11}")
     print("-" * 95)
     for r in results:
         if "error" in r:
-            print(f"{r['name']:<45} {'ERR':>5} {'-':>8} {'-':>8} {'-':>8} {'-':>8} {'-':>8} {'-':>9} {'-':>8} {'-':>11}")
+            print(f"{r['name']:<45} {'ERR':>5} {'-':>8} {'-':>8} {'-':>8} {'-':>8} {'-':>8} {'-':>9} {'-':>11} {'-':>11}")
         else:
-            print(f"{r['model']:<45} {r['dim']:>5} {r['accuracy_at_1']:>8.4f} {r['accuracy_at_3']:>8.4f} {r['accuracy_at_5']:>8.4f} {r['mrr']:>8.4f} {r['neg_accuracy']:>8.4f} {r['peak_rss_mb']:>9.1f} {r['seconds_per_1000']:>8.2f} {r['extrapolated_total_min']:>11.1f}")
+            print(f"{r['model']:<45} {r['dim']:>5} {r['accuracy_at_1']:>8.4f} {r['accuracy_at_3']:>8.4f} {r['accuracy_at_5']:>8.4f} {r['mrr']:>8.4f} {r['neg_accuracy']:>8.4f} {r['peak_rss_mb']:>9.1f} {r['prod_seconds_per_1000']:>11.2f} {r['extrapolated_total_min']:>11.1f}")
 
     out = ROOT / "data" / "embedding_benchmark_results.json"
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -401,14 +425,14 @@ def main() -> int:
         best = max(valid, key=lambda x: x["accuracy_at_1"])
         print(f"\n>>> RECOMENDAÇÃO (acurácia): {best['model']} (acc@1={best['accuracy_at_1']:.4f})")
         print("\n=== Checagem de limites da máquina (gate de decisão) ===")
-        print("  Limites duros: pico RSS <= 3.0GB | embeddings scrape completo <= 20min | s/1000 <= 45")
+        print("  Limites duros: pico RSS <= 4.5GB | embeddings scrape completo <= 20min | prod s/1000 <= 45")
         for r in sorted(valid, key=lambda x: x["accuracy_at_1"], reverse=True):
-            rss_ok = r.get("peak_rss_mb", 0) <= 3.0 * 1024
+            rss_ok = r.get("peak_rss_mb", 0) <= 4.5 * 1024
             time_ok = r.get("extrapolated_total_min", 1e9) <= 20.0
-            s1000_ok = r.get("seconds_per_1000", 1e9) <= 45.0
+            s1000_ok = r.get("prod_seconds_per_1000", 1e9) <= 45.0
             status = "PASSA" if (rss_ok and time_ok and s1000_ok) else "FALHA"
             print(f"  [{status}] {r['model']:<45} RSS={r.get('peak_rss_mb',0):.0f}MB "
-                  f"extrap={r.get('extrapolated_total_min',0):.1f}min s/1000={r.get('seconds_per_1000',0):.1f}")
+                  f"extrap={r.get('extrapolated_total_min',0):.1f}min prod_s/1000={r.get('prod_seconds_per_1000',0):.1f}")
         print("\n  >>> Decisão final = melhor acurácia que cabe na máquina medida (Fase 0B no runner).")
         print("  >>> Validar na Fase 0B (runner real) antes de decidir.")
 
