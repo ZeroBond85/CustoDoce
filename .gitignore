@@ -22,6 +22,7 @@ tests/e2e/e2e_screenshots/
 htmlcov/
 bandit_output.json
 report.json
+.piptmp/
 
 # Streamlit
 .streamlit/secrets.toml
