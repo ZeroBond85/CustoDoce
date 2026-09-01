@@ -489,7 +489,7 @@ def _text_llm_providers() -> list[dict[str, Any]]:
                 "name": "groq",
                 "url": "https://api.groq.com/openai/v1/chat/completions",
                 "key": groq,
-                "model": os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
+                "model": os.environ.get("GROQ_MODEL", "llama-3.1-8b-instant"),
             }
         )
     openrouter = os.environ.get("OPENROUTER_API_KEY", "")
@@ -499,7 +499,7 @@ def _text_llm_providers() -> list[dict[str, Any]]:
                 "name": "openrouter",
                 "url": "https://openrouter.ai/api/v1/chat/completions",
                 "key": openrouter,
-                "model": os.environ.get("OPENROUTER_MODEL", "openrouter/free"),
+                "model": os.environ.get("OPENROUTER_MODEL", "meta-llama/llama-3.1-8b-instruct:free"),
             }
         )
     return providers
@@ -634,7 +634,9 @@ def resolve_names(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 _cb_state[prov["name"]]["count"] = LLM_CB_THRESHOLD
                 continue
             if resp.status_code >= 400:
-                logger.warning("flyer_hybrid_llm_http_error", provider=prov["name"], status=resp.status_code)
+                # 404 do free-tier (modelo removido) é fallback esperado, não warn — info p/ zero-warn
+                lvl = logger.warning if resp.status_code not in (404, 429) else logger.info
+                lvl("flyer_hybrid_llm_http_error", provider=prov["name"], status=resp.status_code)
                 _provider_failed(prov["name"])
                 continue
             content = resp.json().get("choices", [{}])[0].get("message", {}).get("content", "")

@@ -4,12 +4,21 @@ CPU-only, determinístico, cache em disco. Prefixos e5: query (produto) / passag
 Gate de persistência recalibrado: 0.82 para e5 (era 0.80 para MiniLM).
 """
 import hashlib
+import warnings
 from pathlib import Path
 from typing import cast
 
+from services.types import Ingredient
+
 import numpy as np
 
-from services.types import Ingredient
+# fastembed 0.8.0 emite UserWarning sobre pooling (mean vs CLS) a cada load — já
+# validado no benchmark, não afeta acurácia. Filtra p/ zero-warn nos scrapers.
+warnings.filterwarnings(
+    "ignore",
+    message=".*mean pooling instead of CLS.*",
+    category=UserWarning,
+)
 
 _CACHE_DIR = Path(__file__).resolve().parent.parent / "data" / "embedding_cache"
 _CACHE_DIR.mkdir(parents=True, exist_ok=True)

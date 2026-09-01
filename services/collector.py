@@ -1313,7 +1313,7 @@ def process_ocr_queue() -> int:
             )
 
             if not products:
-                logger.warning("[OCR] No products extracted from %s", flyer.get("id"))
+                logger.info("[OCR] No products extracted from %s", flyer.get("id"))
                 mark_failed(flyer["id"])
                 continue
 

@@ -1,4 +1,6 @@
 import json
+import re
+import unicodedata
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -44,7 +46,10 @@ def _upload_flyer_thumbnail(store_name: str, thumbnail_bytes: bytes) -> str:
     """Upload a PNG thumbnail to Supabase Storage and return the public URL."""
     try:
         client = get_service_client()
-        safe_name = store_name.lower().replace(" ", "_").replace("/", "_")
+        # Normaliza acentos (Atacadão -> atacadao) e sanitiza p/ storage key válido
+        nfkd = unicodedata.normalize("NFKD", store_name.lower())
+        ascii_name = nfkd.encode("ascii", "ignore").decode("ascii")
+        safe_name = re.sub(r"[^a-z0-9_]+", "_", ascii_name.replace(" ", "_").replace("/", "_")).strip("_")
         path = f"flyers/{safe_name}_{date.today().isoformat()}.png"
         client.storage.from_("thumbnails").upload(
             path=path,

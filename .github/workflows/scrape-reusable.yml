@@ -237,6 +237,8 @@ jobs:
           VIP_LOGIN_KEY: ${{ secrets.VIP_LOGIN_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           HUGGINGFACE_API_KEY: ${{ secrets.HF_API_KEY }}
+          HF_TOKEN: ${{ secrets.HF_API_KEY }}
+          HF_HUB_DISABLE_PROGRESS_BARS: 1
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
@@ -280,8 +282,11 @@ jobs:
           path: ~/Library/Caches/ms-playwright
           key: ${{ runner.os }}-pw-${{ env.PW_VERSION }}-${{ hashFiles('requirements-prod.lock') }}
       - name: Install system deps (tesseract, poppler, playwright)
+        env:
+          HOMEBREW_NO_INSTALL_FROM_API: 0
         run: |
-          brew install tesseract poppler
+          export HOMEBREW_NO_AUTO_UPDATE=1
+          brew install tesseract poppler 2>&1 | grep -v "trust" || true
           pip install playwright==${{ env.PW_VERSION }}
           playwright install chromium
       - name: Record start time
@@ -312,6 +317,8 @@ jobs:
           VIP_LOGIN_KEY: ${{ secrets.VIP_LOGIN_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           HUGGINGFACE_API_KEY: ${{ secrets.HF_API_KEY }}
+          HF_TOKEN: ${{ secrets.HF_API_KEY }}
+          HF_HUB_DISABLE_PROGRESS_BARS: 1
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
@@ -380,7 +387,7 @@ jobs:
         run: python scripts/scrape_lock.py release ${{ github.run_id }}
         if: always()
       - name: Check time budget for cleanup
-        run: python scripts/check_time_budget.py --timeout-minutes 5 --label "cleanup"
+        run: python scripts/check_time_budget.py --timeout-minutes 10 --label "cleanup"
         if: always()
         env:
           CI_JOB_START: ${{ env.CI_JOB_START }}

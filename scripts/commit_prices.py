@@ -106,6 +106,37 @@ def main():
     # o push autenticar como github-actions[bot] -> 403. Removemos o extraheader
     # (local) para forcar o uso do GH_PAT embutido na URL. [fix 403 actions]
     _git(["config", "--local", "http.https://github.com/.extraheader", ""])
+    # Race fix: outro scraper (scrape vs on-demand) pode ter avancado master entre
+    # o checkout e este push (rejected HEAD -> master fetch first). Faz fetch +
+    # rebase antes do push; se rebase falhar por conflito em prices_latest.json, aborta
+    # e regenera o snapshot a partir do DB antes de recommitar.
+    fetch_r = _git(["fetch", remote, f"refs/heads/{branch}:refs/remotes/origin/{branch}"], capture=True)
+    if fetch_r.returncode == 0:
+        rebase_r = _git(["rebase", f"origin/{branch}"], capture=True)
+        if rebase_r.returncode != 0:
+            # Conflito em prices_latest.json — resolve mantendo a versao com mais precos
+            _git(["rebase", "--abort"], capture=True)
+            print("Rebase conflitou — regenerando snapshot a partir do DB pós-fetch.")
+            # Re-gera snapshot local a partir do DB atualizado
+            try:
+                from services.price_repository import get_latest_prices
+
+                prices = get_latest_prices(valid_only=True, limit=2000)
+                snapshot = {
+                    "collected_at": datetime.now(UTC).isoformat(),
+                    "total_prices": len(prices),
+                    "ingredients_found": len({p["ingredient_id"] for p in prices}),
+                }
+                prices_path.parent.mkdir(exist_ok=True)
+                with open(prices_path, "w") as f:
+                    json.dump(snapshot, f, indent=2, ensure_ascii=False)
+                _git(["add", "--force", "data/prices_latest.json"])
+                snap_msg = f"chore: snapshot prices_latest.json ({snapshot['total_prices']} precos, {snapshot['ingredients_found']} ingredientes)"
+                _git(["commit", "-m", snap_msg])
+                print(f"Re-commit pós-rebase: {snap_msg}")
+            except Exception as e:
+                print(f"Falha ao regenerar pós-rebase: {e}")
+
     r = _git(["push", remote, f"HEAD:refs/heads/{branch}"], capture=True)
     if r.returncode != 0:
         safe = remote.replace(token, "***")
