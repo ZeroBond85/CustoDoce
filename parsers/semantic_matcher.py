@@ -20,6 +20,14 @@ warnings.filterwarnings(
     category=UserWarning,
 )
 
+# huggingface_hub (via fastembed) emite UserWarning sobre _HF_HUB_DISABLE_PROGRESS_BARS
+# quando o env está set — comportamento desejado, não é problema. Filtra p/ zero-warn.
+warnings.filterwarnings(
+    "ignore",
+    message=".*HF_HUB_DISABLE_PROGRESS_BARS.*",
+    category=UserWarning,
+)
+
 _CACHE_DIR = Path(__file__).resolve().parent.parent / "data" / "embedding_cache"
 _CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
