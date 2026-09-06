@@ -14,14 +14,17 @@ import services.store_registry as registry
 
 # ── 1. Threshold default ─────────────────────────────────────────────────
 def test_review_threshold_default_literal():
-    # Garante que o LITERAL default no código é 0.82 (e5 gate recalibrado)
+    # Garante que o LITERAL default no código é 0.78 (calibração A0.5:
+    # faixa de revisão [0.78, 0.82) < gate de persistência e5-large 0.82)
     import inspect
 
     src = inspect.getsource(collector)
-    assert 'default=0.82' in src
-    # O legado 0.70/0.80 não pode voltar como default do review_threshold
+    assert 'default=0.78' in src
+    # Legados não podem voltar como default: 0.70 (fila enorme 86%) / 0.80
+    # / 0.82 (== gate, mataria a fila)
     assert 'default=0.70' not in src
     assert 'default=0.80' not in src
+    assert 'default=0.82' not in src
 
 
 # ── 2. Re-entry de rejeitados ────────────────────────────────────────────

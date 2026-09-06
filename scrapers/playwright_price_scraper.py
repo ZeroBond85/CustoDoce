@@ -176,9 +176,14 @@ class PlaywrightPriceScraper(BaseWebScraper):
         for card in cards:
             name = self._extract_name(card)
             if not name:
+                logger.debug(
+                    "[%s] produto descartado: nome vazio (selector de produto não bateu?)",
+                    self.name,
+                )
                 continue
             price = self._extract_price(card)
             if price is None:
+                logger.debug("[%s] produto descartado sem preço: %s", self.name, name[:60])
                 continue
             unit = extract_unit(name)
             validity = self._extract_validity(card)

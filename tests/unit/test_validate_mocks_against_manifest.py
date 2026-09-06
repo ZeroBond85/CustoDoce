@@ -39,6 +39,7 @@ MOCK_TABLE_MAP: dict[str, str] = {
     "MOCK_SCRAPE_REQUESTS": "scrape_requests",
     "MOCK_STORE_REGISTRY": "store_registry",
     "MOCK_STORE_UNITS": "store_units",
+    "MOCK_MATCH_FEEDBACK": "match_feedback",
 }
 
 # SQL → Python type mapping (simplified)

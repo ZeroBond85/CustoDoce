@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
 from services.price_service import (
@@ -232,3 +233,41 @@ def test_batch_upsert_prices_preserves_build_row_logic(mock_supabase):
     assert row["collected_weekday"] in ("Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom")
     assert row["valid_until"] >= row["valid_from"]
     assert row["source"] == "automated"
+
+
+# ── A7: erros de rede transitórios devem ser retried (não falha dura) ─────
+@pytest.mark.parametrize(
+    "exc",
+    [
+        httpx.RemoteProtocolError("Server disconnected without sending a response"),
+        httpx.RemoteProtocolError("<ConnectionTerminated error_code:0, last_stream_id:3>"),
+        httpx.ConnectError("Network is unreachable"),
+        httpx.TransportError("Connection reset by peer"),
+        httpx.ReadTimeout("timed out"),
+        OSError("Resource temporarily unavailable"),
+        RuntimeError("Errno 11 Resource temporarily unavailable"),
+        RuntimeError("connection closed"),
+    ],
+)
+def test_is_transient_net_err_aceita_flakes_conhecidos(exc):
+    """Regressão A7: RemoteProtocolError 'Server disconnected' e
+    ConnectionTerminated (LESSONS #117/#124) são transitórios e devem ser
+    retried pelo _upsert_price_rpc_with_retry — antes o 'Server disconnected'
+    não era coberto pelos substrings e virava falha dura."""
+    from services.price_repository import _is_transient_net_err
+
+    assert _is_transient_net_err(exc)
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        ValueError("dados inválidos"),
+        RuntimeError("RPC returned error: permission denied"),
+        ArithmeticError("division by zero"),
+    ],
+)
+def test_is_transient_net_err_rejeita_nao_transitorios(exc):
+    from services.price_repository import _is_transient_net_err
+
+    assert not _is_transient_net_err(exc)

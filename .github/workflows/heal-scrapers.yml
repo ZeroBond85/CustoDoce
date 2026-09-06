@@ -2,7 +2,11 @@ name: Heal Scrapers
 
 on:
   schedule:
-    - cron: '0 0 1 * *'
+    # Mensal (dia 1) era limitado pelo "teto de 2.000 min/mês" fantasma.
+    # Repo PÚBLICO = minutos de Actions ilimitados (LESSONS.md #127) →
+    # heal a cada 12h (00:00/12:00 UTC) para scrapers se recuperarem
+    # rapidamente de mudanças upstream (Cloudflare/mercado de encarte).
+    - cron: '0 */12 * * *'
 
 permissions:
   contents: read

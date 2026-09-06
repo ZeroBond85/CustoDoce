@@ -2,7 +2,7 @@ import hashlib
 
 import httpx
 
-from scrapers.base_web_scraper import BaseWebScraper
+from scrapers.base_web_scraper import BaseWebScraper, _retry_with_backoff
 from scrapers.flyer_ocr import extract_flyer_products
 from services.logger import logger
 
@@ -20,6 +20,7 @@ class RoldaoApiScraper(BaseWebScraper):
         data = self.fetch_json(url)
         return data if isinstance(data, list) else []
 
+    @_retry_with_backoff(max_retries=3, base_delay=1.0, max_delay=30.0)
     def get_media(self, media_id: int) -> dict | None:
         url = f"{self.api_base}{self.endpoints.get('media', '/media/{media_id}')}"
         url = url.replace("{media_id}", str(media_id))
@@ -28,8 +29,8 @@ class RoldaoApiScraper(BaseWebScraper):
             resp.raise_for_status()
             return resp.json()
         except httpx.HTTPStatusError as e:
-            logger.warning("[%s] Media %d: HTTP %s (pulando)", self.name, media_id, e.response.status_code)
-            return None
+            logger.warning("[%s] Media %d: HTTP %s (com backoff)", self.name, media_id, e.response.status_code)
+            raise  # redeixa o retry_with_backoff tratar (respecta Retry-After em 429/503)
         except Exception as e:
             logger.warning("[%s] Media %d: %s (pulando)", self.name, media_id, e)
             return None

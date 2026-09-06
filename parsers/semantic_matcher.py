@@ -85,7 +85,15 @@ class SemanticMatcher:
         prod_emb = list(self._model.embed(["query: " + product_text]))[0]
         prod_emb = np.asarray(prod_emb, dtype=np.float32)
 
-        texts = [ingredient["canonical_name"]] + cast(list[str], ingredient.get("aliases") or [])
+        # A2 (2026-09-05): inclui search_terms no conjunto de passages para
+        # similaridade — load_ingredients já os embaralha (linha 71), mas
+        # get_similarity só comparava canonical + aliases. search_terms capturam
+        # variações coloquiais que o RF e as aliases podem perder.
+        texts = (
+            [ingredient["canonical_name"]]
+            + cast(list[str], ingredient.get("aliases") or [])
+            + cast(list[str], ingredient.get("search_terms") or [])
+        )
         embeddings: list[np.ndarray] = []
         for t in texts:
             emb = self._ingredient_embeddings.get(t)

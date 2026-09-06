@@ -224,6 +224,7 @@ def process_price_match(
         return None
     keywords = _get_ingredient_keywords(ingredients)
     if not has_ingredient_keyword(product_text, keywords):
+        logger.debug("keyword-gate: produto sem keyword de ingrediente: %r", product_text)
         return None
 
     # threshold=60: para RF 60-79 o matcher devolve o melhor candidato (antes
@@ -417,9 +418,16 @@ def _queue_for_review(
     threshold = get_feature(
         "features.matcher.review_threshold",
         ingredient=ingredient["canonical_name"] if ingredient else None,
-        default=0.82,  # e5 gate recalibrado
+        default=0.78,  # calibrado A0.5: faixa de revisão [0.78, 0.82) < gate persistência
     )
     if combined < threshold:
+        logger.debug(
+            "[%s] review descarte abaixo do threshold (combined=%.3f < threshold=%.2f): %r",
+            store.get("name", "?"),
+            combined,
+            threshold,
+            product_text,
+        )
         return
 
     candidates = rank_ingredients(product_text, ingredients, top_n=3)

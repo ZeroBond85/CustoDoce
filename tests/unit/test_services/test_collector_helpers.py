@@ -412,12 +412,12 @@ def test_process_price_match_gray_zone_semantic_persists():
     assert captured[0]["ingredient_id"] == "Gotas de Chocolate Meio Amargo"
 
 
-def test_process_price_match_gray_zone_fp_discarded_below_threshold():
-    """Gray-zone RF 60-79 + semantic 0 (combined < 0.80) é descartado.
+def test_process_price_match_gray_zone_fp_queued_for_review():
+    """Gray-zone RF 60-79 + semantic 0 (combined 0.793) → NAO persiste, VAI p/ review.
 
-    Sprint 18 alinhou review_threshold ao gate de persistência (0.80): itens
-    70-79% nunca persistiriam e inflavam a fila (~646/dia). Política atual:
-    combined < 0.80 → sem upsert E sem review (descarte silencioso).
+    Calibração A0.5 (N=500 real): review_threshold 0.70 → 0.78. Itens em
+    [0.78, 0.82) agora são ENFILEIRADOS p/ revisão (não descartados). Combined
+    < 0.78 continua descartado silenciosamente (coberto em outro teste).
     """
     store = MOCK_STORES[0]
     with patch.object(collector, "get_matcher", return_value=_fake_matcher(0.0)), \
@@ -429,13 +429,36 @@ def test_process_price_match_gray_zone_fp_discarded_below_threshold():
         entry = collector.process_price_match(
             store, "Chocolate Seleção Amargo 52% Cacau - 1,01 kg", 42.9, "1.01kg", _gray_zone_ingredients()
         )
-    assert entry is None, "combined < 0.80 não deve persistir"
+    assert entry is None, "combined < 0.82 não deve persistir"
     mock_up.assert_not_called()
-    mock_rev.assert_not_called(), "combined < 0.80 não vai mais para review_queue (Sprint 18+)"
+    mock_rev.assert_called(), "combined 0.793 em [0.78, 0.82) deve ir para review_queue (threshold A0.5=0.78)"
+
+
+def test_process_price_match_gray_zone_below_threshold_discarded():
+    """RF ~70 (combined 0.70 < review_threshold 0.78): descartado silenciosamente.
+
+    Calibração A0.5: threshold subiu 0.70 → 0.78. Itens em [0.70, 0.78) não
+    persistem (gate 0.82) e não vão para review (threshold 0.78) → descarte.
+    """
+    store = MOCK_STORES[0]
+    with patch.object(collector, "get_matcher", return_value=_fake_matcher(0.0)), \
+         patch("services.config.get_feature", side_effect=_fake_feature_true), \
+         patch.object(collector, "upsert_price") as mock_up, \
+         patch.object(collector, "insert_review_item") as mock_rev, \
+         patch.object(collector, "match_ingredient", return_value=(_gray_zone_ingredients()[0], 70.0, "proximo_nome")):
+        entry = collector.process_price_match(
+            store, "Chocolate Seleção Amargo 52% Cacau - 1,01 kg", 42.9, "1.01kg", _gray_zone_ingredients()
+        )
+    assert entry is None
+    mock_up.assert_not_called(), "combined 0.70 < gate 0.82 não persiste"
+    mock_rev.assert_not_called(), "combined 0.70 < threshold 0.78: descartado (calibração A0.5)"
 
 
 def test_process_price_match_gray_zone_semantic_zero_still_works():
-    """T1.1: semantic=0 deve preservar o comportamento legado (combined = RF/100)."""
+    """T1.1: semantic=0 deve preservar o comportamento (combined = RF/100).
+
+    Combined 0.793 ∈ [0.78, 0.82) → não persiste, vai para review (threshold A0.5).
+    """
     store = MOCK_STORES[0]
     with patch.object(collector, "get_matcher", return_value=_fake_matcher(0.0)), \
          patch("services.config.get_feature", side_effect=_fake_feature_true), \
@@ -443,11 +466,11 @@ def test_process_price_match_gray_zone_semantic_zero_still_works():
          patch.object(collector, "insert_review_item") as mock_rev, \
          patch.object(collector, "rank_ingredients",
                       return_value=[(_gray_zone_ingredients()[0], 79.3, "proximo_nome", "chocolate meio amargo")]):
-        collector.process_price_match(
+        entry = collector.process_price_match(
             store, "Chocolate Seleção Amargo 52% Cacau - 1,01 kg", 42.9, "1.01kg", _gray_zone_ingredients()
         )
     mock_up.assert_not_called()
-    mock_rev.assert_not_called(), "combined 0.793 < 0.80: descartado (política Sprint 18+)"
+    mock_rev.assert_called(), "combined 0.793 em [0.78, 0.82) vai para review_queue"
 
 
 def test_process_price_match_high_rf_unaffected():

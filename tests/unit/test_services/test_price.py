@@ -562,18 +562,25 @@ class TestPriceService:
     def test_process_price_match_review_has_validity(self, mock_match, mock_insert):
         """Review queue deve receber validity_raw."""
         from services.collector import process_price_match
+        from unittest.mock import MagicMock
 
-        with patch("parsers.llm_classifier.LLMClassifier") as mock_llm:
-            mock_llm.return_value.classify_sync.return_value = None
-            mock_match.return_value = (None, 70.0, "fuzzy")
+        fake_matcher = MagicMock()
+        fake_matcher.get_gate.return_value = 0.82
+        fake_matcher.get_similarity.return_value = 0.0
+        fake_matcher.combined_score.return_value = 0.79
+
+        ing = {"canonical_name": "Leite Condensado", "aliases": [], "search_terms": ["leite condensado"]}
+        with patch("services.collector.get_matcher", return_value=fake_matcher), \
+             patch("services.collector._apply_llm_classifier", side_effect=lambda *a, **k: a[8]):
+            mock_match.return_value = (ing, 79.0, "proximo_nome")
 
             store = {"name": "Extra", "type": "website"}
-            ing_list = [{"canonical_name": "Leite Condensado", "aliases": [], "search_terms": ["leite condensado"]}]
+            ing_list = [ing]
             process_price_match(store, "Leite Produto Desconto 30%", 15.0, "un", ing_list, validity_raw="Promo Semanal")
 
             inserted = mock_insert.call_args[0][0]
             assert inserted["validity_raw"] == "Promo Semanal"
-            assert inserted["confidence"] == 0.7
+            assert inserted["confidence"] == 0.79
 
     @patch("services.collector.upsert_price")
     @patch("services.collector.match_ingredient")
