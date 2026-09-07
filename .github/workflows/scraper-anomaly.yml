@@ -1,0 +1,39 @@
+name: Scraper Trend Alert
+
+on:
+  schedule:
+    # A cada 30min: detecta degradação temporal de scrapers antes que vire crítica.
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: scraper-trend-alert-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14.6'
+          cache: 'pip'
+          cache-dependency-path: requirements-prod.lock
+
+      - name: Install deps (pinned lock)
+        run: pip install -r requirements-prod.lock -q
+
+      - name: Run scraper trend watch
+        run: python scripts/scraper_trend_watch.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}

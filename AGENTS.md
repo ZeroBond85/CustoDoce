@@ -89,9 +89,9 @@ CustoDoce/
 ├── scrapers/          # base_flyer, vtex, playwright, flyer, parser, ocr, etc.
 ├── parsers/           # normalizer, matcher, brand_extractor, llm_cache, llm_strategies, llm_classifier
 ├── services/          # supabase_client, price_*, collector, email, telegram, alert, logger, otel, etc.
-├── dashboard/         # login_page, components/ (ui, layout), pages/ (21 módulos)
+├── dashboard/         # login_page, components/ (ui, layout), pages/ (22 módulos)
 ├── telegram_bot/      # handlers.py
-├── admin/app.py       # 107 linhas — importa 21 pages
+├── admin/app.py       # 107 linhas — importa 22 pages
 ├── supabase/          # seed.sql, consolidated_migration.sql, migrations 002-006
 ├── scripts/           # deploy, validate, sync, audit, seed, heal, sanity, send_report, skills_maintenance, md_auto_compress
 ├── tests/             # unit (974), schema (94), calibration (1), integration (113), diagnostics (4), design, e2e, real
@@ -263,8 +263,8 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 | requirements-dev.lock | ~115 packages (prod + lint) |
 | requirements-test.lock | 130+ packages (prod + dev + test) |
 | OpenCode Skills | 35 installed (todas no projeto) |
-| Dashboard pages | 21 módulos (inclui CI Telemetria) |
-| Workflows GitHub Actions | 15 otimizados, validados, com check_time_budget |
+| Dashboard pages | 22 módulos (inclui CI Telemetria, Anomalias Scrapers) |
+| Workflows GitHub Actions | 17 otimizados, validados, com check_time_budget |
 
 ## OpenCode Skills
 

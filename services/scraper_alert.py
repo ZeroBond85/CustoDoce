@@ -9,6 +9,7 @@ All API keys are optional — missing token degrades silently.
 """
 
 import os
+from typing import Any
 
 from services.config import get_feature
 from services.logger import logger
@@ -63,6 +64,28 @@ def _send_alert(text: str) -> bool:
     except Exception as exc:
         logger.debug("scraper_alert: telegram failed (%s), trying email fallback", exc)
         return _send_email_fallback(text)
+
+
+def send_trend_alert(store_name: str, trend: dict[str, Any]) -> bool:
+    """Envia alerta de degradação/trend via Telegram (fallback email).
+
+    Usado pelo scraper.trend.watch (Fase C) para notificar anomalias temporais.
+    """
+    if not get_feature("features.alerts.self_healing", default=True):
+        return False
+    status = trend.get("status", "degraded")
+    emoji = "🔴" if status == "critical" else "🟡"
+    cur = trend.get("current", {}) or {}
+    base = trend.get("baseline", {}) or {}
+    msg = (
+        f"{emoji} *Scraper Trend Alert*\n\n"
+        f"Loja: `{store_name}`\n"
+        f"Status: *{status.upper()}*\n"
+        f"Trend Score: {trend.get('trend_score', 0)}\n\n"
+        f"7d: success {cur.get('success_rate', 0):.0%} | dur {cur.get('median_duration_s', 0)}s | items {cur.get('median_items', 0)}\n"
+        f"30d: success {base.get('success_rate', 0):.0%} | dur {base.get('median_duration_s', 0)}s | items {base.get('median_items', 0)}"
+    )
+    return _send_alert(msg)
 
 
 def _send_email_fallback(text: str) -> bool:

@@ -79,6 +79,28 @@ def insert_review_item(item: ReviewItem) -> dict[str, Any]:
             return row
     except Exception:
         logger.debug("insert_review_item dedup check failed", exc_info=True)
+
+    # Fase C (2026-09-07): dedup semântico via RapidFuzz — remove ruído de itens
+    # semanticamente idênticos (ex.: "Mococa Leite Condensado 395g" vs
+    # "Leite Condensado Mococa 395g") antes de inserir na fila.
+    try:
+        from services.review_dedup import find_pending_duplicates
+
+        dup = find_pending_duplicates(
+            item.get("raw_product", ""),
+            item.get("store_name", ""),
+        )
+        if dup:
+            logger.info(
+                "semantic_dedup_skip new=%s existing=%s score=%s",
+                str(item.get("raw_product", ""))[:50],
+                str(dup["existing_product"])[:50],
+                dup["score"],
+            )
+            return {"deduplicated": True, "existing_product": dup["existing_product"], "score": dup["score"]}
+    except Exception:
+        logger.debug("insert_review_item semantic dedup failed", exc_info=True)
+
     data = {
         "raw_product": item["raw_product"],
         "raw_price": item.get("raw_price"),

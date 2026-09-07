@@ -4,6 +4,15 @@
 
 ### Added
 
+#### Sprint 20 — Fase C: Observabilidade & Qualidade (trend detector + dedup semântico + dashboard)
+- **Trend Detector temporal** (`services/scraper_trend_detector.py`): drift por loja (baseline 30d vs janela 7d) em `success_rate`, `duration_seconds`, `items_matched`. Pesos 0.5/0.3/0.2; `trend_score > 0.5` → critical, `0.2–0.5` → degraded; hard fail se 3 runs consecutivos falham (override → critical). **Sem Isolation Forest** (cross-store é estatisticamente fraco com ~25 lojas heterogêneas: PDF/OCR vs VTEX).
+- **Cooldown anti-spam** (migration `020_scraper_alert_state.sql`): tabela `scraper_alert_state` por loja (`last_alerted_at`, `last_trend_score`, `last_status`, `active`); `should_alert()` com cooldown 4h + `update_alert_state()` pós-alerta. RLS service_role only.
+- **Watch standalone** (`scripts/scraper_trend_watch.py`): analisa todas as lojas, aplica cooldown, envia alerta via `services/scraper_alert.py::send_trend_alert` (Telegram → fallback email). `--dry-run` reporta sem enviar.
+- **Workflow** `scraper-anomaly.yml` (cron `*/30 * * * *`, 17º workflow): pip install lock file, roda o watch, secrets via env.
+- **Dedup semântico** (`services/review_dedup.py`): `is_semantic_duplicate()` via **RapidFuzz `token_sort_ratio` ≥ 90** (não embeddings e5 — são query→passage, não product→product); `find_pending_duplicates()` busca pending da mesma loja (7d lookback) e dedup. Integrado em `review_queue_service.insert_review_item()` antes do INSERT (log `semantic_dedup_skip`).
+- **Dashboard Anomalias** (`dashboard/pages/anomalias.py`, 22ª página): KPIs (críticas/degradadas/normais), tabela trend_score, bar chart com hlines dos thresholds, drill-down por loja (baseline vs current).
+- **Testes**: `tests/unit/test_scraper_trend.py` (19) + `tests/unit/test_review_dedup.py` (12) — puros, sem rede. Suite unit+schema verde.
+
 #### Sprint 18 — Root-cause da review_queue: threshold real, excludes data-driven, recuperação e limpeza
 - **Threshold corrigido**: `services/collector.py` — `review_threshold` default era 0.70 (bug, linha ~297-299) divergindo do gate de persistência real `combined >= 0.80` (linha 252); alinhado a 0.80. Resultado validado em PROD (scrape `--force`): **11 borderlines novos** vs ~646/dia (redução 98%).
 - **Excludes data-driven**: `config/ingredients.yaml` — `exclude_terms` em 9 ingredientes (~245 termos) para matar FPs que virariam preço errado (Macarrão Ninho→Leite em Pó, Cereal Moça→Leite Condensado, Fatiador de Ovos, Biscoito Manteiga, Pão de Mel→Chocolate, Mil Cores→Açúcar Cristal, Granulé/Recheio→Gotas Branco, Coco Adocicado). `has_excluded_terms` aplicado dentro de `match_ingredient` (matcher.py:234). **Obrigatório** `scripts/sync_ingredient_fields.py --execute` após editar YAML (runtime lê do DB).

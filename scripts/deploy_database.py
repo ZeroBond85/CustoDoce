@@ -788,6 +788,13 @@ END $$;
         gen.append("-- ============================================================")
         gen.append(feedback_path.read_text(encoding="utf-8"))
 
+    alert_state_path = REPO_ROOT / "supabase" / "migrations" / "020_scraper_alert_state.sql"
+    if alert_state_path.exists():
+        gen.append("\n-- ============================================================")
+        gen.append("-- PHASE 34: Scraper alert state — cooldown (020_scraper_alert_state.sql)")
+        gen.append("-- ============================================================")
+        gen.append(alert_state_path.read_text(encoding="utf-8"))
+
     return "\n".join(gen)
 
 
