@@ -272,7 +272,7 @@ class TestProcessPriceMatchAI:
             mock_upsert.assert_called_once()
 
     def test_review_queue_fallback(self):
-        """Score 75% -> review queue."""
+        """Score 79% (banda [0.78, 0.82)) -> review queue."""
         from services.collector import process_price_match
 
         with (
@@ -283,7 +283,7 @@ class TestProcessPriceMatchAI:
                 with patch("services.collector.has_ingredient_keyword", return_value=True):
                     # Remove GROQ_API_KEY para evitar bloco LLM (0.65-0.80)
                     with patch.dict("os.environ", {"GROQ_API_KEY": ""}, clear=False):
-                        mock_match.return_value = (None, 75.0, "none")
+                        mock_match.return_value = (None, 79.0, "none")
                         store = {"name": "Test", "type": "pdf", "tier": 1}
                         ing_list = [{"canonical_name": "Leite Condensado", "aliases": [], "search_terms": []}]
                         result = process_price_match(store, "Produto Desconhecido XYZ", 10.0, "un", ing_list)

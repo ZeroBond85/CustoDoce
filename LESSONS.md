@@ -26,15 +26,12 @@ Toda nova lição extraída de falha no CI usa este template:
 ---
 
 ### 17. `if: failure()` não dispara dentro de `continue-on-error: true` jobs
-
 Use `if: always() && steps.meu_teste.outcome == 'failure'` e adicione `id:` ao step.
 
 ### 18. Script inline Python em heredoc no YAML — delimiter na coluna 0
-
 Solução: extrair para arquivo `.py` separado.
 
 ### 19. Streamlit Cloud virou SPA (React) — HTTP warmup é inútil
-
 Playwright (browser real) é obrigatório. CI (push/PR) usa localhost:8501. Schedule mensal testa cloud real.
 
 ### 20. `page.wait_for_timeout()` é frágil para cold start E2E — use polling
@@ -773,3 +770,6 @@ Sintoma: CI run 33968459081 (push b730b3c, "fix(scrape): suprime UserWarning HF_
 ### 125. Groq 404 (modelo removido) + calibração do review_threshold + repo público
 
 Sintoma 1: llama-3.3-70b-versatile removido da API Groq -> 404 + circuit breaker 90s. Sintoma 2: review_threshold 0.70 divergia do gate 0.82 (fila inflada ~646/dia). Sintoma 3: teto de 2.000 min/mês do GitHub Actions era superseed: repo era público (minutos ilimitados). Causa raiz: modelo hardcoded obsoleto; threshold sem calibração empírica; suposição errada sobre free tier. Correção 1: default Groq = qwen/qwen3.8-27b + fallback multi-provider. Correção 2: calibrate_review_threshold.py (read-only) -> threshold 0.78 < gate 0.82. Correção 3: heal-scrapers cron mensal -> 12h e manter repo público. Regressão: testes em test_review_queue_pending.py + calibração executada (504 legados <0.78 rejeitados, reversível).
+
+### 126. Teste de fallback da review_queue usava threshold legado 0.70 -> quebrou após calibração 0.78 (2026-09-07)
+Sintoma: CI do merge da Fase A+B (run 34131184972, master) e do PR Fase C (34131474469) falhou no job `integration` com `test_review_queue_fallback - AssertionError: Expected 'insert_review_item' to have been called once. Called 0 times.` (e e2e `test_approve_*` "returned empty" em CI mas green local). Causa raiz: o teste ainda mockava `match_ingredient -> (None, 75.0, "none")` — 0.75 < review_threshold 0.78 calibrado na Sprint 19, então `_queue_for_review` (collector.py:423) descartava o item ANTES de chamar `insert_review_item`. Era uma falha pré-existente na branch A+B (CI 34049418430 já estava vermelha) que só vazou para master no merge. O `approve_review_item` não foi tocado (e2e = flake de Supabase real). Correção (RPR): teste agora usa score 79.0 (banda [0.78, 0.82)) → verde local (1 passed). Regra: testes com score literal de gray-zone DEVEM citar o threshold calibrado de `config/features.yaml` (0.78) e manter score DENTRO da banda [threshold, gate) — 75% vira auto-reject, não fila; e rodar `tests/integration` (real Supabase) antes de abrir PR de matcher.
