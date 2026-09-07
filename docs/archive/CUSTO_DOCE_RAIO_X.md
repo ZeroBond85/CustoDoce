@@ -1,10 +1,10 @@
 ---
 doc_type: snapshot
 slug: custo_doce_raio_x
-current_version: 0.0.52
+current_version: 0.0.53
 truth_at:
-  tests_total: 1593
-  pages_count: 21
+  tests_total: 1624
+  pages_count: 22
   python_version: 3.14.6
 ---
 # 🍬 CUSTO DOCE RAIO-X
@@ -18,7 +18,7 @@ truth_at:
 | **Nome** | CustoDoce — Busca e comparação de preços de ingredientes para confeitaria |
 | **Público** | Confeiteiros profissionais/amadores — Baixada Santista + SP Capital |
 | **Stack** | Python 3.14.6 (era 3.12) (runtime.txt + CI + mypy) + Streamlit + Supabase (PostgreSQL) + GitHub Actions |
-| **Nota** | **9.3/10** (atualizado 2026-07-06; era 9.0/10 em 30/06) — Schema manifest rico, 97 parametrized tests de validação, test_services decomposto em 21 módulos (era 13), 1593 tests (era 729) passing. 0 erros/warnings/skips. |
+| **Nota** | **9.3/10** (atualizado 2026-07-06; era 9.0/10 em 30/06) — Schema manifest rico, 97 parametrized tests de validação, test_services decomposto em 22 módulos (era 13), 1624 tests (era 729) passing. 0 erros/warnings/skips. |
 | **Risco** | 🟢 BAIXO (era 🟡 MÉDIO-RESIDUAL em v3) |
 | **Recomendação** | ✅ MANTER E EXPANDIR |
 

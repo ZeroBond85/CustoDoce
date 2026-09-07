@@ -2,7 +2,7 @@
   "_meta": {
     "generator": "scripts/generate_schema_manifest.py",
     "source": "consolidated_migration.sql",
-    "tables": 22,
+    "tables": 23,
     "version": 2
   },
   "alert_recipients": {
@@ -1013,6 +1013,45 @@
       "status": "text",
       "store_id": "text",
       "user_id": "text"
+    }
+  },
+  "scraper_alert_state": {
+    "columns": [
+      "store_name",
+      "last_alerted_at",
+      "last_trend_score",
+      "last_status",
+      "active",
+      "created_at",
+      "updated_at"
+    ],
+    "constraints": {
+      "check": [],
+      "fk": [],
+      "pk": [
+        "store_name"
+      ],
+      "unique": []
+    },
+    "defaults": {
+      "active": "FALSE",
+      "created_at": "now()",
+      "updated_at": "now()"
+    },
+    "generated": {},
+    "not_null": [
+      "created_at",
+      "updated_at"
+    ],
+    "not_null_no_default": [],
+    "types": {
+      "active": "boolean",
+      "created_at": "timestamptz",
+      "last_alerted_at": "timestamptz",
+      "last_status": "text",
+      "last_trend_score": "double",
+      "store_name": "text",
+      "updated_at": "timestamptz"
     }
   },
   "scraper_health_log": {
