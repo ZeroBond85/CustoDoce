@@ -1,0 +1,53 @@
+name: auto-approve-review-queue
+on:
+  schedule:
+    # Semanal: Dom 9h UTC (6h BRT)
+    # Drena a faixa superior [0.80, 0.82) da review_queue só quando o LLM
+    # confirma o candidato top-1 (sema independente de confidence). Itens
+    # sem veredito LLM (rate-limit) ficam para revisão humana.
+    - cron: '0 9 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: '3.14.6'
+
+concurrency:
+  group: auto-approve-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  auto-approve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: requirements-prod.lock
+      - name: Install deps
+        run: pip install -r requirements-prod.lock -q
+        env:
+          PIP_NO_WARN_YANKED: 1
+      - name: Dry-run LLM-confirmed (report)
+        run: |
+          python scripts/auto_approve_review_queue.py --llm-confirmed 2>&1
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      - name: Execute LLM-confirmed approvals
+        # Exit 2 (llm_failures/rate-limit) é esperado e aceitável — itens ficam
+        # para revisão humana. Exit 1 (falha de upsert) falha o job de verdade.
+        run: |
+          python scripts/auto_approve_review_queue.py --llm-confirmed --execute 2>&1 || (code=$?; [ "$code" -le 2 ] && exit 0 || exit "$code")
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}

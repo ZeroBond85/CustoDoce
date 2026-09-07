@@ -154,12 +154,113 @@ def auto_approve_high_confidence(
         if not target:
             stats["skipped"] += 1
             continue
-        result = approve_review_item(item["id"], target, brand_override=item.get("brand", "") or "")
+        result = approve_review_item(item["id"], target, brand_override=item.get("brand", "") or "", feedback_decision="auto_persist")
         if result and not result.get("error"):
             stats["approved"] += 1
         else:
             stats["failed"] += 1
     return stats
+
+
+def auto_approve_llm_confirmed(
+    threshold: float = 0.78,
+    limit: int | None = None,
+    dry_run: bool = False,
+    llm_floor: float = 0.85,
+) -> dict[str, Any]:
+    """Aprova automaticamente itens pendentes em que o LLM confirma o candidato top-1.
+
+    Diferente de auto_approve_high_confidence (que aprova cego por threshold),
+    este exige um SINAL INDEPENDENTE: o LLM classifier deve responder com match e
+    confidence >= llm_floor para o mesmo ingrediente do candidato #1 (top3[0]).
+
+    Justificativa (análise A0.5): a faixa [0.78, 0.82) contém falsos positivos
+    semânticos (ex.: \"Leite UHT 1L\" -> Leite em Pó; \"Cobertura ao Leite\" ->
+    Leite em Pó). Aprovar cego treina o sistema nos próprios erros. O LLM distingue
+    \"relacionado\" de \"igual\", validando a decisão antes de persistir.
+
+    Retorna stats {candidates, llm_failures, approved, failed, skipped}.
+    """
+    from parsers.llm_classifier import classify as _llm_classify
+
+    client = get_supabase()
+    query = (
+        client.table("review_queue")
+        .select("*")
+        .eq("status", "pending")
+        .lt("confidence", 0.82)  # fila só contém combined < gate de persistência
+        .gte("confidence", threshold)
+        .order("collected_at", desc=True)
+    )
+    if limit:
+        query = query.limit(limit)
+    items = safe_execute(query)
+
+    stats: dict[str, Any] = {
+        "candidates": len(items),
+        "llm_failures": 0,
+        "approved": 0,
+        "failed": 0,
+        "skipped": 0,
+    }
+    if dry_run:
+        # dry-run ainda computa o veredito LLM (read-only) para estimativa de resgate
+        for item in items:
+            c = _pick_auto_approve_ingredient(item)
+            if not c:
+                stats["skipped"] += 1
+                continue
+            _llm_verdict(item, c, _llm_classify, stats)
+        return stats
+
+    for item in items:
+        target = _pick_auto_approve_ingredient(item)
+        if not target:
+            stats["skipped"] += 1
+            continue
+        verdict = _llm_verdict(item, target, _llm_classify, stats, llm_floor)
+        if not verdict:
+            continue  # _llm_verdict já contabilizou falha/skip
+        result = approve_review_item(item["id"], target, brand_override=item.get("brand", "") or "", feedback_decision="llm_confirmed")
+        if result and not result.get("error"):
+            stats["approved"] += 1
+        else:
+            stats["failed"] += 1
+    return stats
+
+
+def _llm_verdict(item: dict[str, Any], target: str, classify: Any, stats: dict[str, Any], llm_floor: float = 0.85) -> bool:
+    """Roda o LLM no item; True se aprova (target confirmado com conf >= floor)."""
+    product = item.get("raw_product") or ""
+    if not product:
+        stats["skipped"] += 1
+        return False
+    top3 = item.get("top3") or []
+    if isinstance(top3, str):
+        import json
+
+        try:
+            top3 = json.loads(top3)
+        except Exception:
+            top3 = []
+    candidates = []
+    if isinstance(top3, list):
+        for cand in top3:
+            if isinstance(cand, dict) and cand.get("canonical_name"):
+                candidates.append({"canonical_name": cand.get("canonical_name"), "search_terms": cand.get("search_terms") or []})
+    if not candidates:
+        candidates = [{"canonical_name": target, "search_terms": []}]
+    llm = classify(product, candidates)
+    if llm is None or not llm.get("match"):
+        stats["llm_failures"] += 1
+        return False
+    if float(llm.get("confidence", 0) or 0) < llm_floor:
+        stats["llm_failures"] += 1
+        return False
+    if (llm.get("ingredient") or "").strip() != target:
+        stats["llm_failures"] += 1
+        return False
+    return True
 
 
 def _pick_auto_approve_ingredient(item: dict[str, Any]) -> str:
@@ -310,8 +411,12 @@ def _auto_learn_alias(resolved_ingredient_id: str, price_entry: dict[str, Any]) 
         logger.warning("Auto-learning failed: %s", e)
 
 
-def approve_review_item(item_id: str, ingredient_id: str, brand_override: str = "") -> dict[str, Any]:
-    """Aprova item da review_queue: resolve ingredient/store, upsert price, auto-learning."""
+def approve_review_item(item_id: str, ingredient_id: str, brand_override: str = "", feedback_decision: str = "manual_approve") -> dict[str, Any]:
+    """Aprova item da review_queue: resolve ingredient/store, upsert price, auto-learning.
+
+    feedback_decision controla como o feedback é registrado: 'manual_approve'
+    (dashboard) ou 'llm_confirmed'/'auto_persist' (auto-approve).
+    """
     from services.price_repository import upsert_price
 
     client = get_service_client()
@@ -330,19 +435,29 @@ def approve_review_item(item_id: str, ingredient_id: str, brand_override: str = 
     # 3. Resolve store
     store_id = _resolve_store(item_data.get("store_name", ""))
 
+    # A6 (2026-09-05): se a loja não resolve, NÃO marcar como approved —
+    # antes o item virava 'approved' sem nunca persistir o preço (perda de
+    # dado + aprovação falsa). Devolve vazio e mantém pending p/ revisão manual.
+    if not store_id:
+        logger.warning(
+            "approve_review_item: store '%s' não resolvida — item %s mantém pending",
+            item_data.get("store_name", ""),
+            item_id,
+        )
+        return {}
+
     # 3. Build price entry
     price_entry = _build_price_entry(item_data, resolved_ingredient_id, store_id, brand_override)
 
-    # 4. Upsert price (only if store resolved)
-    if store_id:
-        try:
-            upsert_price(price_entry)  # type: ignore[arg-type]
-        except Exception as e:
-            logger.error("approve_review_item upsert_price failed: %s", e)
-            return {"error": f"Falha ao inserir preço: {e}"}
+    # 4. Upsert price (store agora é garantido resolvido)
+    try:
+        upsert_price(price_entry)  # type: ignore[arg-type]
+    except Exception as e:
+        logger.error("approve_review_item upsert_price failed: %s", e)
+        return {"error": f"Falha ao inserir preço: {e}"}
 
-    # Add alias (always, if store + ingredient + product)
-    if store_id and resolved_ingredient_id and price_entry.get("raw_product"):
+    # Add alias (always, if ingredient + product)
+    if resolved_ingredient_id and price_entry.get("raw_product"):
         try:
             add_alias_to_ingredient(resolved_ingredient_id, price_entry["raw_product"])
         except Exception as e:
@@ -365,6 +480,11 @@ def approve_review_item(item_id: str, ingredient_id: str, brand_override: str = 
         .eq("id", item_id)
     )
 
+    # Feedback loop: registra a decisão manual (nunca bloqueia o fluxo principal)
+    if result:
+        item_data = {**item_data, "resolved_ingredient": resolved_ingredient_id}
+        record_match_feedback(item_data, feedback_decision, "service" if feedback_decision != "manual_approve" else "dashboard")
+
     return result[0] if result else {}
 
 
@@ -372,10 +492,68 @@ def reject_review_item(item_id: str) -> dict[str, Any]:
     client = get_service_client()
     try:
         result = safe_execute(client.table("review_queue").update({"status": "rejected"}).eq("id", item_id))
+        if result:
+            item = _fetch_review_item(item_id)
+            if item:
+                _record_feedback_from_item(item, "manual_reject", "dashboard")
         return result[0] if result else {}
     except Exception as e:
         logger.error("reject_review_item failed: %s", e)
         return {}
+
+
+def record_match_feedback(
+    item: dict[str, Any],
+    decision_type: str,
+    decided_by: str = "service",
+    notes: str | None = None,
+) -> bool:
+    """Grava uma decisão de match na tabela match_feedback (feedback loop).
+
+    Nunca deve interromper o fluxo principal (approve/reject) — falha aqui é
+    apenas logada. Item NÃO é obrigatório ter ingredient resolvido; se não
+    houver, registramos só o veredito sem FK para ingredient.
+    """
+    client = get_service_client()
+    try:
+        ingredient_id = None
+        resolved = item.get("resolved_ingredient")
+        if resolved:
+            ingredient_id = resolved
+        store_id = None
+        if item.get("store_name"):
+            store_id = _resolve_store(item.get("store_name", ""))
+        decision_type = decision_type if decision_type in {
+            "auto_persist", "llm_confirmed", "manual_approve", "manual_reject", "auto_reject",
+        } else "auto_persist"
+        data = {
+            "ingredient_id": ingredient_id,
+            "store_id": store_id,
+            "raw_product": str(item.get("raw_product", ""))[:1000],
+            "score": float(item.get("confidence", 0) or 0),
+            "rf_score": float(item.get("rf_score", 0) or 0) if item.get("rf_score") else None,
+            "semantic_score": float(item.get("semantic_score", 0) or 0) if item.get("semantic_score") else None,
+            "llm_confidence": float(item.get("llm_confidence", 0) or 0) if item.get("llm_confidence") else None,
+            "llm_provider": item.get("llm_provider") or None,
+            "llm_reason": item.get("llm_reason") or None,
+            "match_type": item.get("match_type") or None,
+            "decision_type": decision_type,
+            "decided_by": decided_by,
+            "notes": notes,
+        }
+        safe_execute(
+            client.table("match_feedback")
+            .insert(data)
+        )
+        return True
+    except Exception as e:
+        logger.warning("record_match_feedback failed: %s", e)
+        return False
+
+
+def _record_feedback_from_item(item: dict[str, Any], decision_type: str, decided_by: str = "service") -> bool:
+    """Shim para gravar feedback de um item da review_queue."""
+    return record_match_feedback(item, decision_type, decided_by)
 
 
 def auto_reject_stale_review_items(max_age_days: int = 7, min_confidence: float = 0.6) -> int:
@@ -384,7 +562,7 @@ def auto_reject_stale_review_items(max_age_days: int = 7, min_confidence: float 
     try:
         items = safe_execute(
             client.table("review_queue")
-            .select("id,confidence")
+            .select("*")
             .eq("status", "pending")
             .lt("collected_at", cutoff)
         )
@@ -398,6 +576,7 @@ def auto_reject_stale_review_items(max_age_days: int = 7, min_confidence: float 
                     conf = 0
             if conf < min_confidence:
                 safe_execute(client.table("review_queue").update({"status": "rejected"}).eq("id", item["id"]))
+                record_match_feedback(item, "auto_reject", "service", notes="stale + low confidence")
                 rejected += 1
         return rejected
     except Exception as e:

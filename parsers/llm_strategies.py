@@ -270,7 +270,7 @@ class GroqStrategy(LLMStrategy):
         super().__init__()
         self.api_key = os.environ.get("GROQ_API_KEY", "")
         self.url = "https://api.groq.com/openai/v1/chat/completions"
-        self.model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+        self.model = os.environ.get("GROQ_MODEL", "qwen/qwen3.8-27b")
 
     def is_configured(self) -> bool:
         return bool(self.api_key)

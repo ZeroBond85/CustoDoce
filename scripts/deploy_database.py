@@ -781,6 +781,13 @@ END $$;
         gen.append("-- ============================================================")
         gen.append(restore_anon_path.read_text(encoding="utf-8"))
 
+    feedback_path = REPO_ROOT / "supabase" / "migrations" / "019_match_feedback.sql"
+    if feedback_path.exists():
+        gen.append("\n-- ============================================================")
+        gen.append("-- PHASE 33: Match feedback loop (019_match_feedback.sql)")
+        gen.append("-- ============================================================")
+        gen.append(feedback_path.read_text(encoding="utf-8"))
+
     return "\n".join(gen)
 
 

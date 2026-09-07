@@ -47,7 +47,7 @@ Busca e comparação de preços de ingredientes para confeitaria. Foco na Baixad
 ## Stack
 
 - DB/API: Supabase (PostgreSQL, 500MB free)
-- Scrapers: GitHub Actions (Python, 2.000 min/mês)
+- Scrapers: GitHub Actions (Python, repo público → minutos ilimitados)
 - Dashboard: Streamlit Cloud (1 app privado)
 - Bot: Telegram (python-telegram-bot)
 - Email: Gmail SMTP (500 e-mails/dia)
@@ -74,8 +74,9 @@ CustoDoce/
 │   ├── ci.yml, ci-e2e-only.yml                       # CI lint/type/test + e2e smoke
 │   ├── e2e.yml, teste_full_manual.yml               # E2E full + teste manual (~55min)
 │   ├── backup.yml, restore-test.yml                  # Backup semanal + restore test
-│   ├── on_demand_scrape.yml, heal-scrapers.yml      # On-demand + auto-heal (mensal dia 1)
+│   ├── on_demand_scrape.yml, heal-scrapers.yml      # On-demand + auto-heal (a cada 12h, repo público)
 │   ├── sanitize-check.yml, test_store_recovery.yml   # Sanitize semanal + recovery test
+│   ├── auto-approve.yml                              # Drena review_queue via LLM-confirmed (cron semanal)
 │   ├── skills-maintenance.yml                        # Cron mensal (dia 1, 9am UTC)
 │   └── dependency-audit.yml                          # Cron mensal (dia 1, 9am UTC) — pip-audit + deptry + licenses
 ├── .githooks/
@@ -113,7 +114,7 @@ CustoDoce/
 ├── requirements.lock       # = requirements-test.lock (backward compat)
 ├── requirements.txt        # = requirements-prod.in (pip-audit source)
 ├── AGENTS.md          # ← este arquivo (vivo, ~340 linhas)
-├── LESSONS.md         # 106 lições aprendidas
+├── LESSONS.md         # 108 lições aprendidas
 └── REGRAS.md          # Ambiente, hooks, comandos
 ```
 
@@ -244,13 +245,13 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 
 | Métrica | Valor |
 |---------|-------|
-| pytest (unit + schema, no slow) | 1561 passing (unit: 1467, schema: 94) |
+| pytest (unit + schema, no slow) | 1593 passing |
 | pytest (integration) | 116 passing |
 | pytest (diagnostics, slow) | 4 passing |
-| Schema manifest | 17 tabelas/views com types, not_null, defaults, constraints |
-| Mock validation tests | 121 parametrizados (colunas, tipos, not_null, FKs, CHECK, jsonb) |
-| AGENTS.md | ~357 linhas (Sprint 18 + docs gaps) |
-| LESSONS.md | 106 lições |
+| Schema manifest | 22 tabelas/views com types, not_null, defaults, constraints |
+| Mock validation tests | 127 parametrizados (colunas, tipos, not_null, FKs, CHECK, jsonb) |
+| AGENTS.md | ~360 linhas (matcher gray-zone Fase A + B) |
+| LESSONS.md | 108 lições |
 | REGRAS.md | Ambiente + hooks + comandos |
 | CI lint/type/test | ✅ Todos verdes — mypy **strict** (Python 3.14.6) |
 | E2E (cloud) | ✅ Validade (run 31806929724) |
@@ -263,7 +264,7 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 | requirements-test.lock | 130+ packages (prod + dev + test) |
 | OpenCode Skills | 35 installed (todas no projeto) |
 | Dashboard pages | 21 módulos (inclui CI Telemetria) |
-| Workflows GitHub Actions | 14 otimizados, validados, com check_time_budget |
+| Workflows GitHub Actions | 15 otimizados, validados, com check_time_budget |
 
 ## OpenCode Skills
 
@@ -303,7 +304,7 @@ Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarbal
 
 ## Documentação Relacionada
 
-- `LESSONS.md` — 106 lições (CI, mocks, schema, scrapers, monitoração, segurança)
+- `LESSONS.md` — 108 lições (CI, mocks, schema, scrapers, monitoração, segurança)
 - `REGRAS.md` — Ambiente, hooks, comandos, arquitetura
 - `docs/skills.md` — Skills OpenCode (globais + overlays locais)
 - `docs/changelog.md` — Histórico por fase/sprint; `config/agents_schema.yaml` — Schema deste arquivo
@@ -311,15 +312,7 @@ Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarbal
 ## Flyer OCR — Clustering Espacial + Layout Adaptativo (Sprint 15)
 
 ### Novos Parâmetros (Env Vars)
-| Variável | Default | Descrição |
-|----------|---------|-----------|
-| `FLYER_USE_LAYOUT_ADAPTATION` | `1` | Liga auto-detecção de layout (1/0) |
-| `FLYER_BLOCK_GAP` | `50` | Gap vertical p/ clustering (px) |
-| `FLYER_BLOCK_X_GAP` | `250` | Gap horizontal p/ separar colunas (px) |
-| `FLYER_BLOCK_DX` | `260` | Janela horizontal base (px) |
-| `FLYER_BLOCK_DY_ABOVE` | `320` | Janela vertical acima base (px) |
-| `FLYER_BLOCK_DY_BELOW` | `40` | Janela vertical abaixo base (px) |
-| `FLYER_BLOCK_MAX_TEXTS` | `6` | Max textos por bloco |
+`FLYER_USE_LAYOUT_ADAPTATION=1`, `FLYER_BLOCK_GAP=50`, `FLYER_BLOCK_X_GAP=250`, `FLYER_BLOCK_DX=260`, `FLYER_BLOCK_DY_ABOVE=320`, `FLYER_BLOCK_DY_BELOW=40`, `FLYER_BLOCK_MAX_TEXTS=6` (defaults em px).
 ### Novos Arquivos
 - `parsers/flyer_layout_analyzer.py` — Analisa layout, gera params adaptativos, persiste aprendizado
 - `config/flyer_learned_params.json` — Parâmetros aprendidos por store/tipo (auto-gerado)
@@ -358,3 +351,9 @@ Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarbal
 - **Recuperação**: `scripts/recover_review_queue.py` (dry-run/execute) — re-match de pendentes + `combined >= 0.80` → preços; 46 recuperados (21 inseridos, 25 dups).
 - **Limpeza PROD**: store_registry 0 pending (145 rejected: 138 fora de escopo + 6 FP match + 2 teste), review_queue 1582 pending (46 resolved, 130 Lançamento rejeitados), lixo teste removido de prices.
 - **Retry HTTP/2**: `maintenance_service._retry_delete()` (backoff 1s/1.5s/2.25s) — fix RPR do flake CI integration.
+
+## Sprint 19 — Fase A+B: threshold 0.78, auto-approve LLM-confirmed, feedback loop (2026-09-06)
+- **Threshold calibrado**: `calibrate_review_threshold.py` (read-only) → review_threshold **0.78** < gate 0.82. Fila = banda `[0.78, 0.82)` (~100 itens); 504 legados `<0.78` rejeitados em PROD (reversível).
+- **Auto-approve LLM-confirmed**: `auto_approve_llm_confirmed()` (`review_queue_service.py`) + `auto_approve_review_queue.py` (`--llm-confirmed` default, floor 0.85, exit 0/1/2). Cego em 0.80 era errado (FPs "Leite UHT"→Leite em Pó) — só aprova se LLM confirmar top-1. `auto-approve.yml` semanal; exit 2 (rate-limit) cai p/ humano.
+- **Feedback loop**: `match_feedback` (migration 019) registra toda decisão (`auto_persist`/`llm_confirmed`/`manual_approve`/`manual_reject`/`auto_reject`) com scores + `decided_by`; RLS on, service_role all.
+- **Resiliência + Groq**: `get_media` retry (roldao); logs de descarte (playwright); `heal-scrapers` → 12h (repo público, #125); Groq default `qwen/qwen3.8-27b` (404 do llama-3.3; fallback multi-provider).

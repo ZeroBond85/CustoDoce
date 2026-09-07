@@ -9,6 +9,8 @@ import json
 import re
 import time
 
+import httpx
+
 from services.logger import logger
 from services.supabase_client import get_service_client, get_supabase, safe_execute, rpc_execute
 from services.types import PriceEntry
@@ -117,13 +119,24 @@ def _build_price_row(price_entry: PriceEntry) -> dict[str, Any]:
 
 
 def _is_transient_net_err(exc: Exception) -> bool:
-    """True se o erro é de rede/recurso transitório (não merece falha dura)."""
+    """True se o erro é de rede/recurso transitório (não merece falha dura).
+
+    A7 (2026-09-05): faltava `Server disconnected` (httpx.RemoteProtocolError)
+    — flake documentado em LESSONS #117/#124. Adicionado match por TIPO
+    (httpx.TransportError/RemoteProtocolError) além dos substrings de mensagem,
+    para não depender do texto exato da mensagem.
+    """
     s = str(exc)
+    if isinstance(exc, httpx.TransportError):  # cobre RemoteProtocolError (favorece retry)
+        return True
     return (
         "Resource temporarily unavailable" in s
         or "Errno 11" in s
         or "timeout" in s.lower()
         or "Connection" in s
+        or "connection" in s
+        or "Server disconnected" in s
+        or "server disconnected" in s
         or "reset by peer" in s
     )
 

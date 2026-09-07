@@ -32,12 +32,12 @@ features:
     enabled: true
     vision: true
     # LLM classifier para match 70-80% (match_ingredient -> semantic -> LLM).
-    # DESLIGADO (2026-08-16): matcher determinístico + semantic embeddings
-    # (RF 0.6 + ONNX 0.4) cobrem a faixa 60-80% sem custo/rate-limit externo.
-    # match 70-80% vai direto p/ review_queue se não passar no threshold.
-    # Reativo apenas se métricas pós-fix mostrarem gray zone mal resolvida.
+    # REATIVADO (2026-09-05) após calibração A0.5 + fix GROQ_MODEL:
+    # - threshold review desceu 0.70 -> 0.78 (fila [0.78, 0.82) ~26% vs 86%);
+    # - modelo default morto (llama-3.3-70b-versatile 404) -> qwen/qwen3.8-27b;
+    # - gray zone 0.78-0.82 ainda densa (~26%), LLM ajuda decidir.
     # Requer GROQ_API_KEY/OPENROUTER_API_KEY. Cuidado: consome quota free-tier.
-    llm_classifier: false
+    llm_classifier: true
     # Caminho hibrido para encartes DENSOS (RapidOCR + reconstrucao geometrica
     # de preco + LLM-texto p/ nomes). Em flyers densos a vision-LLM retorna 0
     # produtos gastando 30-40s; o hibrido le as centenas de regioes via OCR e
@@ -49,7 +49,10 @@ features:
 
   matcher:
     threshold: 80
-    review_threshold: 0.70
+    # Calibração real (A0.5, N=500, semantic): faixa [0.78, 0.82) concentra ~26% da fila
+    # (era 86% com 0.70). Itens >= gate de persistência (0.82) persistem direto.
+    # SEMPRE manter < gate (0.82) — se review_threshold == gate, a fila morre.
+    review_threshold: 0.78
     review_queue: true
 
   validity:

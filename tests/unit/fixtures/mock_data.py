@@ -661,6 +661,45 @@ MOCK_STORE_UNITS: list[dict[str, Any]] = [
     },
 ]
 
+# ─── Match Feedback ─────────────────────────────────────────────────────────
+
+MOCK_MATCH_FEEDBACK: list[dict[str, Any]] = [
+    {
+        "id": "fb-001",
+        "ingredient_id": "ing-001",       # MOCK_INGREDIENTS[0] (Leite Condensado)
+        "store_id": "store-001",
+        "raw_product": "Leite Condensado Moça 395g",
+        "score": 0.82,
+        "rf_score": 78.5,
+        "semantic_score": 0.85,
+        "llm_confidence": 0.9,
+        "llm_provider": "groq",
+        "llm_reason": "exact alias match",
+        "match_type": "exato",
+        "decision_type": "auto_persist",
+        "decided_by": "service",
+        "notes": None,
+        "created_at": "2026-01-01T00:00:00Z",
+    },
+    {
+        "id": "fb-002",
+        "ingredient_id": "ing-003",
+        "store_id": "store-002",
+        "raw_product": "Farinha de Mandioca 1kg",
+        "score": 0.79,
+        "rf_score": 75.0,
+        "semantic_score": 0.72,
+        "llm_confidence": 0.0,
+        "llm_provider": None,
+        "llm_reason": None,
+        "match_type": "proximo_apelido",
+        "decision_type": "manual_reject",
+        "decided_by": "dashboard",
+        "notes": "Farinha de mandioca != farinha de trigo",
+        "created_at": "2026-01-01T00:00:01Z",
+    },
+]
+
 # ─── Helpers ────────────────────────────────────────────────────────────────
 
 

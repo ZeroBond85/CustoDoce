@@ -2,7 +2,7 @@
   "_meta": {
     "generator": "scripts/generate_schema_manifest.py",
     "source": "consolidated_migration.sql",
-    "tables": 20,
+    "tables": 22,
     "version": 2
   },
   "alert_recipients": {
@@ -357,6 +357,89 @@
       "match_decision": "jsonb",
       "product_raw_name": "text",
       "updated_at": "timestamptz"
+    }
+  },
+  "match_feedback": {
+    "columns": [
+      "id",
+      "ingredient_id",
+      "store_id",
+      "raw_product",
+      "score",
+      "rf_score",
+      "semantic_score",
+      "llm_confidence",
+      "llm_provider",
+      "llm_reason",
+      "match_type",
+      "decision_type",
+      "decided_by",
+      "notes",
+      "created_at"
+    ],
+    "constraints": {
+      "check": [],
+      "fk": [
+        {
+          "columns": [
+            "ingredient_id"
+          ],
+          "references": {
+            "column": "id",
+            "on_delete": "CASCADE",
+            "table": "ingredients"
+          }
+        },
+        {
+          "columns": [
+            "store_id"
+          ],
+          "references": {
+            "column": "id",
+            "on_delete": "CASCADE",
+            "table": "stores"
+          }
+        }
+      ],
+      "pk": [
+        "id"
+      ],
+      "unique": []
+    },
+    "defaults": {
+      "created_at": "now()",
+      "decided_by": "'service'",
+      "id": "gen_random_uuid()"
+    },
+    "generated": {},
+    "not_null": [
+      "raw_product",
+      "score",
+      "decision_type",
+      "decided_by",
+      "created_at"
+    ],
+    "not_null_no_default": [
+      "raw_product",
+      "score",
+      "decision_type"
+    ],
+    "types": {
+      "created_at": "timestamptz",
+      "decided_by": "text",
+      "decision_type": "text",
+      "id": "uuid",
+      "ingredient_id": "uuid",
+      "llm_confidence": "numeric(8,4)",
+      "llm_provider": "text",
+      "llm_reason": "text",
+      "match_type": "text",
+      "notes": "text",
+      "raw_product": "text",
+      "rf_score": "numeric(8,4)",
+      "score": "numeric(8,4)",
+      "semantic_score": "numeric(8,4)",
+      "store_id": "text"
     }
   },
   "price_history": {
@@ -782,6 +865,41 @@
       "payload": "jsonb",
       "timezone": "text",
       "updated_at": "timestamptz"
+    }
+  },
+  "schema_migrations": {
+    "columns": [
+      "version",
+      "name",
+      "checksum",
+      "applied_at"
+    ],
+    "constraints": {
+      "check": [],
+      "fk": [],
+      "pk": [
+        "version"
+      ],
+      "unique": []
+    },
+    "defaults": {
+      "applied_at": "NOW()"
+    },
+    "generated": {},
+    "not_null": [
+      "name",
+      "checksum",
+      "applied_at"
+    ],
+    "not_null_no_default": [
+      "name",
+      "checksum"
+    ],
+    "types": {
+      "applied_at": "timestamptz",
+      "checksum": "text",
+      "name": "text",
+      "version": "text"
     }
   },
   "scrape_frequencies": {

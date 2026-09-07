@@ -574,7 +574,7 @@ def generate_manifest() -> int:
 
     # 1. CREATE TABLE
     table_pattern = re.compile(
-        r"\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\"?[\w]+\"?)\s*\(",
+        r"\bCREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:(?:\"?[\w]+\"?)\s*\.)?(\"?[\w]+\"?)\s*\(",
         re.I,
     )
     for m in table_pattern.finditer(sql):

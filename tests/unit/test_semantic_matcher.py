@@ -24,7 +24,7 @@ def mock_matcher(_no_model_download):
     matcher = SemanticMatcher()
     matcher._model = MagicMock()
     # Mock embed to return deterministic vectors based on text content
-    def embed_side_effect(texts):
+    def embed_side_effect(texts, **kwargs):
         vecs = []
         for text in texts:
             if "leite" in text.lower():
@@ -77,5 +77,21 @@ def test_get_similarity_disabled():
         matcher = SemanticMatcher()
         ing = {"canonical_name": "Leite", "aliases": []}
         assert matcher.get_similarity("Leite", ing) == 0.0
+
+
+def test_get_similarity_uses_search_terms(mock_matcher):
+    """A2 (2026-09-05): search_terms participam da similaridade semântica.
+
+    get_similarity agora compara canonical + aliases + search_terms contra o
+    produto. Um produto que só aparece no search_term (e não no canonical)
+    deve gerar similaridade 1.0 em vez de 0.0.
+    """
+    ing = {
+        "canonical_name": "Chocolate 50%",
+        "aliases": [],
+        "search_terms": ["chocolate ao leite 50"],
+    }
+    sim = mock_matcher.get_similarity("Chocolate ao leite 50 gotas", ing)
+    assert pytest.approx(sim) == 1.0
 
 

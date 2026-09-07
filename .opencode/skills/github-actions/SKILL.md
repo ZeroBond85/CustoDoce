@@ -28,7 +28,15 @@ Universal GitHub Actions patterns (triggers, jobs, caching, matrices, secret han
 
 > **Nota**: `bench-ocr.yml` e `probe-antibot.yml` foram planejados mas NUNCA criados. Não adicionar.
 
-## Free-tier math (2000 min/month)
+## Minutes math (repo PÚBLICO → ilimitado; LESSONS #127)
+
+> O repositório é público (`gh repo view` → `visibility: PUBLIC`): standard
+> runners têm **minutos ilimitados** (a quota de 2.000 min/mês do plano Free
+> vale só para repos privados). A conta abaixo é informativa
+> (observabilidade), NÃO teto de veto — frequência de cron decide-se por
+> necessidade (ex.: heal-scrapers 12h é viável). Mantidos `timeout-minutes`
+> + `check_time_budget.py` por job (protegem contra job travado/runaway).
+
 - Scrape: 5 runs/week × 15 min × 4.3 = **~320 min**
 - CI: ~25 PRs/pushes/month × 6 min = **150 min**
 - E2E: 1/month × 60 min = **60 min**
@@ -36,7 +44,7 @@ Universal GitHub Actions patterns (triggers, jobs, caching, matrices, secret han
 - Restore-test: 4/month × 10 min = **40 min**
 - Sanitize: 4/month × 3 min = **12 min**
 - On-demand: ~5/month × 2 min = **10 min**
-- **Total: ~604 min/month** (well below 2000 limit)
+- **Total: ~604 min/month** (informativo; sem teto em repo público)
 
 > macOS runners (job `scrape-macos`) são gratuitos apenas em repositórios PÚBLICOS.
 
@@ -78,7 +86,7 @@ Qualquer outlier bloqueia merge (AGENTS.md regra 10).
 - Cache key: `${{ runner.os }}-pw-${{ env.PW_VERSION }}-${{ hashFiles('requirements-prod.lock') }}`.
 
 ## CustoDoce-specific antipatterns
-- ❌ Running the real scraper suite on every PR (budget exhaustion).
+- ❌ Running the real scraper suite on every PR (lento + ruidoso; sem relação com custo — repo público tem minutos ilimitados).
 - ❌ Calling Playwright without `actions/setup-python`'s cached browsers (4-6 min extra per run).
 - ❌ Hard-coding `python-version` per step (always use `${{ env.PYTHON_VERSION }}`).
 - ❌ Job sem `timeout-minutes` (referência: 60 min upper bound, exigido em regra de review).
@@ -88,5 +96,5 @@ Qualquer outlier bloqueia merge (AGENTS.md regra 10).
 ## Required for new workflow additions
 1. Update `AGENTS.md` manually (or run `scripts/sync_docs.py` later).
 2. Add to the workflow table above.
-3. Recompute the free-tier math — flag if total exceeds 1500 min.
+3. Recalcular a conta de minutos (informativa — sem teto em repo público; só vira veto se o repo voltar a ser privado).
 4. Add `timeout-minutes` (default upper bound 60).

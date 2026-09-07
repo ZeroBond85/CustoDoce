@@ -90,6 +90,7 @@ module = [
     "optimum.*",
     "onnxruntime.*",
     "rapidocr_onnxruntime.*",
+    "fastembed.*",
     "yaml.*",
 ]
 ignore_missing_imports = true
