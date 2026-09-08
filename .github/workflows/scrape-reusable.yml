@@ -295,8 +295,8 @@ jobs:
         id: scrape_macos
         run: |
           LOG=/tmp/scrape_macos.log
-          ulimit -n 65536 && python main.py --tier 2a --no-finalize --mode ${{ inputs.mode }} --stores-filter "Carrefour" 2>&1 | tee "$LOG"
-          python main.py --tier 3 --no-finalize --mode ${{ inputs.mode }} --stores-filter "Tiendeo" 2>&1 | tee -a "$LOG"
+          ulimit -n 65536 && python main.py --tier 2a --no-finalize --mode ${{ inputs.mode }} ${{ inputs.dry_run && '--dry-run' || '' }} ${{ inputs.force && '--force' || '' }} --stores-filter "Carrefour" 2>&1 | tee "$LOG"
+          python main.py --tier 3 --no-finalize --mode ${{ inputs.mode }} ${{ inputs.dry_run && '--dry-run' || '' }} ${{ inputs.force && '--force' || '' }} --stores-filter "Tiendeo" 2>&1 | tee -a "$LOG"
 
           CLEAN=$(sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' "$LOG")
           if echo "$CLEAN" | grep -q 'Traceback' 2>/dev/null; then

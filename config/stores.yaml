@@ -139,6 +139,11 @@ stores:
       media: "/media/{media_id}"
     image_host: "blog.roldao.com.br"
     vision_timeout_seconds: 600
+    http_timeout:
+      connect: 15.0
+      read: 30.0
+      pool: 15.0
+      write: 15.0
     publish_day: "wednesday"
     collection_method: "automated"
     scraper: "roldao_api_scraper"

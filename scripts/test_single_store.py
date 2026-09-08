@@ -35,6 +35,8 @@ def _resolve_method(store: dict):
     table = {
         "flyer_scraper": collector.collect_tier1_pdfs,
         "max_api_scraper": collector.collect_tier1_api_flyers,
+        "roldao_api_scraper": collector.collect_tier1_api_flyers,
+        "tenda_api_scraper": collector.collect_tier1_api_flyers,
         "extra_flyer_scraper": collector.collect_extra_flyers,
         "pao_flyer_scraper": collector.collect_pao_flyers,
         "roldao_flyer_scraper": collector.collect_roldao_flyer,
@@ -60,11 +62,13 @@ def _resolve_method(store: dict):
 
 
 def main() -> int:
-    if len(sys.argv) < 2:
-        print(json.dumps({"error": "uso: test_single_store.py '<Store Name>' [max_seconds]"}))
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    dry_run = "--dry-run" in sys.argv[1:]
+    if len(args) < 1:
+        print(json.dumps({"error": "uso: test_single_store.py '<Store Name>' [max_seconds] [--dry-run]"}))
         return 2
-    target = sys.argv[1]
-    max_seconds = int(sys.argv[2]) if len(sys.argv) > 2 else 900
+    target = args[0]
+    max_seconds = int(args[1]) if len(args) > 1 else 900
 
     # Resolve direto no DB (get_store_by_name) — ignora o filtro scrape_frequencies.enabled
     # e o cap de 1000 linhas do PostgREST, então lojas pausadas/isoladas são encontradas.
@@ -95,12 +99,40 @@ def main() -> int:
     }
     try:
         import inspect
+        from unittest.mock import patch
 
         # collect_aggregators_ssr/js não recebem ingredients (usam load_stores interno).
         takes_args = len(inspect.signature(method).parameters) > 0
-        collected = method(ingredients) if takes_args else method()
+
+        if dry_run:
+            # --dry-run: NÃO persistir nada. Monkeypatch dos pontos de escrita do
+            # collector (upsert de preços + health/scraper_health) p/ noop, e
+            # desliga auto-disable. Só a extração/parse rodam (inspeção de cards).
+            def _noop(*a, **k):
+                return []
+
+            patchers = [
+                # upsert_price é importado no topo do collector (services.collector.upsert_price)
+                patch("services.collector.upsert_price", side_effect=_noop),
+                # batch_upsert_prices vem de services.price_service (import local no collector)
+                patch("services.price_service.batch_upsert_prices", side_effect=_noop),
+                patch("services.price_repository.batch_upsert_prices", side_effect=_noop),
+                patch("services.price_repository.upsert_price", side_effect=_noop),
+                patch("services.scraper_health.record_success", side_effect=lambda *a, **k: None),
+                patch("services.scraper_health.record_failure", side_effect=lambda *a, **k: None),
+            ]
+            for p in patchers:
+                p.start()
+            try:
+                collected = method(ingredients) if takes_args else method()
+            finally:
+                for p in patchers:
+                    p.stop()
+        else:
+            collected = method(ingredients) if takes_args else method()
         result["ok"] = True
         result["collected"] = len(collected) if isinstance(collected, list) else 0
+        result["dry_run"] = dry_run
     except Exception as exc:  # noqa: BLE001 - queremos capturar tudo no teste
         result["error"] = f"{type(exc).__name__}: {exc}"
         result["traceback"] = traceback.format_exc(limit=5)

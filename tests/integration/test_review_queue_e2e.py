@@ -276,10 +276,12 @@ class TestApproveReviewItem:
 
     def test_approve_with_uuid(self, real_supabase, db_conn, test_store, test_ingredient):
         import uuid as _uuid
+        from unittest.mock import patch
 
         from services.price_service import approve_review_item
 
         client = real_supabase
+        today = date.today().isoformat()
         product = f"Test Approve UUID {_uuid.uuid4().hex[:8]} 200g"
 
         # Isolamento: remove resquicios de runs anteriores p/ este produto/loja.
@@ -302,7 +304,7 @@ class TestApproveReviewItem:
                     "source": "approve_test",
                     "confidence": 0.65,
                     "status": "pending",
-                    "collected_at": datetime.now(UTC).isoformat(),
+                    "collected_at": today,
                 }
             )
             .execute()
@@ -310,10 +312,18 @@ class TestApproveReviewItem:
         assert review.data, "Failed to insert review item"
         item_id = review.data[0]["id"]
 
-        # Approve with UUID (retry 1x p/ absorver erro transiente de DB sob carga)
-        result = approve_review_item(item_id, test_ingredient["id"])
+        # Approve with UUID (retry 1x p/ absorver erro transiente de DB sob carga).
+        # Anti-poluição: mocka add_alias_to_ingredient e _auto_learn_alias p/ não
+        # gravar o produto de teste como alias no ingrediente de PRODUÇÃO.
+        def _approve():
+            with patch("services.review_queue_service.add_alias_to_ingredient", return_value={}), patch(
+                "services.review_queue_service._auto_learn_alias", return_value=None
+            ):
+                return approve_review_item(item_id, test_ingredient["id"])
+
+        result = _approve()
         if not (result and result.get("status") == "approved"):
-            result = approve_review_item(item_id, test_ingredient["id"])
+            result = _approve()
         assert result, "approve_review_item returned empty"
 
         # Verify review status
@@ -329,9 +339,12 @@ class TestApproveReviewItem:
         self._cleanup(client, db_conn)
 
     def test_approve_with_exact_name(self, real_supabase, db_conn, test_store, test_ingredient):
+        from unittest.mock import patch
+
         from services.price_service import approve_review_item
 
         client = real_supabase
+        today = date.today().isoformat()
 
         # Explicit cleanup
         client.table("review_queue").delete().eq("raw_product", "Test Approve Name 500g").execute()
@@ -347,15 +360,20 @@ class TestApproveReviewItem:
                     "source": "approve_test",
                     "confidence": 0.70,
                     "status": "pending",
-                    "collected_at": datetime.now(UTC).isoformat(),
+                    "collected_at": today,
                 }
             )
             .execute()
         )
         item_id = review.data[0]["id"]
 
-        # Approve with canonical name
-        result = approve_review_item(item_id, test_ingredient["canonical_name"])
+        # Approve with canonical name. Anti-poluição: mocka add_alias_to_ingredient
+        # e _auto_learn_alias p/ não gravar "Test Approve Name 500G" como alias
+        # no ingrediente de PRODUÇÃO (Fermento Químico em Pó).
+        with patch("services.review_queue_service.add_alias_to_ingredient", return_value={}), patch(
+            "services.review_queue_service._auto_learn_alias", return_value=None
+        ):
+            result = approve_review_item(item_id, test_ingredient["canonical_name"])
         assert result, "approve with canonical name returned empty"
 
         check = client.table("review_queue").select("status").eq("id", item_id).execute()
@@ -364,9 +382,12 @@ class TestApproveReviewItem:
         self._cleanup(client, db_conn)
 
     def test_approve_with_fuzzy_name(self, real_supabase, db_conn, test_store, test_ingredient):
+        from unittest.mock import patch
+
         from services.price_service import approve_review_item
 
         client = real_supabase
+        today = date.today().isoformat()
 
         # Explicit cleanup
         client.table("review_queue").delete().eq("raw_product", "Test Approve Fuzzy 1kg").execute()
@@ -382,7 +403,7 @@ class TestApproveReviewItem:
                     "source": "approve_test",
                     "confidence": 0.55,
                     "status": "pending",
-                    "collected_at": datetime.now(UTC).isoformat(),
+                    "collected_at": today,
                 }
             )
             .execute()
@@ -392,7 +413,13 @@ class TestApproveReviewItem:
         # Approve with typo: add extra chars, swap letters
         canonical = test_ingredient["canonical_name"]
         typo_name = canonical + " X"  # add extra word
-        result = approve_review_item(item_id, typo_name)
+
+        # Anti-poluição: mocka add_alias_to_ingredient e _auto_learn_alias p/
+        # não gravar "TEST APPROVE FUZZY 1KG" como alias no ingrediente de PRODUÇÃO.
+        with patch("services.review_queue_service.add_alias_to_ingredient", return_value={}), patch(
+            "services.review_queue_service._auto_learn_alias", return_value=None
+        ):
+            result = approve_review_item(item_id, typo_name)
         assert result, f"approve with fuzzy name '{typo_name}' returned empty"
 
         check = client.table("review_queue").select("status").eq("id", item_id).execute()

@@ -31,7 +31,7 @@ def check_price_drops(ingredient_id: str, current_price: float, history_prices: 
     prices = [
         p["normalized"]["price_per_kg"]
         for p in history_prices
-        if p.get("normalized") and p["normalized"].get("price_per_kg", 0) > 0
+        if isinstance(p.get("normalized"), dict) and p["normalized"].get("price_per_kg", 0) > 0
     ]
     if not prices:
         return None

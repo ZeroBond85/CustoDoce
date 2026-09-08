@@ -16,6 +16,8 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import httpx
+
 import pytest
 from dotenv import load_dotenv
 
@@ -130,6 +132,19 @@ class _SchemaCursor:
         self._rows = []
         self._index = 0
 
+    def _execute_rpc(self, sql: str) -> None:
+        # Chamada via REST API (porta 443)
+        r = self.client.rpc("exec_sql_query", {"sql": sql}).execute()
+
+        # Convert list of dicts to list of tuples to mimic psycopg2
+        if isinstance(r.data, list) and len(r.data) > 0:
+            keys = r.data[0].keys()
+            self._rows = [tuple(row.values()) for row in r.data]
+        else:
+            self._rows = []
+
+        self._index = 0
+
     def execute(self, sql, params=None):
         sql = sql.rstrip("; \t\n")
         if params:
@@ -147,17 +162,24 @@ class _SchemaCursor:
                     else:
                         sql = sql.replace(ph, str(v))
 
-        # Chamada via REST API (porta 443)
-        r = self.client.rpc("exec_sql_query", {"sql": sql}).execute()
+        # Retry transitório (flakes #124: RemoteProtocolError/NetworkError/502-504
+        # na API REST do Supabase). exec_sql_query é read-only (SELECT), então
+        # repetir é seguro/idempotente. 3 tentativas, backoff exponencial.
+        from services.retry_policy import RetryPolicy, with_retry
 
-        # Convert list of dicts to list of tuples to mimic psycopg2
-        if isinstance(r.data, list) and len(r.data) > 0:
-            keys = r.data[0].keys()
-            self._rows = [tuple(row.values()) for row in r.data]
-        else:
-            self._rows = []
-
-        self._index = 0
+        policy = RetryPolicy(
+            max_retries=3,
+            base_delay=0.5,
+            max_delay=10.0,
+            retryable_exceptions=(
+                httpx.TimeoutException,
+                httpx.NetworkError,
+                httpx.ConnectError,
+                httpx.RemoteProtocolError,
+                httpx.TransportError,
+            ),
+        )
+        with_retry(lambda: self._execute_rpc(sql), policy=policy, context="schema_probe")()
 
     def fetchone(self):
         if self._index < len(self._rows):
