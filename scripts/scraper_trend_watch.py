@@ -12,9 +12,13 @@ Uso:
 from __future__ import annotations
 
 import argparse
+import sys
+from pathlib import Path
 
-from services.logger import logger
-from services.scraper_trend_detector import (
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from services.logger import logger  # noqa: E402
+from services.scraper_trend_detector import (  # noqa: E402
     COOLDOWN_HOURS,
     analyze_all_stores,
     should_alert,

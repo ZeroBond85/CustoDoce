@@ -39,8 +39,17 @@ _SKIP_DIRS = {
     ".opencode", ".agent", "data",
 }
 
-# Arquivos que têm sistemas próprios de data (changelog tem entries)
-_EXCLUDE_FILES = {"docs/changelog.md", "docs/skills.md", "AGENTS.md"}
+# Arquivos que têm sistemas próprios de data (changelog tem entries).
+# Relatórios-raiz datados são snapshots históricos congelados (a data FAZ
+# PARTE do conteúdo — "atualizar" falsificaria o registro). Mesma classe
+# do HISTORICAL_FILES de audit_mds.py: freshness não se aplica.
+_EXCLUDE_FILES = {
+    "docs/changelog.md",
+    "docs/skills.md",
+    "AGENTS.md",
+    "SCRAPER_ANALYSIS_REPORT.md",
+    "docs/ux_analysis_plan.md",
+}
 
 
 def validate(root: Path, max_age_days: int = 30) -> list[str]:
