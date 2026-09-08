@@ -13,6 +13,13 @@
 - **Dashboard Anomalias** (`dashboard/pages/anomalias.py`, 22ª página): KPIs (críticas/degradadas/normais), tabela trend_score, bar chart com hlines dos thresholds, drill-down por loja (baseline vs current).
 - **Testes**: `tests/unit/test_scraper_trend.py` (19) + `tests/unit/test_review_dedup.py` (12) — puros, sem rede. Suite unit+schema verde.
 
+#### Sprint 20 seg — fixes de CI/deploy pós-merge (2026-09-08)
+- **Deploy zero-warn** (`scripts/deploy_database.py`): `_ensure_policy_drops()` (DROP IF EXISTS antes de todo `CREATE POLICY`) torna o replay idempotente; removidos REVOKE/ALTER/índice/matview-policy impossíveis (001/009/011/015/vigencia) que falhavam com 42P13/42883/42809/42703. **PROD: `507 OK, 0 WARN`**, ledger 12/12, schema 369/369.
+- **TZ straddle** (`services/price_repository.py`): `collected_at` normalizado para DATE antes do RPC/valid_from — elimina duplicatas invisíveis quando `date.today()` local vs `datetime.now(UTC)` caem em dias diferentes.
+- **Fixture e2e colisionava com `cleanup_test_data` de PROD**: `main.py` roda esse cleanup em todo scrape e deleta por prefixo de nome (`test %` casava `Test Review Queue Store` → approves falhavam "store não resolvida" quando scrape paralelo ocorria). Renomeado p/ `Review Queue Store` (`4c9aaed`); scripts de cleanup cobrem nomes legados.
+- **`scraper_trend_watch.py`**: sys.path bootstrap do repo-root (CI `ModuleNotFoundError: services`); `validate_md_timestamps.py` isenta relatórios congelados (`SCRAPER_ANALYSIS_REPORT.md`, `docs/ux_analysis_plan.md`).
+- **Testes**: `test_review_queue_fallback` score 79.0 (banda [0.78, 0.82)); suite unit+schema 1624, e2e 8/8.
+
 #### Sprint 18 — Root-cause da review_queue: threshold real, excludes data-driven, recuperação e limpeza
 - **Threshold corrigido**: `services/collector.py` — `review_threshold` default era 0.70 (bug, linha ~297-299) divergindo do gate de persistência real `combined >= 0.80` (linha 252); alinhado a 0.80. Resultado validado em PROD (scrape `--force`): **11 borderlines novos** vs ~646/dia (redução 98%).
 - **Excludes data-driven**: `config/ingredients.yaml` — `exclude_terms` em 9 ingredientes (~245 termos) para matar FPs que virariam preço errado (Macarrão Ninho→Leite em Pó, Cereal Moça→Leite Condensado, Fatiador de Ovos, Biscoito Manteiga, Pão de Mel→Chocolate, Mil Cores→Açúcar Cristal, Granulé/Recheio→Gotas Branco, Coco Adocicado). `has_excluded_terms` aplicado dentro de `match_ingredient` (matcher.py:234). **Obrigatório** `scripts/sync_ingredient_fields.py --execute` após editar YAML (runtime lê do DB).

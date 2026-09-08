@@ -1,7 +1,6 @@
 # CustoDoce - Memória do Projeto
 
-> **~340 linhas vivo.** Lições → `LESSONS.md`. Regras infra → `REGRAS.md`.
-
+> **~335 linhas vivo.** Lições → `LESSONS.md`. Regras infra → `REGRAS.md`.
 ## Regras Mandatórias (Top)
 
 1. **Schema contracts**: `config/agents_schema.yaml` define o que entra aqui. CI valida.
@@ -43,7 +42,6 @@
 ## Sobre
 
 Busca e comparação de preços de ingredientes para confeitaria. Foco na Baixada Santista (Santos, São Vicente, Praia Grande, Mongaguá, Itanhaém, Peruíbe, Guarujá) e São Paulo Capital (Centro, Sul, Leste, Oeste, Norte). Infraestrutura 100% gratuita.
-
 ## Stack
 
 - DB/API: Supabase (PostgreSQL, 500MB free)
@@ -53,7 +51,6 @@ Busca e comparação de preços de ingredientes para confeitaria. Foco na Baixad
 - Email: Gmail SMTP (500 e-mails/dia)
 - AI/ML: Sentence-Transformers (ONNX), Groq API, Scikit-learn (Isolation Forest)
 - **Free Tier Total**: R$ 0,00
-
 ## Arquitetura
 
 ```mermaid
@@ -64,7 +61,6 @@ graph LR
     TG -->|/scrape| GH
     SU -->|Email Report| GM[Gmail SMTP]
 ```
-
 ## Estrutura de Diretórios
 
 ```
@@ -114,10 +110,9 @@ CustoDoce/
 ├── requirements.lock       # = requirements-test.lock (backward compat)
 ├── requirements.txt        # = requirements-prod.in (pip-audit source)
 ├── AGENTS.md          # ← este arquivo (vivo, ~340 linhas)
-├── LESSONS.md         # 110 lições aprendidas
+├── LESSONS.md         # 111 lições aprendidas
 └── REGRAS.md          # Ambiente, hooks, comandos
 ```
-
 ## Tiers de Lojas
 
 | Tier | Tipo | Frequência | Como coleta |
@@ -127,11 +122,9 @@ CustoDoce/
 | 2b | Atacado Físico SP | Mensal | Manual (planilha) |
 | 3 | Agregadores (Tiendeo, Kimbino, Portafolhetos) | Fallback | Playwright / SSR |
 | 4 | Manual (WhatsApp, visita) | Sob demanda | Planilha .xlsx |
-
 ## Ingredientes Monitorados (27)
 
 [Leite Condensado, Creme de Leite, Chocolate 50%, Leite em Pó, Granulado Ao Leite, Granulado Branco, Granulado Meio Amargo, Creme de Avelã, Granulado Colorido, Coco Ralado, Chocolate Nobre Blend, Açúcar Mascavo, Açúcar Confeiteiro, Chocolate 70%, Farinha de Trigo, Micro Ball, Top Confete, Gotas Branco, Manteiga, Gotas Meio Amargo, Chocolate Barra, Fermento, Baunilha] — detalhes completos em `config/ingredients.yaml`.
-
 ## Fluxo de Coleta (GitHub Actions scrape.yml)
 
 ```
@@ -150,7 +143,6 @@ main.py → sync_store_fields() → para cada loja ativa (matriz [1, 2a, 3]):
 ```
 
 Tier 2b (Atacado Físico SP) não roda na matriz automate — importação manual via planilha.
-
 ## Matcher (parsers/matcher.py)
 
 1. **Exato**: canonical name no texto do produto
@@ -160,7 +152,6 @@ Tier 2b (Atacado Físico SP) não roda na matriz automate — importação manua
 5. **Match types**: `exato` / `proximo_nome` / `proximo_apelido` / `contido`
 6. **Confidence**: 1.0 (exato), 0.8-1.0 (fuzzy), <0.8 (review queue)
 7. **Brand extraction**: 3 níveis (exato → substring regex → fuzzy palavra a palavra ≥80%)
-
 ## Normalizer (parsers/normalizer.py)
 
 ```
@@ -173,7 +164,6 @@ Tier 2b (Atacado Físico SP) não roda na matriz automate — importação manua
 price_per_kg = raw_price / total_kg
 price_per_un = raw_price / qty
 ```
-
 ## Tratamento de Erros
 
 | Erro | Ação |
@@ -186,15 +176,12 @@ price_per_un = raw_price / qty
 | Supabase offline | Salva em prices_latest.json local |
 | Email falha | Loga erro, não bloqueia pipeline |
 | Porta 5432 bloqueada | `exec_sql_query` RPC (porta 443) |
-
 ## CI Watch (push + monitoramento automático)
 
 Para evitar "push → CI falha → ninguém vê", substitua `git push` por `python scripts/git_push.py [args]` (ou `git config --local alias.pw '!python scripts/git_push.py' && git pw`). O script roda o push, detecta o run do CI e faz polling de `gh run view --json conclusion` até a conclusão final (timeouts de shell proíbem `gh run watch`). Em falha: ruff→auto-fix+re-watch (1x); timeout/flaky→re-run (1x); erro diferente/bandit/pip-audit/pytest→**PARA** (humano assume). Auto-fix usa `--force-with-lease`. Detalhes em `REGRAS.md` e `scripts/git_push.py`.
-
 ## Teste Full Manual (disparo manual único)
 
 Workflow `Teste_Full_Manual` (Actions → Run workflow) — testa TUDO de uma vez: lint, typecheck, docs-sync, unit+schema, integration, deploy-check, real, e2e-full, visual e diagnostics (~55min). Listas de páginas vêm de `navigation_config.MENU_GROUPS` (auto-adapta a `dashboard/pages/`).
-
 ## ⚠️ Regra Obrigatória: DB Sync
 
 **Toda alteração em SQL/funções/triggers deve ser verificada na base real do Supabase via RPC (`exec_sql_query`, porta 443).** NUNCA `psycopg2` direto.
@@ -203,7 +190,6 @@ Workflow `Teste_Full_Manual` (Actions → Run workflow) — testa TUDO de uma ve
 python scripts/deploy_database.py --execute
 ruff check . && python -m pytest tests/unit/ tests/schema/ -q
 ```
-
 ## Comandos Relevantes
 
 ```bash
@@ -240,18 +226,17 @@ python scripts/md_auto_compress.py compress --dry-run
 python scripts/md_auto_compress.py compress --apply
 python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/<src>
 ```
-
 ## Status Atual
 
 | Métrica | Valor |
 |---------|-------|
-| pytest (unit + schema, no slow) | 1593 passing |
+| pytest (unit + schema, no slow) | 1624 passing |
 | pytest (integration) | 116 passing |
 | pytest (diagnostics, slow) | 4 passing |
 | Schema manifest | 22 tabelas/views com types, not_null, defaults, constraints |
 | Mock validation tests | 127 parametrizados (colunas, tipos, not_null, FKs, CHECK, jsonb) |
-| AGENTS.md | ~360 linhas (matcher gray-zone Fase A + B) |
-| LESSONS.md | 110 lições |
+| AGENTS.md | ~360 linhas (matcher gray-zone Fase A + B + C) |
+| LESSONS.md | 111 lições |
 | REGRAS.md | Ambiente + hooks + comandos |
 | CI lint/type/test | ✅ Todos verdes — mypy **strict** (Python 3.14.6) |
 | E2E (cloud) | ✅ Validade (run 31806929724) |
@@ -265,7 +250,6 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 | OpenCode Skills | 35 installed (todas no projeto) |
 | Dashboard pages | 22 módulos (inclui CI Telemetria, Anomalias Scrapers) |
 | Workflows GitHub Actions | 17 otimizados, validados, com check_time_budget |
-
 ## OpenCode Skills
 
 Lista canônica em [docs/skills.md](docs/skills.md) — gerado por `python scripts/sync_docs.py --sync`.
@@ -275,7 +259,6 @@ Lista canônica em [docs/skills.md](docs/skills.md) — gerado por `python scrip
 | Skills instaladas | 35 (ver docs/skills.md) |
 | Sub-themes (theme-factory) | 10 (arctic-frost, ... tech-innovation) |
 | Externas (não adotadas) | frontend-design, theme-factory |
-
 ### Manutenção
 
 ```bash
@@ -285,7 +268,6 @@ python scripts/skills_maintenance.py --full        # Backup + check + validate
 python scripts/skills_maintenance.py --list        # Listar instaladas
 python scripts/sync_docs.py --sync                # Regenera docs/skills.md
 ```
-
 ### Cron
 
 - **Mensal** (1º do mês, 6am SP / 9am UTC): `skills-maintenance.yml` executa `--check --validate`
@@ -293,7 +275,6 @@ python scripts/sync_docs.py --sync                # Regenera docs/skills.md
 - **A cada PR**: CI valida estrutura das skills modificadas
 - **A cada PR (requirements*.txt / *.in / *.lock)**: `dependency-audit.yml` job `audit-prod` bloqueia se `pip-audit --strict -r requirements.txt` falhar; `lock-validation` verifica sincronia entre `.in` e `.lock`
 - **Detecção de drift**: `sync_docs --check` no `ci.yml` job `docs-sync` — falha se disco ≠ approved ≠ docs
-
 ## Ambiente
 
 **Python local OBRIGATÓRIO: `.venv314`** (PowerShell → `& .\.venv314\Scripts\Activate.ps1`).
@@ -301,59 +282,53 @@ python scripts/sync_docs.py --sync                # Regenera docs/skills.md
 O **`pre-push`** detecta `.venv314` automaticamente via `_resolve_python()` (ver `REGRAS.md` §Pre-push). Independente de como o git foi invocado, todo subprocesso do hook usa o Python do venv → **paridade total com CI/Cloud**. Fallback `sys.executable` é apenas aviso, não erro.
 
 Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarball; miniconda removido). Detalhes em `REGRAS.md` §Pre-push, §Ambiente.
-
 ## Documentação Relacionada
 
-- `LESSONS.md` — 110 lições (CI, mocks, schema, scrapers, monitoração, segurança)
+- `LESSONS.md` — 111 lições (CI, mocks, schema, scrapers, monitoração, segurança)
 - `REGRAS.md` — Ambiente, hooks, comandos, arquitetura
 - `docs/skills.md` — Skills OpenCode (globais + overlays locais)
 - `docs/changelog.md` — Histórico por fase/sprint; `config/agents_schema.yaml` — Schema deste arquivo
-
 ## Flyer OCR — Clustering Espacial + Layout Adaptativo (Sprint 15)
-
 ### Novos Parâmetros (Env Vars)
 `FLYER_USE_LAYOUT_ADAPTATION=1`, `FLYER_BLOCK_GAP=50`, `FLYER_BLOCK_X_GAP=250`, `FLYER_BLOCK_DX=260`, `FLYER_BLOCK_DY_ABOVE=320`, `FLYER_BLOCK_DY_BELOW=40`, `FLYER_BLOCK_MAX_TEXTS=6` (defaults em px).
 ### Novos Arquivos
 - `parsers/flyer_layout_analyzer.py` — Analisa layout, gera params adaptativos, persiste aprendizado
 - `config/flyer_learned_params.json` — Parâmetros aprendidos por store/tipo (auto-gerado)
-
 ### Pipeline Ativo
 `collect_tier1_api_flyers()` → `flyer_ocr.py` → `flyer_hybrid.extract_from_regions()` → `build_price_blocks()` (novo clustering) → match/upsert.
-
 ## Sprint 16 — Chefon curl_cffi Bypass + Tenda/Roldão OCR Fixes (2026-07-29)
-
 ### Chefon — Cloudflare 429 resolvido via curl_cffi
 - **Problema**: Cloudflare passou a proteger também a rota `/collections/<x>/products.json` — httpx retornava 429 em 100% das requisições (JA3 fingerprint detectado).
 - **Solução**: `curl_cffi` com `impersonate="chrome120"` (fingerprint TLS do Chrome real). Testado: 250 produtos/página, 0 erros 429. Fallback httpx se curl_cffi não estiver instalado.
 - **Config**: `config/stores.yaml` → `shopify_curl_cffi: true` + `scrapers/website_scraper.py` switch condicional.
 - **Dependência**: `curl_cffi>=0.15,<1.0` em `requirements-prod.in`.
-
 ### Tenda Atacadista — OCR timeout + paralelismo
 - **Problema**: Encartes grandes estouravam o timeout default de 300s.
 - **Solução**: `vision_timeout_seconds: 600` + `max_concurrency=2` no `extract_flyer_products()`.
-
 ### Roldão/Tenda — Falso positivo de saúde
 - **Problema**: OCR vazio (cache hit) chamava `report_failure()`, disparando alertas.
 - **Solução**: Removeu `report_failure()` em OCR vazio; `_collect_prices` chama `record_success(0)`. Cache hit não é erro.
-
 ### Bezerra Embalagens / Promotons
 - Removidos: `UPDATE stores SET is_active=false` no Supabase DB.
-
 ### SMTP
 - Credenciais Gmail válidas (app password).
-
 ## Sprint 17 — Otimização de Performance (2026-08-08)
 - `price_repository.py`: `batch_upsert_prices()` (chunks 50, retry); `process_price_match(batch_entries=...)`; flush em lote.
-
 ## Sprint 18 — Root-cause da review_queue (2026-08-16)
 - **Threshold real**: `collector.py::process_price_match` usava `review_threshold` 0.70 (bug) divergindo do gate de persistência `combined >= 0.80` → alinhado a 0.80. Scrape `--force` validou: 11 borderlines novos vs ~646/dia (redução 98%).
 - **Excludes data-driven**: `config/ingredients.yaml` → 9 ingredientes, ~245 termos; runtime lê do DB via `get_active_ingredients()` → **obrigatório** `python scripts/sync_ingredient_fields.py --execute` após editar YAML.
 - **Recuperação**: `scripts/recover_review_queue.py` (dry-run/execute) — re-match de pendentes + `combined >= 0.80` → preços; 46 recuperados (21 inseridos, 25 dups).
 - **Limpeza PROD**: store_registry 0 pending (145 rejected: 138 fora de escopo + 6 FP match + 2 teste), review_queue 1582 pending (46 resolved, 130 Lançamento rejeitados), lixo teste removido de prices.
 - **Retry HTTP/2**: `maintenance_service._retry_delete()` (backoff 1s/1.5s/2.25s) — fix RPR do flake CI integration.
-
 ## Sprint 19 — Fase A+B: threshold 0.78, auto-approve LLM-confirmed, feedback loop (2026-09-06)
 - **Threshold calibrado**: `calibrate_review_threshold.py` (read-only) → review_threshold **0.78** < gate 0.82. Fila = banda `[0.78, 0.82)` (~100 itens); 504 legados `<0.78` rejeitados em PROD (reversível).
 - **Auto-approve LLM-confirmed**: `auto_approve_llm_confirmed()` (`review_queue_service.py`) + `auto_approve_review_queue.py` (`--llm-confirmed` default, floor 0.85, exit 0/1/2). Cego em 0.80 era errado (FPs "Leite UHT"→Leite em Pó) — só aprova se LLM confirmar top-1. `auto-approve.yml` semanal; exit 2 (rate-limit) cai p/ humano.
 - **Feedback loop**: `match_feedback` (migration 019) registra toda decisão (`auto_persist`/`llm_confirmed`/`manual_approve`/`manual_reject`/`auto_reject`) com scores + `decided_by`; RLS on, service_role all.
 - **Resiliência + Groq**: `get_media` retry (roldao); logs de descarte (playwright); `heal-scrapers` → 12h (repo público, #125); Groq default `qwen/qwen3.8-27b` (404 do llama-3.3; fallback multi-provider).
+## Sprint 20 — Fase C: trend detector temporal + dedup semântico + dashboard (2026-09-08)
+- **Trend detector**: `services/scraper_trend_detector.py` — drift por loja (baseline 30d vs janela 7d) em success_rate/duration/items_matched; pesos 0.5/0.3/0.2; score >0.5 critical, 0.2–0.5 degraded; hard fail se 3 runs consecutivos falham. Sem Isolation Forest (cross-store fraco com ~25 lojas heterogêneas).
+- **Cooldown**: migration `020_scraper_alert_state.sql` (tabela por loja, cooldown 4h) — **deployada em PROD** (ledger 12/12, schema 369/369, deploy `507 OK, 0 WARN`).
+- **Watch**: `scripts/scraper_trend_watch.py` (standalone, `--dry-run` sem enviar; alerta Telegram → fallback email) + workflow `scraper-anomaly.yml` (`*/30 * * * *`).
+- **Dedup semântico**: `services/review_dedup.py` — RapidFuzz `token_sort_ratio` ≥ 90 (não embeddings e5: são query→passage); integrado em `insert_review_item()` (7d lookback por loja, log `semantic_dedup_skip`).
+- **Dashboard**: `dashboard/pages/anomalias.py` (22ª página) — KPIs, tabela trend_score, bar chart com hlines dos thresholds, drill-down baseline vs current.
+- **Zero-warn deploy + fixes CI**: `_ensure_policy_drops()` no generator (replay idempotente); remoção de REVOKE/ALTER/índice/matview-policy impossíveis (001/009/011/015); normalização `collected_at`→DATE (TZ straddle); fixture e2e renomeada p/ `Review Queue Store` (fora dos prefixos do `cleanup_test_data` de PROD); `scraper_trend_watch` com sys.path bootstrap.

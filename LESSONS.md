@@ -51,35 +51,27 @@ httpx>=0.28,<1.0
 Toda migration SQL nova DEVE ser adicionada ao `generate_consolidated()`.
 
 ### 24. Novo código = novos testes
-
 Módulo novo = `test_<modulo>.py` no mesmo PR. Unitários puros primeiro (mock I/O), integração depois.
 
 ### 25. Push → Acompanha CI até PASS
-
 Análise prévia → resiliência durante → completude no fim. `--no-verify` só em emergência real, com justificativa no commit.
 
 ### 26. Sidebar/navigation NÃO renderizava em headless por TypeError/AttributeError silencioso
-
 Root cause: `get_longitudinal_winners()` sem argumento `days` + `normalized` bool em vez de dict. Fix: `days=90` + `isinstance` guard.
 
 ### 27. Normalized pode ser `true` (bool) no Supabase — NUNCA use `p.get("normalized") or {}`
-
 Commit: `da3e9f6`. SEMPRE proteger com `isinstance(raw, dict)` antes de `.get("price_per_kg")`. 21 ocorrências em 7 arquivos.
 
 ### 28. Schema Sync Validation — pre-req obrigatório antes de push
-
 3 camadas: Contract tests (`test_dashboard_query_shapes.py`) + Schema introspection (pre-push) + Mocks realistas (dump real).
 
 ### 29. Mocks devem refletir realidade — gerar de dump real, não hand-crafted
-
 Fixtures de teste = dump real do Supabase. Se mock precisa de caso edge, adicionar explicitamente ao fixture real, não inventar.
 
 ### 30. Contract tests como primeira linha de defesa — não E2E
-
 Novo query em `dashboard_queries.py` = novo teste em `test_dashboard_query_shapes.py` no MESMO PR. E2E é validação de UX, não de schema.
 
 ### 31. CI leve para iteração E2E — não queimar free tier no pipeline completo
-
 Iteração de bug E2E = branch + `ci-e2e-only.yml` (~4 min). Full CI só no merge final.
 
 ### 32. AGENTS.md sanitization (Sprint 11) — schema, split, agents_tool.py
@@ -773,3 +765,6 @@ Sintoma: CI do merge da Fase A+B (run 34131184972, master) e do PR Fase C (34131
 
 ### 127. Deploy RPC engole erro primário + TZ straddle em collected_at (2026-09-08)
 Sintoma: `deploy_database.py --execute` reportou 55 WARNs `syntax error at or near CREATE/ALL/TABLE` e `test_approve_duplicate_price_no_23505` falhava local (`assert 9.99 == 11.5`) enquanto passava no CI. Causa raiz 1: o loop de deploy engole a exceção do `exec_sql` e só imprime a do fallback `exec_sql_query` (que embrulha DDL em SELECT — sempre syntax error); os erros reais eram 42710 "already exists" (policies), 42P13 (troca de return type em `find_similar_store`), 42883 (REVOKE/ALTER em overloads/assinaturas fantasmas) e 42809 (RLS/policy em MATERIALIZED VIEW — nunca suportado). Causa raiz 2: `date.today()` local vs `datetime.now(UTC)` caem em dias diferentes perto da meia-noite → chaves de conflito distintas → linha duplicada invisível ao check por data. Correção: `_ensure_policy_drops()` no generator (DROP IF EXISTS antes de todo CREATE POLICY) + DROP da função com return mudado + remoção de REVOKE/ALTER/índice/policy impossíveis (001/009/011/015/vigencia) + normalização de `collected_at` p/ DATE em `price_repository.upsert_price` + pin de data no teste. Regressão: deploy `507 OK, 0 WARN`, ledger 12/12, schema 369/369, e2e 8/8. Regra: todo WARN de deploy exige captura do erro PRIMÁRIO (nunca diagnostique pelo fallback); datas de conflito UNIQUE sempre normalizadas p/ DATE na borda do repositório.
+
+### 128. E2E em PROD paralelo a scrape: cleanup_test_data de main.py varría store de teste do CI (2026-09-08)
+Sintoma: CI #706 (34182267472) falhou só no job `integration` com 3 testes `TestApproveReviewItem.*` → `approve_review_item: store 'Test Review Queue Store' não resolvida` (assert {}), enquanto local rodava 8/8 green; padrão flaky recorrente nos merges (A+B e Fase C). Causa raiz: `main.py` de PROD executa `cleanup_test_data()` em TODO scrape e `services/maintenance_service.py` deleta por prefixo de NOME (`test `/`e2e `/`_test_`/`Cleanup Store `) em `stores`/`review_queue`/`prices`. A fixture name `Test Review Queue Store` casava `test %` → se um scrape/heal rodasse em paralelo à suíte, a store sumia no meio e todo approve retornava {} (e `sync_store_fields` não recria — só atualiza linhas existentes). Correção (RPR, `4c9aaed`): renomeado p/ `Review Queue Store` + id `review_queue_e2e_store` (fora de TODOS os prefixos de cleanup) em `tests/integration/test_review_queue_e2e.py`; `scripts/cleanup_review_queue.py` e `recover_review_queue.py` passam a cobrir AMBOS os nomes legados. Regressão: e2e 8/8 local, CI master 10/10 green. Regra: fixture de integração contra Supabase de PROD NUNCA pode começar com `test `/`e2e `/`_test_` — o `cleanup_test_data()` do `main.py` (prod) deleta por prefixo de nome a cada scrape; e nomes de store são a chave de deleção, não o id.
