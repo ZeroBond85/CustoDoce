@@ -20,7 +20,7 @@ print("\n1. Deletando dados de teste...")
 r = (
     client.table("review_queue")
     .delete()
-    .in_("store_name", ["Test Review Queue Store", "E2E Test Store", "Test Store"])
+    .in_("store_name", ["Test Review Queue Store", "Review Queue Store", "E2E Test Store", "Test Store"])
     .execute()
 )
 print(f"   Deletados: {len(r.data or [])} itens de teste")

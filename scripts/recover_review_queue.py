@@ -205,7 +205,7 @@ def main() -> None:
 
     # ---- Passo 2: cleanup / reject ----
     if args.delete_legacy:
-        test_stores = ["Test Review Queue Store", "E2E Test Store", "Test Store", "OCR Test Store"]
+        test_stores = ["Test Review Queue Store", "Review Queue Store", "E2E Test Store", "Test Store", "OCR Test Store"]
         r = client.table("review_queue").delete().in_("store_name", test_stores).execute()
         print(f"\n[delete-legacy] Deletados de lojas de teste: {len(r.data or [])}")
 

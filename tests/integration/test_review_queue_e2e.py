@@ -34,14 +34,18 @@ pytestmark = pytest.mark.skipif(
 def test_store(real_supabase):
     """Cria loja de teste temporária."""
     client = real_supabase
-    store_id = "_test_review_queue_store"
+    # Nome/ID NÃO podem começar com os prefixos do cleanup_test_data()
+    # ("test ", "e2e ", "_test_", "Cleanup Store ") — o main.py de PROD roda
+    # esse cleanup em todo scrape e apagaria a loja no meio da suíte
+    # (flake "store não resolvida" no CI). "Review Queue Store" é seguro.
+    store_id = "review_queue_e2e_store"
     client.table("stores").delete().eq("id", store_id).execute()
     created = (
         client.table("stores")
         .insert(
             {
                 "id": store_id,
-                "name": "Test Review Queue Store",
+                "name": "Review Queue Store",
                 "tier": 99,
             }
         )
@@ -49,8 +53,8 @@ def test_store(real_supabase):
     )
     # Fail fast e alto: sem a loja, todos os approves retornam {} em cascata
     # (store não resolvida) com mensagem críptica. Assert aqui aponta a causa.
-    assert created.data, "Falha ao criar store de teste '_test_review_queue_store'"
-    yield {"id": store_id, "name": "Test Review Queue Store"}
+    assert created.data, "Falha ao criar store de teste 'review_queue_e2e_store'"
+    yield {"id": store_id, "name": "Review Queue Store"}
     client.table("stores").delete().eq("id", store_id).execute()
 
 
@@ -262,8 +266,8 @@ class TestApproveReviewItem:
     """Testa approve_review_item contra banco real."""
 
     TEST_ING_NAME = None  # set in fixture
-    TEST_STORE_ID = "_test_review_queue_store"  # deve bater com a fixture test_store
-    TEST_STORE_NAME = "Test Review Queue Store"
+    TEST_STORE_ID = "review_queue_e2e_store"  # deve bater com a fixture test_store
+    TEST_STORE_NAME = "Review Queue Store"
 
     def _cleanup(self, client, db_conn):
         client.table("review_queue").delete().eq("store_name", self.TEST_STORE_NAME).execute()

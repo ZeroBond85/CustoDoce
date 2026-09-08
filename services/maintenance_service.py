@@ -157,6 +157,10 @@ def cleanup_test_data(client: Any | None = None) -> dict[str, int]:
     # o padrão antigo `"store_name" if "name" in table else "name"` nunca casava
     # (nenhuma tabela contém "name" no NOME da tabela), então prices,
     # review_queue, scraping_logs e flyers NUNCA eram limpos.
+    # ATENÇÃO: o main.py de PROD roda este cleanup em TODO scrape. Lojas de
+    # teste dos e2e NÃO podem ter nomes iniciados por estes prefixos —
+    # "Review Queue Store" (tests/integration/test_review_queue_e2e.py) é o
+    # padrão seguro; "Test ..." seria apagado no meio da suíte (flake CI).
     _TEST_PREFIXES = ("test ", "e2e ", "_test_", "Cleanup Store ")
     _SAFE_TABLES: dict[str, str] = {
         "prices": "store_name",
