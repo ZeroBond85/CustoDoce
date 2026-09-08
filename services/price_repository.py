@@ -34,6 +34,12 @@ def upsert_price(price_entry: PriceEntry) -> dict[str, Any]:
         collected_dt = datetime.fromisoformat(collected_at.replace("Z", "+00:00"))
     except Exception:
         collected_dt = datetime.now(UTC)
+    # Normaliza para DATE (dia do próprio timestamp): a unique key
+    # (ingredient_id, store_id, collected_at) é por DIA. Sem isso, um
+    # collected_at com hora (ex.: review_queue) vs meia-noite criam linhas
+    # duplicadas p/ o mesmo dia — e date.today() local vs now(UTC) podem
+    # cair em dias diferentes perto da meia-noite (flake de TZ).
+    collected_date = collected_dt.date().isoformat()
     valid_until = price_entry.get("valid_until")
     if valid_until is None or not isinstance(valid_until, str):
         valid_until = (collected_dt.date() + timedelta(days=7)).isoformat()
@@ -53,8 +59,8 @@ def upsert_price(price_entry: PriceEntry) -> dict[str, Any]:
         "p_raw_product": price_entry["raw_product"],
         "p_raw_price": float(price_entry["raw_price"]),
         "p_raw_unit": price_entry.get("raw_unit", ""),
-        "p_collected_at": collected_at,
-        "p_valid_from": price_entry.get("valid_from", collected_at),
+        "p_collected_at": collected_date,
+        "p_valid_from": price_entry.get("valid_from", collected_date),
         "p_valid_until": valid_until,
         "p_validity_raw": price_entry.get("validity_raw", ""),
         "p_collected_weekday": _weekday_pt(collected_dt),

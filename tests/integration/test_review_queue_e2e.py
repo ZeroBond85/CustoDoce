@@ -36,13 +36,20 @@ def test_store(real_supabase):
     client = real_supabase
     store_id = "_test_review_queue_store"
     client.table("stores").delete().eq("id", store_id).execute()
-    client.table("stores").insert(
-        {
-            "id": store_id,
-            "name": "Test Review Queue Store",
-            "tier": 99,
-        }
-    ).execute()
+    created = (
+        client.table("stores")
+        .insert(
+            {
+                "id": store_id,
+                "name": "Test Review Queue Store",
+                "tier": 99,
+            }
+        )
+        .execute()
+    )
+    # Fail fast e alto: sem a loja, todos os approves retornam {} em cascata
+    # (store não resolvida) com mensagem críptica. Assert aqui aponta a causa.
+    assert created.data, "Falha ao criar store de teste '_test_review_queue_store'"
     yield {"id": store_id, "name": "Test Review Queue Store"}
     client.table("stores").delete().eq("id", store_id).execute()
 
@@ -451,7 +458,10 @@ class TestApproveReviewItem:
                 .execute()
             )
 
-            # Now create a review item for the SAME ingredient/store/date
+            # Now create a review item for the SAME ingredient/store/date.
+            # collected_at pinado em `today` (DATE): usar now(UTC) aqui e
+            # date.today() acima quebra perto da meia-noite (TZ local vs UTC
+            # caem em dias diferentes → conflito não matched → duplicada).
             review = (
                 client.table("review_queue")
                 .upsert(
@@ -463,7 +473,7 @@ class TestApproveReviewItem:
                         "source": "approve_test",
                         "confidence": 0.60,
                         "status": "pending",
-                        "collected_at": datetime.now(UTC).isoformat(),
+                        "collected_at": today,
                     }
                 )
                 .execute()

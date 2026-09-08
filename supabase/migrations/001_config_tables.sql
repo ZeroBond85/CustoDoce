@@ -62,7 +62,9 @@ create table if not exists stores (
     updated_at timestamptz default now()
 );
 
-create index if not exists idx_stores_active on stores(active);
+-- idx_stores_active removido: a coluna stores.active nunca existiu em PROD
+-- (a tabela veio do seed sem ela; o padrão do código é is_active) — o
+-- CREATE INDEX falhava com 42703 em todo deploy. Demais índices mantidos.
 create index if not exists idx_stores_tier on stores(tier);
 create index if not exists idx_stores_type on stores(type);
 create index if not exists idx_stores_scraper on stores(scraper);

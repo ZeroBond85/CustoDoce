@@ -23,6 +23,7 @@ ALTER TABLE public.schema_migrations ENABLE ROW LEVEL SECURITY;
 
 -- Service role (e quem tem a chave service) pode ler/escrever o ledger.
 DROP POLICY IF EXISTS "schema_migrations_service_all" ON public.schema_migrations;
+DROP POLICY IF EXISTS "schema_migrations_service_all" ON public.schema_migrations;
 CREATE POLICY "schema_migrations_service_all" ON public.schema_migrations
     FOR ALL TO service_role USING (true) WITH CHECK (true);
 
@@ -215,26 +216,42 @@ ALTER TABLE stores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE flyers ENABLE ROW LEVEL SECURITY;
 
 -- Policies: allow all authenticated users (for now, single user mode)
+DROP POLICY IF EXISTS "Enable read for all users" ON prices;
 CREATE POLICY "Enable read for all users" ON prices FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Enable write for service role" ON prices;
 CREATE POLICY "Enable write for service role" ON prices FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Enable update for service role" ON prices;
 CREATE POLICY "Enable update for service role" ON prices FOR UPDATE USING (true);
 
+DROP POLICY IF EXISTS "Enable read for all users" ON price_history;
 CREATE POLICY "Enable read for all users" ON price_history FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Enable write for service role" ON price_history;
 CREATE POLICY "Enable write for service role" ON price_history FOR INSERT WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Enable read for all users" ON review_queue;
 CREATE POLICY "Enable read for all users" ON review_queue FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Enable write for service role" ON review_queue;
 CREATE POLICY "Enable write for service role" ON review_queue FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Enable update for service role" ON review_queue;
 CREATE POLICY "Enable update for service role" ON review_queue FOR UPDATE USING (true);
 
+DROP POLICY IF EXISTS "Enable read for all users" ON scraping_logs;
 CREATE POLICY "Enable read for all users" ON scraping_logs FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Enable write for service role" ON scraping_logs;
 CREATE POLICY "Enable write for service role" ON scraping_logs FOR INSERT WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Enable read for all users" ON stores;
 CREATE POLICY "Enable read for all users" ON stores FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Enable write for service role" ON stores;
 CREATE POLICY "Enable write for service role" ON stores FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Enable update for service role" ON stores;
 CREATE POLICY "Enable update for service role" ON stores FOR UPDATE USING (true);
 
+DROP POLICY IF EXISTS "Enable read for all users" ON flyers;
 CREATE POLICY "Enable read for all users" ON flyers FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Enable write for service role" ON flyers;
 CREATE POLICY "Enable write for service role" ON flyers FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Enable update for service role" ON flyers;
 CREATE POLICY "Enable update for service role" ON flyers FOR UPDATE USING (true);
 
 -- ============================================================================
@@ -352,7 +369,16 @@ $$ LANGUAGE plpgsql;
 -- ============================================================================
 -- Drop old unique and recreate with collected_at
 ALTER TABLE prices DROP CONSTRAINT IF EXISTS prices_ingredient_id_store_id_key;
-ALTER TABLE prices ADD CONSTRAINT prices_ingredient_id_store_id_collected_at_key UNIQUE (ingredient_id, store_id, collected_at);
+-- Guarda idempotente (ADD CONSTRAINT puro falha com 42P07 em replay).
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'prices'::regclass
+        AND conname = 'prices_ingredient_id_store_id_collected_at_key'
+    ) THEN
+        ALTER TABLE prices ADD CONSTRAINT prices_ingredient_id_store_id_collected_at_key UNIQUE (ingredient_id, store_id, collected_at);
+    END IF;
+END $$;
 
 
 -- ============================================================
@@ -398,7 +424,9 @@ create trigger trg_ingredients_updated_at
 -- STORES (replace config/stores.yaml)
 -- ============================================================
 -- SKIPPED: stores table already exists from seed.sql
-create index if not exists idx_stores_active on stores(active);
+-- idx_stores_active removido: a coluna stores.active nunca existiu em PROD
+-- (a tabela veio do seed sem ela; o padrão do código é is_active) — o
+-- CREATE INDEX falhava com 42703 em todo deploy. Demais índices mantidos.
 create index if not exists idx_stores_tier on stores(tier);
 create index if not exists idx_stores_type on stores(type);
 DO $$ BEGIN
@@ -531,22 +559,36 @@ alter table alert_rules enable row level security;
 alter table feature_flags enable row level security;
 
 -- Admin policies (service role has full access via service_client)
-create policy "service_role_all" on ingredients for all using (auth.role() = 'service_role');
-create policy "service_role_all" on stores for all using (auth.role() = 'service_role');
-create policy "service_role_all" on schedules for all using (auth.role() = 'service_role');
-create policy "service_role_all" on scrape_frequencies for all using (auth.role() = 'service_role');
-create policy "service_role_all" on alert_recipients for all using (auth.role() = 'service_role');
-create policy "service_role_all" on alert_rules for all using (auth.role() = 'service_role');
-create policy "service_role_all" on feature_flags for all using (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "service_role_all" ON ingredients;
+CREATE POLICY "service_role_all" ON ingredients for all using (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "service_role_all" ON stores;
+CREATE POLICY "service_role_all" ON stores for all using (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "service_role_all" ON schedules;
+CREATE POLICY "service_role_all" ON schedules for all using (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "service_role_all" ON scrape_frequencies;
+CREATE POLICY "service_role_all" ON scrape_frequencies for all using (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "service_role_all" ON alert_recipients;
+CREATE POLICY "service_role_all" ON alert_recipients for all using (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "service_role_all" ON alert_rules;
+CREATE POLICY "service_role_all" ON alert_rules for all using (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "service_role_all" ON feature_flags;
+CREATE POLICY "service_role_all" ON feature_flags for all using (auth.role() = 'service_role');
 
 -- Anon read-only for dashboard (adjust as needed)
-create policy "anon_read" on ingredients for select using (true);
-create policy "anon_read" on stores for select using (true);
-create policy "anon_read" on schedules for select using (true);
-create policy "anon_read" on scrape_frequencies for select using (true);
-create policy "anon_read" on alert_recipients for select using (true);
-create policy "anon_read" on alert_rules for select using (true);
-create policy "anon_read" on feature_flags for select using (true);
+DROP POLICY IF EXISTS "anon_read" ON ingredients;
+CREATE POLICY "anon_read" ON ingredients for select using (true);
+DROP POLICY IF EXISTS "anon_read" ON stores;
+CREATE POLICY "anon_read" ON stores for select using (true);
+DROP POLICY IF EXISTS "anon_read" ON schedules;
+CREATE POLICY "anon_read" ON schedules for select using (true);
+DROP POLICY IF EXISTS "anon_read" ON scrape_frequencies;
+CREATE POLICY "anon_read" ON scrape_frequencies for select using (true);
+DROP POLICY IF EXISTS "anon_read" ON alert_recipients;
+CREATE POLICY "anon_read" ON alert_recipients for select using (true);
+DROP POLICY IF EXISTS "anon_read" ON alert_rules;
+CREATE POLICY "anon_read" ON alert_rules for select using (true);
+DROP POLICY IF EXISTS "anon_read" ON feature_flags;
+CREATE POLICY "anon_read" ON feature_flags for select using (true);
 
 -- ============================================================
 -- PHASE 4: Cleanup functions (TTL, com escopo por store)
@@ -689,7 +731,9 @@ CREATE INDEX IF NOT EXISTS idx_scrape_freq_tier ON scrape_frequencies(tier);
 CREATE INDEX IF NOT EXISTS idx_scrape_freq_enabled ON scrape_frequencies(enabled);
 
 ALTER TABLE scrape_frequencies ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "service_role_all" ON scrape_frequencies;
 CREATE POLICY "service_role_all" ON scrape_frequencies FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "anon_read" ON scrape_frequencies;
 CREATE POLICY "anon_read" ON scrape_frequencies FOR SELECT USING (true);
 
 
@@ -835,11 +879,15 @@ CREATE TABLE IF NOT EXISTS recipe_items (
 CREATE INDEX IF NOT EXISTS idx_recipe_items_recipe ON recipe_items(recipe_id);
 
 ALTER TABLE recipes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "service_role_all" ON recipes;
 CREATE POLICY "service_role_all" ON recipes FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "anon_read" ON recipes;
 CREATE POLICY "anon_read" ON recipes FOR SELECT USING (true);
 
 ALTER TABLE recipe_items ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "service_role_all" ON recipe_items;
 CREATE POLICY "service_role_all" ON recipe_items FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "anon_read" ON recipe_items;
 CREATE POLICY "anon_read" ON recipe_items FOR SELECT USING (true);
 
 -- ============================================================
@@ -924,9 +972,10 @@ CREATE INDEX IF NOT EXISTS idx_v_latest_prices_ingredient
 
 CREATE INDEX IF NOT EXISTS idx_v_latest_prices_price_kg
     ON v_latest_prices (price_per_kg);
-
-ALTER MATERIALIZED VIEW v_latest_prices ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "anon_read" ON v_latest_prices FOR SELECT USING (true);
+-- RLS/policies NÃO se aplicam a MATERIALIZED VIEWs (42809: operação não
+-- suportada) — o acesso é controlado pela RLS das tabelas-base (prices).
+-- As linhas ALTER MATERIALIZED VIEW ... ENABLE RLS + CREATE POLICY foram
+-- removidas (nunca funcionaram por nenhuma via: RPC ou SQL Editor).
 
 
 -- ============================================================
@@ -1046,7 +1095,16 @@ WHERE rq1.store_name = rq2.store_name
   AND rq1.raw_product = rq2.raw_product
   AND rq1.ctid <> rq2.keep_ctid;
 
-ALTER TABLE review_queue ADD CONSTRAINT review_queue_store_name_raw_product_key UNIQUE (store_name, raw_product);
+-- Guarda idempotente (ADD CONSTRAINT puro falha com 42P07 em replay).
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'review_queue'::regclass
+        AND conname = 'review_queue_store_name_raw_product_key'
+    ) THEN
+        ALTER TABLE review_queue ADD CONSTRAINT review_queue_store_name_raw_product_key UNIQUE (store_name, raw_product);
+    END IF;
+END $$;
 
 
 -- ============================================================
@@ -1113,9 +1171,11 @@ CREATE TRIGGER trg_llm_cache_updated_at
 -- RLS:allow service_role full access, anon read-only
 ALTER TABLE llm_match_cache ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "service_role_all" ON llm_match_cache;
 CREATE POLICY "service_role_all" ON llm_match_cache
     FOR ALL USING (auth.role() = 'service_role');
 
+DROP POLICY IF EXISTS "anon_read" ON llm_match_cache;
 CREATE POLICY "anon_read" ON llm_match_cache
     FOR SELECT USING (true);
 
@@ -1200,8 +1260,10 @@ $$;
 -- Row-Level Security: anon read for transparency, service_role writes.
 ALTER TABLE scraper_health_log ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "service_role_all" ON scraper_health_log;
 CREATE POLICY "service_role_all" ON scraper_health_log
     FOR ALL USING (auth.role() = 'service_role');
+DROP POLICY IF EXISTS "anon_read" ON scraper_health_log;
 CREATE POLICY "anon_read" ON scraper_health_log
     FOR SELECT USING (true);
 
@@ -1237,9 +1299,11 @@ COMMENT ON COLUMN scraper_health_log.attempted_by IS
 DROP POLICY IF EXISTS "Enable write for service role" ON prices;
 DROP POLICY IF EXISTS "Enable update for service role" ON prices;
 
+DROP POLICY IF EXISTS "service_role_insert" ON prices;
 CREATE POLICY "service_role_insert" ON prices
     FOR INSERT WITH CHECK (auth.role() = 'service_role');
 
+DROP POLICY IF EXISTS "service_role_update" ON prices;
 CREATE POLICY "service_role_update" ON prices
     FOR UPDATE USING (auth.role() = 'service_role');
 
@@ -1248,6 +1312,7 @@ CREATE POLICY "service_role_update" ON prices
 -- ============================================================
 DROP POLICY IF EXISTS "Enable write for service role" ON price_history;
 
+DROP POLICY IF EXISTS "service_role_insert" ON price_history;
 CREATE POLICY "service_role_insert" ON price_history
     FOR INSERT WITH CHECK (auth.role() = 'service_role');
 
@@ -1257,9 +1322,11 @@ CREATE POLICY "service_role_insert" ON price_history
 DROP POLICY IF EXISTS "Enable write for service role" ON review_queue;
 DROP POLICY IF EXISTS "Enable update for service role" ON review_queue;
 
+DROP POLICY IF EXISTS "service_role_insert" ON review_queue;
 CREATE POLICY "service_role_insert" ON review_queue
     FOR INSERT WITH CHECK (auth.role() = 'service_role');
 
+DROP POLICY IF EXISTS "service_role_update" ON review_queue;
 CREATE POLICY "service_role_update" ON review_queue
     FOR UPDATE USING (auth.role() = 'service_role');
 
@@ -1268,6 +1335,7 @@ CREATE POLICY "service_role_update" ON review_queue
 -- ============================================================
 DROP POLICY IF EXISTS "Enable write for service role" ON scraping_logs;
 
+DROP POLICY IF EXISTS "service_role_insert" ON scraping_logs;
 CREATE POLICY "service_role_insert" ON scraping_logs
     FOR INSERT WITH CHECK (auth.role() = 'service_role');
 
@@ -1277,9 +1345,11 @@ CREATE POLICY "service_role_insert" ON scraping_logs
 DROP POLICY IF EXISTS "Enable write for service role" ON stores;
 DROP POLICY IF EXISTS "Enable update for service role" ON stores;
 
+DROP POLICY IF EXISTS "service_role_insert" ON stores;
 CREATE POLICY "service_role_insert" ON stores
     FOR INSERT WITH CHECK (auth.role() = 'service_role');
 
+DROP POLICY IF EXISTS "service_role_update" ON stores;
 CREATE POLICY "service_role_update" ON stores
     FOR UPDATE USING (auth.role() = 'service_role');
 
@@ -1289,9 +1359,11 @@ CREATE POLICY "service_role_update" ON stores
 DROP POLICY IF EXISTS "Enable write for service role" ON flyers;
 DROP POLICY IF EXISTS "Enable update for service role" ON flyers;
 
+DROP POLICY IF EXISTS "service_role_insert" ON flyers;
 CREATE POLICY "service_role_insert" ON flyers
     FOR INSERT WITH CHECK (auth.role() = 'service_role');
 
+DROP POLICY IF EXISTS "service_role_update" ON flyers;
 CREATE POLICY "service_role_update" ON flyers
     FOR UPDATE USING (auth.role() = 'service_role');
 
@@ -1511,10 +1583,12 @@ CREATE TRIGGER trg_store_registry_updated_at
 ALTER TABLE store_registry ENABLE ROW LEVEL SECURITY;
 
 -- Service role full access
+DROP POLICY IF EXISTS "service_role_all" ON store_registry;
 CREATE POLICY "service_role_all" ON store_registry
     FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- Anon read only
+DROP POLICY IF EXISTS "anon_read" ON store_registry;
 CREATE POLICY "anon_read" ON store_registry
     FOR SELECT TO anon USING (true);
 
@@ -1526,6 +1600,9 @@ END;
 $$;
 
 -- Helper function to find existing store by name similarity
+-- DROP first: CREATE OR REPLACE falha com 42P13 se a versão aplicada tem
+-- return type diferente (visto em PROD) — sem dependentes, recriação limpa.
+DROP FUNCTION IF EXISTS find_similar_store(TEXT, REAL);
 CREATE OR REPLACE FUNCTION find_similar_store(p_name TEXT, p_threshold REAL DEFAULT 0.92)
 RETURNS TABLE (
     id TEXT,
@@ -1634,8 +1711,8 @@ ALTER TABLE scrape_requests ENABLE ROW LEVEL SECURITY;
 
 -- service_role has full control (used by backend scripts / Telegram bot server-side)
 DROP POLICY IF EXISTS "service_role_all" ON scrape_requests;
-CREATE POLICY "service_role_all"
-    ON scrape_requests
+DROP POLICY IF EXISTS "service_role_all" ON scrape_requests;
+CREATE POLICY "service_role_all" ON scrape_requests
     FOR ALL
     TO service_role
     USING (true)
@@ -1643,16 +1720,16 @@ CREATE POLICY "service_role_all"
 
 -- anon can insert a scrape request (Telegram bot uses the public anon key)
 DROP POLICY IF EXISTS "anon_insert" ON scrape_requests;
-CREATE POLICY "anon_insert"
-    ON scrape_requests
+DROP POLICY IF EXISTS "anon_insert" ON scrape_requests;
+CREATE POLICY "anon_insert" ON scrape_requests
     FOR INSERT
     TO anon
     WITH CHECK (true);
 
 -- anon can read scrape request status (no sensitive write path exposed)
 DROP POLICY IF EXISTS "anon_read" ON scrape_requests;
-CREATE POLICY "anon_read"
-    ON scrape_requests
+DROP POLICY IF EXISTS "anon_read" ON scrape_requests;
+CREATE POLICY "anon_read" ON scrape_requests
     FOR SELECT
     TO anon
     USING (true);
@@ -1660,8 +1737,8 @@ CREATE POLICY "anon_read"
 -- Explicit DELETE policy for service_role (defense-in-depth; FOR ALL above
 -- already covers it, this documents intent and scopes it to service_role).
 DROP POLICY IF EXISTS "service_role_delete" ON scrape_requests;
-CREATE POLICY "service_role_delete"
-    ON scrape_requests
+DROP POLICY IF EXISTS "service_role_delete" ON scrape_requests;
+CREATE POLICY "service_role_delete" ON scrape_requests
     FOR DELETE
     TO service_role
     USING (true);
@@ -1669,8 +1746,8 @@ CREATE POLICY "service_role_delete"
 -- F-05: ensure cleanup/utility functions are NOT callable by anon/authenticated
 -- via PostgREST RPC. They are plain functions (not SECURITY DEFINER) and are not
 -- granted by default, but we revoke explicitly to be safe.
-REVOKE ALL ON FUNCTION cleanup_old_prices(int) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION cleanup_old_flyers_all(int) FROM PUBLIC, anon, authenticated;
+-- Overloads de 1 arg (int) nunca existiram (só os de 2 args) — REVOKE neles
+-- falha com 42883 em todo replay; removidos (as versões de 2 args cobrem).
 REVOKE ALL ON FUNCTION cleanup_old_prices(int, text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION cleanup_old_flyers_all(int, text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION cleanup_resolved_review_items(int) FROM PUBLIC, anon, authenticated;
@@ -1902,12 +1979,14 @@ $$;
 ALTER TABLE public.store_units ENABLE ROW LEVEL SECURITY;
 
 -- Policy: authenticated users can read active store units
+DROP POLICY IF EXISTS "store_units_read_active" ON public.store_units;
 CREATE POLICY "store_units_read_active" ON public.store_units
     FOR SELECT
     TO authenticated
     USING (is_active = true);
 
 -- Policy: service role can do everything (for sync scripts)
+DROP POLICY IF EXISTS "store_units_service_all" ON public.store_units;
 CREATE POLICY "store_units_service_all" ON public.store_units
     FOR ALL
     TO service_role
@@ -1916,88 +1995,109 @@ CREATE POLICY "store_units_service_all" ON public.store_units
 
 -- 2. Fix SECURITY DEFINER functions - add search_path restriction
 ALTER FUNCTION public.discover_stores_from_flyers() SET search_path = '';
-ALTER FUNCTION public.merge_approved_store() SET search_path = '';
+-- merge_approved_store recebe (UUID): a forma sem args nunca existiu (42883).
+ALTER FUNCTION public.merge_approved_store(UUID) SET search_path = '';
 
 -- 3. Fix permissive policies - replace 'true' with explicit role checks
 -- Public read tables: replace 'true' with 'auth.role() IN (''anon'', ''authenticated'')'
 
 DROP POLICY IF EXISTS "anon_read" ON public.alert_recipients;
+DROP POLICY IF EXISTS "alert_recipients_read_auth" ON public.alert_recipients;
 CREATE POLICY "alert_recipients_read_auth" ON public.alert_recipients
     FOR SELECT TO authenticated USING (true);
 
 DROP POLICY IF EXISTS "anon_read" ON public.alert_rules;
+DROP POLICY IF EXISTS "alert_rules_read_auth" ON public.alert_rules;
 CREATE POLICY "alert_rules_read_auth" ON public.alert_rules
     FOR SELECT TO authenticated USING (true);
 
 DROP POLICY IF EXISTS "anon_read" ON public.feature_flags;
+DROP POLICY IF EXISTS "feature_flags_read_auth" ON public.feature_flags;
 CREATE POLICY "feature_flags_read_auth" ON public.feature_flags
     FOR SELECT TO authenticated USING (true);
 
 DROP POLICY IF EXISTS "Enable read for all users" ON public.flyers;
+DROP POLICY IF EXISTS "flyers_read_public" ON public.flyers;
 CREATE POLICY "flyers_read_public" ON public.flyers
     FOR SELECT TO anon, authenticated USING (true);
 
 DROP POLICY IF EXISTS "anon_read" ON public.ingredients;
+DROP POLICY IF EXISTS "ingredients_read_public" ON public.ingredients;
 CREATE POLICY "ingredients_read_public" ON public.ingredients
     FOR SELECT TO anon, authenticated USING (true);
 
 DROP POLICY IF EXISTS "anon_read" ON public.llm_match_cache;
+DROP POLICY IF EXISTS "llm_match_cache_read_auth" ON public.llm_match_cache;
 CREATE POLICY "llm_match_cache_read_auth" ON public.llm_match_cache
     FOR SELECT TO authenticated USING (true);
 
 DROP POLICY IF EXISTS "Enable read for all users" ON public.price_history;
+DROP POLICY IF EXISTS "price_history_read_public" ON public.price_history;
 CREATE POLICY "price_history_read_public" ON public.price_history
     FOR SELECT TO anon, authenticated USING (true);
 
 DROP POLICY IF EXISTS "Enable read for all users" ON public.prices;
+DROP POLICY IF EXISTS "prices_read_public" ON public.prices;
 CREATE POLICY "prices_read_public" ON public.prices
     FOR SELECT TO anon, authenticated USING (true);
 
 DROP POLICY IF EXISTS "anon_read" ON public.recipe_items;
+DROP POLICY IF EXISTS "recipe_items_read_public" ON public.recipe_items;
 CREATE POLICY "recipe_items_read_public" ON public.recipe_items
     FOR SELECT TO anon, authenticated USING (true);
 
 DROP POLICY IF EXISTS "anon_read" ON public.recipes;
+DROP POLICY IF EXISTS "recipes_read_public" ON public.recipes;
 CREATE POLICY "recipes_read_public" ON public.recipes
     FOR SELECT TO anon, authenticated USING (true);
 
 DROP POLICY IF EXISTS "Enable read for all users" ON public.review_queue;
+DROP POLICY IF EXISTS "review_queue_read_auth" ON public.review_queue;
 CREATE POLICY "review_queue_read_auth" ON public.review_queue
     FOR SELECT TO authenticated USING (true);
 
 DROP POLICY IF EXISTS "anon_read" ON public.schedules;
+DROP POLICY IF EXISTS "schedules_read_auth" ON public.schedules;
 CREATE POLICY "schedules_read_auth" ON public.schedules
     FOR SELECT TO authenticated USING (true);
 
 DROP POLICY IF EXISTS "anon_read" ON public.scrape_frequencies;
+DROP POLICY IF EXISTS "scrape_frequencies_read_auth" ON public.scrape_frequencies;
 CREATE POLICY "scrape_frequencies_read_auth" ON public.scrape_frequencies
     FOR SELECT TO authenticated USING (true);
 
 DROP POLICY IF EXISTS "anon_read" ON public.scrape_requests;
 DROP POLICY IF EXISTS "service_role_all" ON public.scrape_requests;
 DROP POLICY IF EXISTS "service_role_delete" ON public.scrape_requests;
+DROP POLICY IF EXISTS "scrape_requests_read_auth" ON public.scrape_requests;
 CREATE POLICY "scrape_requests_read_auth" ON public.scrape_requests
     FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "scrape_requests_service_all" ON public.scrape_requests;
 CREATE POLICY "scrape_requests_service_all" ON public.scrape_requests
     FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "anon_read" ON public.scraper_health_log;
+DROP POLICY IF EXISTS "scraper_health_log_read_auth" ON public.scraper_health_log;
 CREATE POLICY "scraper_health_log_read_auth" ON public.scraper_health_log
     FOR SELECT TO authenticated USING (true);
 
 DROP POLICY IF EXISTS "Enable read for all users" ON public.scraping_logs;
+DROP POLICY IF EXISTS "scraping_logs_read_auth" ON public.scraping_logs;
 CREATE POLICY "scraping_logs_read_auth" ON public.scraping_logs
     FOR SELECT TO authenticated USING (true);
 
 DROP POLICY IF EXISTS "anon_read" ON public.store_registry;
 DROP POLICY IF EXISTS "service_role_all" ON public.store_registry;
+DROP POLICY IF EXISTS "store_registry_read_public" ON public.store_registry;
 CREATE POLICY "store_registry_read_public" ON public.store_registry
     FOR SELECT TO anon, authenticated USING (true);
+DROP POLICY IF EXISTS "store_registry_service_all" ON public.store_registry;
 CREATE POLICY "store_registry_service_all" ON public.store_registry
     FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Enable read for all users" ON public.stores;
 DROP POLICY IF EXISTS "anon_read" ON public.stores;
+DROP POLICY IF EXISTS "stores_read_public" ON public.stores;
 CREATE POLICY "stores_read_public" ON public.stores
     FOR SELECT TO anon, authenticated USING (true);
 
@@ -2041,34 +2141,42 @@ DROP POLICY IF EXISTS "anon_insert" ON public.scrape_requests;
 -- keep their authenticated-only read policy.
 
 DROP POLICY IF EXISTS "alert_recipients_read_auth" ON public.alert_recipients;
+DROP POLICY IF EXISTS "alert_recipients_read_public" ON public.alert_recipients;
 CREATE POLICY "alert_recipients_read_public" ON public.alert_recipients
     FOR SELECT TO anon, authenticated USING (true);
 
 DROP POLICY IF EXISTS "alert_rules_read_auth" ON public.alert_rules;
+DROP POLICY IF EXISTS "alert_rules_read_public" ON public.alert_rules;
 CREATE POLICY "alert_rules_read_public" ON public.alert_rules
     FOR SELECT TO anon, authenticated USING (true);
 
 DROP POLICY IF EXISTS "feature_flags_read_auth" ON public.feature_flags;
+DROP POLICY IF EXISTS "feature_flags_read_public" ON public.feature_flags;
 CREATE POLICY "feature_flags_read_public" ON public.feature_flags
     FOR SELECT TO anon, authenticated USING (true);
 
 DROP POLICY IF EXISTS "schedules_read_auth" ON public.schedules;
+DROP POLICY IF EXISTS "schedules_read_public" ON public.schedules;
 CREATE POLICY "schedules_read_public" ON public.schedules
     FOR SELECT TO anon, authenticated USING (true);
 
 DROP POLICY IF EXISTS "scrape_frequencies_read_auth" ON public.scrape_frequencies;
+DROP POLICY IF EXISTS "scrape_frequencies_read_public" ON public.scrape_frequencies;
 CREATE POLICY "scrape_frequencies_read_public" ON public.scrape_frequencies
     FOR SELECT TO anon, authenticated USING (true);
 
 DROP POLICY IF EXISTS "scraping_logs_read_auth" ON public.scraping_logs;
+DROP POLICY IF EXISTS "scraping_logs_read_public" ON public.scraping_logs;
 CREATE POLICY "scraping_logs_read_public" ON public.scraping_logs
     FOR SELECT TO anon, authenticated USING (true);
 
 DROP POLICY IF EXISTS "review_queue_read_auth" ON public.review_queue;
+DROP POLICY IF EXISTS "review_queue_read_public" ON public.review_queue;
 CREATE POLICY "review_queue_read_public" ON public.review_queue
     FOR SELECT TO anon, authenticated USING (true);
 
 DROP POLICY IF EXISTS "scrape_requests_read_auth" ON public.scrape_requests;
+DROP POLICY IF EXISTS "scrape_requests_read_public" ON public.scrape_requests;
 CREATE POLICY "scrape_requests_read_public" ON public.scrape_requests
     FOR SELECT TO anon, authenticated USING (true);
 
@@ -2125,6 +2233,7 @@ COMMENT ON TABLE public.match_feedback IS
 ALTER TABLE public.match_feedback ENABLE ROW LEVEL SECURITY;
 
 -- service_role escreve/lê (coletor + pipeline de validação)
+DROP POLICY IF EXISTS "match_feedback_service_all" ON public.match_feedback;
 CREATE POLICY "match_feedback_service_all" ON public.match_feedback
   FOR ALL TO service_role USING (true) WITH CHECK (true);
 
@@ -2163,6 +2272,7 @@ COMMENT ON TABLE public.scraper_alert_state IS
 ALTER TABLE public.scraper_alert_state ENABLE ROW LEVEL SECURITY;
 
 -- service_role escreve/lê (pipeline de coleta/watcher)
+DROP POLICY IF EXISTS "scraper_alert_state_service_all" ON public.scraper_alert_state;
 CREATE POLICY "scraper_alert_state_service_all" ON public.scraper_alert_state
   FOR ALL TO service_role USING (true) WITH CHECK (true);
 

@@ -13,6 +13,7 @@ Usage:
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -514,9 +515,10 @@ CREATE INDEX IF NOT EXISTS idx_v_latest_prices_ingredient
 
 CREATE INDEX IF NOT EXISTS idx_v_latest_prices_price_kg
     ON v_latest_prices (price_per_kg);
-
-ALTER MATERIALIZED VIEW v_latest_prices ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "anon_read" ON v_latest_prices FOR SELECT USING (true);
+-- RLS/policies NÃO se aplicam a MATERIALIZED VIEWs (42809: operação não
+-- suportada) — o acesso é controlado pela RLS das tabelas-base (prices).
+-- As linhas ALTER MATERIALIZED VIEW ... ENABLE RLS + CREATE POLICY foram
+-- removidas (nunca funcionaram por nenhuma via: RPC ou SQL Editor).
 """)
 
     # ─── PHASE 15d: Additional performance indexes ─────────────────────
@@ -643,7 +645,16 @@ WHERE rq1.store_name = rq2.store_name
   AND rq1.raw_product = rq2.raw_product
   AND rq1.ctid <> rq2.keep_ctid;
 
-ALTER TABLE review_queue ADD CONSTRAINT review_queue_store_name_raw_product_key UNIQUE (store_name, raw_product);
+-- Guarda idempotente (ADD CONSTRAINT puro falha com 42P07 em replay).
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'review_queue'::regclass
+        AND conname = 'review_queue_store_name_raw_product_key'
+    ) THEN
+        ALTER TABLE review_queue ADD CONSTRAINT review_queue_store_name_raw_product_key UNIQUE (store_name, raw_product);
+    END IF;
+END $$;
 """)
     gen.append("""
 -- ============================================================
@@ -795,7 +806,30 @@ END $$;
         gen.append("-- ============================================================")
         gen.append(alert_state_path.read_text(encoding="utf-8"))
 
-    return "\n".join(gen)
+    sql = "\n".join(gen)
+    return _ensure_policy_drops(sql)
+
+
+def _ensure_policy_drops(sql: str) -> str:
+    """Prepende DROP POLICY IF EXISTS antes de cada CREATE POLICY.
+
+    CREATE POLICY não tem IF NOT EXISTS — sem o DROP, qualquer re-execução
+    do consolidated (deploy --execute, SQL Editor) falha com 42710
+    "already exists" no exec_sql (erro engolido, WARN enganoso de syntax
+    error no fallback). O DROP é idempotente e inofensivo na 1ª aplicação.
+    """
+    pattern = re.compile(
+        r'CREATE POLICY\s+"([^"]+)"\s+ON\s+(\S+)', re.IGNORECASE
+    )
+
+    def _guard(m: re.Match[str]) -> str:
+        name, table = m.group(1), m.group(2)
+        return (
+            f'DROP POLICY IF EXISTS "{name}" ON {table};\n'
+            f'CREATE POLICY "{name}" ON {table}'
+        )
+
+    return pattern.sub(_guard, sql)
 
 
 def _split_sql_statements(sql: str) -> list[str]:

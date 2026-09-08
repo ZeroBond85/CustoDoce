@@ -67,6 +67,9 @@ END;
 $$;
 
 -- Helper function to find existing store by name similarity
+-- DROP first: CREATE OR REPLACE falha com 42P13 se a versão aplicada tem
+-- return type diferente (visto em PROD) — sem dependentes, recriação limpa.
+DROP FUNCTION IF EXISTS find_similar_store(TEXT, REAL);
 CREATE OR REPLACE FUNCTION find_similar_store(p_name TEXT, p_threshold REAL DEFAULT 0.92)
 RETURNS TABLE (
     id TEXT,

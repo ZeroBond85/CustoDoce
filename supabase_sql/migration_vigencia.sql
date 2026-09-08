@@ -69,4 +69,13 @@ $$ LANGUAGE plpgsql;
 -- ============================================================================
 -- Drop old unique and recreate with collected_at
 ALTER TABLE prices DROP CONSTRAINT IF EXISTS prices_ingredient_id_store_id_key;
-ALTER TABLE prices ADD CONSTRAINT prices_ingredient_id_store_id_collected_at_key UNIQUE (ingredient_id, store_id, collected_at);
+-- Guarda idempotente (ADD CONSTRAINT puro falha com 42P07 em replay).
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'prices'::regclass
+        AND conname = 'prices_ingredient_id_store_id_collected_at_key'
+    ) THEN
+        ALTER TABLE prices ADD CONSTRAINT prices_ingredient_id_store_id_collected_at_key UNIQUE (ingredient_id, store_id, collected_at);
+    END IF;
+END $$;

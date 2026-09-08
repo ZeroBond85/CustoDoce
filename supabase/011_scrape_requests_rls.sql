@@ -43,8 +43,8 @@ CREATE POLICY "service_role_delete"
 -- F-05: ensure cleanup/utility functions are NOT callable by anon/authenticated
 -- via PostgREST RPC. They are plain functions (not SECURITY DEFINER) and are not
 -- granted by default, but we revoke explicitly to be safe.
-REVOKE ALL ON FUNCTION cleanup_old_prices(int) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION cleanup_old_flyers_all(int) FROM PUBLIC, anon, authenticated;
+-- Overloads de 1 arg (int) nunca existiram (só os de 2 args) — REVOKE neles
+-- falha com 42883 em todo replay; removidos (as versões de 2 args cobrem).
 REVOKE ALL ON FUNCTION cleanup_old_prices(int, text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION cleanup_old_flyers_all(int, text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION cleanup_resolved_review_items(int) FROM PUBLIC, anon, authenticated;

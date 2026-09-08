@@ -35,7 +35,6 @@ Solução: extrair para arquivo `.py` separado.
 Playwright (browser real) é obrigatório. CI (push/PR) usa localhost:8501. Schedule mensal testa cloud real.
 
 ### 20. `page.wait_for_timeout()` é frágil para cold start E2E — use polling
-
 Sempre usar polling (45s) para elementos que dependem de renderização assíncrona.
 
 ### 21. `httpx>=0.28` pode resolver para 1.x — sempre pin upper bound
@@ -46,11 +45,9 @@ httpx>=0.28,<1.0
 ```
 
 ### 22. "Pré-existente" não é desculpa — corrija ou prove que é bloqueado
-
 "Pré-existente" exige prova. Se é 1-5 linhas e não quebra nada, corrija agora.
 
 ### 23. Migration SQL nova precisa ser incluída em `deploy_database.py`
-
 Toda migration SQL nova DEVE ser adicionada ao `generate_consolidated()`.
 
 ### 24. Novo código = novos testes
@@ -773,3 +770,6 @@ Sintoma 1: llama-3.3-70b-versatile removido da API Groq -> 404 + circuit breaker
 
 ### 126. Teste de fallback da review_queue usava threshold legado 0.70 -> quebrou após calibração 0.78 (2026-09-07)
 Sintoma: CI do merge da Fase A+B (run 34131184972, master) e do PR Fase C (34131474469) falhou no job `integration` com `test_review_queue_fallback - AssertionError: Expected 'insert_review_item' to have been called once. Called 0 times.` (e e2e `test_approve_*` "returned empty" em CI mas green local). Causa raiz: o teste ainda mockava `match_ingredient -> (None, 75.0, "none")` — 0.75 < review_threshold 0.78 calibrado na Sprint 19, então `_queue_for_review` (collector.py:423) descartava o item ANTES de chamar `insert_review_item`. Era uma falha pré-existente na branch A+B (CI 34049418430 já estava vermelha) que só vazou para master no merge. O `approve_review_item` não foi tocado (e2e = flake de Supabase real). Correção (RPR): teste agora usa score 79.0 (banda [0.78, 0.82)) → verde local (1 passed). Regra: testes com score literal de gray-zone DEVEM citar o threshold calibrado de `config/features.yaml` (0.78) e manter score DENTRO da banda [threshold, gate) — 75% vira auto-reject, não fila; e rodar `tests/integration` (real Supabase) antes de abrir PR de matcher.
+
+### 127. Deploy RPC engole erro primário + TZ straddle em collected_at (2026-09-08)
+Sintoma: `deploy_database.py --execute` reportou 55 WARNs `syntax error at or near CREATE/ALL/TABLE` e `test_approve_duplicate_price_no_23505` falhava local (`assert 9.99 == 11.5`) enquanto passava no CI. Causa raiz 1: o loop de deploy engole a exceção do `exec_sql` e só imprime a do fallback `exec_sql_query` (que embrulha DDL em SELECT — sempre syntax error); os erros reais eram 42710 "already exists" (policies), 42P13 (troca de return type em `find_similar_store`), 42883 (REVOKE/ALTER em overloads/assinaturas fantasmas) e 42809 (RLS/policy em MATERIALIZED VIEW — nunca suportado). Causa raiz 2: `date.today()` local vs `datetime.now(UTC)` caem em dias diferentes perto da meia-noite → chaves de conflito distintas → linha duplicada invisível ao check por data. Correção: `_ensure_policy_drops()` no generator (DROP IF EXISTS antes de todo CREATE POLICY) + DROP da função com return mudado + remoção de REVOKE/ALTER/índice/policy impossíveis (001/009/011/015/vigencia) + normalização de `collected_at` p/ DATE em `price_repository.upsert_price` + pin de data no teste. Regressão: deploy `507 OK, 0 WARN`, ledger 12/12, schema 369/369, e2e 8/8. Regra: todo WARN de deploy exige captura do erro PRIMÁRIO (nunca diagnostique pelo fallback); datas de conflito UNIQUE sempre normalizadas p/ DATE na borda do repositório.

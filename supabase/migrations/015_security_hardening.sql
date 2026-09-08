@@ -20,7 +20,8 @@ CREATE POLICY "store_units_service_all" ON public.store_units
 
 -- 2. Fix SECURITY DEFINER functions - add search_path restriction
 ALTER FUNCTION public.discover_stores_from_flyers() SET search_path = '';
-ALTER FUNCTION public.merge_approved_store() SET search_path = '';
+-- merge_approved_store recebe (UUID): a forma sem args nunca existiu (42883).
+ALTER FUNCTION public.merge_approved_store(UUID) SET search_path = '';
 
 -- 3. Fix permissive policies - replace 'true' with explicit role checks
 -- Public read tables: replace 'true' with 'auth.role() IN (''anon'', ''authenticated'')'
