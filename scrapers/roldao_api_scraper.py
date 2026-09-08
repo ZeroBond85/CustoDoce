@@ -25,14 +25,21 @@ class RoldaoApiScraper(BaseWebScraper):
         url = f"{self.api_base}{self.endpoints.get('media', '/media/{media_id}')}"
         url = url.replace("{media_id}", str(media_id))
         try:
-            resp = self._http.get(url, timeout=10.0)
+            # self._http_timeout (httpx.Timeout, do BaseWebScraper) respeita o
+            # http_timeout da config da loja — antes era hardcoded em 10.0s e
+            # um servidor lento (CDN de imagens) derrubava o encarte inteiro.
+            resp = self._http.get(url, timeout=self._http_timeout)
             resp.raise_for_status()
             return resp.json()
-        except httpx.HTTPStatusError as e:
-            logger.warning("[%s] Media %d: HTTP %s (com backoff)", self.name, media_id, e.response.status_code)
-            raise  # redeixa o retry_with_backoff tratar (respecta Retry-After em 429/503)
-        except Exception as e:
-            logger.warning("[%s] Media %d: %s (pulando)", self.name, media_id, e)
+        except (httpx.HTTPStatusError, httpx.TransportError):
+            # Rede/transporte → relança p/ o @_retry_with_backoff tratar com
+            # backoff (respeita Retry-After em 429/503). Se resolver após os
+            # retries, NÃO loga warning; se esgotar, o próprio decorator loga.
+            raise
+        except Exception as e:  # noqa: BLE001 - residual inesperado (JSON, etc.)
+            # Não é falha de rede; encarte é pulado e o health é monitorado
+            # pelo caller. `info` (não `warning`) p/ não quebrar zero-warn.
+            logger.info("[%s] Media %d: %s (pulando)", self.name, media_id, e)
             return None
 
     def parse_post(self, post: dict) -> list[dict]:
