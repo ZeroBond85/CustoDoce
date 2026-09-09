@@ -1,6 +1,6 @@
 import pytest
 
-from parsers.matcher import match_ingredient
+from parsers.matcher import has_excluded_terms, match_ingredient
 
 
 @pytest.fixture
@@ -501,3 +501,85 @@ def test_lru_cache_on_score_pair():
     # Cache info shows hits
     cache_info = _score_pair.cache_info()
     assert cache_info.hits >= 1
+
+
+def test_best_ingredient_threshold_gates_match():
+    """O gate usa o threshold do ingrediente que venceu, não o do último iterado.
+
+    Regression: antes, o gate final comparava com o threshold do último
+    ingrediente não-excluído da iteração — um match de 0.818 vs Chocolate 70%
+    (gate 0.85) passava se o último ingrediente da lista tivesse threshold
+    menor (ex.: 0.75), inflando FPs de chocolate. (descoberto ao ativar a
+    coluna match_threshold no PROD — golden review_queue divergiu em 116)
+    """
+    ings = [
+        {
+            "canonical_name": "Chocolate 70%",
+            "aliases": [],
+            "search_terms": [],
+            "exclude_terms": [],
+            "match_threshold": 0.85,
+        },
+        {
+            "canonical_name": "Leite Condensado",
+            "aliases": [],
+            "search_terms": [],
+            "exclude_terms": [],
+            "match_threshold": 0.75,
+        },
+    ]
+    # score("Chocolate 50% Cacau", "Chocolate 70%") = 75.0 ((0.75, 0.85))
+    ing, score, _ = match_ingredient("Chocolate 50% Cacau", ings, threshold=80)
+    assert ing is None, "75.0 < gate 0.85 do Chocolate 70% — não pode casar mesmo com 0.75 no fim"
+    assert 75 <= score < 85
+
+
+def test_best_ingredient_threshold_positive_control():
+    """Mesmo produto casa se o ingrediente vencedor tiver gate aderente."""
+    ings = [
+        {
+            "canonical_name": "Chocolate 70%",
+            "aliases": [],
+            "search_terms": [],
+            "exclude_terms": [],
+            "match_threshold": 0.80,
+        },
+    ]
+    ing, _, _ = match_ingredient("Chocolate 70%", ings, threshold=80)
+    assert ing is not None and ing["canonical_name"] == "Chocolate 70%"
+
+
+def test_exclude_terms_respect_word_boundaries():
+    """Exclude_terms casa por palavra/frase, não substring.
+
+    Regression: marca "Flormel" disparava o termo "mel" (substring) e derrubava
+    produtos legítimos de Creme de Avelã. (golden review_queue divergiu em 116)
+    """
+    ing = {
+        "canonical_name": "Creme de Avelã",
+        "aliases": [],
+        "search_terms": [],
+        "exclude_terms": ["doce de leite", "goiabada", "mel", "coco"],
+        "match_threshold": 0.75,
+    }
+    assert has_excluded_terms("Creme de Avelã Flormel 150g", ing) is False
+    assert has_excluded_terms("Creme de Avelã com Cacau Flormel", ing) is False
+    assert has_excluded_terms("Doce de Leite com Creme de Avelã", ing) is True
+    assert has_excluded_terms("Creme de Avelã com mel silvestre", ing) is True
+    assert has_excluded_terms("Creme de Avelã de coco", ing) is True
+    assert has_excluded_terms("Cocoa 100% em pó", ing) is False
+
+
+def test_exclude_terms_plural_boundary():
+    """Termo no singular pega plural do produto ("cookie" -> "cookies")."""
+    ing = {
+        "canonical_name": "Gotas de Chocolate Meio Amargo",
+        "aliases": [],
+        "search_terms": [],
+        "exclude_terms": ["cookie", "biscoito"],
+        "match_threshold": 0.85,
+    }
+    assert has_excluded_terms("Cookies com Gotas de Chocolate", ing) is True
+    assert has_excluded_terms("Cookie belga 200g", ing) is True
+    assert has_excluded_terms("Biscoitos sortidos", ing) is True
+    assert has_excluded_terms("Gotas de Chocolate Meio Amargo p/ culinária", ing) is False

@@ -77,12 +77,28 @@ def _load_exclude_terms(ingredients: list[Ingredient]) -> dict[str, list[str]]:
 
 
 def has_excluded_terms(product_text: str, ingredient: Ingredient) -> bool:
-    """Retorna True se o produto contém termo da exclude_terms do ingrediente."""
+    """Retorna True se o produto contém termo da exclude_terms do ingrediente.
+
+    Casamento por fronteira de palavra/frase (não substring): evita falso-excluir
+    produtos cuja marca contém o termo (ex.: "Flormel" contém "mel", "Docebeite"
+    contém "doce") — o guard deve bloquear termos NOMINAIS, não subcadeias.
+    Termo no singular aceita plural final ("cookie" pega "cookies").
+    """
     terms = cast(list[str], ingredient.get("exclude_terms") or [])
     if not terms:
         return False
     product_lower = product_text.lower()
-    return any(t.lower() in product_lower for t in terms)
+    for t in terms:
+        core = t.strip().lower()
+        if not core:
+            continue
+        if " " in core:
+            pattern = r"(?<!\w)" + re.escape(core) + r"(?!\w)"
+        else:
+            pattern = r"(?<!\w)" + re.escape(core) + r"(?:s)?(?!\w)"
+        if re.search(pattern, product_lower):
+            return True
+    return False
 
 
 def build_alias_list(ingredients: list[Ingredient]) -> list[tuple[str, str, list[str]]]:
@@ -236,6 +252,7 @@ def match_ingredient(
 
     best_ingredient: Ingredient | None = None
     best_score = 0.0
+    best_ing_threshold = 100.0
     match_type = "none"
 
     for ing in ingredients:
@@ -261,6 +278,7 @@ def match_ingredient(
         if score > best_score:
             best_score = score
             best_ingredient = ing
+            best_ing_threshold = ing_threshold
             match_type = "proximo_nome"
 
         for alias in cast(list[str], ing.get("aliases") or []):
@@ -269,6 +287,7 @@ def match_ingredient(
             if score > best_score:
                 best_score = score
                 best_ingredient = ing
+                best_ing_threshold = ing_threshold
                 match_type = "proximo_apelido"
 
         for search_term in cast(list[str], ing.get("search_terms") or []):
@@ -277,9 +296,10 @@ def match_ingredient(
             if score > best_score:
                 best_score = score
                 best_ingredient = ing
+                best_ing_threshold = ing_threshold
                 match_type = "proximo_apelido"
 
-    if best_score >= ing_threshold:
+    if best_score >= best_ing_threshold:
         return best_ingredient, best_score, match_type
 
     return None, best_score, match_type
