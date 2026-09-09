@@ -14,7 +14,7 @@ import subprocess
 import sys
 import time
 
-PROJECT = "/mnt/c/Zerobond/Code/CustoDoce"
+PROJECT = "/home/ericsf/projects/CustoDoce"
 PYTHON = "/usr/local/bin/python3.14"
 STREAMLIT_PORT = 8501
 

@@ -108,7 +108,7 @@
 | Rotate VipCommerce login key (invalidate old) | DevOps | ASAP (credential was in git history) |
 | Set `VIP_LOGIN_KEY` GitHub Secret in repo settings | DevOps | Before CI runs |
 | Make `thumbnails` bucket private (Dashboard) | DevOps | Before next deploy |
-| Commit/push from WSL (Rule 15) | Dev | `wsl.exe -e bash -c 'cd /mnt/c/Zerobond/Code/CustoDoce && git commit ... && python scripts/git_push.py'` |
+| Commit/push from WSL (Rule 15) | Dev | `wsl.exe -e bash -c 'cd ~/projects/CustoDoce && git commit ... && python scripts/git_push.py'` |
 
 ---
 

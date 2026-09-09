@@ -17,16 +17,18 @@
 - Local: `/usr/bin/git` (v2.47.3)
 - Line endings: `core.autocrlf=input` (WSL), `true` (Windows)
 
-### Projeto Path
-- `/mnt/c/Zerobond/Code/CustoDoce`
+### Projeto Path (FS Nativo WSL - OBRIGATÓRIO)
+- `~/projects/CustoDoce` (ou `/home/ericsf/projects/CustoDoce`)
+- **NÃO usar `/mnt/c/`** — latência 9P filesystem bridge é ~10x mais lento
+- **Regra para novos projetos**: sempre `~/projects/<nome>/`
 
 ### Comandos Validados
 ```bash
 # Validar paridade
-wsl -d Debian -e bash -c 'cd /mnt/c/Zerobond/Code/CustoDoce && /usr/local/bin/python3.14 scripts/check_environment_parity.py'
+wsl -d Debian -e bash -c 'cd ~/projects/CustoDoce && /usr/local/bin/python3.14 scripts/check_environment_parity.py'
 
 # Rodar workflows
-wsl -d Debian -e bash -c 'cd /mnt/c/Zerobond/Code/CustoDoce && gh workflow run ci.yml'
+wsl -d Debian -e bash -c 'cd ~/projects/CustoDoce && gh workflow run ci.yml'
 
 # Monitorar CI
 wsl -d Debian -e bash -c 'gh run list --limit 5 --json databaseId,conclusion,status,workflowName'
@@ -38,3 +40,4 @@ wsl -d Debian -e bash -c 'gh run view RUN_ID --json conclusion'
 2. **Lock files gerados só no WSL/Linux** (regra #10)
 3. **Python 3.14.6 exclusivamente** - nenhuma versão inferior
 4. **Paridade total** validada por `check_environment_parity.py`
+5. **Novos projetos SEMPRE em `~/projects/<nome>/`** — NUNCA em `/mnt/c/`

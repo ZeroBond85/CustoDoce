@@ -33,7 +33,7 @@ O `sync_docs.py` gera arquivos `.md` via `write()` do Python. No Windows, `write
 
 ```bash
 # WSL - CRLF nunca acontece
-cd /mnt/c/Zerobond/Code/CustoDoce
+cd ~/projects/CustoDoce
 python scripts/sync_docs.py              # gera LF nativamente
 git add docs/ && git commit              # pre-commit feliz
 ```
@@ -46,7 +46,7 @@ git add docs/ && git commit              # pre-commit feliz
 1. **Proibido "Misturar" Shells**: Não execute `wsl bash -c '...'` para tarefas que podem rodar em Python no Windows. Use WSL apenas para dependências de SO.
 2. **Isolamento de Paths**:
    - Windows $\rightarrow$ `C:\Zerobond\Code\CustoDoce`
-   - WSL $\rightarrow$ `/mnt/c/Zerobond/Code/CustoDoce`
+   - WSL $\rightarrow$ `~/projects/CustoDoce`
    - Nunca passe caminhos de Windows para o Bash sem converter para o formato `/mnt/c/`.
 3. **Default Python**:
    - Windows: `.venv314` (PowerShell)
