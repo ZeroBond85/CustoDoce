@@ -806,6 +806,14 @@ END $$;
         gen.append("-- ============================================================")
         gen.append(alert_state_path.read_text(encoding="utf-8"))
 
+    # ─── PHASE 35: match_threshold per ingredient + llm_classifier flag (021) ──
+    threshold_path = REPO_ROOT / "supabase" / "migrations" / "021_match_threshold_and_llm_flag.sql"
+    if threshold_path.exists():
+        gen.append("\n-- ============================================================")
+        gen.append("-- PHASE 35: match_threshold + llm_classifier flag (021_match_threshold_and_llm_flag.sql)")
+        gen.append("-- ============================================================")
+        gen.append(threshold_path.read_text(encoding="utf-8"))
+
     sql = "\n".join(gen)
     return _ensure_policy_drops(sql)
 

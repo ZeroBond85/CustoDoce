@@ -42,6 +42,31 @@ def _clean_alias(alias: str) -> str | None:
     return alias
 
 
+def _is_list(value) -> bool:
+    return isinstance(value, list | tuple | set)
+
+
+def _fields_differ(field: str, yaml_value, db_value) -> bool:
+    """Comparação versátil: listas por set, escalares por valor (numérico normalizado)."""
+    yv = yaml_value if yaml_value is not None else ([] if field in _SYNC_EXACT else None)
+    dv = db_value if db_value is not None else ([] if field in _SYNC_EXACT else None)
+    if _is_list(yv) or _is_list(dv):
+        return set(yv or []) != set(dv or [])
+    try:
+        return float(yv) != float(dv)
+    except (TypeError, ValueError):
+        return yv != dv
+
+
+def _field_repr(field: str, value):
+    """len() para listas, valor puro para escalares (feedback de diff)."""
+    if value is None:
+        return 0 if field in _SYNC_EXACT else None
+    if _is_list(value):
+        return len(value)
+    return value
+
+
 def main():
     parser = argparse.ArgumentParser(description="Sync exclude_terms/search_terms/brands YAML -> DB")
     parser.add_argument("--dry-run", action="store_true", help="Só mostra diffs")
@@ -56,7 +81,7 @@ def main():
 
     res = client.rpc(
         "exec_sql_query",
-        {"sql": "SELECT canonical_name, exclude_terms, search_terms, brands, aliases FROM ingredients"},
+        {"sql": "SELECT canonical_name, exclude_terms, search_terms, brands, aliases, match_threshold FROM ingredients"},
     ).execute()
     db_by_name = {}
     for r in res.data or []:
@@ -72,7 +97,7 @@ def main():
         for field in _SYNC_EXACT:
             yv = y.get(field, [])
             dv = db.get(field) or []
-            if set(yv) != set(dv):
+            if _fields_differ(field, yv, dv):
                 pending.append((name, field, y))
         for field in _SYNC_MERGE:
             yv = set(y.get(field, []))
@@ -86,7 +111,7 @@ def main():
             print(f"  [FALTA] {name}")
         else:
             print(
-                f"  [{field}] {name}: YAML={len(y.get(field, []))} DB={len(db_by_name.get(name, {}).get(field) or [])}"
+                f"  [{field}] {name}: YAML={_field_repr(field, y.get(field, []))} DB={_field_repr(field, db_by_name.get(name, {}).get(field))}"
             )
 
     alias_cleanup = []
@@ -116,7 +141,7 @@ def main():
             value = sorted(set(y.get(field, [])) | set(db.get(field) or []))
         try:
             client.table("ingredients").update({field: value, "updated_at": now}).eq("canonical_name", name).execute()
-            print(f"  [OK] {name}.{field} -> {len(value)} termos")
+            print(f"  [OK] {name}.{field} -> {_field_repr(field, value)}")
         except Exception as e:
             print(f"  [ERRO] {name}.{field}: {type(e).__name__}: {e}")
             errors += 1
