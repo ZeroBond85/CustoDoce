@@ -1,4 +1,5 @@
 # Guia: Adicionando Novos Ingredientes
+> Última atualização: 2026-09-08 22:30 UTC
 
 ## Visão Geral
 
