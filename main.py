@@ -189,6 +189,11 @@ def _collect(args: Namespace, collector: Any, ingredients: list[Ingredient]) -> 
     from parsers.llm_strategies import reset_llm_exhausted
     reset_llm_exhausted()
 
+    # LLM preflight — verifica provedores antes de iniciar a coleta
+    from services.llm_preflight import llm_preflight
+    available = llm_preflight(["groq", "openrouter"])
+    logger.info("llm_preflight", groq=available.get("groq", False), openrouter=available.get("openrouter", False))
+
     collected: list[list[dict[str, Any]]] = []
     for tier, method, needs_ing in TIER_PLAN:
         if args.tier and tier != args.tier:

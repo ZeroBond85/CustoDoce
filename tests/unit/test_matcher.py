@@ -24,6 +24,82 @@ def sample_ingredients():
     ]
 
 
+# ====================================================================
+# Per-Ingredient Threshold Tests (Phase 3)
+# ====================================================================
+
+@pytest.fixture
+def threshold_ingredients():
+    """Ingredients with explicit match_threshold for testing."""
+    return [
+        {
+            "canonical_name": "Chocolate 70%",
+            "match_threshold": 0.85,
+            "aliases": [],
+            "search_terms": [],
+            "exclude_terms": [],
+        },
+        {
+            "canonical_name": "Leite Condensado",
+            "match_threshold": 0.75,
+            "aliases": [],
+            "search_terms": [],
+            "exclude_terms": [],
+        },
+        {
+            "canonical_name": "Açúcar Mascavo",
+            "match_threshold": 0.80,
+            "aliases": [],
+            "search_terms": [],
+            "exclude_terms": [],
+        },
+    ]
+
+
+@pytest.mark.parametrize("product_text, canonical, threshold, should_match", [
+    # Strict threshold (0.85) — chocolate % must match exactly
+    ("Chocolate 70%", "Chocolate 70%", 0.85, True),
+    ("Chocolate 50% Cacau", "Chocolate 70%", 0.85, False),  # strict: 50% should not match 70%
+    # Tolerant threshold (0.75) — leite partial OK
+    ("Leite Condensado", "Leite Condensado", 0.75, True),
+    ("Leite Condensado Integral", "Leite Condensado", 0.75, True),  # tolerant: partial match
+    # Standard threshold (0.80)
+    ("Açúcar Mascavo", "Açúcar Mascavo", 0.80, True),
+    ("Acucar Mascavo", "Açúcar Mascavo", 0.80, True),  # deaccent works
+])
+def test_per_ingredient_threshold(threshold_ingredients, product_text, canonical, threshold, should_match):
+    # Override threshold for this test
+    for ing in threshold_ingredients:
+        ing["match_threshold"] = threshold
+
+    ing, score, mtype = match_ingredient(product_text, threshold_ingredients, threshold=80)
+    if should_match:
+        assert ing is not None, f"Should match: {product_text} -> {canonical}"
+        assert ing["canonical_name"] == canonical
+    else:
+        assert ing is None, f"Should NOT match: {product_text} (got {ing})"
+
+
+def test_lru_cache_on_score_pair():
+    """Verify _score_pair is cached and returns consistent results."""
+    from parsers.matcher import _score_pair
+
+    # First call - populates cache
+    score1 = _score_pair("LEITE CONDENSADO", "LEITE CONDENSADO INTEGRAL")
+    # Second call - should hit cache
+    score2 = _score_pair("LEITE CONDENSADO", "LEITE CONDENSADO INTEGRAL")
+    assert score1 == score2
+
+    # Different inputs give different scores
+    score3 = _score_pair("CHOCOLATE PO 70", "CHOCOLATE EM PO 70 CACAU")
+    score4 = _score_pair("LEITE CONDENSADO", "LEITE CONDENSADO INTEGRAL")
+    assert score3 != score4
+
+    # Cache info shows hits
+    cache_info = _score_pair.cache_info()
+    assert cache_info.hits >= 1
+
+
 @pytest.mark.parametrize(
     "product_text, expected_match, expected_type",
     [
@@ -349,3 +425,79 @@ def test_fuzzy_coverage_penalty_reduces_thief_scores(real_ingredients):
     raw2 = fuzz.token_set_ratio(product2, term)
     penalized2 = _penalize_score(raw2, product2, term)
     assert penalized2 >= 80, f"Over-penalized legitimate: {penalized2}"
+
+
+# ====================================================================
+# Per-Ingredient Threshold Tests (Phase 3)
+# ====================================================================
+
+@pytest.fixture
+def threshold_ingredients():
+    """Ingredients with explicit match_threshold for testing."""
+    return [
+        {
+            "canonical_name": "Chocolate 70%",
+            "match_threshold": 0.85,
+            "aliases": [],
+            "search_terms": [],
+            "exclude_terms": [],
+        },
+        {
+            "canonical_name": "Leite Condensado",
+            "match_threshold": 0.75,
+            "aliases": [],
+            "search_terms": [],
+            "exclude_terms": [],
+        },
+        {
+            "canonical_name": "Açúcar Mascavo",
+            "match_threshold": 0.80,
+            "aliases": [],
+            "search_terms": [],
+            "exclude_terms": [],
+        },
+    ]
+
+
+@pytest.mark.parametrize("product_text, canonical, threshold, should_match", [
+    # Strict threshold (0.85) — chocolate % must match exactly
+    ("Chocolate 70%", "Chocolate 70%", 0.85, True),
+    ("Chocolate 50% Cacau", "Chocolate 70%", 0.85, False),  # strict: 50% should not match 70%
+    # Tolerant threshold (0.75) — leite partial OK
+    ("Leite Condensado Integral", "Leite Condensado", 0.75, True),  # tolerant: partial match
+    ("Leite Condensado Integral", "Leite Condensado", 0.75, True),  # tolerant: partial match
+    # Standard threshold (0.80)
+    ("Açúcar Mascavo", "Açúcar Mascavo", 0.80, True),
+    ("Acucar Mascavo", "Açúcar Mascavo", 0.80, True),  # deaccent works
+])
+def test_per_ingredient_threshold(threshold_ingredients, product_text, canonical, threshold, should_match):
+    # Override threshold for this test
+    for ing in threshold_ingredients:
+        ing["match_threshold"] = threshold
+
+    ing, score, mtype = match_ingredient(product_text, threshold_ingredients, threshold=80)
+    if should_match:
+        assert ing is not None, f"Should match: {product_text} -> {canonical}"
+        assert ing["canonical_name"] == canonical
+    else:
+        assert ing is None, f"Should NOT match: {product_text} (got {ing})"
+
+
+def test_lru_cache_on_score_pair():
+    """Verify _score_pair is cached and returns consistent results."""
+    from parsers.matcher import _score_pair
+
+    # First call - populates cache
+    score1 = _score_pair("LEITE CONDENSADO", "LEITE CONDENSADO INTEGRAL")
+    # Second call - should hit cache
+    score2 = _score_pair("LEITE CONDENSADO", "LEITE CONDENSADO INTEGRAL")
+    assert score1 == score2
+
+    # Different inputs give different scores
+    score3 = _score_pair("CHOCOLATE PO 70", "CHOCOLATE EM PO 70 CACAU")
+    score4 = _score_pair("LEITE CONDENSADO", "LEITE CONDENSADO INTEGRAL")
+    assert score3 != score4
+
+    # Cache info shows hits
+    cache_info = _score_pair.cache_info()
+    assert cache_info.hits >= 1

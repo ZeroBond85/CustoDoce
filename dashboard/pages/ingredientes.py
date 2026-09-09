@@ -87,13 +87,15 @@ def _coerce_editor_df(df: Any, col_map: dict[str, str]) -> Any:
     multi-linha; garante bool em Ativo e string nos demais.
     """
     out = df.rename(columns=col_map).copy()
-    for col in ("Marcas", "Busca", "Apelidos"):
+    for col in ("Marcas", "Busca", "Apelidos", "Excluir"):
         if col in out.columns:
             out[col] = out[col].apply(
                 lambda v: "\n".join(str(i) for i in v) if isinstance(v, (list, tuple)) else ("" if v is None else str(v))
             )
     if "Ativo" in out.columns:
         out["Ativo"] = out["Ativo"].fillna(False).astype(bool)
+    if "Threshold" in out.columns:
+        out["Threshold"] = pd.to_numeric(out["Threshold"], errors="coerce").fillna(0.80)
     for col in ("Categoria", "Unidade", "Nome Canônico"):
         if col in out.columns:
             out[col] = out[col].fillna("").astype(str)
@@ -133,14 +135,17 @@ def render_ingredientes() -> None:
             filtered = filtered[~filtered["active"]]
 
         # Editor inline simples
-        display_cols = ["canonical_name", "category", "unit_target", "brands", "search_terms", "aliases", "active"]
+        display_cols = ["canonical_name", "category", "unit_target", "match_threshold",
+                        "brands", "search_terms", "aliases", "exclude_terms", "active"]
         col_map = {
             "canonical_name": "Nome Canônico",
             "category": "Categoria",
             "unit_target": "Unidade",
+            "match_threshold": "Threshold",
             "brands": "Marcas",
             "search_terms": "Busca",
             "aliases": "Apelidos",
+            "exclude_terms": "Excluir",
             "active": "Ativo",
         }
         available = [c for c in display_cols if c in filtered.columns]
@@ -151,6 +156,11 @@ def render_ingredientes() -> None:
             hide_index=True,
             column_config={
                 "Ativo": st.column_config.CheckboxColumn("Ativo"),
+                "Threshold": st.column_config.NumberColumn(
+                    "Threshold", min_value=0.0, max_value=1.0, step=0.01, format="%.2f",
+                    help="0.75=tolerante (leite, granulado), 0.80=padrão, 0.85=estrito (chocolate %)"
+                ),
+                "Excluir": st.column_config.TextColumn("Excluir", help="Termos que invalidam match, um por linha"),
                 "Marcas": st.column_config.TextColumn("Marcas", help="Uma por linha"),
                 "Busca": st.column_config.TextColumn("Termos de Busca", help="Um por linha"),
                 "Apelidos": st.column_config.TextColumn("Apelidos", help="Um por linha"),
@@ -168,13 +178,22 @@ def render_ingredientes() -> None:
                         return []
                     return [x.strip() for x in str(text).replace(";", ",").replace("\n", ",").split(",") if x.strip()]
 
+                def parse_threshold(text: str) -> float:
+                    try:
+                        val = float(text)
+                        return max(0.0, min(1.0, val))
+                    except (ValueError, TypeError):
+                        return 0.80
+
                 ing_dict = {
                     "canonical_name": canonical,
                     "category": row["Categoria"],
                     "unit_target": row["Unidade"],
+                    "match_threshold": parse_threshold(row["Threshold"]),
                     "brands": parse_free(row["Marcas"]),
                     "search_terms": parse_free(row["Busca"]),
                     "aliases": parse_free(row["Apelidos"]),
+                    "exclude_terms": parse_free(row["Excluir"]),
                     "active": row["Ativo"],
                 }
 
@@ -190,8 +209,8 @@ def render_ingredientes() -> None:
         st.subheader("Adicionar Novo Ingrediente")
 
         CANONICAL_CATEGORIES = [
-            "lacteos", "chocolates", "confeitos", "pastas",
-            "secos", "acucares", "farinhas", "essencias", "outros",
+            "acucares", "chocolates", "confeitos", "lacteos",
+            "ovos", "pastas", "secos", "temperos", "farinhas", "essencias",
         ]
 
         with st.form("new_ingredient", clear_on_submit=True):
@@ -200,12 +219,15 @@ def render_ingredientes() -> None:
                 canonical = st.text_input("Nome Canônico*", placeholder="Ex: Leite Condensado Integral")
                 category = st.selectbox("Categoria", CANONICAL_CATEGORIES)
                 unit = st.text_input("Unidade Base", value="kg")
+                threshold = st.number_input("Threshold", min_value=0.0, max_value=1.0, value=0.80, step=0.01,
+                                          help="0.75=tolerante (leite, granulado), 0.80=padrão, 0.85=estrito (chocolate %)")
                 active = st.checkbox("Ativo", value=True)
             with col2:
                 st.caption("Cole à vontade — backend normaliza (remove duplicatas, limpa espaços)")
                 brands = st.text_area("Marcas", placeholder="Nestlé, Piracanjuba")
                 search_terms = st.text_area("Termos de Busca", placeholder="leite condensado, condensado, moca")
                 aliases = st.text_area("Apelidos", placeholder="Leite Moça 12x395g; LC Integral 395g")
+                exclude_terms = st.text_area("Excluir", placeholder="recheio, sabor, pronto")
 
             submitted = st.form_submit_button("💾 Criar", type="primary", width="stretch")
 
@@ -225,9 +247,11 @@ def render_ingredientes() -> None:
                         "canonical_name": canonical.strip(),
                         "category": category,
                         "unit_target": unit.strip(),
+                        "match_threshold": threshold,
                         "brands": parse_free(brands),
                         "search_terms": parse_free(search_terms),
                         "aliases": parse_free(aliases),
+                        "exclude_terms": parse_free(exclude_terms),
                         "active": active,
                     }
 

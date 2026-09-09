@@ -1,5 +1,6 @@
 import re
 import unicodedata
+from functools import lru_cache
 from typing import Any, cast
 
 from rapidfuzz import fuzz
@@ -171,6 +172,15 @@ def _penalize_score(score: float, product_clean: str, term_clean: str) -> float:
     return score * (1.0 - _FUZZY_COVERAGE_PENALTY * (1.0 - coverage))
 
 
+# LRU cache for scoring pairs (product_clean, term_clean) -> penalized score
+# Maxsize 2048 covers typical scrape session unique pairs
+@lru_cache(maxsize=2048)
+def _score_pair(product_clean: str, term_clean: str) -> float:
+    """Cached penalized fuzzy score for a product/term pair."""
+    raw_score = fuzz.token_set_ratio(product_clean, term_clean)
+    return _penalize_score(raw_score, product_clean, term_clean)
+
+
 def match_exact(product_text: str, ingredient: Ingredient) -> bool:
     product_upper = product_text.upper()
     canonical_upper = ingredient["canonical_name"].upper()
@@ -239,9 +249,15 @@ def match_ingredient(
         if match_exact(product_text, ing):
             return ing, 100.0, "exato"
 
+        # Per-ingredient threshold (fallback to global default 0.80)
+        raw_threshold = ing.get("match_threshold")
+        if raw_threshold is None:
+            raw_threshold = threshold / 100.0
+        ing_threshold = float(raw_threshold) * 100.0  # type: ignore[arg-type]
+
         # fuzzy match on canonical
         canonical_clean = clean_text(ing["canonical_name"])
-        score = _penalize_score(fuzz.token_set_ratio(product_clean, canonical_clean), product_clean, canonical_clean)
+        score = _score_pair(product_clean, canonical_clean)
         if score > best_score:
             best_score = score
             best_ingredient = ing
@@ -249,7 +265,7 @@ def match_ingredient(
 
         for alias in cast(list[str], ing.get("aliases") or []):
             alias_clean = clean_text(alias)
-            score = _penalize_score(fuzz.token_set_ratio(product_clean, alias_clean), product_clean, alias_clean)
+            score = _score_pair(product_clean, alias_clean)
             if score > best_score:
                 best_score = score
                 best_ingredient = ing
@@ -257,13 +273,13 @@ def match_ingredient(
 
         for search_term in cast(list[str], ing.get("search_terms") or []):
             search_clean = clean_text(search_term)
-            score = _penalize_score(fuzz.token_set_ratio(product_clean, search_clean), product_clean, search_clean)
+            score = _score_pair(product_clean, search_clean)
             if score > best_score:
                 best_score = score
                 best_ingredient = ing
                 match_type = "proximo_apelido"
 
-    if best_score >= threshold:
+    if best_score >= ing_threshold:
         return best_ingredient, best_score, match_type
 
     return None, best_score, match_type
@@ -280,13 +296,13 @@ def rank_ingredients(
 
     for ing in ingredients:
         canonical_clean = clean_text(ing["canonical_name"])
-        score = _penalize_score(fuzz.token_set_ratio(product_clean, canonical_clean), product_clean, canonical_clean)
+        score = _score_pair(product_clean, canonical_clean)
         match_type = "proximo_nome"
         matched_term = ing["canonical_name"]
 
         for alias in cast(list[str], ing.get("aliases") or []):
             alias_clean = clean_text(alias)
-            alias_score = _penalize_score(fuzz.token_set_ratio(product_clean, alias_clean), product_clean, alias_clean)
+            alias_score = _score_pair(product_clean, alias_clean)
             if alias_score > score:
                 score = alias_score
                 match_type = "proximo_apelido"
@@ -294,9 +310,7 @@ def rank_ingredients(
 
         for search_term in cast(list[str], ing.get("search_terms") or []):
             search_clean = clean_text(search_term)
-            search_score = _penalize_score(
-                fuzz.token_set_ratio(product_clean, search_clean), product_clean, search_clean
-            )
+            search_score = _score_pair(product_clean, search_clean)
             if search_score > score:
                 score = search_score
                 match_type = "proximo_apelido"

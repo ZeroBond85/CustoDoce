@@ -28,6 +28,7 @@ from parsers.llm_strategies import (
     _set_llm_exhausted,
     reset_llm_exhausted,
 )
+from services.llm_preflight import get_best_provider
 from services.logger import logger
 
 
@@ -75,7 +76,11 @@ class LLMClassifier:
         """
         from services.config import get_feature as get_config
 
-        if not get_config("features.ai.llm_classifier", ingredient=ingredient_name if (ingredient_name := (candidates[0].get("canonical_name") if candidates else None)) else None, default=False):
+        ingredient_name = None
+        if candidates:
+            ingredient_name = candidates[0].get("canonical_name")
+
+        if not get_config("features.ai.llm_classifier", ingredient=ingredient_name, default=False):
             return None
 
         if not candidates:
@@ -89,18 +94,27 @@ class LLMClassifier:
         # 0. Reset session flags at start of scrape
         reset_llm_exhausted()
 
+        # 1. Preflight check — pula providers que já sabemos que estão down
+        available_provider = get_best_provider(["groq", "openrouter"])
+        if not available_provider:
+            logger.info("llm_preflight: nenhum provedor disponível, pulando LLM classifier")
+            return None
+
         # 1. Cache check
         cached = get_cache(product_text)
         if cached is not None:
             return cached
 
-        # 2. Strategy iteration — early exit if session exhausted
+        # 2. Strategy iteration — early exit if session exhausted, skip unavailable
         for strategy in self.strategies:
             if _is_llm_exhausted():
                 logger.debug("LLM exhausted flag set, skipping remaining providers")
                 break
 
             if hasattr(strategy, "is_configured") and not strategy.is_configured():
+                continue
+            if strategy.provider_name != available_provider:
+                logger.debug("llm_preflight: pulando provider indisponível", provider=strategy.provider_name)
                 continue
             try:
                 result = strategy.classify(product_text, candidates)
@@ -116,13 +130,17 @@ class LLMClassifier:
                     provider=strategy.provider_name,
                     error=str(e),
                 )
+                # Marcar provider como deprecated se for erro de modelo removido
+                from services.llm_preflight import mark_deprecated
+                if "400" in str(e) or "404" in str(e) or "model" in str(e).lower():
+                    mark_deprecated(strategy.provider_name)
                 continue
 
-        # 4. All providers failed → set exhausted flag for rest of scrape
+        # 3. All providers failed → set exhausted flag for rest of scrape
         _set_llm_exhausted(True)
         logger.info("All LLM providers failed, LLM exhausted for this scrape session")
 
-        # 5. Graceful degradation
+        # 4. Graceful degradation
         return _fallback_result()
 
     def flush_cache(self) -> Any:

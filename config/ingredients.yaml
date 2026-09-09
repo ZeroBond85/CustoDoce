@@ -2,6 +2,7 @@ ingredients:
 
   - canonical: "Leite Condensado Integral"
     category: "lacteos"
+    match_threshold: 0.75
     brands: ["Moça", "Piracanjuba", "Italac", "Itambé"]
     search_terms: ["condensado", "lc", "leite condensado", "moca"]
     aliases:
@@ -20,6 +21,7 @@ ingredients:
 
   - canonical: "Creme de Leite 20% Gordura"
     category: "lacteos"
+    match_threshold: 0.75
     brands: ["Nestlé", "Piracanjuba"]
     search_terms: ["creme de leite", "creme leite"]
     aliases:
@@ -36,6 +38,7 @@ ingredients:
 
   - canonical: "Chocolate em Pó 50% Cacau"
     category: "chocolates"
+    match_threshold: 0.85
     brands: ["Melken", "Sicao"]
     search_terms: ["chocolate po", "cacau 50", "chocolate 50 cacau"]
     aliases:
@@ -53,6 +56,7 @@ ingredients:
 
   - canonical: "Leite em Pó Integral"
     category: "lacteos"
+    match_threshold: 0.75
     brands: ["Ninho"]
     search_terms: ["leite em po", "leite ninho", "leite po", "ninho"]
     aliases:
@@ -70,6 +74,7 @@ ingredients:
 
   - canonical: "Granulado Ao Leite"
     category: "confeitos"
+    match_threshold: 0.75
     brands: ["Harald", "Melken"]
     search_terms: ["granulado ao leite", "granulado leite", "granulado melken"]
     aliases:
@@ -87,6 +92,7 @@ ingredients:
 
   - canonical: "Granulado Branco"
     category: "confeitos"
+    match_threshold: 0.75
     brands: ["Harald", "Melken"]
     search_terms: ["granulado branco", "granulado white"]
     aliases:
@@ -96,6 +102,7 @@ ingredients:
 
   - canonical: "Granulado Meio Amargo"
     category: "confeitos"
+    match_threshold: 0.75
     brands: ["Melken"]
     search_terms: ["granulado amargo", "granulado dark", "granulado meio amargo"]
     aliases:
@@ -111,6 +118,7 @@ ingredients:
 
   - canonical: "Creme de Avelã"
     category: "pastas"
+    match_threshold: 0.80
     brands: ["Nutella"]
     search_terms: ["creme avela", "creme de avela", "nutella", "pasta avela"]
     aliases:
@@ -129,6 +137,7 @@ ingredients:
 
   - canonical: "Granulado Colorido"
     category: "confeitos"
+    match_threshold: 0.75
     brands: ["Coloretti", "Harald"]
     search_terms: ["coloretti", "confeito colorido", "granulado color", "granulado colorido", "mil cores"]
     aliases:
@@ -144,6 +153,7 @@ ingredients:
 
   - canonical: "Coco Ralado Grosso sem Açúcar"
     category: "secos"
+    match_threshold: 0.80
     brands: ["Socôco", "Ducoco"]
     search_terms: ["coco ralado", "coco ralado grosso", "coco saco", "coco sem acucar"]
     aliases:
@@ -159,6 +169,7 @@ ingredients:
 
   - canonical: "Chocolate Nobre Blend"
     category: "chocolates"
+    match_threshold: 0.85
     brands: ["Harald"]
     search_terms: ["blend harald", "chocolate nobre", "cobertura nobre", "nobr blend", "nobre blend"]
     aliases:
@@ -179,6 +190,7 @@ ingredients:
 
   - canonical: "Açúcar Mascavo"
     category: "acucares"
+    match_threshold: 0.80
     brands: ["JR", "Mavalerio"]
     search_terms: ["acucar marrom", "acucar mascavo", "mascavo"]
     aliases:
@@ -189,6 +201,7 @@ ingredients:
 
   - canonical: "Açúcar Cristal / Refinado"
     category: "acucares"
+    match_threshold: 0.80
     brands: ["União", "Cisne", "Caramuru"]
     search_terms: ["acucar branco", "acucar cristal", "acucar granulado", "acucar refinado", "acucar tipo 1"]
     aliases:
@@ -203,6 +216,7 @@ ingredients:
 
   - canonical: "Açúcar de Confeiteiro"
     category: "acucares"
+    match_threshold: 0.80
     brands: ["Mavalerio"]
     search_terms: ["acucar confeiteiro", "acucar de confeiteiro", "acucar po", "snow sugar"]
     aliases:
@@ -215,6 +229,7 @@ ingredients:
 
   - canonical: "Chocolate em Pó 70% Cacau"
     category: "chocolates"
+    match_threshold: 0.85
     brands: ["Sicao"]
     search_terms: ["cacau 70", "chocolate 70 cacau", "chocolate po 70"]
     aliases:
@@ -227,6 +242,7 @@ ingredients:
 
   - canonical: "Farinha de Trigo"
     category: "farinhas"
+    match_threshold: 0.80
     brands: ["Dona Benta", "Regina", "Renata"]
     search_terms: ["farinha alta proteina", "farinha bread flour", "farinha de trigo", "farinha tipo 1", "farinha trigo"]
     aliases:
@@ -239,6 +255,7 @@ ingredients:
 
   - canonical: "Micro Ball"
     category: "confeitos"
+    match_threshold: 0.80
     brands: ["Mavalerio"]
     search_terms: ["bolinha", "choco power ball", "micro ball", "microball"]
     aliases:
@@ -250,6 +267,7 @@ ingredients:
 
   - canonical: "Top Confete Morango"
     category: "confeitos"
+    match_threshold: 0.75
     brands: ["Harald"]
     search_terms: ["top confete", "confete morango", "top morango"]
     aliases:
@@ -260,6 +278,7 @@ ingredients:
 
   - canonical: "Gotas de Chocolate Branco"
     category: "chocolates"
+    match_threshold: 0.85
     brands: ["Melken"]
     search_terms: ["chocolate branco gotas", "gotas branco", "gotas chocolate branco", "gotas melken"]
     aliases:
@@ -272,6 +291,7 @@ ingredients:
 
   - canonical: "Manteiga"
     category: "lacteos"
+    match_threshold: 0.80
     brands: ["Aviação", "Delícia", "Itambé", "Piracanjuba", "Batavo", "Vigor", "Presidente", "Tirolez"]
     search_terms: ["manteiga", "manteiga 200g", "manteiga com sal", "manteiga extra", "manteiga sem sal"]
     aliases:
@@ -295,6 +315,7 @@ ingredients:
 
   - canonical: "Gotas de Chocolate Meio Amargo"
     category: "chocolates"
+    match_threshold: 0.85
     brands: ["Harald", "Melken"]
     search_terms: ["gotas chocolate meio amargo", "gotas dark", "gotas meio amargo"]
     aliases:
@@ -307,6 +328,7 @@ ingredients:
 
   - canonical: "Chocolate Meio Amargo em Barra"
     category: "chocolates"
+    match_threshold: 0.85
     brands: ["Harald", "Callebaut", "Garoto"]
     search_terms: ["barra meio amargo", "chocolate barra", "chocolate barra meio amargo", "chocolate meio amargo", "chocolate meio amargo barra"]
     aliases:
@@ -319,6 +341,7 @@ ingredients:
 
   - canonical: "Fermento Químico em Pó"
     category: "farinhas"
+    match_threshold: 0.80
     brands: ["Royal", "Dona Benta"]
     search_terms: ["fermento po", "fermento quimico", "fermento royal"]
     aliases:
@@ -332,6 +355,7 @@ ingredients:
 
   - canonical: "Essência de Baunilha"
     category: "essencias"
+    match_threshold: 0.80
     brands: ["Mavalerio", "Coza", "Dr.Oetker"]
     search_terms: ["baunilha", "essencia", "essencia baunilha"]
     aliases:
@@ -344,6 +368,7 @@ ingredients:
 
   - canonical: "Ovos"
     category: "ovos"
+    match_threshold: 0.80
     brands: ["Qualy", "Sadia", "Seara", "Naturovos", "Mantiqueira"]
     search_terms: ["ovos", "ovo", "dúzia ovos", "ovos brancos"]
     aliases:
@@ -356,6 +381,7 @@ ingredients:
 
   - canonical: "Flor de Sal"
     category: "temperos"
+    match_threshold: 0.80
     brands: ["Maldon", "Cisal", "La Baleine", "Himalaya"]
     search_terms: ["flor de sal", "sal maldon", "sal marinho flor", "flor sal"]
     aliases:
@@ -368,6 +394,7 @@ ingredients:
 
   - canonical: "Chocolate Chunks"
     category: "chocolates"
+    match_threshold: 0.85
     brands: ["Harald", "Melken", "Sicao", "Callebaut"]
     search_terms: ["chocolate chunks", "chunks chocolate", "pedacos de chocolate", "chocolate em pedacos"]
     aliases:

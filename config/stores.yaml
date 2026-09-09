@@ -144,6 +144,7 @@ stores:
       read: 30.0
       pool: 15.0
       write: 15.0
+    shopify_curl_cffi: true  # usa curl_cffi com impersonate chrome120 para bypass Cloudflare
     publish_day: "wednesday"
     collection_method: "automated"
     scraper: "roldao_api_scraper"

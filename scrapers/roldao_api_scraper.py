@@ -1,6 +1,7 @@
 import hashlib
 
 import httpx
+from curl_cffi.requests import Session as CurlCffiSession
 
 from scrapers.base_web_scraper import BaseWebScraper, _retry_with_backoff
 from scrapers.flyer_ocr import extract_flyer_products
@@ -14,6 +15,11 @@ class RoldaoApiScraper(BaseWebScraper):
         super().__init__(store_config)
         self.api_base = store_config.get("api_base", "https://blog.roldao.com.br/wp-json/wp/v2")
         self.endpoints = store_config.get("api_endpoints", {})
+        self._curl_enabled = store_config.get("shopify_curl_cffi", False)  # bandeira para usar curl_cffi
+
+    def _curl_session(self) -> CurlCffiSession:
+        # Session persistente com impersonation de Chrome120 (bypass Cloudflare JA3)
+        return CurlCffiSession(impersonate="chrome120", timeout=self._http_timeout)
 
     def get_posts(self, per_page: int = 5) -> list[dict]:
         url = f"{self.api_base}{self.endpoints.get('posts', '/posts?per_page=5&categories=10')}"
@@ -24,6 +30,23 @@ class RoldaoApiScraper(BaseWebScraper):
     def get_media(self, media_id: int) -> dict | None:
         url = f"{self.api_base}{self.endpoints.get('media', '/media/{media_id}')}"
         url = url.replace("{media_id}", str(media_id))
+
+        # Tenta via curl_cffi primeiro (bypass Cloudflare fingerprint/429)
+        if self._curl_enabled:
+            try:
+                resp = self._curl_session().get(url)
+                resp.raise_for_status()
+                return resp.json()
+            except (httpx.HTTPStatusError, httpx.TransportError):
+                # Rede/transporte → relança p/ o @_retry_with_backoff tratar com
+                # backoff (respeita Retry-After em 429/503).
+                raise
+            except Exception as e:
+                # Qualquer outro erro (ex.: 404, 400, parsing) → loga info e
+                # cai p/ fallback httpx.
+                logger.info("roldao_curl_fallback", url=url, error=str(e))
+
+        # Fallback: httpx original (com self._http_timeout da config da loja)
         try:
             # self._http_timeout (httpx.Timeout, do BaseWebScraper) respeita o
             # http_timeout da config da loja — antes era hardcoded em 10.0s e

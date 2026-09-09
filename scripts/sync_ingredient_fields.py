@@ -23,7 +23,8 @@ from services.supabase_client import get_service_client
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # exclude_terms = fonte YAML (guard rails críticos). search_terms/brands = merge
 # (YAML ∪ DB) para preservar enriquecimento manual do dashboard.
-_SYNC_EXACT = ["exclude_terms"]
+# match_threshold = YAML → DB (exact, YAML wins)
+_SYNC_EXACT = ["exclude_terms", "match_threshold"]
 _SYNC_MERGE = ["search_terms", "brands"]
 
 

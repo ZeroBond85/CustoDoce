@@ -182,3 +182,8 @@ data/if_cache/
 /data/portafolhetos_cities.json
 /tests/manual/
 custodocelogobranco.png
+data/experiment_llm_report.json
+out.txt
+test_debug_regex.py
+test_debug_matcher.py
+debug_scores.py

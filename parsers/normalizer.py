@@ -117,3 +117,91 @@ def normalize_price(raw_price: float, raw_unit: str) -> NormalizedPrice | None:
 
     # The to_dict() method already rounds to 2.
     return parsed
+
+
+# ─── Name Cleaning for Matcher ───────────────────────────────────────────────
+
+# Unicode-aware word boundary: use (?<!\p{L})\p{L}|\p{L}(?!\p{L}) equivalent
+# Python re doesn't support \p{}, so we use a custom approach:
+# - \b matches between \w and \W, but \w is ASCII-only by default
+# - We'll use explicit boundary checks with (?<!\w) and (?!\w) which do work
+#   with most non-ASCII when the pattern itself contains those chars
+
+_NAME_CLEAN_PATTERNS = [
+    # Remove pack sizes like "cx 12x395g", "12x395g", "12x 395g", "cx 12x 395g"
+    re.compile(r"\b\d+\s*[xX]\s*\d+\s*(kg|g|ml|l|lt|un|unids?)\b", re.I),
+    re.compile(r"\b\d+\s*[xX]\s*\d+\b", re.I),
+    re.compile(r"\bcx\s+\d+[xX]\s*\d+", re.I),
+    re.compile(r"\bcx\s+\d+", re.I),
+    # Remove standalone weights like "395g", "1kg", "500ml"
+    re.compile(r"\b\d+[.,]\d+\s*(kg|g|ml|l|lt|un|unids?)\b", re.I),
+    re.compile(r"\b\d+\s*(kg|g|ml|l|lt|un|unids?)\b", re.I),
+    # Remove parenthetical content
+    re.compile(r"\([^)]*\)", re.I),
+    # Remove suffixes after slash
+    re.compile(r"\/[^\/]*$", re.I),
+    # Remove common promotional prefixes and suffixes
+    re.compile(r"^(promo|oferta|promocao|promoção|desconto|super|mega|ultra)\s+", re.I),
+    re.compile(r"\s+(promo|oferta|promocao|promoção|desconto|super|mega|ultra)$", re.I),
+    re.compile(r"\s+promo$", re.I),  # "promo" at end
+    # Remove multiple spaces
+    re.compile(r"\s{2,}"),
+]
+
+# Canonical name replacements for common abbreviations
+# Using (?<!\w) and (?!\w) which work better with non-ASCII when the
+# pattern chars are present in the text
+_NAME_REPLACEMENTS = {
+    # Word boundary assertions for better non-ASCII handling
+    r"(?<!\w)choc(?!\w)": "chocolate",
+    r"(?<!\w)chocol(?!\w)": "chocolate",
+    r"(?<!\w)leite condens(?!\w)": "leite condensado",
+    r"(?<!\w)leite cond(?!\w)": "leite condensado",
+    r"(?<!\w)creme leite(?!\w)": "creme de leite",
+    r"(?<!\w)creme de avel(?!\w)": "creme de avelã",
+    r"(?<!\w)creme avela(?!\w)": "creme de avelã",
+    r"(?<!\w)granulado(?!\w)": "granulado",
+    r"(?<!\w)acucar(?!\w)": "açúcar",
+    r"(?<!\w)acucar masc(?!\w)": "açúcar mascavo",
+    r"(?<!\w)acucar conf(?!\w)": "açúcar confeiteiro",
+    r"(?<!\w)far trigo(?!\w)": "farinha de trigo",
+    r"(?<!\w)fermento bio(?!\w)": "fermento biologico",
+    r"(?<!\w)ess baunilha(?!\w)": "essencia de baunilha",
+    r"(?<!\w)ess vainilla(?!\w)": "essencia de vainilla",
+    r"(?<!\w)cx(?!\w)": "",
+    r"(?<!\w)promo(?!\w)": "",
+    r"(?<!\w)oferta(?!\w)": "",
+    r"(?<!\w)promocao(?!\w)": "",
+    r"(?<!\w)promocão(?!\w)": "",
+    r"(?<!\w)desconto(?!\w)": "",
+    r"(?<!\w)super(?!\w)": "",
+    r"(?<!\w)mega(?!\w)": "",
+    r"(?<!\w)ultra(?!\w)": "",
+}
+
+
+def clean_name(name: str) -> str:
+    """
+    Limpa nome de produto para matching, removendo ruído de embalagem,
+    medidas, parênteses, sufixos promocionais e normalizando abreviações.
+
+    Exemplo:
+        "Chocolate ao Leite 50% cx 12x395g (promo)" → "chocolate ao leite 50%"
+    """
+    if not name or not isinstance(name, str):
+        return ""
+
+    name = name.strip().lower()
+
+    # Apply removal patterns
+    for pattern in _NAME_CLEAN_PATTERNS:
+        name = pattern.sub(" ", name)
+
+    # Apply canonical replacements with word boundaries (longest patterns first to avoid partial matches)
+    for old, new in sorted(_NAME_REPLACEMENTS.items(), key=lambda x: len(x[0]), reverse=True):
+        name = re.sub(old, new, name)
+
+    # Normalize whitespace
+    name = " ".join(name.split())
+
+    return name.strip()

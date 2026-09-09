@@ -31,13 +31,11 @@ features:
   ai:
     enabled: true
     vision: true
-    # LLM classifier para match 70-80% (match_ingredient -> semantic -> LLM).
-    # REATIVADO (2026-09-05) após calibração A0.5 + fix GROQ_MODEL:
-    # - threshold review desceu 0.70 -> 0.78 (fila [0.78, 0.82) ~26% vs 86%);
-    # - modelo default morto (llama-3.3-70b-versatile 404) -> qwen/qwen3.8-27b;
-    # - gray zone 0.78-0.82 ainda densa (~26%), LLM ajuda decidir.
-    # Requer GROQ_API_KEY/OPENROUTER_API_KEY. Cuidado: consome quota free-tier.
-    llm_classifier: true
+    # LLM classifier DESABILITADO (2026-09-XX): experimento com 200 itens reais
+    # da review_queue (banda 0.70-0.82) mostrou providers down (preflight).
+    # Classic: 2% aprovação, Classic+Semantic: 25%+, LLM: 0% (providers down).
+    # Decisão: feature flag off, investir em classic+semantic (e5-large local).
+    llm_classifier: false
     # Caminho hibrido para encartes DENSOS (RapidOCR + reconstrucao geometrica
     # de preco + LLM-texto p/ nomes). Em flyers densos a vision-LLM retorna 0
     # produtos gastando 30-40s; o hibrido le as centenas de regioes via OCR e

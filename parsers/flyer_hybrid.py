@@ -41,6 +41,7 @@ import time
 
 from services.http_client import get_client
 from services.logger import logger
+from services.llm_preflight import get_best_provider
 
 from .price_geometry import (
     Price,
@@ -479,29 +480,35 @@ def _text_llm_providers() -> list[dict[str, Any]]:
     """Ordered text-LLM providers for name resolution (OpenAI-compatible).
 
     Reuses the same free-tier keys as the rest of the pipeline. Skipped silently
-    when a key is absent.
+    when a key is absent. Respects preflight check (get_best_provider).
     """
+    available = get_best_provider(["groq", "openrouter"])
+    if not available:
+        return []
+
     providers: list[dict[str, Any]] = []
-    groq = os.environ.get("GROQ_API_KEY", "")
-    if groq:
-        providers.append(
-            {
-                "name": "groq",
-                "url": "https://api.groq.com/openai/v1/chat/completions",
-                "key": groq,
-                "model": os.environ.get("GROQ_MODEL", "llama-3.1-8b-instant"),
-            }
-        )
-    openrouter = os.environ.get("OPENROUTER_API_KEY", "")
-    if openrouter:
-        providers.append(
-            {
-                "name": "openrouter",
-                "url": "https://openrouter.ai/api/v1/chat/completions",
-                "key": openrouter,
-                "model": os.environ.get("OPENROUTER_MODEL", "meta-llama/llama-3.1-8b-instruct:free"),
-            }
-        )
+    if available == "groq":
+        groq = os.environ.get("GROQ_API_KEY", "")
+        if groq:
+            providers.append(
+                {
+                    "name": "groq",
+                    "url": "https://api.groq.com/openai/v1/chat/completions",
+                    "key": groq,
+                    "model": os.environ.get("GROQ_MODEL", "llama-3.1-8b-instant"),
+                }
+            )
+    elif available == "openrouter":
+        openrouter = os.environ.get("OPENROUTER_API_KEY", "")
+        if openrouter:
+            providers.append(
+                {
+                    "name": "openrouter",
+                    "url": "https://openrouter.ai/api/v1/chat/completions",
+                    "key": openrouter,
+                    "model": os.environ.get("OPENROUTER_MODEL", "meta-llama/llama-3.1-8b-instruct:free"),
+                }
+            )
     return providers
 
 

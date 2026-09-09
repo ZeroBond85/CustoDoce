@@ -110,7 +110,7 @@ CustoDoce/
 ├── requirements.lock       # = requirements-test.lock (backward compat)
 ├── requirements.txt        # = requirements-prod.in (pip-audit source)
 ├── AGENTS.md          # ← este arquivo (vivo, ~340 linhas)
-├── LESSONS.md         # 111 lições aprendidas
+├── LESSONS.md         # 115 lições aprendidas
 └── REGRAS.md          # Ambiente, hooks, comandos
 ```
 ## Tiers de Lojas
@@ -236,7 +236,7 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 | Schema manifest | 22 tabelas/views com types, not_null, defaults, constraints |
 | Mock validation tests | 127 parametrizados (colunas, tipos, not_null, FKs, CHECK, jsonb) |
 | AGENTS.md | ~360 linhas (matcher gray-zone Fase A + B + C) |
-| LESSONS.md | 111 lições |
+| LESSONS.md | 115 lições |
 | REGRAS.md | Ambiente + hooks + comandos |
 | CI lint/type/test | ✅ Todos verdes — mypy **strict** (Python 3.14.6) |
 | E2E (cloud) | ✅ Validade (run 31806929724) |
@@ -284,7 +284,7 @@ O **`pre-push`** detecta `.venv314` automaticamente via `_resolve_python()` (ver
 Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarball; miniconda removido). Detalhes em `REGRAS.md` §Pre-push, §Ambiente.
 ## Documentação Relacionada
 
-- `LESSONS.md` — 111 lições (CI, mocks, schema, scrapers, monitoração, segurança)
+- `LESSONS.md` — 115 lições (CI, mocks, schema, scrapers, monitoração, segurança)
 - `REGRAS.md` — Ambiente, hooks, comandos, arquitetura
 - `docs/skills.md` — Skills OpenCode (globais + overlays locais)
 - `docs/changelog.md` — Histórico por fase/sprint; `config/agents_schema.yaml` — Schema deste arquivo
