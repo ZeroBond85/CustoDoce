@@ -99,7 +99,7 @@ def load_lessons_schema() -> dict:
     """Load lessons schema from YAML."""
     if not LESSONS_SCHEMA.exists():
         return {}
-    result: dict = {"max_lines": 700, "no_duplicates": True, "monotonic": True, "checkable": True}
+    result: dict = {"max_lines": 700, "no_duplicates": True, "monotonic": True, "checkable": True, "max_lines_per_lesson": 12}
     text = LESSONS_SCHEMA.read_text(encoding="utf-8")
     for line in text.splitlines():
         if line.startswith("max_lines:"):
@@ -111,6 +111,9 @@ def load_lessons_schema() -> dict:
             result["monotonic"] = line.split(":", 1)[1].strip() == "true"
         elif line.startswith("checkable:"):
             result["checkable"] = line.split(":", 1)[1].strip() == "true"
+        elif line.startswith("max_lines_per_lesson:"):
+            with contextlib.suppress(ValueError):
+                result["max_lines_per_lesson"] = int(line.split(":", 1)[1].strip())
     return result
 
 
@@ -350,6 +353,13 @@ def add_lesson(title: str, body: str) -> str:
         LESSONS.write_text("# Lições Aprendidas\n\n", encoding="utf-8")
 
     content = LESSONS.read_text(encoding="utf-8")
+    lines = content.splitlines()
+    schema = load_lessons_schema()
+    max_lines = schema.get("max_lines", 775)
+    new_lesson_lines = len(body.splitlines()) + 3  # ### N. Title + blank + body + blank
+    if len(lines) + new_lesson_lines > max_lines:
+        return f"BLOQUEADO: LESSONS.md teria {len(lines) + new_lesson_lines} linhas (max {max_lines}). Arquive ou reduza antes."
+
     # Find highest lesson number (both ### and ## formats)
     nums = [int(m) for m in re.findall(r"^#{2,3} (\d+)\.", content, re.MULTILINE)]
     next_num = max(nums) + 1 if nums else 1
@@ -357,6 +367,40 @@ def add_lesson(title: str, body: str) -> str:
     new_lesson = f"\n### {next_num}. {title}\n\n{body}\n"
     LESSONS.write_text(content + new_lesson, encoding="utf-8")
     return f"Lição #{next_num} adicionada ao LESSONS.md"
+
+
+_TS_PAT = re.compile(r"(?m)^> Última (?:atualização|revisão): .*$")
+
+
+def add_incident(title: str, body: str) -> str:
+    """Add incident to monthly shard in docs/incidents/."""
+    from datetime import UTC, datetime
+    now = datetime.now(UTC)
+    shard = Path("docs/incidents") / f"{now.strftime('%Y-%m')}.md"
+    shard.parent.mkdir(parents=True, exist_ok=True)
+
+    ts_line = f"> Última atualização: {now.strftime('%Y-%m-%d %H:%M')} UTC"
+    if shard.exists():
+        content = shard.read_text(encoding="utf-8")
+        if _TS_PAT.search(content):
+            content = _TS_PAT.sub(ts_line, content, count=1)
+        else:
+            content = re.sub(
+                r"(^# Incidentes — .+$)",
+                rf"\1\n\n{ts_line}",
+                content,
+                count=1,
+                flags=re.MULTILINE,
+            )
+    else:
+        content = f"# Incidentes — {now.strftime('%Y-%m')}\n\n{ts_line}\n"
+
+    nums = [int(m) for m in re.findall(r"^### (\d+)\.", content, re.MULTILINE)]
+    next_id = max(nums) + 1 if nums else 1
+
+    entry = f"\n### {next_id}. {title}\n\n- **Data**: {now.strftime('%Y-%m-%d')}\n{body}\n"
+    shard.write_text(content + entry, encoding="utf-8")
+    return f"Incidente #{next_id} adicionado a {shard}"
 
 
 def validate_lessons(content: str | None = None) -> list[str]:
@@ -405,6 +449,15 @@ def validate_lessons(content: str | None = None) -> list[str]:
                 lines_str = ", ".join(f"L{x['line']}" for x in matching)
                 issues.append(f"Licao #{h['num']} duplicada ({lines_str})")
             seen.add(h["num"])
+
+    # Check max lines per lesson
+    max_per_lesson = schema.get("max_lines_per_lesson", 12)
+    for i, head in enumerate(lesson_heads):
+        start = head["line"] - 1
+        end = lesson_heads[i + 1]["line"] - 1 if i + 1 < len(lesson_heads) else len(lines)
+        lesson_line_count = end - start
+        if lesson_line_count > max_per_lesson:
+            issues.append(f"Lição #{head['num']} tem {lesson_line_count} linhas (max {max_per_lesson})")
 
     # Check monotonic order (warning only, non-blocking)
     if schema.get("monotonic", True):
@@ -519,6 +572,35 @@ def run_full() -> tuple[bool, list[str]]:
     return ok, all_issues
 
 
+def promote_incident(month: str, incident_id: int) -> str:
+    """Promote incident from monthly shard to LESSONS.md as stub."""
+    shard = Path("docs/incidents") / f"{month}.md"
+    if not shard.exists():
+        return f"Shard {shard} nao encontrado"
+
+    content = shard.read_text(encoding="utf-8")
+    # Find the incident
+    pattern = rf"^### {incident_id}\. (.+)$"
+    m = re.search(pattern, content, re.MULTILINE)
+    if not m:
+        return f"Incidente #{incident_id} nao encontrado em {shard}"
+
+    title = m.group(1)
+    # Extract the body (until next ### or end)
+    start = m.start()
+    next_m = re.search(r"^### \d+\.", content[start+1:], re.MULTILINE)
+    end = start + 1 + next_m.start() if next_m else len(content)
+    body = content[start:end].strip()
+
+    # Create stub in LESSONS.md
+    lessons_content = LESSONS.read_text(encoding="utf-8") if LESSONS.exists() else "# Lições Aprendidas\n\n"
+    nums = [int(m) for m in re.findall(r"^### (\d+)\.", lessons_content, re.MULTILINE)]
+    next_num = max(nums) + 1 if nums else 1
+    stub = f"\n### {next_num}. {title} → {shard} #{incident_id}\n"
+    LESSONS.write_text(lessons_content + stub, encoding="utf-8")
+    return f"Incidente #{incident_id} promovido como licao #{next_num} (stub)"
+
+
 def main():
     parser = argparse.ArgumentParser(description="Gestao do AGENTS.md")
     parser.add_argument("--check", action="store_true", help="Validar schema do AGENTS.md")
@@ -526,6 +608,8 @@ def main():
     parser.add_argument("--status", action="store_true", help="Estado atual")
     parser.add_argument("--add-rule", nargs=2, metavar=("TITULO", "CORPO"), help="Adicionar regra mandatória")
     parser.add_argument("--add-lesson", nargs=2, metavar=("TITULO", "CORPO"), help="Adicionar licao no LESSONS.md")
+    parser.add_argument("--add-incident", nargs=2, metavar=("TITULO", "CORPO"), help="Adicionar incidente no shard mensal")
+    parser.add_argument("--promote-incident", nargs=2, metavar=("YYYY-MM", "ID"), help="Promover incidente para LESSONS.md")
     args = parser.parse_args()
 
     if args.check:
@@ -558,6 +642,16 @@ def main():
 
     if args.add_lesson:
         msg = add_lesson(args.add_lesson[0], args.add_lesson[1])
+        print(msg)
+        return
+
+    if args.add_incident:
+        msg = add_incident(args.add_incident[0], args.add_incident[1])
+        print(msg)
+        return
+
+    if args.promote_incident:
+        msg = promote_incident(args.promote_incident[0], int(args.promote_incident[1]))
         print(msg)
         return
 

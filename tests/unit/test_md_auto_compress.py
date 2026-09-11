@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import textwrap
+from datetime import UTC, datetime
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -243,22 +245,22 @@ def test_archive_score_positivo_nao_expulsa(mock_ref, scoring_config):
 
 
 @patch("scripts.md_auto_compress.reference_score")
-def test_archive_score_negativo_expulsa(mock_ref, scoring_config):
+def test_archive_score_negativo_expulsa(mock_ref, tmp_path, scoring_config):
     mock_ref.return_value = 0
     content = _lessons_two_similar()
     sections = mac.parse_lessons(content)
     # Force age to be high for negative score
     for s in sections:
         s["age_months"] = 12
-    result = mac.archive(content, max_lines=3, scoring_config=scoring_config)
+    result = mac.archive(content, max_lines=3, scoring_config=scoring_config, archive_dir=str(tmp_path / "lessons"))
     assert len(result["archived"]) > 0
 
 
 @patch("scripts.md_auto_compress.reference_score")
-def test_archive_keep_marker_bloqueia(mock_ref, scoring_config):
+def test_archive_keep_marker_bloqueia(mock_ref, tmp_path, scoring_config):
     mock_ref.return_value = 10  # high ref score, still should NOT archive keep-marked
     content = _lessons_with_keep()
-    result = mac.archive(content, max_lines=5, scoring_config=scoring_config)
+    result = mac.archive(content, max_lines=5, scoring_config=scoring_config, archive_dir=str(tmp_path / "lessons"))
     archived_ids = [a["id"] for a in result["archived"]]
     assert 1 not in archived_ids
 
@@ -274,7 +276,7 @@ def test_archive_rollback_reverte(mock_ref, tmp_path, scoring_config):
     mock_ref.return_value = 0
     content = _lessons_two_similar()
     archive_dir = str(tmp_path / "lessons")
-    result = mac.archive(content, max_lines=3, scoring_config=scoring_config, archive_dir=archive_dir)
+    result = mac.archive(content, max_lines=3, scoring_config=scoring_config, archive_dir=archive_dir, dry_run=False)
     assert len(result["archived"]) > 0, "Need at least one archived section for rollback test"
     rollback_result = mac.rollback(result.get("target", "lessons"), archive_dir=archive_dir)
     assert rollback_result["restored"] is True
@@ -296,3 +298,84 @@ def test_compress_dedup_then_archive(mock_ref, tmp_path, scoring_config):
     # Then archive the remaining (content has dates from fixture → age > 6mo)
     result = mac.archive(content, max_lines=3, scoring_config=scoring_config, archive_dir=archive_dir)
     assert "archived" in result
+
+
+@patch("scripts.md_auto_compress.reference_score")
+def test_archive_nao_polui_audit_real(mock_ref, tmp_path, scoring_config):
+    """Garante que rodar a suíte não escreve em docs/archive/lessons/_audit.jsonl real."""
+    mock_ref.return_value = 0
+    audit_real = Path(__file__).parent.parent.parent / "docs" / "archive" / "lessons" / "_audit.jsonl"
+    before = audit_real.read_text() if audit_real.exists() else ""
+    # Roda archive com dry_run=False mas archive_dir isolado
+    content = _lessons_two_similar()
+    mac.archive(content, max_lines=3, scoring_config=scoring_config, archive_dir=str(tmp_path / "lessons"))
+    if audit_real.exists():
+        after = audit_real.read_text()
+        assert after == before, "Archive de teste poluiu _audit.jsonl real"
+
+
+# ═══════════════════════════════════════════════════════════════
+# TTL (deterministic expiry)
+# ═══════════════════════════════════════════════════════════════
+
+
+def _scoring_config_with_ttl(scoring_config, ttl_months=6):
+    return {**scoring_config, "thresholds": {**scoring_config["thresholds"], "ttl_months": ttl_months}}
+
+
+@patch("scripts.md_auto_compress.reference_score")
+def test_apply_ttl_move_antiga_sem_ref(mock_ref, scoring_config):
+    mock_ref.return_value = 0
+    cfg = _scoring_config_with_ttl(scoring_config)
+    result = mac.apply_ttl(_lessons_three_same_topic(), scoring_config=cfg)
+    ids = {a["id"] for a in result["archived"]}
+    assert ids == {1, 3}, f"Esperava 1 e 3 (antigas), got {ids}"
+    assert result["dry_run"] is True
+    assert 2 not in ids, "Lição recente (2026-06-01) não deve expirar"
+
+
+@patch("scripts.md_auto_compress.reference_score")
+def test_apply_ttl_preserva_referenciada(mock_ref, scoring_config):
+    def side(section):
+        return 5 if section.get("id") == 1 else 0
+
+    mock_ref.side_effect = side
+    cfg = _scoring_config_with_ttl(scoring_config)
+    result = mac.apply_ttl(_lessons_three_same_topic(), scoring_config=cfg)
+    ids = {a["id"] for a in result["archived"]}
+    assert 1 not in ids, "Lição com ref_score>0 não deve expirar"
+    assert 3 in ids
+
+
+def test_apply_ttl_sem_ancora_deterministico(scoring_config):
+    """Sem ancla `Data + commit` explícita a lição não é elegível (determinismo)."""
+    cfg = _scoring_config_with_ttl(scoring_config)
+    result = mac.apply_ttl(_lessons_with_keep(), scoring_config=cfg)
+    assert len(result["archived"]) == 0
+
+
+def test_apply_ttl_respeita_keep_marker(scoring_config):
+    cfg = _scoring_config_with_ttl(scoring_config)
+    result = mac.apply_ttl(_lessons_with_keep(), scoring_config=cfg)
+    assert len(result["archived"]) == 0
+
+
+@patch("scripts.md_auto_compress.reference_score")
+def test_apply_ttl_aplica_e_e_idempotente(mock_ref, tmp_path, scoring_config):
+    mock_ref.return_value = 0
+    cfg = _scoring_config_with_ttl(scoring_config)
+    archive_dir = str(tmp_path / "lessons")
+    content = _lessons_three_same_topic()
+    first = mac.apply_ttl(content, scoring_config=cfg, dry_run=False, archive_dir=archive_dir)
+    assert len(first["archived"]) == 2
+    assert first["dry_run"] is False
+    # Re-run sobre o conteúdo já reduzido → nada a arquivar
+    second = mac.apply_ttl(first["content"], scoring_config=cfg, archive_dir=archive_dir)
+    assert len(second["archived"]) == 0
+    shard = Path(archive_dir) / f"{datetime.now(UTC):%Y-%m}.md"
+    assert shard.exists(), "Shard mensal TTL deve existir"
+    text = shard.read_text()
+    assert "### 1. Configuracao inicial do scrapers" in text
+    audit = Path(archive_dir) / "_audit.jsonl"
+    assert audit.exists(), "Audit TTL deve ser gravado"
+    assert '"mode": "ttl"' in audit.read_text()

@@ -23,6 +23,19 @@
     - **Verificação automática**: `python scripts/check_environment_parity.py` roda no CI (job `lint`) e falha HARD em qualquer divergência. Localmente, o pre-push hook também valida (incluindo detecção de pacotes Windows-only nos lock files).
     - **Qualquer divergência bloqueia merge** — CI valida no alvo real. (Ver `REGRAS.md` §4)
 11. **Falha no CI = Gap de Teste (ciclo RPR)**: Toda falha no CI não detectada localmente exige ciclo **RPR mínimo** antes de re-disparear: (1) **Reproduzir** local com teste que falha, (2) **Prevenir** com teste de regressão (permanente), (3) **Registrar** em `LESSONS.md` (sintoma + causa + correção + teste). Re-rodar o CI "pra ver se passa" é proibido — gasta minutos de runner e mascara bugs. `continue-on-error: true` para mascarar falha sem corrigir causa também é proibido. **Exceções** (sem RPR completo): (a) timeout/flakiness de rede/scraper, (b) outage de infra externa (GitHub/Supabase), (c) mudanças apenas em `workflows/*.yml` (RPR simplificado: só registro, sem teste novo).
+
+## Fluxo RPR Atualizado (Regra #11)
+
+**Incidente → Log em `docs/incidents/YYYY-MM.md` (sem quota, shard mensal)**
+- Mesmo template RPR (Sintoma, Causa raiz, Correção, Teste regressão)
+- `python scripts/agents_tool.py --add-incident "Título" "Corpo"` cria/appenda no shard do mês
+- Nunca entra no LESSONS.md direto
+
+**Promoção para LESSONS.md (curadoria durável, ≤5 linhas + ponteiro)**
+- Só se o incidente revelou regra atemporal / gotcha reutilizável
+- Formato: `### N. Título curto\n\nResumo 1-2 linhas. Detalhes: docs/incidents/YYYY-MM.md #ID`
+- `python scripts/agents_tool.py --promote-incident YYYY-MM ID` move para LESSONS.md
+
 12. **Monitoração Total do CI**: O acompanhamento do push deve ir até o status FINAL (success/failure). Em shells com timeout, o uso de polling (consultas repetidas ao `gh run view`) é a estratégia mandatória para evitar interrupções prematuras.
 13. **Sessões isoladas em branches dedicadas**: Cada sessão de trabalho (feature/fix/chore) roda em sua própria branch a partir de `master` limpo. Nunca misturar state de múltiplas sessões no mesmo working tree. Antes de começar: `git checkout master && git pull && git checkout -b feature/<escopo>`. Working tree sujo = stashear para branch `wip/<contexto>` ou commitar antes. CI verde em master é contrato. Para PR: rebase + squash merge. Detalhes em `REGRAS.md` §Branches.
 14. **Line endings — Windows `autocrlf=true`, WSL `false/input`**: `core.autocrlf=true` no Windows é OBRIGATÓRIO (Git converte CRLF→LF no staging silenciosamente). No WSL/Linux, `false` ou `input`. `.gitattributes` com `eol=lf` por tipo de arquivo é a fonte da verdade. O script `scripts/check_line_endings_config.py` valida a configuração correta por plataforma e roda no pre-push. CRLF auto-fix em hooks é PROIBIDO — a correção raiz é configurar o Git, não tratar sintoma. (Ver `LESSONS.md` #49)
@@ -240,7 +253,7 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 | REGRAS.md | Ambiente + hooks + comandos |
 | CI lint/type/test | ✅ Todos verdes — mypy **strict** (Python 3.14.6) |
 | E2E (cloud) | ✅ Validade (run 31806929724) |
-| Python local (Windows) | 3.14.6 (`.venv314`) |
+| Python local (WSL) | 3.14.6 (nativo `/usr/local/bin/python3.14`, sem conda) |
 | Python CI (GitHub Actions) | 3.14.6 (`PYTHON_VERSION=3.14.6`) |
 | Python WSL | 3.14.6 (nativo `/usr/local/bin/python3.14`, sem conda) |
 | Python Cloud (Streamlit) | 3.14.6 |
@@ -277,11 +290,9 @@ python scripts/sync_docs.py --sync                # Regenera docs/skills.md
 - **Detecção de drift**: `sync_docs --check` no `ci.yml` job `docs-sync` — falha se disco ≠ approved ≠ docs
 ## Ambiente
 
-**Python local OBRIGATÓRIO: `.venv314`** (PowerShell → `& .\.venv314\Scripts\Activate.ps1`).
+**Ambiente padrão: WSL (Debian) com Python 3.14.6 NATIVO** (`/usr/local/bin/python3.14`, compilado de tarball; miniconda removido). É o executor canônico para lint, teste, scrape e push (Regra #15). Detalhes em `docs/wsl-environment.md` e `REGRAS.md` §Ambiente.
 
-O **`pre-push`** detecta `.venv314` automaticamente via `_resolve_python()` (ver `REGRAS.md` §Pre-push). Independente de como o git foi invocado, todo subprocesso do hook usa o Python do venv → **paridade total com CI/Cloud**. Fallback `sys.executable` é apenas aviso, não erro.
-
-Para WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, compilado de tarball; miniconda removido). Detalhes em `REGRAS.md` §Pre-push, §Ambiente.
+No lado Windows, o **pre-push** resolve `.venv314` automaticamente via `_resolve_python()` (ver `REGRAS.md` §Pre-push) para subprocessos do hook; fallback `sys.executable` é apenas aviso, não erro. A paridade total de deps (lock files) só é garantida em Linux/WSL — Windows é exceção de emergência, nunca rotina.
 ## Documentação Relacionada
 
 - `LESSONS.md` — 117 lições (CI, mocks, schema, scrapers, monitoração, segurança)

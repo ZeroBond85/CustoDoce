@@ -56,6 +56,11 @@ jobs:
         env:
           CI_JOB_START: ${{ env.CI_JOB_START }}
         run: python scripts/skills_maintenance.py --full
+      - name: Deterministic TTL report on LESSONS.md (scheduled)
+        if: github.event_name == 'schedule'
+        env:
+          CI_JOB_START: ${{ env.CI_JOB_START }}
+        run: python scripts/md_auto_compress.py --target LESSONS.md --mode ttl
       - name: Refresh doc timestamps (keep freshness < 30d)
         if: github.event_name == 'schedule'
         env:

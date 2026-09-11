@@ -274,27 +274,9 @@ A segunda causa: `check_for_errors` (`test_e2e_real.py`) usava substrings soltas
 ### 49. sync_docs.py --sync so rodava v2 (CURRENT blocks) — README/REGRAS/API/timestamps ficavam desatualizados
 - **Sintoma/causa/correcao**: `sync_docs.py` chamava so os updaters v2 (CURRENT blocks); os v1 (README/REGRAS/AGENTS/API/timestamps) nao rodavam no `--sync`, gerando drift no CI. Tambem: contagem de testes usava regex `tests? collected` mas pytest imprime `items collected`. Fix: `--sync` roda v1 depois v2; regex ajustado p/ `items`; tolerancia +-5 na contagem.
 
-### 50. Auditoria profunda de testes (Fases 0-9) — 2026-07-11
 
-**Sintoma:** Testes mortos, mocks subutilizados, gaps de cobertura, violações Regra #3, workflows inconsistentes.
+### 50. Auditoria profunda de testes (Fases 0-9) — 2026-07-11 → docs/incidents/2026-07.md #1
 
-**Causa:** Crescimento orgânico sem auditoria periódica. Dead code acumulou (sync_md_catchup.py, test_dashboard_full.py, test_brand_extractor.py, test_playwright_local.py, test_unit_extractor.py, deploy-staging.yml.disabled, scripts/archive/). Mocks centralizados em mock_data.py mas só 2/16 sets consumidos. Regra #3 (psycopg2/5432 proibido) violada em 10 arquivos integration. Workflows duplicados (ci-e2e-only.yml + teste_full_manual.yml) com e2e-full vazio.
-
-**Correção (Fases 0-9):**
-- Fases 1-3: Vacinas Regra #3 (8→0), pytest.ini→pyproject.toml, merge feature branch
-- Fase 4: 6 mock consumers reais (23 testes) consumindo mock_data.py
-- Fase 5: 41 testes unit para 7 services 0% coverage (store_registry, scraper_alert, review_queue, import, maintenance, price_intelligence, dashboard_queries, collector)
-- Fase 6: extractor.py (7 testes), regressões 21f7155 (Extra/Pao date fix, 'pao-de-acucar', 'minuto' fallback), pao_flyer CAMPAIGN_TYPE='pao-de-acucar', docstring fix
-- Fase 7: 14 testes para 5 pages (insights, capacity_planning, alertas, scraper_health, lojas_pendentes)
-- Fase 8: 16 testes UI components (freshness, info_box, user_badge, inject_css, load_css, logo)
-- Fase 9: vision_strategies (12 testes), flyer_scraper_extra_pao (9 testes), extractor (7 testes)
-
-**Regras permanentes:**
-- Auditoria trimestral: rodar `python -m pytest tests/unit/ --collect-only -q | wc -l` e comparar baseline.
-- Testes mortos (>0 chamadores, skip permanente, ou duplicados) → remover em Fase 13.
-- Mocks centrais → auditar consumo a cada sprint.
-
----
 ### 51. .gitignore data/store_backups/ — 2026-07-11
 
 **Sintoma:** 3 backups YAML idênticos (115KB) commitados em data/store_backups/ (commit 22fd346).
@@ -315,18 +297,8 @@ A segunda causa: `check_for_errors` (`test_e2e_real.py`) usava substrings soltas
 **Regra permanente:** Guard AST em pre-commit/CI para anti-patterns críticos (senhas, portas proibidas, imports perigosos). Rodar em `ci.yml` job `lint`.
 
 ---
-### 53. Cleanup testes mortos — 2026-07-11
 
-**Sintoma:** 5 arquivos testes mortos acumulados:
-- test_sync_md_catchup.py + test_sync_md_catchup.py (script morto)
-- test_brand_extractor.py (duplicado de test_services/test_brand.py)
-- test_playwright_local.py (skip permanente)
-- test_unit_extractor.py (10 testes p/ 18 LOC)
-- deploy-staging.yml.disabled (workflow obsoleto)
-
-**Correção:** Fase 13 — remover com `git rm` e atualizar .gitignore se necessário.
-
-**Regra permanente:** Antes de adicionar teste novo, verificar se similar já existe. `git grep "test_" -- tests/` antes de criar.
+### 53. Cleanup testes mortos — 2026-07-11 → docs/incidents/2026-07.md #2
 
 ### 54. AsyncMock.return_value padrão é AsyncMock, não MagicMock
 
@@ -443,13 +415,8 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Correção**: `config/stores.yaml:636,649`: mudou `type: aggregator` → `aggregator_js` e `scraper: aggregator_scraper` → `playwright_scraper`. Agora roteia para `collect_aggregators_js()` → `PlaywrightAggregatorScraper` que usa `get_portal_config("promotons")`.
 - **Teste de regressão**: `validate_scrapers.py --validate` (rodar no WSL) deve mostrar items do Promotons.
 
-### 63. F541 lint (f-string sem placeholder) escapou para o CI — validação local incompleta
 
-- **Data + commit**: 2026-07-13 (49278da)
-- **Sintoma**: CI job `lint` falhou com 7× `F541 f-string without any placeholders` em `scripts/validate_scrapers.py:41,53,54,55,148,193,197`.
-- **Causa raiz**: `scripts/validate_scrapers.py` foi criado durante a sessão mas `ruff check .` não foi executado antes do commit. Validamos deploy, sync e FKs, mas pulamos o lint local.
-- **Correção**: `scripts/validate_scrapers.py:41,53,54,55,148,193,197` — substituído `f"..."` por `"..."` (sem placeholder). Commit 49278da.
-- **Teste de regressão**: `ruff check scripts/validate_scrapers.py` deve passar.
+### 63. F541 lint (f-string sem placeholder) escapou para o CI — validação local incompleta → docs/incidents/2026-07.md #3
 
 ### 64. Lint F541 escapou porque pre-commit não incluía ruff — gap de processo
 
@@ -705,10 +672,8 @@ a `st.dataframe`/`st.table`. Sempre stringificar colunas JSONB antes do display.
 - **Regra**: zero I/O real (rede, disco, sleep) em testes unitários — fixtures autouse no conftest; validar com `pytest --durations=10`.
 - **Guard (2026-08-21)**: `tests/conftest.py` falha rápido se Python < 3.14 (`pytest.exit` + `noqa: UP036`) — evita rodar a suíte com interpretador errado (ex.: `python3`=3.13 do apt no WSL, sem deps) que gera falhas de import confusas; `ruff check` local antes do push é mandatório.
 
-### 109. CI #618 flake integration — Supabase REST HTTP/2 silent drop (2026-08-21)
-- **Sintoma/causa**: runs 32429656813/32430936335 falharam em `test_cleanup_test_data_removes_store_registry` — HTTP/2 derruba conexão silenciosamente (`RemoteProtocolError`) → `.delete().execute()` retorna `data: []` sem exception → `_retry_delete` só retentava em exception.
-- **Correção/validação**: `52c2ebc` retenta também em silent drop (backoff 1s/1.5s/2.25s); runs seguintes 100% success (32438278650, 32442644691).
-- **Regra**: flakiness de rede/scraper = exceção RPR (regra 11a) — fix no código + registro; re-run "pra ver se passa" é proibido.
+
+### 109. CI #618 flake integration — Supabase REST HTTP/2 silent drop (2026-08-21) → docs/incidents/2026-08.md #1
 
 ### 110. Guard SSRF de redirect era no-op com follow_redirects=True
 
@@ -752,24 +717,24 @@ Sintoma: SRT #16 (33289042271) AINDA falhou em Atacadão após o merge do #82 (d
 ### 123. Modelo de embedding campeão no WSL quebrou no runner — validação no ambiente alvo é obrigatória (2026-08-31)
 Sintoma: benchmark Fase 0B (embedding-benchmark.yml, run 33408728138) — `jina-embeddings-v2-base-de` deu **acc@1=0.0000 no runner ubuntu-latest**, enquanto no WSL local (Python 3.14.6 nativo) marcava **87.67%** e era o candidato a finalista. Causa raiz: no runner o modelo gerou **embeddings degenerados** (todas as similaridades → ranking vazio p/ todos os produtos via `max_sim`; o `semantic_matcher` real nunca achava match) — incompatibilidade fastembed/ONNX do modelo no ambiente do runner (dtype/pooling/tokenizer resolveu diferente do WSL). Correlato: o PRIMEIRO run do benchmark (computação antiga) crashou com `IndexError: top_ids[0]` exatamente nesse modelo (ranking vazio não guardado). Correção (RPR): (1) benchmark agora trata ranking vazio como `miss` (`pos_skipped`) e `cos_sim` NaN-safety — nunca mais derruba o run; (2) **decisão final migrou de jina-v2 para `multilingual-e5-large`** (0.80 no runner, RSS 4.1GB, extrap 13.3min — maior acurácia VIÁVEL no ambiente real); jina-v3 (0.93) inviável (9.9GB RSS > 7GB runner + licença CC-BY-NC); (3) gate RSS flexibilizado 3.0→4.5GB (prioridade acurácia) e gate `prod s/1000<=45` descartado (runner ~3.5x mais lento que WSL — nada passa; o gate real é extrapolation≤20min). Regra: escolher modelo de ML apenas por benchmark no MAQUINÁRIO DE PRODUÇÃO (runner do deploy), não no host local — WSL e runner podem divergir silenciosamente no runtime ONNX; medir no alvo + reportar `pos_skipped/neg_skipped` (ranking vazio = sinal de modelo quebrado, nunca silenciar).
 
-### 124. Schema unit (unit) falha com RemoteProtocolError ConnectionTerminated — flake Supabase vivo, re-run resolve (2026-09-05)
-Sintoma: CI run 33968459081 (push b730b3c, "fix(scrape): suprime UserWarning HF_HUB_DISABLE_PROGRESS_BARS") falhou dobro: job `deploy-check` `[FAIL] Supabase conexao — Server disconnected (2.10s)` e job `unit` 5× `tests/schema/test_validate_schema.py::TestSchemaTables::test_table_exists[*]` (`price_history`, `scraping_logs`, `flyers`, `schedules`, `alert_recipients`) com `httpx.RemoteProtocolError: <ConnectionTerminated error_code:0, last_stream_id:3>`. Causa raiz: são checks REAIS contra o Supabase vivo via `exec_sql_query` RPC (porta 443). Supabase derrubou a conexão HTTP/2 no meio do run (múltiplos workers `pytest-xdist -n 4` do `unit` + `deploy-check` + `integration` concorrentes no mesmo DB) — mesma classe de flake HTTP/2 documentada em #117 e nos fixes de `cleanup_test_data`/`_retry_delete` (LESSONS linhas 676/724): `ConnectionTerminated` / `Server disconnected` é transiente, não bug de código. Confirmação de não-regressão: `b730b3c` é só um `warnings.filterwarnings` (zero impacto em DB/schema/lógica); `integration` e `e2e-smoke` — que também batem no DB real — passaram no MESMO run; `rerun --failed` → `unit` e `deploy-check` green (apos rerun passou, 5 schema OK). Regra: `RemoteProtocolError ConnectionTerminated` em checks vivos (schema `test_table_exists`, `deploy-check` Supabase conexao) é flake documentado (#117/linhas 676/724) — tratar como re-run exceção (Regra #11), NUNCA silenciar como continue-on-error; se recorrente em várias runs seguidas, considerar serializar `unit` schema DB-checks no mesmo `concurrency` DB (como `integration-db`) ou retry count no client RPC.
+### 124. Schema unit flaky RemoteProtocolError → docs/incidents/2026-09.md #1
 
-### 125. Groq 404 (modelo removido) + calibração do review_threshold + repo público
+### 125. Groq 404 + calibração review_threshold → docs/incidents/2026-09.md #2
 
-Sintoma 1: llama-3.3-70b-versatile removido da API Groq -> 404 + circuit breaker 90s. Sintoma 2: review_threshold 0.70 divergia do gate 0.82 (fila inflada ~646/dia). Sintoma 3: teto de 2.000 min/mês do GitHub Actions era superseed: repo era público (minutos ilimitados). Causa raiz: modelo hardcoded obsoleto; threshold sem calibração empírica; suposição errada sobre free tier. Correção 1: default Groq = qwen/qwen3.8-27b + fallback multi-provider. Correção 2: calibrate_review_threshold.py (read-only) -> threshold 0.78 < gate 0.82. Correção 3: heal-scrapers cron mensal -> 12h e manter repo público. Regressão: testes em test_review_queue_pending.py + calibração executada (504 legados <0.78 rejeitados, reversível).
+### 126. Review_queue fallback threshold legado → docs/incidents/2026-09.md #3
 
-### 126. Teste de fallback da review_queue usava threshold legado 0.70 -> quebrou após calibração 0.78 (2026-09-07)
-Sintoma: CI do merge da Fase A+B (run 34131184972, master) e do PR Fase C (34131474469) falhou no job `integration` com `test_review_queue_fallback - AssertionError: Expected 'insert_review_item' to have been called once. Called 0 times.` (e e2e `test_approve_*` "returned empty" em CI mas green local). Causa raiz: o teste ainda mockava `match_ingredient -> (None, 75.0, "none")` — 0.75 < review_threshold 0.78 calibrado na Sprint 19, então `_queue_for_review` (collector.py:423) descartava o item ANTES de chamar `insert_review_item`. Era uma falha pré-existente na branch A+B (CI 34049418430 já estava vermelha) que só vazou para master no merge. O `approve_review_item` não foi tocado (e2e = flake de Supabase real). Correção (RPR): teste agora usa score 79.0 (banda [0.78, 0.82)) → verde local (1 passed). Regra: testes com score literal de gray-zone DEVEM citar o threshold calibrado de `config/features.yaml` (0.78) e manter score DENTRO da banda [threshold, gate) — 75% vira auto-reject, não fila; e rodar `tests/integration` (real Supabase) antes de abrir PR de matcher.
+### 127. Deploy RPC engole erro + TZ straddle → docs/incidents/2026-09.md #4
 
-### 127. Deploy RPC engole erro primário + TZ straddle em collected_at (2026-09-08)
-Sintoma: `deploy_database.py --execute` reportou 55 WARNs `syntax error at or near CREATE/ALL/TABLE` e `test_approve_duplicate_price_no_23505` falhava local (`assert 9.99 == 11.5`) enquanto passava no CI. Causa raiz 1: o loop de deploy engole a exceção do `exec_sql` e só imprime a do fallback `exec_sql_query` (que embrulha DDL em SELECT — sempre syntax error); os erros reais eram 42710 "already exists" (policies), 42P13 (troca de return type em `find_similar_store`), 42883 (REVOKE/ALTER em overloads/assinaturas fantasmas) e 42809 (RLS/policy em MATERIALIZED VIEW — nunca suportado). Causa raiz 2: `date.today()` local vs `datetime.now(UTC)` caem em dias diferentes perto da meia-noite → chaves de conflito distintas → linha duplicada invisível ao check por data. Correção: `_ensure_policy_drops()` no generator (DROP IF EXISTS antes de todo CREATE POLICY) + DROP da função com return mudado + remoção de REVOKE/ALTER/índice/policy impossíveis (001/009/011/015/vigencia) + normalização de `collected_at` p/ DATE em `price_repository.upsert_price` + pin de data no teste. Regressão: deploy `507 OK, 0 WARN`, ledger 12/12, schema 369/369, e2e 8/8. Regra: todo WARN de deploy exige captura do erro PRIMÁRIO (nunca diagnostique pelo fallback); datas de conflito UNIQUE sempre normalizadas p/ DATE na borda do repositório.
+### 128. E2E PROD paralelo a scrape → docs/incidents/2026-09.md #5
 
-### 128. E2E em PROD paralelo a scrape: cleanup_test_data de main.py varría store de teste do CI (2026-09-08)
-Sintoma: CI #706 (34182267472) falhou só no job `integration` com 3 testes `TestApproveReviewItem.*` → `approve_review_item: store 'Test Review Queue Store' não resolvida` (assert {}), enquanto local rodava 8/8 green; padrão flaky recorrente nos merges (A+B e Fase C). Causa raiz: `main.py` de PROD executa `cleanup_test_data()` em TODO scrape e `services/maintenance_service.py` deleta por prefixo de NOME (`test `/`e2e `/`_test_`/`Cleanup Store `) em `stores`/`review_queue`/`prices`. A fixture name `Test Review Queue Store` casava `test %` → se um scrape/heal rodasse em paralelo à suíte, a store sumia no meio e todo approve retornava {} (e `sync_store_fields` não recria — só atualiza linhas existentes). Correção (RPR, `4c9aaed`): renomeado p/ `Review Queue Store` + id `review_queue_e2e_store` (fora de TODOS os prefixos de cleanup) em `tests/integration/test_review_queue_e2e.py`; `scripts/cleanup_review_queue.py` e `recover_review_queue.py` passam a cobrir AMBOS os nomes legados. Regressão: e2e 8/8 local, CI master 10/10 green. Regra: fixture de integração contra Supabase de PROD NUNCA pode começar com `test `/`e2e `/`_test_` — o `cleanup_test_data()` do `main.py` (prod) deleta por prefixo de nome a cada scrape; e nomes de store são a chave de deleção, não o id.
-### 129. Anti-pattern: `except Exception: return None` em scraper engolia rede/flake (Roldão) (2026-09-08). Sintoma: `get_media()` do `roldao_api_scraper.py` tinha `except Exception → return None`, timeout/429 virava `None` e pulava o encarte sem backoff (o `@_retry_with_backoff` nunca via o `httpx.TransportError`). Correção: `except (HTTPStatusError, TransportError) → raise` (backoff respeitando Retry-After; exauste loga no decorator) + `except Exception → logger.info` (JSON; health é do caller; `info` p/ zero-warn); timeout hardcoded `10.0` → `self._http_timeout` (config).
-### 130. Inputs de `workflow_dispatch` de scrape precisam chegar ao job macOS (2026-09-08). Sintoma: Scrape `--force` Linux não afetava `scrape_macos` (Carrefour/Tiendeo) — as 2 `run:` não interpolavam os inputs. Correção (Fase 1): `${{ inputs.dry_run && '--dry-run' || '' }} ${{ inputs.force && '--force' || '' }}`. Verificado no run `34248070650` (log macOS com `--force`).
-### 131. Regra #7 real: `normalized` pode ser `true`(bool) em alert_service (2026-09-08). Sintoma: `check_price_drops()` lia `p["normalized"]["price_per_kg"]` após `if p.get("normalized")` — bool `true` → `True["price_per_kg"]` explode. Correção: `isinstance(p.get("normalized"), dict)` antes de acessar chaves (AGENTS Regra #7).
-### 132. Schema probe de integração com retry + e2e approve mockando aprendizado de alias (2026-09-08). Sintoma A: suíte unit flaky `RemoteProtocolError ConnectionTerminated` (#124/#117) ao sondar schema via `exec_sql_query`; Correção A: `_SchemaCursor.execute` em `tests/conftest.py` usa `with_retry` (3x, backoff 0.5→10s) sobre `_execute_rpc` (SELECT → idempotente). Sintoma B: `test_review_queue_e2e` (PROD) `test_approve_*` aprendia alias real (`add_alias_to_ingredient`/`_auto_learn_alias`); Correção B: mocka ambos — teste contra PROD mocka qualquer escrita não-objeto-do-teste.
-### 133. Testes de LLM escritos contra flag ON quebraram após desabilitar ai.llm_classifier (2026-09-09). Sintoma: CI #712 (commit f6f77e2) falhou no job `unit` com 4 testes em `test_llm_classifier_new.py` e 5 em `test_flyer_hybrid.py` — sem API keys reais no CI o preflight não achava provider e a flag OFF mudou o fluxo. Causa raiz: (1) os testes mockavam `services.config.get`, MAS `classify_sync` consulta `services.config.get_feature` (import local) — pior: mockar `get` faz o override lookup do `get_feature` retornar o fallback do mock (`True`) e LIGA o LLM indevidamente; (2) `test_flyer_hybrid.py` chamava função inexistente (`collect_from_dense_flyer`), assumia `extract_from_regions` retornar regiões (retorna produtos `{product,price,unit}`) e flyer esparso gerar 0 blocos (gera blocos; o gate de densidade vive em `extract_products_hybrid`, não em `build_price_blocks`); (3) `_text_llm_providers()` retorna no MÁXIMO 1 provider por chamada (via `get_best_provider`), então o teste de fallback entre providers precisava mockar a própria função. Correção (RPR): `test_llm_classifier_new.py` patcha `services.config.get_feature` (`_flag_off`/`_flag_on`) e usa `force=True` no preflight (o cache `LLM_PREFLIGHT` vive em env var e persiste entre testes); `test_flyer_hybrid.py` mocka `get_best_provider`/`_text_llm_providers`, usa as entry points reais, valida o shape de produto e testa o gate de densidade no orquestrador. Regra: testes de feature flag devem (a) patchar EXATAMENTE a função consultada (import local vs module-level são símbolos diferentes), (b) assumir flag OFF como default (feature flag é state real do repositório), (c) nunca mockar `get` quando o código usa `get_feature` (override lookup devolve o fallback do mock e inverte a flag), e (d) validar contra o contrato real do módulo (assinaturas/retornos), nunca contra comportamento imaginado.
-### 134. Ativar `match_threshold` em PROD expôs 2 bugs latentes do matcher + golden obsoleto (2026-09-09). Sintoma: CI #34382842448 (push a72a7cf "fix: deploy migration 021 + sync thresholds") falhou no job `integration`: `test_reject_false_positives_golden_300 - "Golden divergiu em 116 casos"` (todos `(False, True)` = golden esperava KEEP, matcher rejeitou). Reprodução local idêntica (RPR 1 OK). Causa raiz: a coluna `ingredients.match_threshold` só passou a existir no PROD neste deploy (antes `get_active_ingredients` usava SELECT * sem a coluna → matcher SEMPRE caía no fallback global 0.80). Com thresholds reais (8×0.75, 7×0.85) dois bugs latentes apareceram: (1) `match_ingredient` aplicava o gate final (`best_score >= ing_threshold`) com o threshold do **último ingrediente não-excluído da iteração** (ORDER BY canonical_name), não do melhor match — score 75.0 vs Chocolate 70% (gate 0.85) casava se o último da lista tivesse 0.75, e "CARTÃO ROLDÃO PAY" 75.0 casava/derrubava conforme a ordem; (2) `has_excluded_terms` casava por SUBSTRING — marca "Flormel" disparava o termo "mel" e derrubava "Creme de Avelã Flormel" legítimo; (3) golden gerado na era gate-0.60/sem exclude_terms guard ficou obsoleto: os 116 "keep" eram quase todos FPs acolhidos pela era fraca (cartões PAY, cápsulas de café, ovos de páscoa decorativos, chocolates de consumo, fios dentais, areia de gato). Correção (RPR): (1) `best_ing_threshold` acompanha o ingrediente vencedor (gate correto); (2) exclude_terms por fronteira de palavra/frase com plural terminal (`cookie`→`cookies`, mas "Flormel"≠"mel"); (3) golden regenerado com o matcher corrigido + ingredientes ativos do PROD (134 labels flipados, TODOS False→True de FPs; preservados in-scope: Creme de Avelã Flormel 100/exato, Fermento Dona Benta 82.8, UHT integrais 75.5 na banda de revisão). Testes: `test_best_ingredient_threshold_gates_match` (score 75.0 entre gates 0.75/0.85, discrimina o bug), `test_best_ingredient_threshold_positive_control`, `test_exclude_terms_respect_word_boundaries`, `test_exclude_terms_plural_boundary`. Regra: (a) qualquer feature cujo comportamento depende de coluna DEFAULT+sync do DB só fica ATIVA após deploy — revalidar o golden/regressão de decisão no MESMO ciclo que ativa a coluna (RPR, não assumir CI verde do estado "coluna ausente"); (b) gate de match por ingrediente usa o threshold do VENCEDOR, nunca do último da iteração (ordenação é arbitrária do query); (c) guards de exclusão por termo devem casar fronteira de palavra, nunca substring (marcas embutem palavras).
+### 129. Anti-pattern except Exception engole rede → docs/incidents/2026-09.md #6
+
+### 130. Inputs workflow_dispatch não chegam macOS → docs/incidents/2026-09.md #7
+
+### 131. Regra #7: normalized pode ser true(bool) → docs/incidents/2026-09.md #8
+
+### 132. Schema probe retry + e2e mock alias → docs/incidents/2026-09.md #9
+
+### 133. Testes LLM quebram flag OFF → docs/incidents/2026-09.md #10
+
+### 134. Matcher gate threshold + exclude word-boundary → docs/incidents/2026-09.md #11

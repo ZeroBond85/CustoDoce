@@ -4,3 +4,4 @@ heading_pattern: '^### \d+\.'
 no_duplicates: true
 monotonic: true
 checkable: true
+max_lines_per_lesson: 25

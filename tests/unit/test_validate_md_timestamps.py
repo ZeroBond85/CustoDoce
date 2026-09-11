@@ -108,3 +108,19 @@ class TestPolicySkip:
         _write_md(tmp_path, "docs/archive/outro.md", _ts(400))
         issues = validate(tmp_path)
         assert len(issues) == 1
+
+
+class TestFrozenDatedRootReport:
+    def test_security_audit_report_old_skipped(self, tmp_path):
+        # Relatórios-raiz datados são snapshots congelados (a data faz PARTE
+        # do conteúdo) — mesma classe do SCRAPER_ANALYSIS_REPORT.md. Falsa a
+        # freshness, não o registro histórico.
+        _write_md(tmp_path, "SECURITY_AUDIT_REPORT_2026-08.md", _ts(400))
+        assert validate(tmp_path) == []
+
+    def test_live_doc_named_like_report_still_flagged(self, tmp_path):
+        # O prefixo só isenta relatórios-raiz datados; qualquer outro doc,
+        # mesmo com nome similar, continua sujeito a freshness.
+        _write_md(tmp_path, "docs/SECURITY_AUDIT_REPORT_notes.md", _ts(400))
+        issues = validate(tmp_path)
+        assert len(issues) == 1
