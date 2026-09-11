@@ -29,7 +29,7 @@ def _load_workflow(filename: str) -> dict:
 
 def _scrape_callers() -> list[str]:
     """Retorna a lista de callers do workflow reutilizável."""
-    return ["scrape.yml", "on_demand_scrape.yml", "heal-scrapers.yml"]
+    return ["scrape.yml", "on_demand_scrape.yml"]
 
 
 def test_all_scrape_callers_use_reusable():
@@ -278,7 +278,7 @@ def test_all_workflows_have_concurrency():
         if "workflow_call" in on:
             continue
 
-        if name in ("scrape.yml", "on_demand_scrape.yml", "heal-scrapers.yml"):
+        if name in ("scrape.yml", "on_demand_scrape.yml"):
             # Callers delegam concurrency para o job que chama o reusable
             jobs = workflow.get("jobs", {}) or {}
             for job_id, job in jobs.items():

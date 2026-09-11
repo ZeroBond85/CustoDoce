@@ -1,6 +1,6 @@
 # CustoDoce - Memória do Projeto
 
-> **~335 linhas vivo.** Lições → `LESSONS.md`. Regras infra → `REGRAS.md`.
+> **~345 linhas vivo.** Lições → `LESSONS.md`. Regras infra → `REGRAS.md`.
 ## Regras Mandatórias (Top)
 
 1. **Schema contracts**: `config/agents_schema.yaml` define o que entra aqui. CI valida.
@@ -83,7 +83,7 @@ CustoDoce/
 │   ├── ci.yml, ci-e2e-only.yml                       # CI lint/type/test + e2e smoke
 │   ├── e2e.yml, teste_full_manual.yml               # E2E full + teste manual (~55min)
 │   ├── backup.yml, restore-test.yml                  # Backup semanal + restore test
-│   ├── on_demand_scrape.yml, heal-scrapers.yml      # On-demand + auto-heal (a cada 12h, repo público)
+│   ├── on_demand_scrape.yml                         # On-demand (force full collection)
 │   ├── sanitize-check.yml, test_store_recovery.yml   # Sanitize semanal + recovery test
 │   ├── auto-approve.yml                              # Drena review_queue via LLM-confirmed (cron semanal)
 │   ├── skills-maintenance.yml                        # Cron mensal (dia 1, 9am UTC)
@@ -243,12 +243,12 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 
 | Métrica | Valor |
 |---------|-------|
-| pytest (unit + schema, no slow) | 1624 passing |
-| pytest (integration) | 116 passing |
+| pytest (unit + schema, no slow) | 1673 passing |
+| pytest (integration) | 117 passing |
 | pytest (diagnostics, slow) | 4 passing |
 | Schema manifest | 22 tabelas/views com types, not_null, defaults, constraints |
 | Mock validation tests | 127 parametrizados (colunas, tipos, not_null, FKs, CHECK, jsonb) |
-| AGENTS.md | ~360 linhas (matcher gray-zone Fase A + B + C) |
+| AGENTS.md | ~345 linhas (matcher gray-zone Fase A + B + C) |
 | LESSONS.md | 117 lições |
 | REGRAS.md | Ambiente + hooks + comandos |
 | CI lint/type/test | ✅ Todos verdes — mypy **strict** (Python 3.14.6) |

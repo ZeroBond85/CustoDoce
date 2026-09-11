@@ -1,5 +1,5 @@
 # CustoDoce — Buscador de Preços para Confeitaria 🍰
-> Última atualização: 2026-08-12 14:22 UTC
+> Última atualização: 2026-09-11 03:00 UTC
 
 ![Build Status](https://img.shields.io/github/actions/workflow/status/CustoDoce/ci.yml?branch=master)
 ![Version](https://img.shields.io/badge/version-22.1579.94--mvp-blue)
@@ -12,7 +12,7 @@ Sistema automatizado de busca e comparação de preços de ingredientes para con
 
 - 🔍 **Coleta Automatizada**: Varredura 2x/dia de PDFs de atacados, APIs VTEX, sites de e-commerce e agregadores.
 - 🤖 **Inteligência de Matching**: Pipeline multi-estágio (Exato → Alias → Fuzzy → Semantic Embeddings → LLM Groq → Review Queue).
-- 📊 **Dashboard Analítico**: 21 módulos especializados incluindo visão geral, histórico de preços, ranking de fontes, promoções, insights de outliers e health de scrapers.
+- 📊 **Dashboard Analítico**: 22 módulos especializados incluindo visão geral, histórico de preços, ranking de fontes, promoções, insights de outliers, health de scrapers, anomalias de coleta e CI Telemetria.
 - 📱 **Telegram Bot**: Consultas instantâneas via `/preco <ingrediente>`, lista de monitorados e status do sistema, com fuzzy search e paginação inline.
 - 🧮 **Calculadora de Receitas**: Cálculo de custo real baseado nos preços atuais do banco, com salvamento de receitas e cenários de margem.
 - 📧 **Relatórios Diários**: Envio automático de resumo de melhores preços via Gmail SMTP.
@@ -22,7 +22,7 @@ Sistema automatizado de busca e comparação de preços de ingredientes para con
 - 🔗 **Query Params**: Sincronização URL ↔ session_state nas páginas Preços, Histórico e Calculadora (sem loop de rerender).
 - 🔒 **Segurança**: Tabs de edição `.env` e YAML removidas do dashboard (config.py, lojas.py); banner info de sync YAML→DB.
 - ✅ **Smoke Test Real**: `scripts/validate_dashboard_queries.py` valida 10 queries contra Supabase real no CI pós-deploy (pega schema mismatch antes do usuário ver).
-- 🛠️ **Infraestrutura Robusta**: CI/CD com 7 jobs, validação de schema via RPC, ONNX para performance de ML e rate limiting.
+- 🛠️ **Infraestrutura Robusta**: CI/CD com 10 jobs (lint, typecheck, docs-sync, matcher-eval, unit, integration, e2e-smoke, deploy-check, real), validação de schema via RPC, ONNX para performance de ML e rate limiting.
 
 ## 📋 REGRAS DE NEGÓCIO
 
@@ -30,10 +30,10 @@ Sistema automatizado de busca e comparação de preços de ingredientes para con
 Para garantir que "Leite Condensado Moça 395g" seja identificado corretamente como "Leite Condensado Integral", utilizamos um fluxo de confiança:
 1. **Match Exato**: Busca o nome canônico ou apelidos exatos no texto do produto.
 2. **Contido**: Verifica se todas as palavras do ingrediente estão presentes no nome do produto.
-3. **Fuzzy (RapidFuzz)**: Calcula a similaridade de tokens. Matches $\ge 80\%$ são aceitos automaticamente.
-4. **Semantic Blend**: Para casos duvidosos ($55\% - 80\%$), combinamos a similaridade de texto com Embeddings de Vetores (ONNX).
-5. **LLM Classifier (Groq)**: Em zona cinzenta, a IA analisa o contexto para decidir o ingrediente.
-6. **Review Queue**: Tudo que não atinge a confiança mínima vai para revisão humana no Dashboard.
+3. **Fuzzy (RapidFuzz)**: Similaridade de tokens $\ge 80\%$ → persistência direta (match types exato/contido/proximo, com confidence).
+4. **Semantic Blend**: Zona duvidosa ($55\% - 79\%$) combina RapidFuzz (0.6) + embeddings (0.4).
+5. **LLM Classifier (Groq)**: Zona cinzenta ($65\% - 80\%$) — a IA analisa o contexto para decidir o ingrediente.
+6. **Review Queue**: Abaixo do threshold configurado (default `review_threshold` = **0.78**, gate de persistência **0.82**) vai para revisão humana — com auto-approve quando o LLM confirma o top-1 ($\ge 0.85$).
 
 ### Cálculo de Preços e Normalização
 - **Normalização**: Todos os produtos são convertidos para a unidade base (**R$/kg** ou **R$/un**) para permitir comparação justa (ex: lata de 395g $\rightarrow$ preço por kg).
@@ -74,7 +74,7 @@ Para garantir que "Leite Condensado Moça 395g" seja identificado corretamente c
 | Camada | Tecnologia | Papel | Free Tier |
 |--------|------------|-------|-----------|
 | **Banco + API** | Supabase (PostgreSQL) | Armazenamento, RPCs e RLS | 500 MB |
-| **Scrapers** | GitHub Actions | Orquestração e Coleta (Cron) | 2.000 min/mês |
+| **Scrapers** | GitHub Actions | Orquestração e Coleta (Cron) | Ilimitado (repo público) |
 | **Dashboard** | Streamlit Cloud | Interface de Administração e Análise | 1 app privado |
 | **ML/AI** | Sentence-Transformers + Groq | Embeddings ONNX e Classificação LLM | Grátis / API Key |
 | **Bot** | python-telegram-bot | Interface de consulta rápida | Grátis |
@@ -91,7 +91,7 @@ Para garantir que "Leite Condensado Moça 395g" seja identificado corretamente c
 
 O sistema foi desenhado para o **Free Tier**, com as seguintes considerações:
 - **Supabase (500MB)**: Suficiente para milhões de registros de preços. A política de cleanup remove preços com mais de 90 dias para manter o banco leve.
-- **GitHub Actions (2000 min/mês)**: O consumo atual é de $\sim 400$ min/mês. Temos margem para expandir o número de lojas.
+- **GitHub Actions (repo público)**: Minutos **ilimitados** (plano Free vale só para repos privados); cron decide-se por necessidade. Guardrails por job (`timeout-minutes` + `check_time_budget`) protegem contra job travado, não contra cobrança.
 - **Escalabilidade**: Caso a demanda cresça, a migração para o plano *Pro* do Supabase e a utilização de proxies residenciais para scrapers são os próximos passos recomendados.
 
 ## ⚙️ Setup e Instalação
@@ -115,16 +115,19 @@ Para configurar o sistema do zero, siga o [Guia de Deployment detalhado](docs/de
 | **Preços** | Busca detalhada e top 3. | Filtre por ingrediente na barra de busca. | Exportar lista para CSV. |
 | **Histórico** | Evolução temporal. | Selecione o ingrediente e a loja no gráfico. | Analisar tendências sazonais. |
 | **Flyers** | Galeria de encartes. | Navegue pelos PDFs coletados. | Validar extração de OCR. |
-| **Revisão** | Fila de aprovação. | Analise itens com confiança $< 80\%$. | Aprovar ou Rejeitar match. |
+| **Revisão** | Fila de aprovação. | Analise itens com confiança $< 78\%$. | Aprovar ou Rejeitar match. |
 | **Fontes & Ofertas** | Ranking de lojas. | Compare quem tem o melhor preço médio. | Detectar promoções reais. |
 | **Promoções** | Ofertas ativas. | Visualize produtos com maior desconto. | Identificar oportunidades de compra. |
 | **Ranking** | Comparativo direto. | Selecione 2 ou mais lojas para comparar. | Identificar a loja mais barata. |
 | **Insights** | Análise de outliers. | Verifique a lista de "anomalias". | Validar se o preço é erro ou oferta. |
+| **Anomalias** | Monitoramento de coleta. | Veja KPIs de tendência por loja (drift de sucesso/duration). | Detectar scrapers degradando. |
 | **Lojas** | Gestão de lojas. | Edite tiers e status de ativação. | Ativar/Desativar lojas. |
+| **Lojas Pendentes** | Lojas sem match completo. | Revise pendências de cadastro. | Completar dados de loja. |
 | **Ingredientes** | Gestão de canônicos. | Adicione aliases ou termos de busca. | Refinar a precisão do matching. |
 | **Calculadora** | Custos de receitas. | Crie sua receita e adicione itens. | Calcular custo e preço de venda. |
 | **Capacity Planning** | Planejamento de capacidade. | Analise a frequência de coleta por loja. | Otimizar janelas de scraping. |
 | **Scrapers** | Gatilhos de coleta. | Clique em "Run Scraper" para forçar coleta. | Monitorar logs em tempo real. |
+| **CI Telemetria** | Status dos workflows. | Acompanhe runs do GitHub Actions. | Insights de falha por job. |
 | **Scraper Health** | Monitoramento. | Verifique a taxa de sucesso por loja. | Diagnosticar falhas de conexão. |
 | **Relatórios** | Gestão de e-mails. | Configure o template do HTML. | Testar envio de e-mail. |
 | **Configuração** | Secrets e Flags. | Alterne flags no `features.yaml`. | Ativar/Desativar módulos do sistema. |
@@ -199,7 +202,7 @@ O projeto possui uma suíte de testes rigorosa para garantir a estabilidade do M
 ## 📝 GUIA DE CONTRIBUIÇÃO
 Contribuições são bem-vindas! Siga os padrões:
 - **Código**: Use Ruff para linting e Mypy para tipagem.
-- **PRs**: Crie branches para cada feature (`feat/` ou `fix/`) e abra PR para a `main`.
+- **PRs**: Crie branches para cada feature (`feat/` ou `fix/`) e abra PR para a `master`.
 - **Docs**: Atualize a documentação em `docs/` ao alterar funcionalidades.
 Mais detalhes em [docs/contributing.md](docs/contributing.md).
 
@@ -220,30 +223,14 @@ Mais detalhes em [docs/contributing.md](docs/contributing.md).
 - [x] **Sprint 7-9 (Dashboard Modernization)**: `st.navigation()` menu nativo (5 grupos); promocoes integrada (18 páginas); `st.dialog()` + `st.pagination()` + batch form config + KPIs responsive + spinners + labels acessíveis + email hardening. **577 unit+schema = 745 total passing**.
 - [x] **Sprint 10 (Documentation Hygiene)**: sync_docs.py 3 auto-fixers + `--strict` auditor + dedup fix; 40 stale refs corrigidos em 11 `.md`; validate_dashboard_queries.py load_dotenv fix; maintenance_service.py duration_seconds populado; capacity_planning já funcional via diagnostico.py.
 - [x] **Sprint 10.5 (sync_docs v2)**: 5 módulos baseados em markdown-it para classificação heading-aware de stale refs (HISTORICAL/CURRENT/AMBIGUOUS). 19 matches analisados, 5 auto-corrigidos. 1884 testes unitários. Flag `--sync`/`--analyze`. Lição #25 (novo código = novos testes).
-- [ ] **Próximos Passos**: role `dashboard_user` (RLS mínimas), `GRANT EXECUTE TO service_role ONLY`, E2E Playwright setup, fallback normalizer unidades, sync_docs v2 integrado em CI (--check --analyze).
+- [x] **Playwright + sync_docs v2**: E2E Playwright implementado (`e2e-smoke`/`ci-e2e-only`) e `sync_docs v2` integrado no CI (job `docs-sync` com `--check --analyze`).
+- [ ] **Próximos Passos**: role `dashboard_user` (RLS mínimas), `GRANT EXECUTE TO service_role ONLY`, fallback normalizer unidades.
 
 ---
 
-## 🧠 OpenCode Skills Strategy
+## 🧠 OpenCode Skills
 
-This project uses **two layers of OpenCode skills**:
-
-| Layer | Location | Purpose |
-|-------|----------|---------|
-| **Global** | `~/.config/opencode/skills/` | 17 universal skills usable in any project (scraping, code quality, testing, SQL, git, CI/CD, etc.) |
-| **Local (CustoDoce)** | `.opencode/skills/` | 7 overlays that inject CustoDoce-specific context (Telegram commands, Supabase schema, dashboard pages, GHA workflows, etc.) |
-
-**Why this works:**
-- OpenCode merges both layers when you open **this repo** — you get universal patterns + project shortcuts.
-- In any other project, only the **global layer** loads — clean, reusable skills.
-- Overlays are tiny (~30-100 lines each), extend without duplication, and are versioned with the repo.
-- Adding a new project? Just reuse the global skills. The overlays stay here.
-
-**Key global skills** (in `~/.config/opencode/skills/`): `scraping-resilience`, `code-quality-pro`, `test-architect`, `api-design`, `code-review`, `debug-troubleshooting`, `docs-writer`, `git-workflow`, `github-actions`, `project-doc-sync`, `refactor-patterns`, `sql-optimizer`, `streamlit`, `telegram-bot`, `test-generation`, `humanizer`, `seo`, `ui-ux-pro-max`.
-
-**CustoDoce overlays** (in `.opencode/skills/`): `telegram-bot`, `docs-writer`, `sql-optimizer`, `streamlit`, `api-design`, `github-actions`, `project-doc-sync`.
-
-> To validate: open this repo in OpenCode → skills from both layers are listed. Open any other folder → only global skills appear.
+O projeto usa **35 skills locais** (`.opencode/skills/`) que injetam contexto CustoDoce — matching e normalização de preços, scrapers, Supabase (RPC/RLS), Streamlit, Telegram, GitHub Actions free-tier, fluxo de incidentes (RPR) e convenções de docs. A lista canônica está em [`docs/skills.md`](docs/skills.md), gerada por `python scripts/sync_docs.py --sync` (drift é detectado no CI).
 
 ---
 

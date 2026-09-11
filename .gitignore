@@ -182,6 +182,9 @@ data/if_cache/
 /data/portafolhetos_cities.json
 /tests/manual/
 custodocelogobranco.png
+custodocelogo.png
+custodocelogo.png:Zone.Identifier
+*.png:Zone.Identifier
 data/experiment_llm_report.json
 out.txt
 test_debug_regex.py
