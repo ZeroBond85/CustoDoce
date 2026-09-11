@@ -139,6 +139,38 @@ def test_add_incident_creates_and_appends_shard(tmp_path, monkeypatch):
     assert "### 2. Outro" in shard.read_text(encoding="utf-8")
 
 
+def test_add_incident_maintains_timestamp_header(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    month = datetime.now().strftime("%Y-%m")
+    at.add_incident("Flake CI", "- **Sintoma**: run X falhou")
+    shard = tmp_path / "docs" / "incidents" / f"{month}.md"
+    content = shard.read_text(encoding="utf-8")
+    assert f"# Incidentes — {month}" in content
+    assert "> Última atualização: " in content
+
+    # Append another incident — header must stay (and stay right after H1).
+    at.add_incident("Outro", "- **Causa**: Y")
+    content2 = shard.read_text(encoding="utf-8")
+    assert content2.count("> Última atualização: ") == 1
+    head = content2.splitlines()
+    assert head[2].startswith("> Última atualização: ")
+
+
+def test_add_incident_backfills_timestamp_on_existing_shard_without_it(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    month = datetime.now().strftime("%Y-%m")
+    shard = tmp_path / "docs" / "incidents" / f"{month}.md"
+    shard.parent.mkdir(parents=True, exist_ok=True)
+    shard.write_text(f"# Incidentes — {month}\n\n### 1. Antigo\n\n- **Data**: 2026-08-01\ncorpo\n", encoding="utf-8")
+
+    at.add_incident("Novo", "- **Causa**: Y")
+    content = shard.read_text(encoding="utf-8")
+    assert content.count("> Última atualização: ") == 1
+    head = content.splitlines()
+    assert head[2].startswith("> Última atualização: ")
+    assert "### 2. Novo" in content
+
+
 # ═══════════════════════════════════════════════════════════════
 # promote_incident (stub in LESSONS.md)
 # ═══════════════════════════════════════════════════════════════

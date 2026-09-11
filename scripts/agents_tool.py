@@ -369,14 +369,31 @@ def add_lesson(title: str, body: str) -> str:
     return f"Lição #{next_num} adicionada ao LESSONS.md"
 
 
+_TS_PAT = re.compile(r"(?m)^> Última (?:atualização|revisão): .*$")
+
+
 def add_incident(title: str, body: str) -> str:
     """Add incident to monthly shard in docs/incidents/."""
-    from datetime import datetime
-    now = datetime.now()
+    from datetime import UTC, datetime
+    now = datetime.now(UTC)
     shard = Path("docs/incidents") / f"{now.strftime('%Y-%m')}.md"
     shard.parent.mkdir(parents=True, exist_ok=True)
 
-    content = shard.read_text(encoding="utf-8") if shard.exists() else f"# Incidentes — {now.strftime('%Y-%m')}\n\n"
+    ts_line = f"> Última atualização: {now.strftime('%Y-%m-%d %H:%M')} UTC"
+    if shard.exists():
+        content = shard.read_text(encoding="utf-8")
+        if _TS_PAT.search(content):
+            content = _TS_PAT.sub(ts_line, content, count=1)
+        else:
+            content = re.sub(
+                r"(^# Incidentes — .+$)",
+                rf"\1\n\n{ts_line}",
+                content,
+                count=1,
+                flags=re.MULTILINE,
+            )
+    else:
+        content = f"# Incidentes — {now.strftime('%Y-%m')}\n\n{ts_line}\n"
 
     nums = [int(m) for m in re.findall(r"^### (\d+)\.", content, re.MULTILINE)]
     next_id = max(nums) + 1 if nums else 1

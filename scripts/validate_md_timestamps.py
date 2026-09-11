@@ -50,6 +50,9 @@ _EXCLUDE_FILES = {
     "SCRAPER_ANALYSIS_REPORT.md",
     "docs/ux_analysis_plan.md",
 }
+# Idem para relatórios datados recorrentes (SECURITY_AUDIT_REPORT_2026-08.md):
+# o nome é parte do registro histórico, nunca re-timestamps.
+_EXCLUDE_PREFIXES = ("SECURITY_AUDIT_REPORT_",)
 
 
 def validate(root: Path, max_age_days: int = 30) -> list[str]:
@@ -67,7 +70,8 @@ def validate(root: Path, max_age_days: int = 30) -> list[str]:
         rel = md_file.relative_to(root)
         if any(skip in md_file.parts for skip in _SKIP_DIRS):
             continue
-        if str(rel).replace("\\", "/") in _EXCLUDE_FILES:
+        rel_str = str(rel).replace("\\", "/")
+        if rel_str in _EXCLUDE_FILES or rel_str.startswith(_EXCLUDE_PREFIXES):
             continue
 
         # Arquivos que o sync nunca mantém não devem exigir freshness.
