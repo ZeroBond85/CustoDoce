@@ -8,9 +8,9 @@
 
 | Tarefa | Executor | Motivo | Tooling |
 |--------|----------|--------|---------|
-| ruff, mypy, pytest (unit/schema) | **Windows** | Latência zero, sem overhead de WSL | `.venv314` |
-| Dashboard (Streamlit) | **Windows** | Renderização e rede local nativa | `.venv314` |
-| Scripts de deploy, DB, SQL | **Windows** | Python direto via RPC/HTTPS | `.venv314` |
+| ruff, mypy, pytest (unit/schema) | **WSL (Debian)** | Repo nativo no FS WSL; paridade com CI (Ubuntu) | Python 3.14.6 NATIVO |
+| Dashboard (Streamlit) | **WSL (Debian)** | Mesma env do runtime Cloud (paridade) | Python 3.14.6 NATIVO |
+| Scripts de deploy, DB, SQL | **WSL (Debian)** | Python direto via RPC/HTTPS | Python 3.14.6 NATIVO |
 | Shell scripts (.sh), Git complexo | **WSL (Debian)** | PowerShell quebra escapes/heredocs | Bash |
 | `git push` com pre-push completo | **WSL (Debian)** | pre-push roda `sync_docs`, `ci_local`, `schema_mocks` — todas as deps no Python 3.14.6 nativo (`/usr/local/bin/python3.14`) | Python 3.14.6 NATIVO (sem conda) |
 | Simular CI Linux, Scrapers Reais | **WSL (Debian)** | Idêntico ao GitHub Actions (Ubuntu) | Python 3.14.6 NATIVO |
@@ -45,9 +45,9 @@ git add docs/ && git commit              # pre-commit feliz
 **Referência completa WSL:** [`docs/wsl-environment.md`](docs/wsl-environment.md) — comandos validados, paths, Python 3.14.6 nativo, gh CLI, git, regras de ouro.
 1. **Proibido "Misturar" Shells**: Não execute `wsl bash -c '...'` para tarefas que podem rodar em Python no Windows. Use WSL apenas para dependências de SO.
 2. **Isolamento de Paths**:
-   - Windows $\rightarrow$ `C:\Zerobond\Code\CustoDoce`
-   - WSL $\rightarrow$ `~/projects/CustoDoce`
-   - Nunca passe caminhos de Windows para o Bash sem converter para o formato `/mnt/c/`.
+   - WSL $\rightarrow$ `~/projects/CustoDoce` — **repo NATIVO no FS WSL** (migrado; não existe `/mnt/c/...` para este repo)
+   - Windows $\rightarrow$ `\\wsl$\Debian\home\ericsf\projects\CustoDoce` (mesmo caminho, via UNC)
+   - Nunca passe caminhos de Windows para o Bash sem converter para o formato `/mnt/c/` (vale para outros repos ainda em C:\\)
 3. **Default Python**:
    - Windows: `.venv314` (PowerShell)
     - WSL: Python 3.14.6 NATIVO (`/usr/local/bin/python3.14`, Bash)
@@ -70,29 +70,32 @@ git add docs/ && git commit              # pre-commit feliz
    - **Exceção**: Instalação de deps puras Python (ruff, mypy) pode rodar no Windows sem drift.
 
 
-## Windows (PowerShell) — Padrão para Python
-
-```powershell
-python --version    # deve ser 3.14+
-python -m ruff check .
-python -m mypy .
-python -m pytest tests/unit tests/schema -q
-```
-
-## WSL (Debian) — Para Git/Shell/CI
+## WSL (Debian) — Ambiente Canônico (lint/test/scrape/push)
 
 ```bash
-# Sempre usar bash absoluto
-bash /mnt/c/.../scripts/rewrite.sh
+# Python 3.14.6 NATIVO (tarball oficial; miniconda removido)
+/usr/local/bin/python3.14 --version
+cd ~/projects/CustoDoce
+/usr/local/bin/python3.14 -m ruff check .
+/usr/local/bin/python3.14 -m mypy .
+/usr/local/bin/python3.14 -m pytest tests/unit tests/schema -q
 ```
 
-## Configurações Obrigatórias (Windows)
+O repo vive **nativo no FS WSL** (`~/projects/CustoDoce`). Windows acessa via `\\wsl$\Debian\home\ericsf\projects\CustoDoce` (exceção de emergência, nunca rotina — ver `docs/wsl-environment.md`).
+
+## Configurações Obrigatórias — Line Endings por Plataforma
 
 ```powershell
-git config core.hooksPath .githooks   # ativa hooks
-git config core.autocrlf false         # LF = LF (nao converte CRLF)
-git config core.fileMode false         # permissoes nao travam em Windows
+# Windows (repo acessado via \\wsl$ ou C:\...): autocrlf=true OBRIGATÓRIO (AGENTS.md regra 14)
+git config --local core.autocrlf true
 ```
+
+```bash
+# WSL/Linux:
+git config --local core.autocrlf false        # ou input
+```
+
+`.gitattributes` com `eol=lf` por tipo é a fonte da verdade. A guarda `scripts/check_line_endings_config.py` roda no pre-push e falha se a config não bater com a plataforma.
 
 ## Pre-commit Hook (`.githooks/pre-commit`) — 14 camadas
 

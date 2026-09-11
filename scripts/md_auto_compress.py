@@ -4,11 +4,15 @@ Two-pass approach (C+A):
   1. Dedup: merge sections with >=0.85 rapidfuzz similarity
   2. Archive: move low-score sections to docs/archive/<src>/YYYY-MM.md
 
+Deterministic TTL mode (--mode ttl): move sections older than `ttl_months`
+with zero external citations and no keep marker to docs/archive/<src>/YYYY-MM.md.
+
 Reversible via --rollback.
 
 Usage:
     python scripts/md_auto_compress.py --target LESSONS.md --dry-run
     python scripts/md_auto_compress.py --target LESSONS.md --mode all
+    python scripts/md_auto_compress.py --target LESSONS.md --mode ttl
     python scripts/md_auto_compress.py --target LESSONS.md --rollback
 """
 
@@ -31,8 +35,8 @@ _ROOT = Path(__file__).resolve().parent.parent
 _DEFAULT_CONFIG = _ROOT / "config" / "scoring_config.yaml"
 _DEFAULT_ARCHIVE_DIR = _ROOT / "docs" / "archive"
 
-# Max lines per file (matches agents_schema.yaml defaults)
-_MAX_LINES = {"LESSONS.md": 700, "AGENTS.md": 350}
+# Max lines per file (matches lessons_schema.yaml / agents_schema.yaml)
+_MAX_LINES = {"LESSONS.md": 775, "AGENTS.md": 350}
 
 # Regex for section headings
 _RE_LESSON = re.compile(r"^### (\d+)\.\s*(.*)")
@@ -129,6 +133,7 @@ def _load_scoring_config(path: str | None = None) -> dict:
             "preserve_absolute": 6,
             "dedup_similarity": 0.85,
             "buffer_lines": 10,
+            "ttl_months": 6,
         },
     }
 
@@ -180,9 +185,9 @@ def reference_score(section: dict) -> int:
         return 0
 
     patterns = [
-        rf"LESSONS\.md\s+#{sec_id}\b",
-        rf"\blessons?\s+#{sec_id}\b",
-        rf"lesson\s+#{sec_id}\b",
+        rf"LESSONS?\.?md`?\s*#?\s*{sec_id}\b",
+        rf"\blessons?\s+[#n]?\s*{sec_id}\b",
+        rf"\blesson\s+#\s*{sec_id}\b",
     ]
 
     search_dirs = [
@@ -193,9 +198,12 @@ def reference_score(section: dict) -> int:
         _ROOT / "dashboard",
         _ROOT / "scripts",
         _ROOT / "config",
+        _ROOT / "docs",
+        _ROOT / ".opencode",
         _ROOT / ".github" / "workflows",
     ]
     dirs = [str(d) for d in search_dirs if d.exists()]
+    dirs += [str(f) for f in (_ROOT / "AGENTS.md", _ROOT / "REGRAS.md", _ROOT / "README.md") if f.exists()]
     if not dirs:
         return 0
 
@@ -289,7 +297,7 @@ def archive(
     content: str,
     max_lines: int = 700,
     scoring_config: dict | None = None,
-    dry_run: bool = False,
+    dry_run: bool = True,
     archive_dir: str | None = None,
     target: str = "lessons",
 ) -> dict:
@@ -420,6 +428,128 @@ def archive(
     }
 
 
+def apply_ttl(
+    content: str,
+    scoring_config: dict | None = None,
+    dry_run: bool = True,
+    archive_dir: str | None = None,
+    target: str = "lessons",
+) -> dict:
+    """Apply deterministic TTL archive to LESSONS.md sections.
+
+    Moves sections that satisfy ALL of:
+      - explicit date anchor (``**Data + commit**: YYYY-MM-DD``) — sem ancla,
+        nao e elegivel (deterministico);
+      - ``age_months`` > threshold ``ttl_months``; e
+      - ``ref_score`` == 0 (zero citacoes externas no repo); e
+      - sem marcador ``<!-- keep -->``.
+
+    Deterministic: a licao so entra no TTL se tiver ancla de data explicita —
+    uma vez movida, some do conteudo e nao e reprocessada. Dry-run por default;
+    em modo real apenda ao shard mensal + grava entrada em ``_audit.jsonl``.
+    """
+    cfg = scoring_config or _load_scoring_config()
+    ttl_months = int(cfg.get("thresholds", {}).get("ttl_months", 0))
+    sections = parse_lessons(content)
+
+    expired = []
+    for s in sections:
+        if s.get("keep"):
+            continue
+        if not s.get("body") or not _RE_DATE_COMMIT.search(s["body"]):
+            continue
+        if not s.get("ref_score"):
+            s["ref_score"] = reference_score(s)
+        if s["age_months"] <= ttl_months or s["ref_score"] > 0:
+            continue
+        expired.append(s)
+
+    if not expired:
+        return {
+            "content": content,
+            "archived": [],
+            "dry_run": dry_run,
+            "target": target,
+            "ttl_months": ttl_months,
+        }
+
+    ttl_ids = {s["id"] for s in expired}
+    remaining = [s for s in sections if s["id"] not in ttl_ids]
+    header_end = 0
+    first_sec = sections[0] if sections else None
+    if first_sec:
+        idx = content.find(first_sec["raw_text"])
+        if idx >= 0:
+            header_end = idx
+    header = content[:header_end]
+    new_content = header + "\n".join(s["raw_text"] for s in remaining)
+
+    if dry_run:
+        return {
+            "content": content,
+            "archived": expired,
+            "dry_run": True,
+            "target": target,
+            "ttl_months": ttl_months,
+        }
+
+    for a in expired:
+        a["score"] = 0
+        a["reason"] = f"ttl expirado (age={a.get('age_months', 0)}mo > ttl={ttl_months}mo)"
+        a["archived_at"] = datetime.now(UTC).isoformat()
+
+    arch_dir = Path(archive_dir) if archive_dir else (_DEFAULT_ARCHIVE_DIR / target)
+    arch_dir.mkdir(parents=True, exist_ok=True)
+    now = datetime.now(UTC)
+    archive_file = arch_dir / f"{now.strftime('%Y-%m')}.md"
+
+    block_parts = []
+    for a in expired:
+        block_parts.append(f"### {a['id']}. {a['title']}")
+        block_parts.append("")
+        block_parts.append(a.get("body", ""))
+        block_parts.append("")
+        block_parts.append(f"**Arquivada por:** {a.get('reason', 'ttl expirado')}")
+        block_parts.append("")
+    archive_block = "\n".join(block_parts).strip()
+
+    if archive_file.exists():
+        existing = archive_file.read_text(encoding="utf-8").rstrip()
+        archive_content = existing + "\n\n" + archive_block + "\n"
+    else:
+        archive_content = (
+            f"# Licoes Arquivadas — {now.strftime('%Y-%m')}\n\n"
+            f"> TTL auto-archive via md_auto_compress.py --mode ttl em {now.isoformat()}\n"
+            f"> Arquivo origem: {target}\n\n"
+            + archive_block
+            + "\n"
+        )
+    archive_file.write_text(archive_content, encoding="utf-8")
+
+    audit_entry = {
+        "ts": now.isoformat(),
+        "target": target,
+        "mode": "ttl",
+        "ttl_months": ttl_months,
+        "archived_count": len(expired),
+        "archived": [{"id": a["id"], "title": a["title"], "reason": a.get("reason")} for a in expired],
+        "new_file": str(archive_file.relative_to(_ROOT)) if archive_file.is_relative_to(_ROOT) else str(archive_file),
+        "rev_sha": _get_git_sha(),
+    }
+    audit_file = arch_dir / "_audit.jsonl"
+    with open(audit_file, "a", encoding="utf-8") as f:
+        f.write(json.dumps(audit_entry, ensure_ascii=False) + "\n")
+
+    return {
+        "content": new_content,
+        "archived": expired,
+        "dry_run": False,
+        "target": target,
+        "ttl_months": ttl_months,
+        "audit_entry": audit_entry,
+    }
+
+
 # ═══════════════════════════════════════════════════════════════
 # Rollback
 # ═══════════════════════════════════════════════════════════════
@@ -527,6 +657,15 @@ def compress(target_file: str, mode: str = "all", dry_run: bool = True) -> dict:
                 if not s.get("merged_into")
             )
 
+    # Pass TTL: deterministic expiry (dry-run default)
+    if mode == "ttl":
+        result = apply_ttl(content, scoring_config=cfg, dry_run=dry_run, target=src)
+        result["dedup_applied"] = False
+        result["target_file"] = str(target_path)
+        if not dry_run and result.get("content") and result["content"] != content:
+            target_path.write_text(result["content"], encoding="utf-8")
+        return result
+
     # Pass 2: Archive
     if mode in ("all", "archive"):
         result = archive(content, max_lines=max_lines, scoring_config=cfg, dry_run=dry_run, target=src)
@@ -556,7 +695,7 @@ def _resolve_target(target_arg: str) -> str:
 def main():
     parser = argparse.ArgumentParser(description="Auto-compress MD files (dedup + archive)")
     parser.add_argument("--target", default="LESSONS.md", help="Target file (LESSONS.md, AGENTS.md, ...)")
-    parser.add_argument("--mode", choices=["dedup", "archive", "all"], default="all")
+    parser.add_argument("--mode", choices=["dedup", "archive", "all", "ttl"], default="all")
     parser.add_argument("--dry-run", action="store_true", default=True)
     parser.add_argument("--no-dry-run", action="store_false", dest="dry_run")
     parser.add_argument("--auto-yes", action="store_true", help="Internal: apply changes without prompt")
@@ -585,18 +724,28 @@ def main():
 
     archived = result.get("archived", [])
     dedupbed = result.get("dedup_applied", False)
+    ttl_months = result.get("ttl_months")
 
     if dry_run:
         if dedupbed:
             print("[DRY-RUN] Dedup seria aplicado")
-        if archived:
+        if ttl_months is not None:
+            if archived:
+                print(f"[DRY-RUN] TTL({ttl_months}mo): {len(archived)} licao(oes) seria(m) arquivada(s):")
+                for a in archived:
+                    print(f"  — #{a.get('id')} {a.get('title')} (age={a.get('age_months')}mo ref={a.get('ref_score')})")
+            else:
+                print(f"[DRY-RUN] TTL({ttl_months}mo): nenhuma licao expiraria")
+        elif archived:
             print(f"[DRY-RUN] {len(archived)} secao(oes) seria(m) arquivada(s):")
             for a in archived:
                 print(f"  — #{a.get('id')} {a.get('title')} (score={a.get('score')})")
         else:
             print("[OK] Nenhuma alteracao necessaria (dry-run)")
     else:
-        if archived:
+        if ttl_months is not None and archived:
+            print(f"[TTL] {len(archived)} licao(oes) arquivada(s) por expiracao ({ttl_months}mo)")
+        elif archived:
             print(f"[ARCHIVED] {len(archived)} secao(oes) arquivada(s)")
             for a in archived:
                 print(f"  — #{a.get('id')} {a.get('title')}")

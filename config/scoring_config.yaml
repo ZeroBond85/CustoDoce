@@ -16,3 +16,4 @@ thresholds:
   preserve_absolute: 6
   dedup_similarity: 0.85
   buffer_lines: 10
+  ttl_months: 6

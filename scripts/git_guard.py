@@ -3,8 +3,9 @@
 Comandos git mortos no meio da escrita do index deixam `.git/index.lock`
 orfaos (ex.: hook pre-commit lento estourando timeout e sendo morto pelo
 shell). O guard so remove o lock se NENHUM processo git estiver rodando
-(tanto no Windows quanto no WSL, pois o repo vive em /mnt/c acessado pelos
-dois), evitando quebrar operacoes em andamento.
+(tanto no Windows quanto no WSL — agora o repo vive NATIVO no FS WSL em
+~/projects/CustoDoce, acessado pelo Windows via \\wsl$, mas aqui trata-se
+apenas de checar processos do outro lado), evitando quebrar operacoes em andamento.
 
 Uso:
     python scripts/git_guard.py          # remove locks orfaos
