@@ -20,7 +20,7 @@
 
 ### Minutos do GitHub Actions: repo público = ilimitado
 
-O repositório é **público** (`gh repo view` → `visibility: PUBLIC`): standard runners têm **minutos ilimitados** — a quota de 2.000 min/mês do plano Free vale só para repos privados (docs GitHub billing 2026). Consequências: (1) frequência de cron (ex.: heal-scrapers 12h) decide-se por **necessidade, não por orçamento**; a conta de minutos na skill `github-actions` é informativa; (2) guardrails por-job (`timeout-minutes` + `check_time_budget.py`) ficam — protegem contra job travado/runaway, não contra cobrança; (3) **restrição de custo só vale após confirmar `visibility` + billing vigente** — nunca carregar "teto fantasma". Se o repo voltar a ser privado, reverter: teto 2.000 volta a valer.
+O repositório é **público** (`gh repo view` → `visibility: PUBLIC`): standard runners têm **minutos ilimitados** — a quota de 2.000 min/mês do plano Free vale só para repos privados (docs GitHub billing 2026). Consequências: (1) frequência de cron (ex.: scraper-anomaly `*/30`) decide-se por **necessidade, não por orçamento**; a conta de minutos na skill `github-actions` é informativa; (2) guardrails por-job (`timeout-minutes` + `check_time_budget.py`) ficam — protegem contra job travado/runaway, não contra cobrança; (3) **restrição de custo só vale após confirmar `visibility` + billing vigente** — nunca carregar "teto fantasma". Se o repo voltar a ser privado, reverter: teto 2.000 volta a valer.
 
 ### ⚠️ CRLF vs LF: Toda Geração de Docs Roda no WSL
 

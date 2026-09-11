@@ -262,7 +262,7 @@ python scripts/md_auto_compress.py rollback <target> --archive-dir docs/archive/
 | requirements-test.lock | 130+ packages (prod + dev + test) |
 | OpenCode Skills | 35 installed (todas no projeto) |
 | Dashboard pages | 22 módulos (inclui CI Telemetria, Anomalias Scrapers) |
-| Workflows GitHub Actions | 17 otimizados, validados, com check_time_budget |
+| Workflows GitHub Actions | 16 otimizados, validados, com check_time_budget |
 ## OpenCode Skills
 
 Lista canônica em [docs/skills.md](docs/skills.md) — gerado por `python scripts/sync_docs.py --sync`.
